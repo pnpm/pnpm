@@ -114,7 +114,9 @@ fn to_lockfile_form_always_compacts_an_integrity_addressed_revision() {
         path: None,
     });
     assert_eq!(
-        resolution.to_lockfile_form("foo", "1.0.0", undeclared_form(registry, true)).unwrap(),
+        resolution
+            .to_lockfile_form("foo", "1.0.0", undeclared_form(registry, true))
+            .unwrap(),
         LockfileResolution::Registry(RegistryResolution {
             integrity: integrity(REVISION_SHA512),
             revision: Some(TarballRevision::try_from(3).unwrap()),
@@ -136,7 +138,9 @@ fn to_lockfile_form_always_normalizes_an_integrity_addressed_url_without_a_revis
     });
 
     assert_eq!(
-        resolution.to_lockfile_form("foo", "1.0.0", undeclared_form(registry, true)).unwrap(),
+        resolution
+            .to_lockfile_form("foo", "1.0.0", undeclared_form(registry, true))
+            .unwrap(),
         LockfileResolution::Registry(RegistryResolution {
             integrity: integrity(REVISION_SHA512),
             revision: None,

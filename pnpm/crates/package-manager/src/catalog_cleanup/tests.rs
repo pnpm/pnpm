@@ -23,7 +23,12 @@ fn registers_non_semver_packages_by_name_only() {
     let resolved = resolved_package_versions(&lockfile);
 
     assert_eq!(resolved.get("foo").map(std::collections::BTreeSet::len), Some(0));
-    assert_eq!(resolved.get("bar").map(|versions| versions.contains("1.0.0")), Some(true));
+    assert_eq!(
+        resolved
+            .get("bar")
+            .map(|versions| versions.contains("1.0.0")),
+        Some(true),
+    );
 }
 
 /// A registry-qualified snapshot key (`<name>@<registryName>:<version>`)
@@ -40,7 +45,12 @@ fn registers_the_version_of_a_registry_qualified_key() {
 
     let resolved = resolved_package_versions(&lockfile);
 
-    assert_eq!(resolved.get("foo").map(|versions| versions.contains("1.0.0")), Some(true));
+    assert_eq!(
+        resolved
+            .get("foo")
+            .map(|versions| versions.contains("1.0.0")),
+        Some(true),
+    );
 }
 
 /// With `sharedWorkspaceLockfile: false` the install anchors the wanted

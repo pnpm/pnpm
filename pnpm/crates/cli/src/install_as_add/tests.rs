@@ -12,7 +12,13 @@ use std::{ffi::OsString, path::Path};
 
 fn rewritten(tokens: &[&str]) -> Vec<String> {
     let cmd = with_boolean_negations(CliArgs::command());
-    let argv = relocate_pre_subcommand_flags(&cmd, tokens.iter().map(OsString::from).collect());
+    let argv = relocate_pre_subcommand_flags(
+        &cmd,
+        tokens
+            .iter()
+            .map(OsString::from)
+            .collect(),
+    );
     rewrite(&cmd, argv)
         .into_iter()
         .map(|token| token.into_string().expect("test tokens are UTF-8"))
@@ -20,7 +26,12 @@ fn rewritten(tokens: &[&str]) -> Vec<String> {
 }
 
 fn parse(tokens: &[&str]) -> CliArgs {
-    parse_argv(tokens.iter().map(OsString::from).collect())
+    parse_argv(
+        tokens
+            .iter()
+            .map(OsString::from)
+            .collect(),
+    )
 }
 
 fn parse_argv(argv: Vec<OsString>) -> CliArgs {

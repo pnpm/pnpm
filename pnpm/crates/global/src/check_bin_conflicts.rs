@@ -94,9 +94,16 @@ pub fn check_global_bin_conflicts(
 fn bins_by_owner(new_pkgs: &[PackageBinSource]) -> HashMap<String, Vec<String>> {
     let mut new_bin_owners: HashMap<String, Vec<String>> = HashMap::new();
     for pkg in new_pkgs {
-        let pkg_name = pkg.manifest.get("name").and_then(Value::as_str).unwrap_or("").to_string();
+        let pkg_name = pkg.manifest
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
         for bin in get_bins_from_package_manifest::<Host>(&pkg.manifest, &pkg.location) {
-            new_bin_owners.entry(bin.name).or_default().push(pkg_name.clone());
+            new_bin_owners
+                .entry(bin.name)
+                .or_default()
+                .push(pkg_name.clone());
         }
     }
     new_bin_owners
@@ -117,7 +124,11 @@ fn check_installed_dep(
     bins_to_skip: &mut HashSet<String>,
 ) -> Result<(), CheckGlobalBinConflictsError> {
     let Some(manifest) = read_package_json(dep_dir) else { return Ok(()) };
-    let manifest_name = manifest.get("name").and_then(Value::as_str).unwrap_or("").to_string();
+    let manifest_name = manifest
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
     for bin in get_bins_from_package_manifest::<Host>(&manifest, dep_dir) {
         if !installed.conflicting.contains(&bin.name) {
             continue;
@@ -184,5 +195,8 @@ pub fn bin_slot_exists(global_bin_dir: &Path, name: &str) -> bool {
     if global_bin_dir.join(name).exists() {
         return true;
     }
-    cfg!(windows) && global_bin_dir.join(format!("{name}.exe")).exists()
+    cfg!(windows)
+        && global_bin_dir
+            .join(format!("{name}.exe"))
+            .exists()
 }

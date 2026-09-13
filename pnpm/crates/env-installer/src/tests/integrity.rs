@@ -73,7 +73,9 @@ async fn migrates_old_inline_integrity_format() {
     .unwrap();
 
     assert!(
-        root.path().join("node_modules/.pnpm-config/@pnpm.e2e/foo/package.json").exists(),
+        root.path()
+            .join("node_modules/.pnpm-config/@pnpm.e2e/foo/package.json")
+            .exists(),
         "migrated config dep is installed",
     );
     let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");

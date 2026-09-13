@@ -101,7 +101,11 @@ pub(super) fn merge_ranges(
         return Some(ranges[0].to_string());
     }
     let mut seen: HashSet<&str> = HashSet::default();
-    let unique: Vec<&str> = ranges.iter().copied().filter(|&range| seen.insert(range)).collect();
+    let unique: Vec<&str> = ranges
+        .iter()
+        .copied()
+        .filter(|&range| seen.insert(range))
+        .collect();
     if unique.len() == 1 {
         return Some(ranges[0].to_string());
     }
@@ -155,11 +159,14 @@ pub(super) fn collapse_covered_alternatives(range: &Range) -> Range {
     let mut kept: Vec<&str> = Vec::with_capacity(alternatives.len());
     for (index, alternative) in parsed.iter().enumerate() {
         // Of two alternatives that cover each other, only the first is kept.
-        let covered = parsed.iter().enumerate().any(|(other_index, other)| {
-            other_index != index
-                && other.allows_all(alternative)
-                && (other_index < index || !alternative.allows_all(other))
-        });
+        let covered = parsed
+            .iter()
+            .enumerate()
+            .any(|(other_index, other)| {
+                other_index != index
+                    && other.allows_all(alternative)
+                    && (other_index < index || !alternative.allows_all(other))
+            });
         if !covered {
             kept.push(alternatives[index]);
         }

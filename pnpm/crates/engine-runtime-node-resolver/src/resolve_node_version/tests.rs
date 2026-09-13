@@ -59,13 +59,17 @@ async fn empty_selector_picks_latest_version() {
     let picked = resolve_node_version(&http_client, "", Some(&base_url)).await.unwrap();
     assert_eq!(picked, Some("22.1.0".to_string()));
 
-    let picked = resolve_node_versions(&http_client, Some(""), Some(&base_url)).await.unwrap();
+    let picked = resolve_node_versions(&http_client, Some(""), Some(&base_url))
+        .await
+        .unwrap();
     assert_eq!(picked, vec!["22.1.0"]);
 
     let picked = resolve_node_version(&http_client, "  ", Some(&base_url)).await.unwrap();
     assert_eq!(picked, Some("22.1.0".to_string()));
 
-    let picked = resolve_node_versions(&http_client, Some("  "), Some(&base_url)).await.unwrap();
+    let picked = resolve_node_versions(&http_client, Some("  "), Some(&base_url))
+        .await
+        .unwrap();
     assert_eq!(picked, vec!["22.1.0"]);
 }
 

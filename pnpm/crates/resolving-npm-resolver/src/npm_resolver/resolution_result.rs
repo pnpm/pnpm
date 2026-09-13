@@ -62,10 +62,7 @@ pub(crate) fn build_resolve_result(
         ),
         resolution,
         resolved_via: args.registry.resolved_via.to_string(),
-        normalized_bare_specifier: args
-            .specifier
-            .spec
-            .normalized_bare_specifier
+        normalized_bare_specifier: args.specifier.spec.normalized_bare_specifier
             .clone()
             .or(args.specifier.calculated_specifier),
         alias: args.specifier.alias.map(str::to_string),
@@ -91,8 +88,8 @@ pub(super) fn calculated_specifier(
 ) -> Option<String> {
     revision_specifier(wanted_dependency, opts, spec, None, &spec.name, &picked.version.version)
         .or_else(|| {
-            calc_specifier_from(wanted_dependency, opts, spec).map(
-                |(bare_specifier, default_pin)| {
+            calc_specifier_from(wanted_dependency, opts, spec)
+                .map(|(bare_specifier, default_pin)| {
                     crate::calc_specifier(
                         bare_specifier,
                         wanted_dependency.prev_specifier.as_deref(),
@@ -100,8 +97,7 @@ pub(super) fn calculated_specifier(
                         &picked.version,
                         default_pin,
                     )
-                },
-            )
+                })
         })
 }
 
@@ -152,12 +148,17 @@ pub(super) fn dist_integrity(
     if let Some(integrity) = &dist.integrity {
         return Ok(Some(integrity.clone()));
     }
-    let Some(shasum) = dist.shasum.as_deref().filter(|shasum| !shasum.is_empty()) else {
+    let Some(shasum) = dist.shasum
+        .as_deref()
+        .filter(|shasum| !shasum.is_empty())
+    else {
         return Ok(None);
     };
-    Integrity::from_hex(shasum, Algorithm::Sha1).map(Some).map_err(|_| {
-        Box::new(InvalidTarballIntegrityError::new(&dist.tarball, shasum)) as ResolveError
-    })
+    Integrity::from_hex(shasum, Algorithm::Sha1)
+        .map(Some)
+        .map_err(|_| {
+            Box::new(InvalidTarballIntegrityError::new(&dist.tarball, shasum)) as ResolveError
+        })
 }
 
 /// The `(specifier, pin)` pair a manifest-ready specifier is computed
@@ -193,8 +194,9 @@ pub(crate) fn revision_specifier(
         return None;
     };
     let target = format!("{version}+r{revision}");
-    let alias_matches =
-        wanted_dependency.alias.as_deref().is_none_or(|alias| alias == package_name);
+    let alias_matches = wanted_dependency.alias
+        .as_deref()
+        .is_none_or(|alias| alias == package_name);
     match prefix {
         Some(prefix) if alias_matches => Some(format!("{prefix}{target}")),
         Some(prefix) => Some(format!("{prefix}{package_name}@{target}")),
@@ -248,7 +250,9 @@ pub(super) fn latest_allowed_by_policy<'a>(
         match policy.matches(&meta.name) {
             PolicyMatch::AnyVersion => return Some(latest),
             PolicyMatch::ExactVersions(versions)
-                if versions.iter().any(|exact| exact == latest) =>
+                if versions
+                    .iter()
+                    .any(|exact| exact == latest) =>
             {
                 return Some(latest);
             }
@@ -279,7 +283,9 @@ pub(super) fn detect_min_release_age_violation(
         match policy.matches(&name.to_string()) {
             PolicyMatch::AnyVersion => return None,
             PolicyMatch::ExactVersions(versions)
-                if versions.iter().any(|exact| exact == version) =>
+                if versions
+                    .iter()
+                    .any(|exact| exact == version) =>
             {
                 return None;
             }
@@ -337,10 +343,10 @@ pub(crate) fn prefixed_calculated_specifier(
     name: &str,
     picked: &PackageVersion,
 ) -> Option<String> {
-    revision_specifier(wanted_dependency, opts, spec, Some(prefix), name, &picked.version).or_else(
-        || {
-            calc_specifier_from(wanted_dependency, opts, spec).map(
-                |(bare_specifier, default_pin)| {
+    revision_specifier(wanted_dependency, opts, spec, Some(prefix), name, &picked.version)
+        .or_else(|| {
+            calc_specifier_from(wanted_dependency, opts, spec)
+                .map(|(bare_specifier, default_pin)| {
                     crate::calc_prefixed_specifier(
                         prefix,
                         name,
@@ -350,10 +356,8 @@ pub(crate) fn prefixed_calculated_specifier(
                         picked,
                         default_pin,
                     )
-                },
-            )
-        },
-    )
+                })
+        })
 }
 
 /// Emit the tarball URL already supplied by the picker, which the install path

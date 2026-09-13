@@ -70,7 +70,10 @@ impl ProcessTracker {
                 return false;
             }
             state.cancelled = true;
-            state.executions.values().cloned().collect::<Vec<_>>()
+            state.executions
+                .values()
+                .cloned()
+                .collect::<Vec<_>>()
         };
         #[cfg(unix)]
         let descendants = descendant_processes(std::process::id());
@@ -173,8 +176,7 @@ struct Registration<'tracker> {
 impl Drop for Registration<'_> {
     fn drop(&mut self) {
         let Some(id) = self.id else { return };
-        self.tracker
-            .state
+        self.tracker.state
             .lock()
             .expect("process tracker lock is not poisoned")
             .executions
@@ -220,7 +222,11 @@ fn descendant_processes(root: u32) -> Vec<i32> {
     let mut descendants = Vec::new();
     let mut stack = vec![root];
     while let Some(parent) = stack.pop() {
-        for &pid in children.get(&parent).into_iter().flatten() {
+        for &pid in children
+            .get(&parent)
+            .into_iter()
+            .flatten()
+        {
             stack.push(pid);
             if let Ok(pid) = i32::try_from(pid) {
                 descendants.push(pid);
@@ -236,7 +242,9 @@ fn descendant_processes(root: u32) -> Vec<i32> {
 #[cfg(unix)]
 fn process_listing() -> Option<String> {
     let mut command = Command::new("/bin/ps");
-    command.args(["-A", "-o", "pid=", "-o", "ppid="]).stdout(Stdio::piped());
+    command
+        .args(["-A", "-o", "pid=", "-o", "ppid="])
+        .stdout(Stdio::piped());
     let mut child = command.spawn().ok()?;
     let mut stdout = child.stdout.take()?;
     let output = std::thread::spawn(move || {
@@ -277,7 +285,10 @@ fn parse_parent_child_pids(listing: &str) -> HashMap<u32, Vec<u32>> {
         let (Ok(pid), Ok(parent)) = (pid.parse(), parent.parse()) else {
             continue;
         };
-        children.entry(parent).or_default().push(pid);
+        children
+            .entry(parent)
+            .or_default()
+            .push(pid);
     }
     children
 }

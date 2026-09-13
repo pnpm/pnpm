@@ -38,8 +38,7 @@ pub(super) fn drop_stale_importers(
     plan: &ImportersPlan<'_, '_>,
     edits: &mut GraphEdits,
 ) -> bool {
-    if plan
-        .stale
+    if plan.stale
         .iter()
         .any(|importer_id| is_linked_from_a_survivor(candidate, importer_id, &plan.stale))
     {
@@ -73,7 +72,11 @@ pub(super) fn apply_one_importer_update(
     plan: &ImportersPlan<'_, '_>,
     edits: &mut GraphEdits,
 ) -> bool {
-    let ImporterUpdate { importer_id, manifest, manifest_dependencies } = *entry;
+    let ImporterUpdate {
+        importer_id,
+        manifest,
+        manifest_dependencies,
+    } = *entry;
     let records_nothing = importers.get(importer_id.as_str()).is_none_or(records_no_dependencies);
     if records_nothing && !manifest_dependencies.is_empty() {
         let Some(new_importer) =
@@ -244,7 +247,10 @@ pub(super) fn importer_from_locked_versions(
         specifiers.insert(alias.to_string(), (*specifier).to_string());
     }
     importer.specifiers = Some(specifiers);
-    importer.dependencies_meta = manifest.value().get("dependenciesMeta").cloned();
+    importer.dependencies_meta = manifest
+        .value()
+        .get("dependenciesMeta")
+        .cloned();
     (importer.publish_directory, importer.link_directory) = manifest_publish_config(manifest);
     Some(importer)
 }
@@ -270,8 +276,7 @@ pub(super) fn add_importer_edge(
     let (specifier, target) = declared;
     // A recorded specifier with nothing to point at is a lockfile only the
     // resolver can make sense of.
-    if importer
-        .specifiers
+    if importer.specifiers
         .as_ref()
         .is_some_and(|specifiers| specifiers.contains_key(&alias.to_string()))
     {
@@ -314,13 +319,15 @@ pub(super) fn insert_importer_edge(
     let Ok(version) = wanted.to_string().parse() else {
         return false;
     };
-    importer_group(importer, target).get_or_insert_default().insert(
-        alias.clone(),
-        ResolvedDependencySpec {
-            specifier: specifier.to_string(),
-            version: ImporterDepVersion::Regular(version),
-        },
-    );
+    importer_group(importer, target)
+        .get_or_insert_default()
+        .insert(
+            alias.clone(),
+            ResolvedDependencySpec {
+                specifier: specifier.to_string(),
+                version: ImporterDepVersion::Regular(version),
+            },
+        );
     if let Some(specifiers) = importer.specifiers.as_mut() {
         specifiers.insert(alias.to_string(), specifier.to_string());
     }

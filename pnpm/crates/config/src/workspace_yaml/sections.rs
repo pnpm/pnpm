@@ -38,7 +38,10 @@ impl AllowBuild {
 /// policy, dropping the ones still awaiting a decision.
 #[must_use]
 pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMap<String, bool> {
-    allow_builds.into_iter().filter_map(|(pkg, value)| Some((pkg, value.decided()?))).collect()
+    allow_builds
+        .into_iter()
+        .filter_map(|(pkg, value)| Some((pkg, value.decided()?)))
+        .collect()
 }
 
 /// Organization-owned dependency build artifacts eligible for this workspace.

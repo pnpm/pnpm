@@ -15,7 +15,10 @@ impl Walker<'_> {
         let cyclic_peer_names = self.cyclic_peer_names();
         let mut final_dep_paths: HashMap<NodeId, DepPath> = HashMap::default();
         let mut visiting = HashSet::default();
-        let mut node_ids: Vec<NodeId> = self.nodes.external_peers.keys().cloned().collect();
+        let mut node_ids: Vec<NodeId> = self.nodes.external_peers
+            .keys()
+            .cloned()
+            .collect();
         node_ids.sort();
         for node_id in node_ids {
             self.final_dep_path_for_node(
@@ -118,8 +121,7 @@ impl Walker<'_> {
         if self.opts.dedupe_peers && self.tree.dependencies_tree.contains_key(peer_node_id) {
             return pair();
         }
-        if context
-            .scc_of
+        if context.scc_of
             .get(node_id)
             .is_some_and(|node_scc| context.scc_of.get(peer_node_id) == Some(node_scc))
         {
@@ -148,8 +150,7 @@ impl Walker<'_> {
         if !self.opts.scope.collect_paths_by_node_id {
             return HashMap::default();
         }
-        self.caches
-            .node_dep_paths
+        self.caches.node_dep_paths
             .keys()
             .map(|node_id| (node_id.clone(), self.final_dep_path_of(node_id, final_dep_paths)))
             .collect()
@@ -200,10 +201,15 @@ impl Walker<'_> {
 
         let mut graph: BTreeMap<String, BTreeSet<&str>> = BTreeMap::new();
         for (pkg_id, edges) in edges_of_pkg {
-            graph.entry(pkg_name(&self.tree.packages[pkg_id].result)).or_default().extend(edges);
+            graph
+                .entry(pkg_name(&self.tree.packages[pkg_id].result))
+                .or_default()
+                .extend(edges);
         }
-        let peer_names: Vec<&str> =
-            graph.values().flat_map(|edges| edges.iter().copied()).collect();
+        let peer_names: Vec<&str> = graph
+            .values()
+            .flat_map(|edges| edges.iter().copied())
+            .collect();
         for peer_name in peer_names {
             if !graph.contains_key(peer_name) {
                 graph.insert(peer_name.to_string(), BTreeSet::default());
@@ -222,9 +228,7 @@ impl Walker<'_> {
     /// in [`Self::final_peer_id`]: a cycle through a cache-hit
     /// occurrence is a cycle through its owner.
     pub(super) fn peer_sccs(&self) -> (Vec<Vec<NodeId>>, HashMap<NodeId, usize>) {
-        let mut participants: Vec<NodeId> = self
-            .nodes
-            .external_peers
+        let mut participants: Vec<NodeId> = self.nodes.external_peers
             .iter()
             .filter(|(_, peers)| !peers.is_empty())
             .map(|(node_id, _)| self.cache_owner_node_id(node_id).clone())
@@ -233,9 +237,7 @@ impl Walker<'_> {
         participants.dedup();
         let participant_set: HashSet<NodeId> = participants.iter().cloned().collect();
         let neighbors = |node_id: &NodeId| -> Vec<NodeId> {
-            let mut out: Vec<NodeId> = self
-                .nodes
-                .external_peers
+            let mut out: Vec<NodeId> = self.nodes.external_peers
                 .get(node_id)
                 .into_iter()
                 .flat_map(|peers| peers.values())

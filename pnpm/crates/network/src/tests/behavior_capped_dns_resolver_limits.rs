@@ -338,7 +338,11 @@ async fn mockito_integration_no_proxy_bypasses_proxy() {
     .expect("valid proxy");
     let guard = client.acquire().await;
     let url = format!("{}{}", target_server.url(), target_path);
-    let resp = guard.get(&url).send().await.expect("direct request");
+    let resp = guard
+        .get(&url)
+        .send()
+        .await
+        .expect("direct request");
     assert_eq!(resp.status(), 200);
     assert_eq!(resp.text().await.expect("body"), "direct");
     proxy_mock.assert_async().await;
@@ -402,7 +406,10 @@ async fn socks5_proxy_connects_to_real_target() {
         assert_eq!(greeting[0], 5);
         let mut methods = vec![0; usize::from(greeting[1])];
         inbound.read_exact(&mut methods).await.expect("read SOCKS5 methods");
-        inbound.write_all(&[5, 0]).await.expect("accept no-auth method");
+        inbound
+            .write_all(&[5, 0])
+            .await
+            .expect("accept no-auth method");
 
         let mut request = [0; 4];
         inbound.read_exact(&mut request).await.expect("read SOCKS5 request");
@@ -431,8 +438,7 @@ async fn socks5_proxy_connects_to_real_target() {
             .write_all(&[5, 0, 0, 1, 127, 0, 0, 1, (port >> 8) as u8, port as u8])
             .await
             .expect("accept SOCKS5 connect");
-        tokio::io::copy_bidirectional(&mut inbound, &mut outbound)
-            .await
+        tokio::io::copy_bidirectional(&mut inbound, &mut outbound).await
             .expect("forward SOCKS5 traffic");
     });
 
@@ -626,12 +632,14 @@ async fn acquire_for_url_routes_per_registry_then_falls_back() {
         "scoped and default URLs must route through different reqwest clients",
     );
 
-    let scoped_guard = throttled
-        .acquire_for_url_without_redirects_with_priority("https://reg.example.com/pkg", 0)
-        .await;
-    let default_guard = throttled
-        .acquire_for_url_without_redirects_with_priority("https://other.example.org/pkg", 0)
-        .await;
+    let scoped_guard =
+        throttled.acquire_for_url_without_redirects_with_priority("https://reg.example.com/pkg", 0)
+            .await;
+    let default_guard = throttled.acquire_for_url_without_redirects_with_priority(
+        "https://other.example.org/pkg",
+        0,
+    )
+    .await;
     let scoped_ptr: *const reqwest::Client = &raw const *scoped_guard;
     let default_ptr: *const reqwest::Client = &raw const *default_guard;
     assert_ne!(

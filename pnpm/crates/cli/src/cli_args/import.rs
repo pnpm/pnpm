@@ -21,7 +21,10 @@ pub struct ImportArgs {
 
 impl ImportArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
-        let dir = state.manifest.path().parent().expect("manifest path always has a parent dir");
+        let dir = state.manifest
+            .path()
+            .parent()
+            .expect("manifest path always has a parent dir");
         let lockfile_dir = state.lockfile_dir();
         let lockfile_path = state.lockfile_path();
         let env_lockfile = if state.config.wanted_lockfile_name() == Lockfile::FILE_NAME {
@@ -32,14 +35,7 @@ impl ImportArgs {
             None
         };
 
-        if let Some(pnpr_server) =
-            self.pnpr_server.as_deref().or(state.config.pnpr_server.as_deref())
-        {
-            let pnpr_server = redact_url_for_display(pnpr_server);
-            pnpm_reporter::emit_global_warning::<Reporter>(&format!(
-                r#""pnpm import" resolves dependencies locally, so the pnpr server at {pnpr_server} is not used"#,
-            ));
-        }
+        self.warn_ignored_pnpr_server::<Reporter>(state.config);
 
         let preferred_versions = to_preferred_versions(&read_foreign_lockfile_versions(dir)?);
 
@@ -67,6 +63,17 @@ impl ImportArgs {
         });
 
         finish_import(import_result, &lockfile_path, &lockfile_backup, lockfile_existed)
+    }
+
+    fn warn_ignored_pnpr_server<Reporter: self::Reporter>(&self, config: &pnpm_config::Config) {
+        if let Some(pnpr_server) =
+            self.pnpr_server.as_deref().or(config.pnpr_server.as_deref())
+        {
+            let pnpr_server = redact_url_for_display(pnpr_server);
+            pnpm_reporter::emit_global_warning::<Reporter>(&format!(
+                r#""pnpm import" resolves dependencies locally, so the pnpr server at {pnpr_server} is not used"#,
+            ));
+        }
     }
 }
 

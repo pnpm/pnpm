@@ -32,7 +32,10 @@ fn pack_uses_embed_readme_and_manifest_obfuscation_settings() {
     )
     .unwrap();
 
-    pacquet.with_arg("pack").assert().success();
+    pacquet
+        .with_arg("pack")
+        .assert()
+        .success();
 
     let manifest = read_manifest_from_tarball(&workspace.join("pkg-1.0.0.tgz"));
     assert_eq!(manifest["readme"], "# Packed README\n");
@@ -73,7 +76,10 @@ fn packing_reuses_the_hooks_that_updated_config() {
     )
     .expect("write .pnpmfile.cjs");
 
-    pacquet.with_arg("pack").assert().success();
+    pacquet
+        .with_arg("pack")
+        .assert()
+        .success();
 
     let manifest = read_manifest_from_tarball(&workspace.join("pkg-1.0.0.tgz"));
     assert_eq!(manifest["devDependencies"]["is-odd"], "3.0.1");
@@ -111,7 +117,10 @@ fn external_lockfile_dir_supplies_packing_hooks() {
     )
     .expect("write lockfile-root pnpmfile");
 
-    pacquet.with_arg("pack").assert().success();
+    pacquet
+        .with_arg("pack")
+        .assert()
+        .success();
 
     let manifest = read_manifest_from_tarball(&workspace.join("pkg-1.0.0.tgz"));
     assert_eq!(manifest["dependencies"]["is-odd"], "3.0.1");
@@ -121,8 +130,13 @@ fn external_lockfile_dir_supplies_packing_hooks() {
 
 #[test]
 fn pack_installs_config_dependencies_before_loading_hooks() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(
         workspace.join("package.json"),
@@ -134,7 +148,10 @@ fn pack_installs_config_dependencies_before_loading_hooks() {
     settings.push_str("\nconfigDependencies:\n  '@pnpm/plugin-pnpmfile': 1.0.0\n");
     fs::write(workspace_yaml, settings).expect("write configDependencies");
 
-    pacquet.with_arg("pack").assert().success();
+    pacquet
+        .with_arg("pack")
+        .assert()
+        .success();
 
     assert!(
         workspace.join("node_modules/.pnpm-config/@pnpm/plugin-pnpmfile/pnpmfile.cjs").is_file(),
@@ -415,8 +432,8 @@ fn recursive_pack_reports_results_in_dependency_order() {
         "recursive pack failed: {}",
         String::from_utf8_lossy(&output.stderr),
     );
-    let results: serde_json::Value =
-        serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
+    let results: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .unwrap_or_else(|error| {
             panic!(
                 "parse recursive pack JSON: {error}; stdout={:?}; stderr={:?}",
                 String::from_utf8_lossy(&output.stdout),
@@ -468,7 +485,11 @@ fn config_ignore_scripts_override_suppresses_prepack() {
     fs::remove_file(&marker).expect("remove marker");
     fs::remove_file(&tarball).expect("remove the first tarball");
 
-    let CommandTempCwd { pacquet: ignoring, root: ignoring_root, .. } = CommandTempCwd::init();
+    let CommandTempCwd {
+        pacquet: ignoring,
+        root: ignoring_root,
+        ..
+    } = CommandTempCwd::init();
     ignoring
         .with_current_dir(&workspace)
         .with_arg("pack")
@@ -565,10 +586,12 @@ process.exitCode = stage === process.env.FAILING_STAGE ? 1 : 0;
     let mut expected_stdout = String::new();
     let mut expected_stderr = String::new();
     for stage in stages {
-        writeln!(expected_stdout, "{{\"error\":{{\"code\":\"{stage}\"}}}}\n{stage} stdout")
-            .expect("write expected stdout");
-        writeln!(expected_stderr, "$ node lifecycle.cjs {stage}\n{stage} stderr")
-            .expect("write expected stderr");
+        writeln!(expected_stdout, "{{\"error\":{{\"code\":\"{stage}\"}}}}\n{stage} stdout").expect(
+            "write expected stdout",
+        );
+        writeln!(expected_stderr, "$ node lifecycle.cjs {stage}\n{stage} stderr").expect(
+            "write expected stderr",
+        );
         if Some(stage) == failing_stage {
             break;
         }
@@ -597,7 +620,10 @@ fn pack_json_prints_structured_errors_without_lifecycle_scripts() {
     fs::write(workspace.join("package.json"), json!({ "name": "pack-json" }).to_string())
         .expect("write package.json");
 
-    let output = pacquet.with_args(["pack", "--json"]).output().expect("run pack --json");
+    let output = pacquet
+        .with_args(["pack", "--json"])
+        .output()
+        .expect("run pack --json");
     let stdout = String::from_utf8(output.stdout).expect("UTF-8 stdout");
     let stderr = String::from_utf8(output.stderr).expect("UTF-8 stderr");
     eprintln!("status: {}; stdout:\n{stdout}\nstderr:\n{stderr}", output.status);

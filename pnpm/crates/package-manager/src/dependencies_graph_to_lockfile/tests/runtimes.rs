@@ -55,7 +55,10 @@ fn the_first_unkeyable_node_in_graph_order_is_the_reported_one() {
         );
         node.dep_path = DepPath::from(format!("!broken-{name}!"));
         assert!(
-            node.dep_path.as_str().parse::<PackageKey>().is_err(),
+            node.dep_path
+                .as_str()
+                .parse::<PackageKey>()
+                .is_err(),
             "the fixture path must not key a snapshot row",
         );
         graph.insert(node.dep_path.clone(), node);

@@ -41,7 +41,9 @@ fn hierarchy_nests_recursively() {
     root_children.insert(PathBuf::from("/repo/node_modules/accepts"), inner.clone());
     let root = DepHierarchy(root_children);
 
-    let accepts = root.0.get(&PathBuf::from("/repo/node_modules/accepts")).expect("accepts entry");
+    let accepts = root.0
+        .get(&PathBuf::from("/repo/node_modules/accepts"))
+        .expect("accepts entry");
     assert_eq!(accepts, &inner);
     assert_eq!(accepts.0.len(), 1);
 }
@@ -84,11 +86,16 @@ fn walker_transitive_dep_flattens_under_root() {
 
     let modules = lockfile_dir.join("node_modules");
     assert_eq!(
-        result.graph.keys().cloned().collect::<Vec<_>>(),
+        result.graph
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
         vec![modules.join("a"), modules.join("b")],
         "both nodes hoisted to root, sorted by dir",
     );
-    let a_node = result.graph.get(&modules.join("a")).expect("a in graph");
+    let a_node = result.graph
+        .get(&modules.join("a"))
+        .expect("a in graph");
     assert_eq!(
         a_node.children.get("b"),
         Some(&modules.join("b")),

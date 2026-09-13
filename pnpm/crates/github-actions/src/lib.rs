@@ -37,7 +37,10 @@ pub fn normalize_selector(selector: &str) -> String {
     if !is_selector(selector) {
         return selector.to_string();
     }
-    selector.rsplit_once('@').map_or(selector, |(name, _)| name).to_string()
+    selector
+        .rsplit_once('@')
+        .map_or(selector, |(name, _)| name)
+        .to_string()
 }
 
 #[must_use]
@@ -46,7 +49,10 @@ pub fn selector_matcher(selectors: &[String]) -> Option<Matcher> {
         return None;
     }
     Some(create_matcher(
-        &selectors.iter().map(|selector| normalize_selector(selector)).collect::<Vec<_>>(),
+        &selectors
+            .iter()
+            .map(|selector| normalize_selector(selector))
+            .collect::<Vec<_>>(),
     ))
 }
 
@@ -135,8 +141,10 @@ async fn update_with_runner<Reporter: self::Reporter, Runner: GitCommandRunner +
     runner: &Runner,
 ) -> miette::Result<Vec<OutdatedGitHubAction>> {
     let plans = create_plan::<Reporter, _>(root, matcher, server_url, runner).await?;
-    let updates =
-        plans.into_iter().filter(|plan| plan_is_outdated(plan, latest)).collect::<Vec<_>>();
+    let updates = plans
+        .into_iter()
+        .filter(|plan| plan_is_outdated(plan, latest))
+        .collect::<Vec<_>>();
     apply_workflow_edits(planned_edits(&updates, latest)).await?;
     Ok(to_outdated(updates, latest, server_url))
 }
@@ -162,8 +170,7 @@ async fn create_plan<Reporter: self::Reporter, Runner: GitCommandRunner + Sync>(
     server_url: &str,
     runner: &Runner,
 ) -> miette::Result<Vec<PlannedUpdate>> {
-    let actions = discover(root)
-        .await?
+    let actions = discover(root).await?
         .into_iter()
         .filter(|action| {
             matcher.is_none_or(|matcher| {
@@ -171,7 +178,10 @@ async fn create_plan<Reporter: self::Reporter, Runner: GitCommandRunner + Sync>(
             })
         })
         .collect::<Vec<_>>();
-    let repos = actions.iter().map(|action| action.repo.clone()).collect::<BTreeSet<_>>();
+    let repos = actions
+        .iter()
+        .map(|action| action.repo.clone())
+        .collect::<BTreeSet<_>>();
     let refs_by_repo = versions_by_repo::<Reporter, Runner>(repos, server_url, runner).await;
     let mut plans = Vec::new();
     for action in actions {
@@ -222,21 +232,25 @@ fn plan_action_update(
     versions: &[RepoVersion],
 ) -> miette::Result<Option<PlannedUpdate>> {
     let Some(current) = find_current(&action, versions) else { return Ok(None) };
-    let wanted_range = SemverRange::parse(format!("^{}", current.version)).map_err(|error| {
-        miette::miette!(
-            "Failed to create a compatible GitHub Action range for {}: {error}",
-            current.version,
-        )
-    })?;
+    let wanted_range = SemverRange::parse(format!("^{}", current.version))
+        .map_err(|error| {
+            miette::miette!(
+                "Failed to create a compatible GitHub Action range for {}: {error}",
+                current.version,
+            )
+        })?;
     let candidates = versions
         .iter()
         .filter(|candidate| {
-            !current.version.pre_release.is_empty() || candidate.version.pre_release.is_empty()
+            !current.version.pre_release.is_empty()
+                || candidate.version.pre_release.is_empty()
         })
         .collect::<Vec<_>>();
     let Some(latest) = candidates.last() else { return Ok(None) };
-    let Some(wanted) =
-        candidates.iter().rev().find(|candidate| wanted_range.satisfies(&candidate.version))
+    let Some(wanted) = candidates
+        .iter()
+        .rev()
+        .find(|candidate| wanted_range.satisfies(&candidate.version))
     else {
         return Ok(None);
     };
@@ -258,7 +272,10 @@ fn repo_versions(refs: &HashMap<String, String>) -> Vec<RepoVersion> {
             }
             let version = parse_version(tag)?;
             Some(RepoVersion {
-                commit: refs.get(&format!("{ref_}^{{}}")).unwrap_or(commit).clone(),
+                commit: refs
+                    .get(&format!("{ref_}^{{}}"))
+                    .unwrap_or(commit)
+                    .clone(),
                 tag: tag.to_string(),
                 version,
             })
@@ -279,18 +296,25 @@ fn find_current(action: &ActionReference, versions: &[RepoVersion]) -> Option<Re
         return Some(current.clone());
     }
     if let Some(version) = parse_version(&action.ref_) {
-        return versions.iter().find(|candidate| candidate.version == version).cloned();
+        return versions
+            .iter()
+            .find(|candidate| candidate.version == version)
+            .cloned();
     }
     if let Ok(major) = action.ref_.trim_start_matches('v').parse::<u64>() {
         return versions
             .iter()
             .rfind(|candidate| {
-                candidate.version.major == major && candidate.version.pre_release.is_empty()
+                candidate.version.major == major
+                    && candidate.version.pre_release.is_empty()
             })
             .cloned();
     }
     if is_sha(&action.ref_) {
-        return versions.iter().rfind(|candidate| candidate.commit == action.ref_).cloned();
+        return versions
+            .iter()
+            .rfind(|candidate| candidate.commit == action.ref_)
+            .cloned();
     }
     None
 }
@@ -331,7 +355,9 @@ impl WorkflowValue {
 }
 
 fn parse_version(input: &str) -> Option<Version> {
-    Version::parse(input).or_else(|_| Version::parse(input.trim_start_matches('v'))).ok()
+    Version::parse(input)
+        .or_else(|_| Version::parse(input.trim_start_matches('v')))
+        .ok()
 }
 
 fn to_outdated(
@@ -366,22 +392,32 @@ fn resolve_server_url(server_url: Option<&str>) -> miette::Result<String> {
     let url = server_url
         .filter(|url| !url.is_empty())
         .map(str::to_string)
-        .or_else(|| std::env::var("GITHUB_SERVER_URL").ok().filter(|url| !url.is_empty()))
+        .or_else(|| {
+            std::env::var("GITHUB_SERVER_URL")
+                .ok()
+                .filter(|url| !url.is_empty())
+        })
         .unwrap_or_else(|| "https://github.com".to_string());
     validate_server_url(&url)
 }
 
 fn validate_server_url(url: &str) -> miette::Result<String> {
-    let parsed = url::Url::parse(url).ok().filter(|parsed| {
-        parsed.host_str().is_some() && pnpm_network::is_url_secure_for_credentials(parsed.as_str())
-    });
+    let parsed = url::Url::parse(url)
+        .ok()
+        .filter(|parsed| {
+            parsed.host_str().is_some()
+                && pnpm_network::is_url_secure_for_credentials(parsed.as_str())
+        });
     let Some(parsed) = parsed else {
         return Err(miette::miette!(
             code = "ERR_PNPM_GITHUB_ACTIONS_SERVER_PROTOCOL",
             "The GitHub Actions server URL must use HTTPS, except for HTTP on loopback hosts",
         ));
     };
-    Ok(parsed.as_str().trim_end_matches('/').to_string())
+    Ok(parsed
+        .as_str()
+        .trim_end_matches('/')
+        .to_string())
 }
 
 fn global_warn<Reporter: self::Reporter>(message: String) {

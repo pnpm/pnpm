@@ -32,7 +32,18 @@ async fn jsr_specifier_suppresses_latest_when_published_by_holds_back_raw_latest
         },
         ..ResolveOptions::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
-    assert_eq!(result.package.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.0.0");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        result.package.name_ver
+            .as_ref()
+            .expect("name_ver")
+            .suffix
+            .to_string(),
+        "1.0.0",
+    );
     assert!(result.package.latest.is_none(), "immature dist-tags.latest suppresses the hint");
 }

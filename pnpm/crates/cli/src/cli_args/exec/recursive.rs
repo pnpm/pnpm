@@ -139,9 +139,7 @@ fn resumed_exec_task_graph(
     full_task_graph: &TaskGraph,
     task_run_state_context: &TaskRunStateContext,
 ) -> miette::Result<TaskGraph> {
-    let resume_anchor = args
-        .workspace
-        .resume_from
+    let resume_anchor = args.workspace.resume_from
         .as_ref()
         .map(|resume_from| find_resume_root(resume_from, graph))
         .transpose()?;
@@ -163,7 +161,11 @@ fn resumed_exec_task_graph(
 
 /// The tasks a resumed run starts with already completed.
 fn initially_completed(full_task_graph: &TaskGraph, task_graph: &TaskGraph) -> HashSet<TaskKey> {
-    full_task_graph.keys().filter(|key| !task_graph.contains_key(*key)).cloned().collect()
+    full_task_graph
+        .keys()
+        .filter(|key| !task_graph.contains_key(*key))
+        .cloned()
+        .collect()
 }
 
 /// One recursive exec, ready to be scheduled over its task graph.

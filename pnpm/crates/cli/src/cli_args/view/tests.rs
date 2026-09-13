@@ -161,7 +161,11 @@ fn render_fields_multi_text_formats_by_type() {
     // An absent field renders as `field = ` with an empty value.
     let with_absent = ["missing".to_string(), "name".to_string()];
     let out2 = render_fields(&info, &with_absent, false);
-    assert!(out2.lines().any(|line| line == "missing = "), "{out2}");
+    assert!(
+        out2.lines()
+            .any(|line| line == "missing = "),
+        "{out2}",
+    );
 }
 
 #[test]

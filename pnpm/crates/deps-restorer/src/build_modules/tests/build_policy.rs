@@ -24,7 +24,12 @@ fn deferred_builds_uses_only_the_supplied_snapshots() {
     let requires_build = HashMap::from([(first.clone(), true), (second, true)]);
 
     assert_eq!(
-        deferred_builds(requires_build.iter().filter(|(key, _)| *key == &first), true),
+        deferred_builds(
+            requires_build
+                .iter()
+                .filter(|(key, _)| *key == &first),
+            true
+        ),
         [first.to_string()],
     );
 }
@@ -610,7 +615,10 @@ fn using_side_effects_cache_skips_rebuild() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS
+                .lock()
+                .expect("lock")
+                .push(event.clone());
         }
     }
 
@@ -747,7 +755,9 @@ fn using_side_effects_cache_skips_rebuild() {
     // returned `Err(BuildModulesError::LifecycleScript(...))` from
     // `.run()`.
     let captured = EVENTS.lock().expect("lock").clone();
-    let any_lifecycle = captured.iter().any(|e| matches!(e, LogEvent::Lifecycle(_)));
+    let any_lifecycle = captured
+        .iter()
+        .any(|e| matches!(e, LogEvent::Lifecycle(_)));
     assert!(!any_lifecycle, "side-effects cache hit must skip lifecycle scripts: {captured:#?}");
 
     // The script was skipped, but the cached build output still has to

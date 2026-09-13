@@ -123,7 +123,13 @@ pub struct RedactedHeaders<'a>(pub &'a HeaderMap);
 
 impl fmt::Debug for RedactedHeaders<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_map().entries(self.0.keys().map(|name| (name.as_str(), "<redacted>"))).finish()
+        f.debug_map()
+            .entries(
+                self.0
+                    .keys()
+                    .map(|name| (name.as_str(), "<redacted>")),
+            )
+            .finish()
     }
 }
 
@@ -273,26 +279,30 @@ pub(super) fn resolve_upstream_config<Sys: EnvVar>(
     // Parse the verdaccio interval knobs, turning a typo'd value into a
     // config error (named for the offending field) rather than silently
     // falling back to the default.
-    let parse_field = |field: &str,
-                       raw: &Option<Interval>|
-     -> Result<Option<Duration>, RegistryError> {
-        raw.as_ref()
-            .map(|Interval(value)| {
-                parse_interval(value).ok_or_else(|| RegistryError::InvalidConfig {
-                    reason: format!("upstream {name:?} has an invalid {field} interval {value:?}"),
+    let parse_field =
+        |field: &str, raw: &Option<Interval>| -> Result<Option<Duration>, RegistryError> {
+            raw.as_ref()
+                .map(|Interval(value)| {
+                    parse_interval(value)
+                        .ok_or_else(|| RegistryError::InvalidConfig {
+                            reason: format!(
+                                "upstream {name:?} has an invalid {field} interval {value:?}",
+                            ),
+                        })
                 })
-            })
-            .transpose()
-    };
+                .transpose()
+        };
     let maxage = parse_field("maxage", &file.maxage)?;
     let timeout = parse_field("timeout", &file.timeout)?.unwrap_or(UpstreamConfig::DEFAULT_TIMEOUT);
     let fail_timeout = parse_field("fail_timeout", &file.fail_timeout)?
         .unwrap_or(UpstreamConfig::DEFAULT_FAIL_TIMEOUT);
-    let access = file.access.as_ref().map(|spec| spec.to_access_list(teams)).transpose().map_err(
-        |reason| RegistryError::InvalidConfig {
+    let access = file.access
+        .as_ref()
+        .map(|spec| spec.to_access_list(teams))
+        .transpose()
+        .map_err(|reason| RegistryError::InvalidConfig {
             reason: format!("upstream {name:?} has an invalid `access` list: {reason}"),
-        },
-    )?;
+        })?;
 
     Ok(UpstreamConfig {
         url: file.url,
@@ -321,8 +331,8 @@ fn upstream_headers<Sys: EnvVar>(
 ) -> Result<HeaderMap, RegistryError> {
     let mut headers = HeaderMap::new();
     if let Some(auth) = &file.auth {
-        let token =
-            resolve_upstream_token::<Sys>(auth).ok_or_else(|| RegistryError::InvalidConfig {
+        let token = resolve_upstream_token::<Sys>(auth)
+            .ok_or_else(|| RegistryError::InvalidConfig {
                 reason: format!(
                     "upstream {name:?} has an auth block but no token could be resolved \
                      (set auth.token or point auth.token_env at a set env var)",
@@ -332,19 +342,19 @@ fn upstream_headers<Sys: EnvVar>(
             UpstreamAuthType::Bearer => format!("Bearer {token}"),
             UpstreamAuthType::Basic => format!("Basic {token}"),
         };
-        let value = HeaderValue::from_str(&value).map_err(|_| RegistryError::InvalidConfig {
-            reason: format!("upstream {name:?} auth token is not a valid header value"),
-        })?;
+        let value = HeaderValue::from_str(&value)
+            .map_err(|_| RegistryError::InvalidConfig {
+                reason: format!("upstream {name:?} auth token is not a valid header value"),
+            })?;
         headers.insert(AUTHORIZATION, value);
     }
     for (raw_name, raw_value) in &file.headers {
-        let header_name = HeaderName::from_bytes(raw_name.as_bytes()).map_err(|_| {
-            RegistryError::InvalidConfig {
+        let header_name = HeaderName::from_bytes(raw_name.as_bytes())
+            .map_err(|_| RegistryError::InvalidConfig {
                 reason: format!("upstream {name:?} has an invalid header name {raw_name:?}"),
-            }
-        })?;
-        let header_value =
-            HeaderValue::from_str(raw_value).map_err(|_| RegistryError::InvalidConfig {
+            })?;
+        let header_value = HeaderValue::from_str(raw_value)
+            .map_err(|_| RegistryError::InvalidConfig {
                 reason: format!("upstream {name:?} header {raw_name:?} has an invalid value"),
             })?;
         headers.insert(header_name, header_value);
@@ -389,14 +399,19 @@ pub(super) fn parse_interval(raw: &str) -> Option<Duration> {
 /// and `"1m 30s"` both parse.
 fn parse_interval_term(raw: &str) -> Option<(f64, &str)> {
     let raw = raw.trim_start();
-    let number_end =
-        raw.bytes().position(|byte| !(byte.is_ascii_digit() || byte == b'.')).unwrap_or(raw.len());
+    let number_end = raw
+        .bytes()
+        .position(|byte| !(byte.is_ascii_digit() || byte == b'.'))
+        .unwrap_or(raw.len());
     if number_end == 0 {
         return None;
     }
     let number: f64 = raw[..number_end].parse().ok()?;
     let rest = &raw[number_end..];
-    let unit_end = rest.bytes().position(|byte| !byte.is_ascii_alphabetic()).unwrap_or(rest.len());
+    let unit_end = rest
+        .bytes()
+        .position(|byte| !byte.is_ascii_alphabetic())
+        .unwrap_or(rest.len());
     let seconds = match &rest[..unit_end] {
         "ms" => number / 1000.0,
         "s" | "" => number,

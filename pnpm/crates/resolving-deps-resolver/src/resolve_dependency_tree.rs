@@ -369,8 +369,12 @@ where
         wanted.push((name.to_string(), range.to_string(), optional, injected));
     }
     record_changed_direct_deps(&ctx, pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY, &wanted);
-    let parent_pkg_aliases =
-        ParentPkgAliases::root(wanted.iter().map(|(alias, ..)| alias.clone()).collect());
+    let parent_pkg_aliases = ParentPkgAliases::root(
+        wanted
+            .iter()
+            .map(|(alias, ..)| alias.clone())
+            .collect(),
+    );
     let direct = extend_tree(
         &ctx,
         resolver,
@@ -389,7 +393,10 @@ where
 /// `ResolvedPackage.optional` propagation starts from the right
 /// per-direct-dep value.
 pub(crate) fn importer_optional_dependency_names(manifest: &PackageManifest) -> HashSet<String> {
-    manifest.dependencies([DependencyGroup::Optional]).map(|(name, _)| name.to_string()).collect()
+    manifest
+        .dependencies([DependencyGroup::Optional])
+        .map(|(name, _)| name.to_string())
+        .collect()
 }
 
 /// Collect the names of the importer manifest's `dependenciesMeta` entries
@@ -419,7 +426,9 @@ fn dependency_is_injected(manifest: &Value, name: &str) -> bool {
 }
 
 fn dependency_meta_is_injected(meta: &Value) -> bool {
-    meta.get("injected").and_then(Value::as_bool).unwrap_or(false)
+    meta.get("injected")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
 }
 
 /// Build the importer's direct-dependency wanted specs: the manifest's

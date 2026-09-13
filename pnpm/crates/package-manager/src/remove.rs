@@ -68,7 +68,11 @@ pub enum RemoveError {
 
 impl Remove<'_> {
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), RemoveError> {
-        let Self { options: remove, resources: owned, manifest } = self;
+        let Self {
+            options: remove,
+            resources: owned,
+            manifest,
+        } = self;
         validate_removable(manifest, remove.package_names, remove.save_type)
             .map_err(RemoveError::Validation)?;
         prepare_manifest::<Reporter>(manifest, remove.package_names, remove.save_type);
@@ -97,7 +101,11 @@ impl Remove<'_> {
         self,
         selected: SelectedProjects<'_>,
     ) -> Result<(), RemoveError> {
-        let Self { options: remove, resources: owned, manifest } = self;
+        let Self {
+            options: remove,
+            resources: owned,
+            manifest,
+        } = self;
         let selected_indices = selected_project_indices(
             selected.projects,
             selected.ordered_dirs,
@@ -114,9 +122,7 @@ impl Remove<'_> {
             remove.package_names,
             remove.save_type,
         );
-        let workspace_root = remove.config.workspace_dir.clone().unwrap_or_else(|| {
-            manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf()
-        });
+        let workspace_root = removal_workspace_root(remove.config, manifest);
 
         let ignored_builds = remove_install(remove, owned, manifest)
             .run_selected::<Reporter>(selected.selection())
@@ -294,10 +300,14 @@ fn validate_removable(
         return Err(RemoveValidationError::MustRemoveSomething);
     }
     let available_dependencies = manifest.available_dependency_names(save_type);
-    let available_lookup: HashSet<&str> =
-        available_dependencies.iter().map(String::as_str).collect();
-    let non_matched_dependencies: Vec<&String> =
-        package_names.iter().filter(|name| !available_lookup.contains(name.as_str())).collect();
+    let available_lookup: HashSet<&str> = available_dependencies
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let non_matched_dependencies: Vec<&String> = package_names
+        .iter()
+        .filter(|name| !available_lookup.contains(name.as_str()))
+        .collect();
     if non_matched_dependencies.is_empty() {
         return Ok(());
     }
@@ -333,6 +343,18 @@ fn cannot_remove_missing_deps(
     write!(message, "no such {noun} found{in_field}").unwrap();
     let hint = format!("Available dependencies: {}", available_dependencies.join(", "));
     RemoveValidationError::CannotRemoveMissingDeps { message, hint: Some(hint) }
+}
+
+fn removal_workspace_root(config: &Config, manifest: &PackageManifest) -> std::path::PathBuf {
+    config.workspace_dir
+        .clone()
+        .unwrap_or_else(|| {
+            manifest
+                .path()
+                .parent()
+                .expect("manifest path always has a parent dir")
+                .to_path_buf()
+        })
 }
 
 #[cfg(test)]

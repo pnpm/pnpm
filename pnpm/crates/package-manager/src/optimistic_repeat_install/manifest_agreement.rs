@@ -234,16 +234,18 @@ pub(crate) fn assert_wanted_lockfile_equals_current(
         .map_err(|_| "the current lockfile cannot be loaded")?;
     match current {
         None => {
-            let any_deps = wanted.importers.values().any(|snapshot| {
-                snapshot
-                    .dependencies_by_groups([
-                        DependencyGroup::Prod,
-                        DependencyGroup::Dev,
-                        DependencyGroup::Optional,
-                    ])
-                    .next()
-                    .is_some()
-            });
+            let any_deps = wanted.importers
+                .values()
+                .any(|snapshot| {
+                    snapshot
+                        .dependencies_by_groups([
+                            DependencyGroup::Prod,
+                            DependencyGroup::Dev,
+                            DependencyGroup::Optional,
+                        ])
+                        .next()
+                        .is_some()
+                });
             if any_deps {
                 Err("the lockfile requires dependencies but none were installed")
             } else {
@@ -292,8 +294,10 @@ pub(crate) fn linked_packages_are_up_to_date(
         let Some(lockfile_deps) = snapshot.get_map_by_group(group) else {
             continue;
         };
-        let Some(manifest_deps) =
-            manifest.value().get(manifest_field).and_then(|value| value.as_object())
+        let Some(manifest_deps) = manifest
+            .value()
+            .get(manifest_field)
+            .and_then(|value| value.as_object())
         else {
             continue;
         };
@@ -375,8 +379,7 @@ fn linked_package_dir<'a>(
 ) -> Option<std::borrow::Cow<'a, Path>> {
     match link_target {
         Some(target) => Some(std::borrow::Cow::Owned(project_dir.join(target))),
-        None => dep
-            .version
+        None => dep.version
             .as_regular()
             .map(std::string::ToString::to_string)
             .and_then(|version| ctx.workspace_packages.get(dep_name)?.get(&version))
@@ -401,7 +404,9 @@ pub(crate) fn ref_is_local_directory(specifier: &str) -> bool {
 pub(crate) fn spec_is_distribution_tag(spec: &str) -> bool {
     !spec.is_empty()
         && spec.parse::<node_semver::Range>().is_err()
-        && spec.chars().all(|char| char.is_ascii_alphanumeric() || matches!(char, '-' | '_' | '.'))
+        && spec
+            .chars()
+            .all(|char| char.is_ascii_alphanumeric() || matches!(char, '-' | '_' | '.'))
 }
 
 /// Strip the `workspace:` / `npm:` envelope so the remainder can be
@@ -413,7 +418,10 @@ pub(crate) fn version_range_of_spec(spec: &str) -> &str {
     if let Some(rest) = spec.strip_prefix("npm:") {
         // `npm:<alias>@<range>` — the `@` search starts at index 1 so a
         // leading scope `@` isn't mistaken for the separator.
-        return match rest.get(1..).and_then(|tail| tail.find('@')) {
+        return match rest
+            .get(1..)
+            .and_then(|tail| tail.find('@'))
+        {
             Some(at) => {
                 let range = &rest[at + 2..];
                 if range.is_empty() { "*" } else { range }
@@ -440,11 +448,8 @@ pub(crate) fn stat_manifests<'a>(
     project_manifests
         .iter()
         .map(|(root_dir, manifest)| {
-            file_mtime(manifest.path()).map(|mtime| ManifestStat {
-                root_dir: root_dir.as_path(),
-                manifest,
-                mtime,
-            })
+            file_mtime(manifest.path())
+                .map(|mtime| ManifestStat { root_dir: root_dir.as_path(), manifest, mtime })
         })
         .collect()
 }

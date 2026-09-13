@@ -72,8 +72,7 @@ async fn record_package_manager_pins(
         if let Some((pm, version_spec)) = declared_package_manager(request) {
             let reference = resolve_project_pin(state.config, pm, version_spec.as_deref()).await?;
             let reference = reference.as_deref();
-            let manifest = state
-                .manifest
+            let manifest = state.manifest
                 .value_mut()
                 .as_object_mut()
                 .ok_or(EngineError::ManifestIsNotAnObject)?;
@@ -93,7 +92,10 @@ impl RecordedPins {
         if self.recorded.is_empty() {
             return Ok(());
         }
-        state.manifest.save().map_err(miette::Report::new).wrap_err("save the manifest")
+        state.manifest
+            .save()
+            .map_err(miette::Report::new)
+            .wrap_err("save the manifest")
     }
 
     /// Report what was declared, once it is on disk.
@@ -123,10 +125,17 @@ where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
     let lockfile_path = state.lockfile_path();
-    let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
-        &mut state;
-    let lockfile =
-        lockfile.get().map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+    let State {
+        tarball_mem_cache,
+        http_client,
+        config,
+        manifest,
+        lockfile,
+        resolved_packages,
+    } = &mut state;
+    let lockfile = lockfile
+        .get()
+        .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
 
     Add {
         manifest,
@@ -158,9 +167,14 @@ async fn add_workspace_config_dependencies<Reporter: self::Reporter>(
     state: &State,
     added: &BTreeMap<String, String>,
 ) -> miette::Result<()> {
-    let root_dir = state.config.workspace_dir.clone().unwrap_or_else(|| {
-        state.manifest.path().parent().map_or_else(|| PathBuf::from("."), Path::to_path_buf)
-    });
+    let root_dir = state.config.workspace_dir
+        .clone()
+        .unwrap_or_else(|| {
+            state.manifest
+                .path()
+                .parent()
+                .map_or_else(|| PathBuf::from("."), Path::to_path_buf)
+        });
     config_deps::add_config_dependencies::<Reporter>(state.config, &root_dir, added).await
 }
 
@@ -254,14 +268,12 @@ impl AddArgs {
         let supported_architectures =
             self.supported_architectures.apply_to(state.config.supported_architectures.clone());
         let save_catalog_name = self.effective_save_catalog_name(state.config);
-        let dependency_groups = self
-            .dependency_options
+        let dependency_groups = self.dependency_options
             .clone()
             .with_save_peer_setting(state.config.save_peer)
             .save_target();
         let lockfile_path = state.lockfile_path();
-        let lockfile = state
-            .lockfile
+        let lockfile = state.lockfile
             .get()
             .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
 
@@ -296,8 +308,9 @@ impl AddArgs {
         config: &Config,
         selection: &InstallFamilySelection,
     ) -> miette::Result<Vec<String>> {
-        if let Some(request) =
-            self.package_names.iter().find(|request| declared_package_manager(request).is_some())
+        if let Some(request) = self.package_names
+            .iter()
+            .find(|request| declared_package_manager(request).is_some())
         {
             return Err(AddError::PackageManagerInSelection { request: request.clone() }.into());
         }
@@ -313,8 +326,7 @@ impl AddArgs {
     }
 
     fn effective_save_catalog_name(&self, config: &Config) -> Option<String> {
-        self.save
-            .catalog_name
+        self.save.catalog_name
             .clone()
             .or_else(|| self.save.catalog.then(|| "default".to_string()))
             .or_else(|| config.save_catalog_name.clone())

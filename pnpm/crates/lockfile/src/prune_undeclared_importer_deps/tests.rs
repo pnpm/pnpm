@@ -49,7 +49,13 @@ fn keeps_every_declared_dependency() {
         &manifest(json!({ "dependencies": { "foo": "^1.0.0", "bar": "^2.0.0" } })),
         true,
     );
-    assert_eq!(importer.dependencies.as_ref().expect("dependencies").len(), 2);
+    assert_eq!(
+        importer.dependencies
+            .as_ref()
+            .expect("dependencies")
+            .len(),
+        2,
+    );
 }
 
 #[test]
@@ -75,7 +81,13 @@ devDependencies:
         true,
     );
     assert!(importer.dev_dependencies.is_none());
-    assert_eq!(importer.dependencies.as_ref().expect("dependencies").len(), 1);
+    assert_eq!(
+        importer.dependencies
+            .as_ref()
+            .expect("dependencies")
+            .len(),
+        1,
+    );
 }
 
 #[test]
@@ -90,7 +102,13 @@ fn keeps_an_auto_installed_peer() {
         })),
         true,
     );
-    assert_eq!(importer.dependencies.as_ref().expect("dependencies").len(), 2);
+    assert_eq!(
+        importer.dependencies
+            .as_ref()
+            .expect("dependencies")
+            .len(),
+        2,
+    );
 }
 
 #[test]
@@ -105,7 +123,13 @@ fn drops_a_peer_that_is_not_auto_installed() {
         })),
         false,
     );
-    assert_eq!(importer.dependencies.as_ref().expect("dependencies").len(), 1);
+    assert_eq!(
+        importer.dependencies
+            .as_ref()
+            .expect("dependencies")
+            .len(),
+        1,
+    );
 }
 
 /// Folding every peer into `dependencies` would strip this one from
@@ -132,7 +156,13 @@ devDependencies:
         })),
         true,
     );
-    assert_eq!(importer.dev_dependencies.as_ref().expect("devDependencies").len(), 1);
+    assert_eq!(
+        importer.dev_dependencies
+            .as_ref()
+            .expect("devDependencies")
+            .len(),
+        1,
+    );
     assert!(importer.dependencies.is_none());
 }
 
@@ -157,7 +187,13 @@ optionalDependencies:
         })),
         true,
     );
-    assert_eq!(importer.optional_dependencies.as_ref().expect("optionalDependencies").len(), 1);
+    assert_eq!(
+        importer.optional_dependencies
+            .as_ref()
+            .expect("optionalDependencies")
+            .len(),
+        1,
+    );
 }
 
 #[test]
@@ -165,7 +201,12 @@ fn empties_an_importer_the_manifest_declares_nothing_for() {
     let mut importer = importer(FOO_AND_BAR);
     prune_undeclared_importer_deps(&mut importer, None, &manifest(json!({})), true);
     assert!(importer.dependencies.is_none());
-    assert!(importer.specifiers.as_ref().expect("specifiers").is_empty());
+    assert!(
+        importer.specifiers
+            .as_ref()
+            .expect("specifiers")
+            .is_empty(),
+    );
 }
 
 /// An undeclared entry the read file already carried is not the fold's to
@@ -181,5 +222,11 @@ fn keeps_an_undeclared_entry_the_fold_did_not_introduce() {
         &manifest(json!({ "dependencies": { "foo": "^1.0.0" } })),
         true,
     );
-    assert_eq!(importer.dependencies.as_ref().expect("dependencies").len(), 2);
+    assert_eq!(
+        importer.dependencies
+            .as_ref()
+            .expect("dependencies")
+            .len(),
+        2,
+    );
 }

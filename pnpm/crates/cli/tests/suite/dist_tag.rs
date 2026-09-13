@@ -102,8 +102,11 @@ fn lists_no_output_when_no_dist_tags_exist() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
-    let mock =
-        server.mock("GET", "/-/package/pkg/dist-tags").with_status(200).with_body("{}").create();
+    let mock = server
+        .mock("GET", "/-/package/pkg/dist-tags")
+        .with_status(200)
+        .with_body("{}")
+        .create();
     let auth_file = configure(root.path(), &workspace, &registry, "");
 
     let output = run_dist_tag(&workspace, &auth_file, &["ls", "pkg"]);
@@ -674,7 +677,10 @@ fn ls_fails_when_package_is_missing() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
-    let mock = server.mock("GET", "/-/package/missing/dist-tags").with_status(404).create();
+    let mock = server
+        .mock("GET", "/-/package/missing/dist-tags")
+        .with_status(404)
+        .create();
     let auth_file = configure(root.path(), &workspace, &registry, "");
 
     let output = run_dist_tag(&workspace, &auth_file, &["ls", "missing"]);
@@ -696,8 +702,11 @@ fn ls_rejects_oversized_dist_tags_response() {
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
     let body = format!(r#"{{"latest":"{}"}}"#, "1".repeat(1024 * 1024));
-    let mock =
-        server.mock("GET", "/-/package/pkg/dist-tags").with_status(200).with_body(body).create();
+    let mock = server
+        .mock("GET", "/-/package/pkg/dist-tags")
+        .with_status(200)
+        .with_body(body)
+        .create();
     let auth_file = configure(root.path(), &workspace, &registry, "");
 
     let output = run_dist_tag(&workspace, &auth_file, &["ls", "pkg"]);

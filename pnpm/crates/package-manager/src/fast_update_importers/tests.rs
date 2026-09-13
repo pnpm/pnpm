@@ -517,8 +517,12 @@ snapshots:
 ";
 
 fn sorted_snapshot_keys(lockfile: &Lockfile) -> Vec<String> {
-    let mut keys: Vec<_> =
-        lockfile.snapshots.as_ref().expect("snapshots").keys().map(ToString::to_string).collect();
+    let mut keys: Vec<_> = lockfile.snapshots
+        .as_ref()
+        .expect("snapshots")
+        .keys()
+        .map(ToString::to_string)
+        .collect();
     keys.sort();
     keys
 }
@@ -625,18 +629,26 @@ fn with_a_lower_peerless_foo() -> Lockfile {
     let packages = subject.packages.as_mut().expect("packages");
     let metadata = packages[&"foo@1.1.0".parse::<PackageKey>().expect("package key")].clone();
     packages.insert("foo@1.0.0".parse().expect("package key"), metadata);
-    subject.snapshots.as_mut().expect("snapshots").insert(
-        "foo@1.0.0".parse().expect("snapshot key"),
-        pnpm_lockfile::SnapshotEntry::default(),
-    );
+    subject.snapshots
+        .as_mut()
+        .expect("snapshots")
+        .insert(
+            "foo@1.0.0".parse().expect("snapshot key"),
+            pnpm_lockfile::SnapshotEntry::default(),
+        );
     let importer = subject.importers.get_mut(".").expect("importer");
-    importer.dependencies.as_mut().expect("dependencies").insert(
-        "foo".parse().expect("alias"),
-        pnpm_lockfile::ResolvedDependencySpec {
-            specifier: "1.0.0".to_string(),
-            version: pnpm_lockfile::ImporterDepVersion::Regular("1.0.0".parse().expect("version")),
-        },
-    );
+    importer.dependencies
+        .as_mut()
+        .expect("dependencies")
+        .insert(
+            "foo".parse().expect("alias"),
+            pnpm_lockfile::ResolvedDependencySpec {
+                specifier: "1.0.0".to_string(),
+                version: pnpm_lockfile::ImporterDepVersion::Regular(
+                    "1.0.0".parse().expect("version"),
+                ),
+            },
+        );
     subject
 }
 
@@ -645,10 +657,13 @@ fn with_a_lower_peerless_foo() -> Lockfile {
 /// leave behind when only one of them provides `bar`.
 fn with_a_bare_snapshot_beside_the_peer_variant() -> Lockfile {
     let mut subject = parsed_lockfile(WITH_ONLY_A_PEER_VARIANT);
-    subject.snapshots.as_mut().expect("snapshots").insert(
-        "foo@1.1.0".parse().expect("snapshot key"),
-        pnpm_lockfile::SnapshotEntry::default(),
-    );
+    subject.snapshots
+        .as_mut()
+        .expect("snapshots")
+        .insert(
+            "foo@1.1.0".parse().expect("snapshot key"),
+            pnpm_lockfile::SnapshotEntry::default(),
+        );
     subject
 }
 
@@ -656,8 +671,7 @@ fn with_a_bare_snapshot_beside_the_peer_variant() -> Lockfile {
 /// directly at `recorded`.
 fn with_a_direct_foo_at(recorded: &str) -> Lockfile {
     let mut subject = parsed_lockfile(WITH_ONLY_A_PEER_VARIANT);
-    subject
-        .importers
+    subject.importers
         .get_mut(".")
         .expect("importer")
         .dependencies

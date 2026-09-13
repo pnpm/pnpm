@@ -132,8 +132,7 @@ pub fn link_hoisted_modules<Reporter: self::Reporter>(
     // installs (Slice 9) will have multiple importers; the
     // single-importer case has one and rayon's overhead is
     // negligible.
-    let added: u64 = opts
-        .hierarchy
+    let added: u64 = opts.hierarchy
         .par_iter()
         .map(|(parent_dir, deps_hierarchy)| {
             link_all_pkgs_in_order::<Reporter>(deps_hierarchy, parent_dir, opts)
@@ -180,7 +179,9 @@ fn remove_orphans(
         .filter(|dir| !graph.contains_key(*dir))
         .filter(|dir| {
             let confined = dir.starts_with(confine_root)
-                && dir.components().all(|part| !matches!(part, std::path::Component::ParentDir));
+                && dir
+                    .components()
+                    .all(|part| !matches!(part, std::path::Component::ParentDir));
             if !confined {
                 tracing::warn!(
                     ?dir,
@@ -191,9 +192,11 @@ fn remove_orphans(
             confined
         })
         .collect();
-    orphan_dirs.par_iter().for_each(|dir| {
-        let _ = try_remove_dir(dir);
-    });
+    orphan_dirs
+        .par_iter()
+        .for_each(|dir| {
+            let _ = try_remove_dir(dir);
+        });
     orphan_dirs.len() as u64
 }
 
@@ -230,12 +233,10 @@ fn link_all_pkgs_in_order<Reporter: self::Reporter>(
     // one's children. `par_iter` is sufficient — the side effects
     // are on disk and target disjoint directories. Returns how many
     // packages this subtree imported.
-    let imported: u64 = hierarchy
-        .0
+    let imported: u64 = hierarchy.0
         .par_iter()
         .map(|(dir, sub_hierarchy)| {
-            let node = opts
-                .graph
+            let node = opts.graph
                 .get(dir)
                 .ok_or_else(|| LinkHoistedModulesError::MissingGraphNode { dir: dir.clone() })?;
             let here = u64::from(import_node::<Reporter>(node, opts)?);
@@ -257,8 +258,7 @@ fn link_hierarchy_bins(
     opts: &LinkHoistedModulesOpts<'_>,
 ) -> Result<(), LinkHoistedModulesError> {
     let modules_dir = parent_dir.join("node_modules");
-    let dep_names: Vec<String> = hierarchy
-        .0
+    let dep_names: Vec<String> = hierarchy.0
         .keys()
         .filter_map(|child_dir| opts.graph.get(child_dir))
         .filter_map(|node| node.alias.clone())

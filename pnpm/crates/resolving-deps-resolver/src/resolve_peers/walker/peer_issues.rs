@@ -28,10 +28,12 @@ impl Walker<'_> {
         if self.traversal.in_canonical_drain {
             return;
         }
-        self.output.issues.missing.entry(peer_name.to_string()).or_default().push(issue);
+        self.output.issues.missing
+            .entry(peer_name.to_string())
+            .or_default()
+            .push(issue);
         if self.traversal.discovery {
-            self.output
-                .missing_ancestor_pkg_ids
+            self.output.missing_ancestor_pkg_ids
                 .entry(peer_name.to_string())
                 .or_default()
                 .push(ancestor_pkg_ids.clone());
@@ -85,15 +87,16 @@ impl Walker<'_> {
                     && !self.traversal.in_canonical_drain
                 {
                     let parents = self.issue_parents(chain);
-                    self.output.issues.bad.entry(peer_name.to_string()).or_default().push(
-                        PeerDependencyIssue {
+                    self.output.issues.bad
+                        .entry(peer_name.to_string())
+                        .or_default()
+                        .push(PeerDependencyIssue {
                             wanted_range: comparable_range.text.clone(),
                             found_version: parent.version.clone(),
                             optional,
                             parents,
                             resolved_from: ParentChain::default(),
-                        },
-                    );
+                        });
                 }
                 if let Some(parent_node_id) = parent.node_id.as_ref() {
                     resolved.insert(peer_name.to_string(), parent_node_id.clone());

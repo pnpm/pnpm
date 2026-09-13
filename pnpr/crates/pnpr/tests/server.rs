@@ -123,7 +123,11 @@ fn public_cache_pkg(cache_root: &Path, pkg: &str) -> PathBuf {
         digest_dirs.len() <= 1,
         "expected at most one ~public registry namespace, found {digest_dirs:?}",
     );
-    digest_dirs.first().cloned().unwrap_or_else(|| public.join("__none__")).join(pkg)
+    digest_dirs
+        .first()
+        .cloned()
+        .unwrap_or_else(|| public.join("__none__"))
+        .join(pkg)
 }
 
 async fn body_bytes(body: Body) -> Vec<u8> {
@@ -146,7 +150,9 @@ fn git_resolve_request(repo_url: &str, authorization: Option<&str>) -> Request<B
     if let Some(authorization) = authorization {
         request = request.header("authorization", authorization);
     }
-    request.body(Body::from(serde_json::to_vec(&body).unwrap())).unwrap()
+    request
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap()
 }
 
 fn verify_lockfile_request(registry_url: &str, authorization: Option<&str>) -> Request<Body> {
@@ -187,7 +193,9 @@ fn verify_lockfile_request(registry_url: &str, authorization: Option<&str>) -> R
     if let Some(authorization) = authorization {
         request = request.header("authorization", authorization);
     }
-    request.body(Body::from(serde_json::to_vec(&body).unwrap())).unwrap()
+    request
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap()
 }
 
 async fn drain_resolve_response(response: axum::response::Response) -> (StatusCode, Vec<u8>) {
@@ -209,14 +217,13 @@ async fn spawn_git_probe() -> (String, Arc<AtomicUsize>) {
             tokio::spawn(async move {
                 let mut buf = vec![0u8; 4096];
                 let _ = socket.read(&mut buf).await;
-                let _ = socket
-                    .write_all(
-                        b"HTTP/1.1 500 Internal Server Error\r\n\
+                let _ = socket.write_all(
+                    b"HTTP/1.1 500 Internal Server Error\r\n\
                           Content-Length: 0\r\n\
                           Connection: close\r\n\
                           \r\n",
-                    )
-                    .await;
+                )
+                .await;
             });
         }
     });
@@ -271,17 +278,24 @@ fn sha1_hex_of(bytes: &[u8]) -> String {
     let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha1);
     opts.input(bytes);
     let integrity = opts.result();
-    let digest = BASE64.decode(&integrity.hashes[0].digest).unwrap();
-    digest.iter().fold(String::with_capacity(40), |mut acc, byte| {
-        use std::fmt::Write as _;
-        write!(acc, "{byte:02x}").unwrap();
-        acc
-    })
+    let digest = BASE64
+        .decode(&integrity.hashes[0].digest)
+        .unwrap();
+    digest
+        .iter()
+        .fold(String::with_capacity(40), |mut acc, byte| {
+            use std::fmt::Write as _;
+            write!(acc, "{byte:02x}").unwrap();
+            acc
+        })
 }
 
 fn osv_database(package: &str, versions: &[&str]) -> TempDir {
     let dir = TempDir::new().unwrap();
-    let versions: Vec<Value> = versions.iter().map(|version| json!(version)).collect();
+    let versions: Vec<Value> = versions
+        .iter()
+        .map(|version| json!(version))
+        .collect();
     let advisory = json!({
         "id": "GHSA-registry",
         "affected": [{
@@ -304,7 +318,10 @@ async fn mock_packument_for_tarball(
     version: &str,
     expected_bytes: &[u8],
 ) -> mockito::Mock {
-    let basename = package.rsplit('/').next().expect("package has a basename");
+    let basename = package
+        .rsplit('/')
+        .next()
+        .expect("package has a basename");
     let mut versions = serde_json::Map::new();
     versions.insert(
         version.to_string(),
@@ -385,15 +402,14 @@ async fn spawn_truncated_upstream(expected_integrity: String) -> SocketAddr {
                     return;
                 }
                 if request.starts_with("GET /foo/-/foo-1.0.0.tgz HTTP/") {
-                    let _ = socket
-                        .write_all(
-                            b"HTTP/1.1 200 OK\r\n\
+                    let _ = socket.write_all(
+                        b"HTTP/1.1 200 OK\r\n\
                           Content-Length: 1048576\r\n\
                           Content-Type: application/octet-stream\r\n\
                           Connection: close\r\n\
                           \r\n",
-                        )
-                        .await;
+                    )
+                    .await;
                     let _ = socket.write_all(&[0xAA; 100]).await;
                     return;
                 }
@@ -406,7 +422,8 @@ async fn spawn_truncated_upstream(expected_integrity: String) -> SocketAddr {
 }
 
 fn is_tarball_tmp(name: &str) -> bool {
-    name.split_once(".tgz.tmp.").is_some_and(|(_, suffix)| !suffix.is_empty())
+    name.split_once(".tgz.tmp.")
+        .is_some_and(|(_, suffix)| !suffix.is_empty())
 }
 
 fn tarball_cache_entries(dir: &std::path::Path) -> Vec<String> {
@@ -414,7 +431,12 @@ fn tarball_cache_entries(dir: &std::path::Path) -> Vec<String> {
         .read_dir()
         .map(|iter| {
             iter.filter_map(Result::ok)
-                .map(|entry| entry.file_name().to_string_lossy().into_owned())
+                .map(|entry| {
+                    entry
+                        .file_name()
+                        .to_string_lossy()
+                        .into_owned()
+                })
                 .filter(|name| name.ends_with(".tgz") || is_tarball_tmp(name))
                 .collect::<Vec<_>>()
         })
@@ -492,7 +514,10 @@ async fn mock_package(server: &mut mockito::Server, pkg: &str, marker: &str) -> 
 /// aliased by the path-less base.
 fn router_config(npmjs_url: &str, corp_url: &str, storage: PathBuf) -> Config {
     let mut config = config_for(npmjs_url, storage);
-    let mut corp = config.routing.upstreams.get("npmjs").expect("default `npmjs` upstream").clone();
+    let mut corp = config.routing.upstreams
+        .get("npmjs")
+        .expect("default `npmjs` upstream")
+        .clone();
     corp.url = corp_url.to_string();
     config.routing.upstreams.insert("corp".to_string(), corp);
     let graph = vec![
@@ -565,7 +590,11 @@ async fn read_registry_directory(app: &Router, token: Option<&String>) -> Value 
     if let Some(token) = token {
         request = request.header(header::AUTHORIZATION, format!("Bearer {token}"));
     }
-    let response = app.clone().oneshot(request.body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request.body(Body::empty()).unwrap())
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap()
 }

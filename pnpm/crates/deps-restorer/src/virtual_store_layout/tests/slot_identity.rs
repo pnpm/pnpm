@@ -134,7 +134,11 @@ fn gvs_version_dir_requires_exact_name_and_version_components() {
     let unscoped: PackageKey = "foo@1.2.3".parse().expect("parse unscoped key");
     assert_eq!(
         global_virtual_store_version_dir(&root, &scoped, None),
-        Some(root.join("@scope").join("foo").join("1.2.3")),
+        Some(
+            root.join("@scope")
+                .join("foo")
+                .join("1.2.3")
+        ),
     );
     assert_eq!(
         global_virtual_store_version_dir(&root, &unscoped, None),

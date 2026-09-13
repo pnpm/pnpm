@@ -166,7 +166,11 @@ fn enforce_resolution_policy(
     }
     let prompt = format!("pnpm@{version} {reason}.\nUpdate anyway?", reason = violation.reason);
     // An interrupted prompt (Esc / Ctrl-C) counts as a refusal.
-    match dialoguer::Confirm::new().with_prompt(prompt).default(false).interact() {
+    match dialoguer::Confirm::new()
+        .with_prompt(prompt)
+        .default(false)
+        .interact()
+    {
         Ok(true) => Ok(()),
         Ok(false) | Err(_) => Err(SelfUpdateError::MinimumReleaseAgeDenied.into()),
     }
@@ -415,7 +419,11 @@ fn refresh_global_shims(
 fn registries_for_cache_key(config: &Config) -> Vec<(String, String)> {
     let bootstrap = &config.package_manager_bootstrap;
     let mut registries = vec![("default".to_string(), bootstrap.registry.clone())];
-    registries.extend(bootstrap.registries.iter().map(|(key, value)| (key.clone(), value.clone())));
+    registries.extend(
+        bootstrap.registries
+            .iter()
+            .map(|(key, value)| (key.clone(), value.clone())),
+    );
     registries
 }
 

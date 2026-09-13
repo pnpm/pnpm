@@ -38,7 +38,10 @@ async fn shared_store_context_materializes_a_warm_package() {
 
     let mut config = Config::new();
     config.registry = "https://registry.test".to_string();
-    config.store_dir = root.path().join("materialization-store").into();
+    config.store_dir = root
+        .path()
+        .join("materialization-store")
+        .into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = modules_dir.join(".pacquet");
     config.package_import_method = PackageImportMethod::Copy;
@@ -51,8 +54,7 @@ async fn shared_store_context_materializes_a_warm_package() {
         ("package.json", br#"{"name":"from-shared-context","version":"1.0.0"}"#.as_slice()),
         ("index.js", b"module.exports = true\n".as_slice()),
     ] {
-        let (_, digest) = config
-            .store_dir
+        let (_, digest) = config.store_dir
             .write_cas_file(content, false)
             .expect("write package file to materialization store");
         files.insert(

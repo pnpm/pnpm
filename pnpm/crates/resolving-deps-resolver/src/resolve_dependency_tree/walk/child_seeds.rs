@@ -108,12 +108,15 @@ pub(super) struct ChildSeedScope<'s> {
 impl<'s> ChildSeedScope<'s> {
     pub(super) fn of(ctx: &'s TreeCtx, pending: &PendingNode) -> Self {
         Self {
-            prior_children_snapshot: pending
-                .prior_key
+            prior_children_snapshot: pending.prior_key
                 .as_ref()
                 .filter(|key| landed_on_prior_entry(key, &pending.identity.id))
                 .and_then(|key| {
-                    ctx.workspace.reuse.lockfile.as_ref()?.snapshots.as_ref()?.get(key)
+                    ctx.workspace.reuse.lockfile
+                        .as_ref()?
+                        .snapshots
+                        .as_ref()?
+                        .get(key)
                 }),
             direct_versions: lock_recoverable(&ctx.workspace.versions.direct_dep_versions)
                 .get(&ctx.importer.id)
@@ -196,13 +199,19 @@ pub(crate) fn parent_ids_contain_sequence(
     pkg_id1: &str,
     pkg_id2: &str,
 ) -> bool {
-    let Some(pkg1_index) = pkg_ids.iter().position(|id| id == pkg_id1) else {
+    let Some(pkg1_index) = pkg_ids
+        .iter()
+        .position(|id| id == pkg_id1)
+    else {
         return false;
     };
     if pkg1_index == pkg_ids.len() - 1 {
         return false;
     }
-    let Some(pkg2_index) = pkg_ids.iter().rposition(|id| id == pkg_id2) else {
+    let Some(pkg2_index) = pkg_ids
+        .iter()
+        .rposition(|id| id == pkg_id2)
+    else {
         return false;
     };
     pkg1_index < pkg2_index && pkg2_index != pkg_ids.len() - 1

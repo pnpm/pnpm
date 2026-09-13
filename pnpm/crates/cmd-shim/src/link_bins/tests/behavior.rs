@@ -355,9 +355,19 @@ fn existing_bins_pointing_at_the_target_survive_flag_changes() {
 
     // A valid shim survives a flag-on relink.
     link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
-    assert!(std::fs::symlink_metadata(&bin).unwrap().file_type().is_file());
+    assert!(
+        std::fs::symlink_metadata(&bin)
+            .unwrap()
+            .file_type()
+            .is_file(),
+    );
     link_bins_of_packages::<Host>(&packages, &bins_dir, &symlinked).unwrap();
-    assert!(std::fs::symlink_metadata(&bin).unwrap().file_type().is_file());
+    assert!(
+        std::fs::symlink_metadata(&bin)
+            .unwrap()
+            .file_type()
+            .is_file(),
+    );
 
     // A fresh bin under the flag is a symlink, and the same dirent —
     // pinned by its inode — survives both a warm flag-on relink and a
@@ -365,16 +375,31 @@ fn existing_bins_pointing_at_the_target_survive_flag_changes() {
     // not recreate the link.
     std::fs::remove_file(&bin).unwrap();
     link_bins_of_packages::<Host>(&packages, &bins_dir, &symlinked).unwrap();
-    assert!(std::fs::symlink_metadata(&bin).unwrap().file_type().is_symlink());
+    assert!(
+        std::fs::symlink_metadata(&bin)
+            .unwrap()
+            .file_type()
+            .is_symlink(),
+    );
     #[cfg(unix)]
     let inode = {
         use std::os::unix::fs::MetadataExt;
         std::fs::symlink_metadata(&bin).unwrap().ino()
     };
     link_bins_of_packages::<Host>(&packages, &bins_dir, &symlinked).unwrap();
-    assert!(std::fs::symlink_metadata(&bin).unwrap().file_type().is_symlink());
+    assert!(
+        std::fs::symlink_metadata(&bin)
+            .unwrap()
+            .file_type()
+            .is_symlink(),
+    );
     link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
-    assert!(std::fs::symlink_metadata(&bin).unwrap().file_type().is_symlink());
+    assert!(
+        std::fs::symlink_metadata(&bin)
+            .unwrap()
+            .file_type()
+            .is_symlink(),
+    );
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;

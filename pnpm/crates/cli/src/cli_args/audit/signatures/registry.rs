@@ -84,10 +84,13 @@ pub(super) async fn fetch_registry_keys(
         })?;
 
     let status = response.status().as_u16();
-    let body = response.text().await.map_err(|source| SignaturesError::KeysNetwork {
-        url: display_url.clone(),
-        reason: redact_url_credentials(&source.to_string()),
-    })?;
+    let body = response
+        .text()
+        .await
+        .map_err(|source| SignaturesError::KeysNetwork {
+            url: display_url.clone(),
+            reason: redact_url_credentials(&source.to_string()),
+        })?;
     // npm registries answer 404 (no signing) and 400 the same way: there is no
     // trust root, so the registry's packages are simply not audited.
     if status == 404 || status == 400 {
@@ -108,19 +111,18 @@ pub(super) async fn fetch_registry_keys(
 /// keys; provenance attestations are handled separately and intentionally
 /// ignored here.
 fn parse_registry_keys(body: &str, display_url: &str) -> Result<Vec<RegistryKey>, SignaturesError> {
-    let value: serde_json::Value =
-        serde_json::from_str(body).map_err(|err| SignaturesError::KeysInvalidJson {
+    let value: serde_json::Value = serde_json::from_str(body)
+        .map_err(|err| SignaturesError::KeysInvalidJson {
             url: display_url.to_string(),
             reason: err.to_string(),
             body: sanitize_response_body(body),
         })?;
-    let parsed: RegistryKeysResponse =
-        serde_json::from_value(value.clone()).map_err(|_| SignaturesError::KeysUnexpectedBody {
+    let parsed: RegistryKeysResponse = serde_json::from_value(value.clone())
+        .map_err(|_| SignaturesError::KeysUnexpectedBody {
             url: display_url.to_string(),
             body: sanitize_response_body(&value.to_string()),
         })?;
-    Ok(parsed
-        .keys
+    Ok(parsed.keys
         .into_iter()
         .filter(|key| key.keytype == "ecdsa-sha2-nistp256" && key.scheme == "ecdsa-sha2-nistp256")
         .collect())
@@ -152,10 +154,13 @@ pub(super) async fn fetch_packument(
         })?;
 
     let status = response.status().as_u16();
-    let body = response.text().await.map_err(|source| SignaturesError::PackumentNetwork {
-        url: display_url.clone(),
-        reason: redact_url_credentials(&source.to_string()),
-    })?;
+    let body = response
+        .text()
+        .await
+        .map_err(|source| SignaturesError::PackumentNetwork {
+            url: display_url.clone(),
+            reason: redact_url_credentials(&source.to_string()),
+        })?;
     if status == 404 {
         return Ok(None);
     }
@@ -171,16 +176,17 @@ pub(super) async fn fetch_packument(
 }
 
 fn parse_packument(body: &str, display_url: &str) -> Result<Packument, SignaturesError> {
-    let value: serde_json::Value =
-        serde_json::from_str(body).map_err(|err| SignaturesError::PackumentInvalidJson {
+    let value: serde_json::Value = serde_json::from_str(body)
+        .map_err(|err| SignaturesError::PackumentInvalidJson {
             url: display_url.to_string(),
             reason: err.to_string(),
             body: sanitize_response_body(body),
         })?;
-    serde_json::from_value(value.clone()).map_err(|_| SignaturesError::PackumentUnexpectedBody {
-        url: display_url.to_string(),
-        body: sanitize_response_body(&value.to_string()),
-    })
+    serde_json::from_value(value.clone())
+        .map_err(|_| SignaturesError::PackumentUnexpectedBody {
+            url: display_url.to_string(),
+            body: sanitize_response_body(&value.to_string()),
+        })
 }
 
 fn with_trailing_slash(registry: &str) -> String {

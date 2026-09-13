@@ -27,7 +27,10 @@ fn exposes_the_ss_alias() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_manifest(&workspace, &json!({ "name": "test-package", "version": "1.0.0" }));
 
-    pacquet.with_args(["ss", "build", "tsc"]).assert().success();
+    pacquet
+        .with_args(["ss", "build", "tsc"])
+        .assert()
+        .success();
 
     assert_eq!(scripts(&workspace)["build"], json!("tsc"));
     drop(root);
@@ -38,7 +41,10 @@ fn adds_a_script_when_none_exist() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_manifest(&workspace, &json!({ "name": "test-package", "version": "1.0.0" }));
 
-    pacquet.with_args(["set-script", "build", "tsc -b"]).assert().success();
+    pacquet
+        .with_args(["set-script", "build", "tsc -b"])
+        .assert()
+        .success();
 
     assert_eq!(scripts(&workspace), json!({ "build": "tsc -b" }));
     drop(root);
@@ -49,7 +55,10 @@ fn overwrites_an_existing_script() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_manifest(&workspace, &json!({ "name": "test-package", "scripts": { "build": "old" } }));
 
-    pacquet.with_args(["set-script", "build", "tsc -b"]).assert().success();
+    pacquet
+        .with_args(["set-script", "build", "tsc -b"])
+        .assert()
+        .success();
 
     assert_eq!(scripts(&workspace)["build"], json!("tsc -b"));
     drop(root);
@@ -60,7 +69,10 @@ fn joins_remaining_params_into_the_command() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_manifest(&workspace, &json!({ "name": "test-package", "version": "1.0.0" }));
 
-    pacquet.with_args(["set-script", "lint", "eslint", "--fix", "src"]).assert().success();
+    pacquet
+        .with_args(["set-script", "lint", "eslint", "--fix", "src"])
+        .assert()
+        .success();
 
     assert_eq!(scripts(&workspace)["lint"], json!("eslint --fix src"));
     drop(root);
@@ -71,8 +83,14 @@ fn accepts_script_names_with_dots_hyphens_and_quotes() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_manifest(&workspace, &json!({ "name": "test-package", "version": "1.0.0" }));
 
-    pacquet.with_args(["set-script", "my-build", "tsc -b"]).assert().success();
-    pacquet_at(&workspace).with_args(["set-script", "pre.publish", "echo"]).assert().success();
+    pacquet
+        .with_args(["set-script", "my-build", "tsc -b"])
+        .assert()
+        .success();
+    pacquet_at(&workspace)
+        .with_args(["set-script", "pre.publish", "echo"])
+        .assert()
+        .success();
     pacquet_at(&workspace)
         .with_args(["set-script", r#"weird"name"#, "echo", "weird"])
         .assert()
@@ -90,7 +108,10 @@ fn accepts_script_names_containing_an_equals_sign() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_manifest(&workspace, &json!({ "name": "test-package", "version": "1.0.0" }));
 
-    pacquet.with_args(["set-script", "with=eq", "echo", "with=eq"]).assert().success();
+    pacquet
+        .with_args(["set-script", "with=eq", "echo", "with=eq"])
+        .assert()
+        .success();
 
     assert_eq!(scripts(&workspace)["with=eq"], json!("echo with=eq"));
     drop(root);
@@ -101,8 +122,10 @@ fn fails_when_arguments_are_missing() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_manifest(&workspace, &json!({ "name": "test-package", "version": "1.0.0" }));
 
-    let output =
-        pacquet.with_args(["set-script", "build"]).output().expect("spawn pacquet set-script");
+    let output = pacquet
+        .with_args(["set-script", "build"])
+        .output()
+        .expect("spawn pacquet set-script");
     assert!(
         !output.status.success(),
         "a missing command must fail (stderr: {})",
@@ -123,7 +146,10 @@ fn fails_when_no_arguments_are_given() {
 
     // No arguments at all exercises the missing-name branch, separate from the
     // missing-command branch covered above.
-    let output = pacquet.with_args(["set-script"]).output().expect("spawn pacquet set-script");
+    let output = pacquet
+        .with_args(["set-script"])
+        .output()
+        .expect("spawn pacquet set-script");
     assert!(
         !output.status.success(),
         "no arguments at all must fail (stderr: {})",
@@ -142,8 +168,10 @@ fn rejects_unsafe_script_names() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_manifest(&workspace, &json!({ "name": "test-package", "version": "1.0.0" }));
 
-    let output =
-        pacquet.with_args(["set-script", "__proto__", "echo"]).output().expect("spawn pacquet");
+    let output = pacquet
+        .with_args(["set-script", "__proto__", "echo"])
+        .output()
+        .expect("spawn pacquet");
     assert!(
         !output.status.success(),
         "an unsafe script name must fail (stderr: {})",
@@ -174,7 +202,10 @@ fn manifest_commands_edit_the_enclosing_npm_project() {
         fs::create_dir(&member).expect("create the member dir");
         fs::write(member.join(manifest), contents).expect("write the ecosystem manifest");
 
-        pacquet_at(&member).with_args(["set-script", "build", "tsc -b"]).assert().success();
+        pacquet_at(&member)
+            .with_args(["set-script", "build", "tsc -b"])
+            .assert()
+            .success();
         pacquet_at(&member)
             .with_args(["pkg", "set", "description=set from the member"])
             .assert()

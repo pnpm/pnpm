@@ -90,8 +90,10 @@ pub(crate) fn write_workspace_catalogs_selected(
     if updated_catalogs.is_empty() && !config.catalog_prune {
         return Ok(());
     }
-    let all_projects: Vec<&PackageManifest> =
-        projects.iter().map(|project| &project.manifest).collect();
+    let all_projects: Vec<&PackageManifest> = projects
+        .iter()
+        .map(|project| &project.manifest)
+        .collect();
     update_workspace_manifest(
         workspace_dir,
         &UpdateWorkspaceManifestOptions {
@@ -178,8 +180,7 @@ fn resolved_package_versions(lockfile: &Lockfile) -> ResolvedPackageVersions {
     let mut resolved = ResolvedPackageVersions::new();
     for key in lockfile.snapshots.iter().flat_map(|snapshots| snapshots.keys()) {
         let versions = resolved.entry(key.name.to_string()).or_default();
-        let version = key
-            .suffix
+        let version = key.suffix
             .version_semver()
             .or_else(|| key.suffix.registry_qualified().map(|(_, version)| version));
         if let Some(version) = version {

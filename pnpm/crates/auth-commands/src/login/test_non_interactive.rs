@@ -44,7 +44,9 @@ async fn should_throw_in_non_interactive_terminal_when_web_login_is_unsupported(
     assert!(matches!(err, LoginError::NonInteractive), "got {err:?}");
     assert_eq!(err.to_string(), "The login command requires an interactive terminal");
     assert_eq!(
-        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
+        err.pipe_ref(miette::Diagnostic::code)
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_LOGIN_NON_INTERACTIVE"),
     );
 }

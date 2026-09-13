@@ -34,14 +34,13 @@ impl<'a> CreateVirtualStore<'a> {
         let prefetch = self.prefetch(wanted).await;
         let marker_source = self.prepare_store().await?;
         let mut plan = self.plan::<Reporter>(wanted, prefetch.cache_keys)?;
-        let prefetched = self
-            .settle_prefetch(
-                prefetch.task,
-                &prefetch.verified_files_cache,
-                wanted.packages,
-                &mut plan,
-            )
-            .await?;
+        let prefetched = self.settle_prefetch(
+            prefetch.task,
+            &prefetch.verified_files_cache,
+            wanted.packages,
+            &mut plan,
+        )
+        .await?;
         self.materialize_plan::<Reporter>(
             wanted,
             plan,
@@ -95,13 +94,12 @@ impl<'a> CreateVirtualStore<'a> {
             &links,
             marker_source.map(tempfile::NamedTempFile::path),
         )?;
-        let fetch_failed = self
-            .download_cold::<Reporter>(
-                ColdInputs { wanted, store, prefetched, marker_source, links: &links },
-                &mut partition,
-                &mut indexes,
-            )
-            .await?;
+        let fetch_failed = self.download_cold::<Reporter>(
+            ColdInputs { wanted, store, prefetched, marker_source, links: &links },
+            &mut partition,
+            &mut indexes,
+        )
+        .await?;
         self.apply_side_effects(wanted, &mut partition, &indexes.shared_base).await;
 
         // The writer is owned by the caller now. They drop their
@@ -306,10 +304,14 @@ impl<'a> CreateVirtualStore<'a> {
                 self.current_entries.snapshots,
                 &plan.survivors,
             ),
-            shared_packages: config
-                .remote_side_effects_cache
+            shared_packages: config.remote_side_effects_cache
                 .as_ref()
-                .map(|settings| settings.packages.iter().map(String::as_str).collect()),
+                .map(|settings| {
+                    settings.packages
+                        .iter()
+                        .map(String::as_str)
+                        .collect()
+                }),
             template: LinkSlotsParallel {
                 import: crate::PackageImportOptions {
                     method: config.package_import_method,

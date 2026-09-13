@@ -59,21 +59,12 @@ pub(super) async fn matched_direct_rewrite<Reporter: self::Reporter>(
     declared: (&String, DependencyGroup, &String),
 ) -> Result<MatchedRewrite, UpdateError> {
     let (name, _, previous) = declared;
-    let MatchedRewriteInputs { rewrite_ctx, latest_chain, catalog_ctx, .. } = inputs;
-    // The two sources are exclusive: `--latest` rejects versioned selectors
-    // above, so under it no selector carries a version.
+    // The two sources are exclusive: `--latest` rejects versioned selectors.
     if scope.version.latest {
-        // `--latest` reaches past the declared range by design, which a
-        // manifest that keeps its specifiers can't record.
-        if !scope.version.save {
-            return Ok(MatchedRewrite::Target(None));
-        }
-        let specifier =
-            latest_specifier(rewrite_ctx, latest_chain, catalog_ctx, name, previous).await?;
-        return Ok(MatchedRewrite::Target(specifier));
+        return latest_direct_rewrite(scope, inputs, (name, previous)).await;
     }
-    let requested = scope
-        .selectors
+    let MatchedRewriteInputs { rewrite_ctx, latest_chain, .. } = inputs;
+    let requested = scope.selectors
         .iter()
         .find(|selector| matcher_one(&selector.pattern).matches(name))
         .and_then(|selector| selector.version.clone());
@@ -114,7 +105,9 @@ pub(super) fn requested_direct_rewrite(
 ) -> MatchedRewrite {
     let (name, group, previous) = declared;
     let Some(requested) = requested else {
-        plan.bump_targets.entry(name.clone()).or_insert_with(|| (group, previous.clone()));
+        plan.bump_targets
+            .entry(name.clone())
+            .or_insert_with(|| (group, previous.clone()));
         return MatchedRewrite::Target(None);
     };
     MatchedRewrite::Target(Some(requested_version_rewrite(
@@ -270,4 +263,22 @@ pub(super) fn judge_against_kept_range(requested: &str, kept: &str) -> KeptRange
         return KeptRangeVerdict::Undecided;
     };
     if requested.satisfies(&kept) { KeptRangeVerdict::Admitted } else { KeptRangeVerdict::Excluded }
+}
+async fn latest_direct_rewrite(
+    scope: &UpdateScope<'_>,
+    inputs: MatchedRewriteInputs<'_, '_, '_>,
+    declared: (&str, &str),
+) -> Result<MatchedRewrite, UpdateError> {
+    let (name, previous) = declared;
+    let MatchedRewriteInputs {
+        rewrite_ctx,
+        latest_chain,
+        catalog_ctx,
+        ..
+    } = inputs;
+    if !scope.version.save {
+        return Ok(MatchedRewrite::Target(None));
+    }
+    let specifier = latest_specifier(rewrite_ctx, latest_chain, catalog_ctx, name, previous).await?;
+    Ok(MatchedRewrite::Target(specifier))
 }

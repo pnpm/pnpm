@@ -69,8 +69,9 @@ impl ObserverSettings {
     fn of(observer: Option<&Arc<dyn crate::ResolutionObserver>>) -> Self {
         Self {
             package_version_guard: observer.and_then(|observer| observer.package_version_guard()),
-            minimum_release_age_exclude_override: observer
-                .and_then(|observer| observer.minimum_release_age_exclude_override()),
+            minimum_release_age_exclude_override: observer.and_then(|observer| {
+                observer.minimum_release_age_exclude_override()
+            }),
             can_fast_update_overrides: observer.is_none(),
         }
     }
@@ -85,9 +86,7 @@ pub(super) async fn set_up_resolvers<Reporter: self::Reporter + 'static>(
     let shape = InstallShape::derive(install, &owned.resolution.update_seed_policy);
     // The pnpr override when supplied, else the config's npmrc headers;
     // shared by every registry-touching resolver below.
-    let auth_headers = owned
-        .resolution
-        .auth_override
+    let auth_headers = owned.resolution.auth_override
         .take()
         .unwrap_or_else(|| Arc::clone(&install.drivers.config.auth_headers));
     let resolution_observer = owned.resolution.observer.take();
@@ -224,8 +223,10 @@ impl PnpmfileHooks {
         pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
         lockfile_dir: &Path,
     ) -> Self {
-        let path =
-            pnpmfile_hook.as_ref().and_then(|hook| hook.source_path()).map(Path::to_path_buf);
+        let path = pnpmfile_hook
+            .as_ref()
+            .and_then(|hook| hook.source_path())
+            .map(Path::to_path_buf);
         let log = |name: &'static str| {
             path.as_ref().map(|from| hook_log_fn::<Reporter>(lockfile_dir, from, name))
         };
@@ -264,8 +265,7 @@ impl TrustGate {
     fn of(config: &Config) -> Result<Self, InstallWithFreshLockfileError> {
         Ok(Self {
             policy: resolver_trust_policy(config.trust_policy),
-            exclude: config
-                .trust_policy_exclude
+            exclude: config.trust_policy_exclude
                 .as_deref()
                 .filter(|patterns| !patterns.is_empty())
                 .map(pnpm_config::version_policy::create_package_version_policy)
@@ -346,8 +346,10 @@ pub(super) async fn prepare_resolution<'a, Reporter: self::Reporter + 'static>(
     let wanted_lockfile = fixed_wanted_lockfile.as_ref().or(install.lockfiles.wanted);
     // The repair copy above replaced the document, so the loader's
     // handle no longer describes `wanted_lockfile`.
-    let wanted_lockfile_shared =
-        fixed_wanted_lockfile.is_none().then_some(owned.wanted_lockfile_shared.take()).flatten();
+    let wanted_lockfile_shared = fixed_wanted_lockfile
+        .is_none()
+        .then_some(owned.wanted_lockfile_shared.take())
+        .flatten();
     let patches = Patches::resolve(config)?;
 
     // Kept past the resolver hand-off (which consumes `pnpmfile_hook`) so

@@ -121,7 +121,10 @@ fn ledger_entries(plan: &ReleasePlan) -> BTreeMap<String, (String, Vec<String>)>
         if release.intents.is_empty() {
             continue;
         }
-        let mut ids: Vec<String> = release.intents.iter().map(|intent| intent.id.clone()).collect();
+        let mut ids: Vec<String> = release.intents
+            .iter()
+            .map(|intent| intent.id.clone())
+            .collect();
         ids.sort();
         entries.insert(
             format!("{}@{}", release.name, release.version.next),
@@ -140,9 +143,10 @@ fn consumed_ledger(
 ) -> Ledger {
     match storage {
         ChangelogStorage::Repository => ledger,
-        ChangelogStorage::Registry => {
-            ledger.into_iter().filter(|(key, _)| confirmed_published.contains(key)).collect()
-        }
+        ChangelogStorage::Registry => ledger
+            .into_iter()
+            .filter(|(key, _)| confirmed_published.contains(key))
+            .collect(),
     }
 }
 
@@ -155,19 +159,26 @@ fn remove_consumed_intents(
 ) -> Result<(), VersioningError> {
     let consumption = build_consumption_index(consumed_ledger, |name| refs.name_to_dirs(name))?;
     let mut lane_dirs: HashSet<String> = HashSet::new();
-    for reference in versioning.map(|settings| settings.lanes.keys()).into_iter().flatten() {
+    for reference in versioning
+        .map(|settings| settings.lanes.keys())
+        .into_iter()
+        .flatten()
+    {
         lane_dirs.extend(refs.ref_to_dirs(reference));
     }
 
     for intent in all_intents {
-        let deletable = intent.releases.iter().all(|(reference, bump_type)| {
-            is_release_consumed(intent, reference, *bump_type, refs, &consumption, &lane_dirs)
-        });
+        let deletable = intent.releases
+            .iter()
+            .all(|(reference, bump_type)| {
+                is_release_consumed(intent, reference, *bump_type, refs, &consumption, &lane_dirs)
+            });
         if deletable {
-            fs::remove_file(&intent.file_path).map_err(|source| VersioningError::Remove {
-                path: intent.file_path.clone(),
-                source,
-            })?;
+            fs::remove_file(&intent.file_path)
+                .map_err(|source| VersioningError::Remove {
+                    path: intent.file_path.clone(),
+                    source,
+                })?;
         }
     }
     Ok(())

@@ -303,13 +303,12 @@ impl<'a> InstallFrozenLockfile<'a> {
         // why it lives here rather than in the plan.
         let allow_build_policy = AllowBuildPolicy::from_config(self.drivers.config)
             .map_err(InstallFrozenLockfileError::VersionPolicy)?;
-        let plan = self
-            .plan_materialization(
-                &allow_build_policy,
-                owned.early_host_detection,
-                owned.node_version,
-            )
-            .await?;
+        let plan = self.plan_materialization(
+            &allow_build_policy,
+            owned.early_host_detection,
+            owned.node_version,
+        )
+        .await?;
 
         self.run_plan::<Reporter>(
             &allow_build_policy,
@@ -361,18 +360,17 @@ impl<'a> InstallFrozenLockfile<'a> {
 
         let settled = self.settle_skip_set::<Reporter>(plan.host, seed_skipped).await?;
 
-        let fetched = self
-            .fetch::<Reporter>(
-                &ctx,
-                FetchInputs {
-                    cas_prefetch: plan.cas_prefetch,
-                    dir_clone_cache: plan.dir_clone_cache.as_ref(),
-                    store_index_writer: &store_index_writer,
-                    skipped: &settled.skipped,
-                    verification_override,
-                },
-            )
-            .await?;
+        let fetched = self.fetch::<Reporter>(
+            &ctx,
+            FetchInputs {
+                cas_prefetch: plan.cas_prefetch,
+                dir_clone_cache: plan.dir_clone_cache.as_ref(),
+                store_index_writer: &store_index_writer,
+                skipped: &settled.skipped,
+                verification_override,
+            },
+        )
+        .await?;
 
         self.finish_materialization::<Reporter>(
             &ctx,
@@ -400,19 +398,18 @@ impl<'a> InstallFrozenLockfile<'a> {
         let linked = self.link_fetched::<Reporter>(ctx, &mut fetched, &mut settled)?;
 
         let phase_start = std::time::Instant::now();
-        let built = self
-            .build::<Reporter>(
-                ctx,
-                BuildInputs {
-                    fetched: &fetched,
-                    linked: &linked,
-                    skipped: &settled.skipped,
-                    store_index_writer: &store_index_writer,
-                    engine_name: settled.engine_name,
-                    deferred_engine_name,
-                },
-            )
-            .await?;
+        let built = self.build::<Reporter>(
+            ctx,
+            BuildInputs {
+                fetched: &fetched,
+                linked: &linked,
+                skipped: &settled.skipped,
+                store_index_writer: &store_index_writer,
+                engine_name: settled.engine_name,
+                deferred_engine_name,
+            },
+        )
+        .await?;
         tracing::info!(
             target: "pacquet::install::phase",
             phase = "build_phase",

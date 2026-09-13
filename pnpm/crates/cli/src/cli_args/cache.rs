@@ -122,7 +122,12 @@ impl CacheCommand {
                 let mut registries: Vec<String> = entries
                     .filter_map(std::result::Result::ok)
                     .filter(|entry| entry.file_type().is_ok_and(|file_type| file_type.is_dir()))
-                    .map(|entry| entry.file_name().to_string_lossy().into_owned())
+                    .map(|entry| {
+                        entry
+                            .file_name()
+                            .to_string_lossy()
+                            .into_owned()
+                    })
                     .collect();
                 registries.sort();
                 if !registries.is_empty() {
@@ -162,8 +167,9 @@ impl CacheCommand {
         // `shared_readonly_in` returns None when index.db does not exist,
         // which we treat the same way: every lookup is a miss.
         let store_index = StoreIndex::shared_readonly_in(&config.store_dir);
-        let store_index =
-            store_index.as_ref().map(|index| index.lock().expect("store index mutex"));
+        let store_index = store_index
+            .as_ref()
+            .map(|index| index.lock().expect("store index mutex"));
 
         // IndexMap preserves insertion order so the JSON key order is
         // deterministic (driven by the sorted file paths), matching pnpm's
@@ -221,10 +227,18 @@ impl CacheCommand {
 /// (`<registry>/@scope/name.jsonl`), so `parent()` would be wrong. Mirrors
 /// pnpm's cacheView walk to the top-most dir.
 fn cache_registry_name(file_path: &str) -> String {
-    Path::new(file_path).components().next().map_or_else(
-        || ".".to_string(),
-        |component| component.as_os_str().to_string_lossy().into_owned(),
-    )
+    Path::new(file_path)
+        .components()
+        .next()
+        .map_or_else(
+            || ".".to_string(),
+            |component| {
+                component
+                    .as_os_str()
+                    .to_string_lossy()
+                    .into_owned()
+            },
+        )
 }
 
 /// The metadata file's modification time as an RFC 3339 timestamp.
@@ -248,8 +262,11 @@ fn walk_metadata_files(
         if !entry.file_type().is_file() {
             continue;
         }
-        if let Some(path_str) =
-            entry.path().strip_prefix(cache_dir).ok().and_then(|path| path.to_str())
+        if let Some(path_str) = entry
+            .path()
+            .strip_prefix(cache_dir)
+            .ok()
+            .and_then(|path| path.to_str())
         {
             matches.push((path_str.replace('\\', "/"), entry.path().to_path_buf()));
         }
@@ -283,5 +300,9 @@ fn split_cached_versions(
 
 fn version_integrity(json_frag: &str) -> Option<String> {
     let manifest = serde_json::from_str::<serde_json::Value>(json_frag).ok()?;
-    manifest.get("dist")?.get("integrity")?.as_str().map(ToOwned::to_owned)
+    manifest
+        .get("dist")?
+        .get("integrity")?
+        .as_str()
+        .map(ToOwned::to_owned)
 }

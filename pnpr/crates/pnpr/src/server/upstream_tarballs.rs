@@ -194,7 +194,12 @@ pub(super) async fn fetch_upstream_tarball(
     upstream: &Upstream,
     tarball: UpstreamTarball<'_>,
 ) -> Response {
-    let UpstreamTarball { namespace, name, filename, integrity } = tarball;
+    let UpstreamTarball {
+        namespace,
+        name,
+        filename,
+        integrity,
+    } = tarball;
     let fetched = timed(
         "tarball:upstream_fetch",
         name.as_str(),

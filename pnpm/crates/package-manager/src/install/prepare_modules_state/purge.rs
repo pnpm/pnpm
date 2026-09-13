@@ -103,7 +103,9 @@ pub(super) fn is_pnpm_owned_entry(
 ) -> bool {
     file_name == ".bin"
         || file_name == ".modules.yaml"
-        || config.virtual_store_dir.file_name().is_some_and(|name| name == file_name)
+        || config.virtual_store_dir
+            .file_name()
+            .is_some_and(|name| name == file_name)
         || modules_manifest.is_some_and(|manifest| {
             recorded_virtual_store_name(manifest, config).is_some_and(|name| name == file_name)
         })

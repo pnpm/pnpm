@@ -260,7 +260,9 @@ pub(super) fn upstream_search_admits(
     config: &pnpr_config::UpstreamConfig,
     identity: &Identity,
 ) -> bool {
-    config.access.as_ref().is_none_or(|access| access.allows(identity))
+    config.access
+        .as_ref()
+        .is_none_or(|access| access.allows(identity))
         && config.rules.all_access_admit(identity)
 }
 
@@ -374,7 +376,10 @@ pub(super) fn discovery_sources(
 }
 
 pub(super) fn search_object_name(object: &Value) -> Option<&str> {
-    object.get("package")?.get("name")?.as_str()
+    object
+        .get("package")?
+        .get("name")?
+        .as_str()
 }
 
 pub(super) fn upstream_search_query(query_string: &str, from: usize, size: usize) -> String {

@@ -55,8 +55,12 @@ fn tasks(entries: &[(&str, Option<&[&str]>)]) -> IndexMap<String, TaskSettings> 
         .iter()
         .map(|(name, depends_on)| {
             let mut settings = TaskSettings::default();
-            settings.depends_on = depends_on
-                .map(|entries| entries.iter().map(std::string::ToString::to_string).collect());
+            settings.depends_on = depends_on.map(|entries| {
+                entries
+                    .iter()
+                    .map(std::string::ToString::to_string)
+                    .collect()
+            });
             (name.to_string(), settings)
         })
         .collect()
@@ -81,19 +85,35 @@ fn build_graph(
     let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> = projects
         .iter()
         .map(|(name, project)| {
-            (dir(name), project.dependencies.iter().map(|dependency| dir(dependency)).collect())
+            (
+                dir(name),
+                project.dependencies
+                    .iter()
+                    .map(|dependency| dir(dependency))
+                    .collect(),
+            )
         })
         .collect();
     let scripts_by_dir: HashMap<PathBuf, Vec<String>> = projects
         .iter()
         .map(|(name, project)| {
-            (dir(name), project.scripts.iter().map(std::string::ToString::to_string).collect())
+            (
+                dir(name),
+                project.scripts
+                    .iter()
+                    .map(std::string::ToString::to_string)
+                    .collect(),
+            )
         })
         .collect();
     build_task_graph(&BuildTaskGraphOptions {
         project_dependencies: &project_dependencies,
         select_scripts: |project: &Path, task_name: &str| {
-            scripts_by_dir[project].iter().filter(|script| *script == task_name).cloned().collect()
+            scripts_by_dir[project]
+                .iter()
+                .filter(|script| *script == task_name)
+                .cloned()
+                .collect()
         },
         task_name,
         tasks: task_settings,
@@ -111,20 +131,36 @@ fn pipeline_graph_requests_every_task_name_only_in_the_requested_projects() {
     let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> = projects
         .iter()
         .map(|(name, project)| {
-            (dir(name), project.dependencies.iter().map(|dependency| dir(dependency)).collect())
+            (
+                dir(name),
+                project.dependencies
+                    .iter()
+                    .map(|dependency| dir(dependency))
+                    .collect(),
+            )
         })
         .collect();
     let scripts_by_dir: HashMap<PathBuf, Vec<String>> = projects
         .iter()
         .map(|(name, project)| {
-            (dir(name), project.scripts.iter().map(std::string::ToString::to_string).collect())
+            (
+                dir(name),
+                project.scripts
+                    .iter()
+                    .map(std::string::ToString::to_string)
+                    .collect(),
+            )
         })
         .collect();
     let requested = [dir("app")];
     let graph = build_pipeline_task_graph(&BuildPipelineTaskGraphOptions {
         project_dependencies: &project_dependencies,
         select_scripts: |project: &Path, task_name: &str| {
-            scripts_by_dir[project].iter().filter(|script| *script == task_name).cloned().collect()
+            scripts_by_dir[project]
+                .iter()
+                .filter(|script| *script == task_name)
+                .cloned()
+                .collect()
         },
         task_names: &["build", "lint"],
         requested_projects: Some(&requested),
@@ -198,7 +234,13 @@ fn task_carries_its_configured_concurrency_limit_into_the_graph() {
         Some(&settings),
     );
 
-    assert_eq!(graph.values().map(|node| node.concurrency).collect::<Vec<_>>(), vec![Some(1); 2]);
+    assert_eq!(
+        graph
+            .values()
+            .map(|node| node.concurrency)
+            .collect::<Vec<_>>(),
+        vec![Some(1); 2],
+    );
 }
 
 #[test]
@@ -435,11 +477,17 @@ fn scheduler_runs_tasks_in_dependency_order() {
             concurrency: 4,
             bail: true,
             run_task: &|node| {
-                order.lock().unwrap().push(node.project.to_string_lossy().into_owned());
+                order
+                    .lock()
+                    .unwrap()
+                    .push(node.project.to_string_lossy().into_owned());
                 TaskCompletion::Passed
             },
             on_task_skipped: &|node| {
-                skipped.lock().unwrap().push(node.project.to_string_lossy().into_owned());
+                skipped
+                    .lock()
+                    .unwrap()
+                    .push(node.project.to_string_lossy().into_owned());
             },
         },
     );
@@ -561,7 +609,9 @@ fn task_waiting_for_a_concurrency_permit_stays_undispatched_after_bail() {
             concurrency: 3,
             bail: true,
             run_task: &|node| {
-                ran.lock().unwrap().push(node.project.clone());
+                ran.lock()
+                    .unwrap()
+                    .push(node.project.clone());
                 TaskCompletion::Failed
             },
             on_task_skipped: &|_| {},
@@ -610,8 +660,14 @@ fn graph_scheduler_does_not_wait_for_an_unrelated_slow_branch() {
     let mut started = ran.clone();
     started.sort_unstable();
     assert_eq!(started, vec!["dependent", "fast", "slow"]);
-    let fast = ran.iter().position(|node| *node == "fast").unwrap();
-    let dependent = ran.iter().position(|node| *node == "dependent").unwrap();
+    let fast = ran
+        .iter()
+        .position(|node| *node == "fast")
+        .unwrap();
+    let dependent = ran
+        .iter()
+        .position(|node| *node == "dependent")
+        .unwrap();
     assert!(fast < dependent, "dependent starts after the dependency it waits on: {ran:?}");
 }
 
@@ -662,7 +718,9 @@ fn scheduler_without_bail_skips_transitive_dependents_of_a_failure() {
             concurrency: 1,
             bail: false,
             run_task: &|node| {
-                ran.lock().unwrap().push(node.project.to_string_lossy().into_owned());
+                ran.lock()
+                    .unwrap()
+                    .push(node.project.to_string_lossy().into_owned());
                 if node.project == dir("b") {
                     TaskCompletion::Failed
                 } else {
@@ -670,7 +728,10 @@ fn scheduler_without_bail_skips_transitive_dependents_of_a_failure() {
                 }
             },
             on_task_skipped: &|node| {
-                skipped.lock().unwrap().push(node.project.to_string_lossy().into_owned());
+                skipped
+                    .lock()
+                    .unwrap()
+                    .push(node.project.to_string_lossy().into_owned());
             },
         },
     );
@@ -699,7 +760,9 @@ fn scheduler_with_bail_dispatches_nothing_after_a_failure() {
             concurrency: 1,
             bail: true,
             run_task: &|node| {
-                ran.lock().unwrap().push(node.project.to_string_lossy().into_owned());
+                ran.lock()
+                    .unwrap()
+                    .push(node.project.to_string_lossy().into_owned());
                 if node.project == dir("a") {
                     TaskCompletion::Failed
                 } else {

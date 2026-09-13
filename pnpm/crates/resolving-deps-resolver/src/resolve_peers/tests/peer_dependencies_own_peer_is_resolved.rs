@@ -678,7 +678,10 @@ fn shared_package_optional_transitive_peer_resolves_deterministically() {
         assert!(result.graph.contains_key(&styled_with_babel));
         assert!(result.graph.contains_key(&styled_without_babel));
 
-        let mut keys: Vec<String> = result.graph.keys().map(DepPath::to_string).collect();
+        let mut keys: Vec<String> = result.graph
+            .keys()
+            .map(DepPath::to_string)
+            .collect();
         keys.sort();
         match &first_keys {
             None => first_keys = Some(keys),

@@ -84,7 +84,10 @@ pub fn set_package_version(version: impl Into<String>) {
 }
 
 pub(crate) fn package_version() -> &'static str {
-    PACKAGE_VERSION.get().map(String::as_str).unwrap_or(env!("CARGO_PKG_VERSION"))
+    PACKAGE_VERSION
+        .get()
+        .map(String::as_str)
+        .unwrap_or(env!("CARGO_PKG_VERSION"))
 }
 
 /// Force append-only rendering regardless of whether stdout is a TTY,
@@ -103,7 +106,10 @@ pub fn use_stderr() {
 }
 
 fn is_stderr_output() -> bool {
-    USE_STDERR.get().copied().unwrap_or(false)
+    USE_STDERR
+        .get()
+        .copied()
+        .unwrap_or(false)
 }
 
 /// Configure which prefixes contribute to the packages-diff summary.
@@ -167,7 +173,11 @@ pub fn set_color_mode(mode: ColorMode) {
 }
 
 pub fn colors_enabled(is_terminal: bool) -> bool {
-    match COLOR_MODE.get().copied().unwrap_or_default() {
+    match COLOR_MODE
+        .get()
+        .copied()
+        .unwrap_or_default()
+    {
         ColorMode::Always => true,
         ColorMode::Auto => is_terminal && std::env::var_os("NO_COLOR").is_none(),
         ColorMode::Never => false,
@@ -175,9 +185,13 @@ pub fn colors_enabled(is_terminal: bool) -> bool {
 }
 
 fn cwd() -> String {
-    CWD.get().cloned().unwrap_or_else(|| {
-        std::env::current_dir().map(|path| path.to_string_lossy().into_owned()).unwrap_or_default()
-    })
+    CWD.get()
+        .cloned()
+        .unwrap_or_else(|| {
+            std::env::current_dir()
+                .map(|path| path.to_string_lossy().into_owned())
+                .unwrap_or_default()
+        })
 }
 
 /// `--reporter=default`: renders pnpm-style visual output to stdout, or to
@@ -254,7 +268,11 @@ impl Sink {
         } else {
             std::io::stdout().is_terminal()
         };
-        let append_only = !is_tty || FORCE_APPEND_ONLY.get().copied().unwrap_or(false);
+        let append_only = !is_tty
+            || FORCE_APPEND_ONLY
+                .get()
+                .copied()
+                .unwrap_or(false);
         let (columns, rows) =
             if is_tty { terminal_size().unwrap_or((80, None)) } else { (80, None) };
         // pnpm's `outputMaxWidth`: `columns - 2` on a TTY, else 80.
@@ -464,21 +482,27 @@ impl Sink {
 fn reporter_options(append_only: bool) -> state::ReporterOptions {
     state::ReporterOptions {
         append_only,
-        max_log_level: MAX_LOG_LEVEL.get().copied().unwrap_or(MaxLogLevel::Info),
+        max_log_level: MAX_LOG_LEVEL
+            .get()
+            .copied()
+            .unwrap_or(MaxLogLevel::Info),
         lifecycle: crate::state::LifecycleOptions {
-            stream_output: STREAM_LIFECYCLE_OUTPUT.get().copied().unwrap_or(false),
-            aggregate_output: AGGREGATE_OUTPUT.get().copied().unwrap_or(false),
-            hide_prefix: HIDE_LIFECYCLE_PREFIX.get().copied().unwrap_or(false),
+            stream_output: STREAM_LIFECYCLE_OUTPUT.get().is_some_and(|value| *value),
+            aggregate_output: AGGREGATE_OUTPUT.get().is_some_and(|value| *value),
+            hide_prefix: HIDE_LIFECYCLE_PREFIX.get().is_some_and(|value| *value),
             ..Default::default()
         },
         progress: crate::state::ProgressOptions {
-            hide_added_pkgs: HIDE_ADDED_PKGS_PROGRESS.get().copied().unwrap_or(false),
+            hide_added_pkgs: HIDE_ADDED_PKGS_PROGRESS.get().is_some_and(|value| *value),
             ..Default::default()
         },
         scope: crate::state::ScopeOptions {
-            summary: SUMMARY_SCOPE.get().copied().unwrap_or(SummaryScope::CurrentPrefix),
-            reports_scope: REPORTS_SCOPE.get().copied().unwrap_or(false),
-            recursive: IS_RECURSIVE.get().copied().unwrap_or(false),
+            summary: SUMMARY_SCOPE
+                .get()
+                .copied()
+                .unwrap_or(SummaryScope::CurrentPrefix),
+            reports_scope: REPORTS_SCOPE.get().is_some_and(|value| *value),
+            recursive: IS_RECURSIVE.get().is_some_and(|value| *value),
         },
         ..state::ReporterOptions::default()
     }
@@ -497,7 +521,10 @@ fn terminal_size() -> Option<(usize, Option<usize>)> {
 /// The lines from there on are already laid out contiguously in `frame`, so the
 /// visible part of a frame is a borrow rather than a second copy of it.
 fn frame_offset_of_line(frame: &str, lines: &[&str], index: usize) -> usize {
-    let trailing: usize = lines[index..].iter().map(|line| line.len() + '\n'.len_utf8()).sum();
+    let trailing: usize = lines[index..]
+        .iter()
+        .map(|line| line.len() + '\n'.len_utf8())
+        .sum();
     frame.len() - trailing
 }
 

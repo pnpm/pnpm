@@ -196,10 +196,11 @@ fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
     // Both `utils` occurrences collapse onto one depPath because the
     // `resolver` peer id collapses on the plugin/resolver peer cycle, so
     // exactly one of them supplies the graph node's edges.
-    let utils = result.graph.keys().filter(|dep_path| dep_path.as_str().starts_with("utils@"));
+    let utils = result.graph
+        .keys()
+        .filter(|dep_path| dep_path.as_str().starts_with("utils@"));
     assert_eq!(utils.count(), 1, "one utils entry: {:?}", result.graph.keys().collect::<Vec<_>>());
-    let utils_dep_path = result
-        .graph
+    let utils_dep_path = result.graph
         .keys()
         .find(|dep_path| dep_path.as_str().starts_with("utils@"))
         .expect("utils entry")
@@ -212,8 +213,7 @@ fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
     // importer reaches, leaving an orphan entry in the lockfile —
     // <https://github.com/pnpm/pnpm/issues/13320>.
     let mut reachable: HashSet<DepPath> = HashSet::default();
-    let mut queue: Vec<DepPath> = result
-        .direct_dependencies_by_importer
+    let mut queue: Vec<DepPath> = result.direct_dependencies_by_importer
         .values()
         .flat_map(|direct| direct.values().cloned())
         .collect();
@@ -223,8 +223,10 @@ fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
         }
         queue.extend(result.graph[&dep_path].edges.children.values().cloned());
     }
-    let orphans: Vec<_> =
-        result.graph.keys().filter(|dep_path| !reachable.contains(*dep_path)).collect();
+    let orphans: Vec<_> = result.graph
+        .keys()
+        .filter(|dep_path| !reachable.contains(*dep_path))
+        .collect();
     assert!(orphans.is_empty(), "every graph entry is reachable from an importer: {orphans:?}");
 }
 
@@ -292,8 +294,7 @@ fn linked_peer_provider_uses_root_relative_snapshot_ref_in_workspace_fallback() 
         result.direct_dependencies_by_importer["apps/nested/app"]["peer"].as_str(),
         "link:../../../packages/peer",
     );
-    let consumer = result
-        .graph
+    let consumer = result.graph
         .values()
         .find(|node| node.resolved_package_id == "consumer@1.0.0")
         .expect("consumer graph node");

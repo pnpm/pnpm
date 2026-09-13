@@ -164,27 +164,25 @@ impl DeployArgs {
         let config = state.config;
         let workspace_projects_override = deployed_workspace_projects(state, deploy_dir, legacy);
 
-        let supported_architectures = self
-            .install_args
-            .supported_architectures
-            .apply_to(config.supported_architectures.clone());
+        let supported_architectures = self.install_args.supported_architectures.apply_to(
+            config.supported_architectures.clone(),
+        );
         let trust_lockfile = resolve_bool_override(
             self.install_args.lockfile_updates.trust_lockfile,
             self.install_args.lockfile_updates.no_trust_lockfile,
             config.trust_lockfile,
         );
         let lockfile_path = config.lockfile.then(|| deploy_dir.join(Lockfile::FILE_NAME));
-        let dependency_groups = self
-            .install_args
-            .dependency_options
+        let dependency_groups = self.install_args.dependency_options
             .dependency_groups(config.optional)
             .collect::<Vec<_>>();
 
         let install = {
             let mut base_install = state.install(dependency_groups);
             base_install.lockfile_policy.frozen = frozen_lockfile;
-            base_install.lockfile_policy.prefer_frozen =
-                frozen_lockfile.then_some(true).or(Some(false));
+            base_install.lockfile_policy.prefer_frozen = frozen_lockfile
+                .then_some(true)
+                .or(Some(false));
             base_install.lockfile_policy.trust = trust_lockfile;
             base_install.lockfile_policy.disable_optimistic_repeat = true;
             base_install.execution.skip_runtimes =
@@ -214,11 +212,10 @@ impl DeployArgs {
         frozen_lockfile: bool,
         ignore_pnpmfile: bool,
     ) -> &'static Config {
-        let node_linker = self
-            .install_args
-            .materialization
-            .node_linker
-            .map_or(base_config.node_linker, NodeLinkerArg::into_config);
+        let node_linker = self.install_args.materialization.node_linker.map_or(
+            base_config.node_linker,
+            NodeLinkerArg::into_config,
+        );
         let mut deploy_config = create_deploy_install_config(base_config, deploy_dir, node_linker);
         deploy_config.prefer_frozen_lockfile = frozen_lockfile;
         // pnpm's deploy forwards `--force` into the install, where it

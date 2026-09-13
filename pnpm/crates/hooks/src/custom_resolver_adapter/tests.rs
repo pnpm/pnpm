@@ -37,12 +37,18 @@ impl ScriptedResolver {
 impl CustomResolver for ScriptedResolver {
     async fn can_resolve(&self, wanted_dependency: Value) -> Result<bool, HookError> {
         self.can_resolve_calls.fetch_add(1, Ordering::SeqCst);
-        self.seen_wanted.lock().unwrap().push(wanted_dependency);
+        self.seen_wanted
+            .lock()
+            .unwrap()
+            .push(wanted_dependency);
         Ok(self.can_resolve)
     }
 
     async fn resolve(&self, _: Value, opts: Value) -> Result<Value, HookError> {
-        self.seen_opts.lock().unwrap().push(opts);
+        self.seen_opts
+            .lock()
+            .unwrap()
+            .push(opts);
         Ok(self.response.clone())
     }
 
@@ -95,11 +101,19 @@ async fn returns_none_when_can_resolve_is_false() {
     });
     let adapter = CustomResolverAdapter::new(Arc::clone(&resolver) as Arc<dyn CustomResolver>);
 
-    let result =
-        adapter.resolve(&wanted("foo", "custom:foo"), &ResolveOptions::default()).await.unwrap();
+    let result = adapter
+        .resolve(&wanted("foo", "custom:foo"), &ResolveOptions::default())
+        .await
+        .unwrap();
 
     assert!(result.is_none());
-    assert!(resolver.seen_opts.lock().unwrap().is_empty(), "resolve must not be called");
+    assert!(
+        resolver.seen_opts
+            .lock()
+            .unwrap()
+            .is_empty(),
+        "resolve must not be called",
+    );
 }
 
 #[tokio::test]
@@ -108,11 +122,20 @@ async fn caches_can_resolve_per_alias_and_specifier() {
     let adapter = CustomResolverAdapter::new(Arc::clone(&resolver) as Arc<dyn CustomResolver>);
     let opts = ResolveOptions::default();
 
-    adapter.resolve(&wanted("foo", "custom:foo"), &opts).await.unwrap();
-    adapter.resolve(&wanted("foo", "custom:foo"), &opts).await.unwrap();
+    adapter
+        .resolve(&wanted("foo", "custom:foo"), &opts)
+        .await
+        .unwrap();
+    adapter
+        .resolve(&wanted("foo", "custom:foo"), &opts)
+        .await
+        .unwrap();
     assert_eq!(resolver.can_resolve_calls.load(Ordering::SeqCst), 1);
 
-    adapter.resolve(&wanted("foo", "custom:other"), &opts).await.unwrap();
+    adapter
+        .resolve(&wanted("foo", "custom:other"), &opts)
+        .await
+        .unwrap();
     assert_eq!(resolver.can_resolve_calls.load(Ordering::SeqCst), 2);
 }
 

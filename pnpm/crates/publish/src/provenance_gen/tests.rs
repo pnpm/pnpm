@@ -203,8 +203,9 @@ async fn fetch_sigstore_token_uses_github_request_token() {
         })
     });
 
-    let token =
-        fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default()).await.unwrap();
+    let token = fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default())
+        .await
+        .unwrap();
     assert_eq!(token, "gh-sigstore-token");
 }
 
@@ -231,8 +232,9 @@ async fn fetch_sigstore_token_reads_gitlab_env_token() {
         }
     }
 
-    let token =
-        fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default()).await.unwrap();
+    let token = fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default())
+        .await
+        .unwrap();
     assert_eq!(token, "gl-sigstore-token");
 }
 
@@ -258,8 +260,9 @@ async fn fetch_sigstore_token_errors_when_gitlab_token_missing() {
         }
     }
 
-    let err =
-        fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default()).await.unwrap_err();
+    let err = fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default())
+        .await
+        .unwrap_err();
     assert!(matches!(err, ProvenanceGenError::GitLabMissingToken));
 }
 
@@ -410,8 +413,7 @@ const INSTANT_RETRIES: pnpm_network::RetryOpts = pnpm_network::RetryOpts {
 
 #[tokio::test]
 async fn with_sign_deadline_times_out_a_hung_attempt() {
-    let err = with_sign_deadline(Duration::ZERO, std::future::pending())
-        .await
+    let err = with_sign_deadline(Duration::ZERO, std::future::pending()).await
         .expect_err("a hung exchange hits the deadline");
     assert!(matches!(err, ProvenanceGenError::Sign { .. }), "got {err:?}");
 }
@@ -479,7 +481,8 @@ async fn fetch_sigstore_token_rejects_unsupported_provider() {
         }
     }
 
-    let err =
-        fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default()).await.unwrap_err();
+    let err = fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default())
+        .await
+        .unwrap_err();
     assert!(matches!(err, ProvenanceGenError::UnsupportedProvider));
 }

@@ -39,7 +39,10 @@ fn dependency_order(
             .iter()
             .map(|(project, dependencies)| (project.clone(), dependencies.clone()))
             .collect::<HashMap<_, _>>(),
-        &project_dependencies.keys().cloned().collect::<Vec<_>>(),
+        &project_dependencies
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
     )
     .order
 }
@@ -51,7 +54,11 @@ fn output_is_literal(out: Option<&str>) -> bool {
 }
 
 pub(super) fn order_index(dependency_order: Vec<PathBuf>) -> HashMap<PathBuf, usize> {
-    dependency_order.into_iter().enumerate().map(|(index, project)| (project, index)).collect()
+    dependency_order
+        .into_iter()
+        .enumerate()
+        .map(|(index, project)| (project, index))
+        .collect()
 }
 
 /// Order two projects that pack to the same output path against each
@@ -107,19 +114,28 @@ fn output_can_change_while_packing(
         return true;
     }
     let runs_pack_scripts = !config.ignore_scripts
-        && graph.values().any(|node| {
-            let manifest = node.package.project.manifest.value();
-            ["prepack", "prepare"].iter().any(|script| {
-                manifest
-                    .pointer(&format!("/scripts/{script}"))
-                    .and_then(serde_json::Value::as_str)
-                    .is_some_and(|body| !body.is_empty())
-            })
-        });
+        && graph
+            .values()
+            .any(|node| {
+                let manifest = node.package.project.manifest.value();
+                ["prepack", "prepare"]
+                    .iter()
+                    .any(|script| {
+                        manifest
+                            .pointer(&format!("/scripts/{script}"))
+                            .and_then(serde_json::Value::as_str)
+                            .is_some_and(|body| !body.is_empty())
+                    })
+            });
     runs_pack_scripts
-        || graph.values().any(|node| {
-            node.package.project.manifest.value().pointer("/publishConfig/directory").is_some()
-        })
+        || graph
+            .values()
+            .any(|node| {
+                node.package.project.manifest
+                    .value()
+                    .pointer("/publishConfig/directory")
+                    .is_some()
+            })
 }
 
 fn render_recursive_pack(

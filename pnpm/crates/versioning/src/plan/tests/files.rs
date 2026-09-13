@@ -63,9 +63,14 @@ fn lanes_keyed_by_directory_path_apply_to_the_right_twin() {
         ..VersioningSettings::default()
     };
     let plan = assemble(&twins(), &intents, &Ledger::new(), Some(&versioning));
-    let ts_line = plan.releases.iter().find(|release| release.dir == "pnpm11/pnpm").expect("ts");
-    let rust_line =
-        plan.releases.iter().find(|release| release.dir == "pnpm/npm/pnpm").expect("rust");
+    let ts_line = plan.releases
+        .iter()
+        .find(|release| release.dir == "pnpm11/pnpm")
+        .expect("ts");
+    let rust_line = plan.releases
+        .iter()
+        .find(|release| release.dir == "pnpm/npm/pnpm")
+        .expect("rust");
     assert_eq!(ts_line.version.next, "11.0.1");
     assert_eq!(rust_line.version.next, "12.1.0-alpha.0");
 }

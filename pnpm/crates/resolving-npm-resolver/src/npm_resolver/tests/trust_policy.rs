@@ -85,8 +85,19 @@ async fn trust_check_skipped_at_resolve_time_when_missing_time_is_ignored() {
         bare_specifier: Some("^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
-    assert_eq!(result.package.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.1.0");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        result.package.name_ver
+            .as_ref()
+            .expect("name_ver")
+            .suffix
+            .to_string(),
+        "1.1.0",
+    );
 }
 
 #[tokio::test]
@@ -106,6 +117,17 @@ async fn trust_downgrade_ignored_when_trust_policy_off() {
         bare_specifier: Some("^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
-    assert_eq!(result.package.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.1.0");
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        result.package.name_ver
+            .as_ref()
+            .expect("name_ver")
+            .suffix
+            .to_string(),
+        "1.1.0",
+    );
 }

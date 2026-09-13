@@ -292,9 +292,11 @@ pub(crate) fn verify_tarball_integrity(
     package_url: String,
 ) -> Result<Integrity, TarballError> {
     if let Some(expected) = expected_integrity {
-        expected.check(buffer).map_err(|error| {
-            TarballError::Checksum(VerifyChecksumError { url: package_url, error })
-        })?;
+        expected
+            .check(buffer)
+            .map_err(|error| {
+                TarballError::Checksum(VerifyChecksumError { url: package_url, error })
+            })?;
         return Ok(expected);
     }
 
@@ -443,8 +445,9 @@ pub(crate) fn store_index_cache_key(
     package_id: &str,
     store_projection: ArchiveStoreProjection<'_>,
 ) -> Option<String> {
-    package_integrity
-        .map(|integrity| store_projection.store_index_key(&integrity.to_string(), package_id))
+    package_integrity.map(|integrity| {
+        store_projection.store_index_key(&integrity.to_string(), package_id)
+    })
 }
 
 mod body;

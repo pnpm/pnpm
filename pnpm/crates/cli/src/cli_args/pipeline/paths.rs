@@ -5,11 +5,15 @@ use std::{
 
 pub(super) fn validate_relative_path(path: &Path) -> io::Result<()> {
     if path.as_os_str().is_empty()
-        || path.components().any(|part| !matches!(part, Component::Normal(_)))
-        || path.components().any(|part| {
-            part.as_os_str().eq_ignore_ascii_case(".git")
-                || part.as_os_str().eq_ignore_ascii_case("node_modules")
-        })
+        || path
+            .components()
+            .any(|part| !matches!(part, Component::Normal(_)))
+        || path
+            .components()
+            .any(|part| {
+                part.as_os_str().eq_ignore_ascii_case(".git")
+                    || part.as_os_str().eq_ignore_ascii_case("node_modules")
+            })
     {
         return Err(io::Error::other(format!(
             "Cache path must stay inside the project: {}",

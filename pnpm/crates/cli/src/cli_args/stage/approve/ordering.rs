@@ -24,7 +24,10 @@ pub(super) async fn read_stage_approval_order(
         projects.push(staged_project(context, item, &mut stage_id_by_package_version).await?);
     }
     let graph = create_projects_graph(
-        projects.iter().map(|project| GraphPkg { project }).collect(),
+        projects
+            .iter()
+            .map(|project| GraphPkg { project })
+            .collect(),
         &CreateProjectsGraphOptions {
             link_workspace_packages: Some(true),
             ..CreateProjectsGraphOptions::default()
@@ -82,14 +85,15 @@ fn approval_order(graph: &ProjectGraph<GraphPkg<'_>>) -> StageApprovalOrder {
         order_index_by_stage_id.insert(stage_id.clone(), order_index);
         dependency_stage_ids_by_stage_id.insert(
             stage_id.clone(),
-            graph[&root_dir]
-                .dependencies
+            graph[&root_dir].dependencies
                 .iter()
                 .map(|dependency| dependency.to_string_lossy().into_owned())
                 .collect(),
         );
-        if let Some(package_name) =
-            graph[&root_dir].package.project.manifest.value().get("name").and_then(Value::as_str)
+        if let Some(package_name) = graph[&root_dir].package.project.manifest
+            .value()
+            .get("name")
+            .and_then(Value::as_str)
         {
             package_name_by_stage_id.insert(stage_id, package_name.to_owned());
         }
@@ -116,20 +120,25 @@ pub(super) fn unavailable_dependencies(
     unpublished_stage_ids: &HashSet<String>,
     order: &StageApprovalOrder,
 ) -> Vec<String> {
-    order
-        .dependency_stage_ids
+    order.dependency_stage_ids
         .get(&item.id)
         .into_iter()
         .flatten()
         .filter(|stage_id| unpublished_stage_ids.contains(*stage_id))
         .map(|stage_id| {
-            order.package_names.get(stage_id).cloned().unwrap_or_else(|| stage_id.clone())
+            order.package_names
+                .get(stage_id)
+                .cloned()
+                .unwrap_or_else(|| stage_id.clone())
         })
         .collect()
 }
 
 fn order_index_of(item: &StageApprovalItem, order: &StageApprovalOrder) -> usize {
-    order.order_indices.get(&item.id).copied().unwrap_or(usize::MAX)
+    order.order_indices
+        .get(&item.id)
+        .copied()
+        .unwrap_or(usize::MAX)
 }
 
 pub(super) fn manifest_for_graph(mut manifest: Value) -> Value {

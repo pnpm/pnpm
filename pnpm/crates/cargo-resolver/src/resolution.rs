@@ -123,7 +123,10 @@ fn validate_selected_graph(
                     selected_version,
                 )
             })?;
-        let selection = feature_selections.get(&package).cloned().unwrap_or_default();
+        let selection = feature_selections
+            .get(&package)
+            .cloned()
+            .unwrap_or_default();
         if !supports_features(selected, &selection) {
             return Ok(None);
         }
@@ -149,7 +152,10 @@ fn resolve_with_features(
         if !registered.insert(package.clone()) {
             continue;
         }
-        let selection = feature_selections.get(&package).cloned().unwrap_or_default();
+        let selection = feature_selections
+            .get(&package)
+            .cloned()
+            .unwrap_or_default();
         register_candidates(registry, &package, &selection, &mut provider, &mut pending)?;
     }
 
@@ -183,15 +189,20 @@ fn register_candidates(
         return Ok(());
     };
     let versions = registry.package(name)?;
-    let candidates = versions.iter().filter(|version| {
-        !version.yanked && compatibility_line(&version.version) == *compatibility
-    });
+    let candidates = versions
+        .iter()
+        .filter(|version| {
+            !version.yanked && compatibility_line(&version.version) == *compatibility
+        });
     for version in candidates {
         if !supports_features(version, selection) {
             continue;
         }
         let dependencies = active_dependencies(version, selection)?;
-        if dependencies.iter().any(|dependency| registry.versions(&dependency.name).is_none()) {
+        if dependencies
+            .iter()
+            .any(|dependency| registry.versions(&dependency.name).is_none())
+        {
             continue;
         }
         let constraints = constraints_for(registry, &dependencies, pending)?;

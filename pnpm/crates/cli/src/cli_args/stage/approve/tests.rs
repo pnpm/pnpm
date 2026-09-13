@@ -28,7 +28,12 @@ fn order(stage_ids: &[&str], dependencies: &[(&str, &[&str])]) -> StageApprovalO
         dependency_stage_ids: dependencies
             .iter()
             .map(|(stage_id, deps)| {
-                ((*stage_id).to_owned(), deps.iter().map(|dep| (*dep).to_owned()).collect())
+                (
+                    (*stage_id).to_owned(),
+                    deps.iter()
+                        .map(|dep| (*dep).to_owned())
+                        .collect(),
+                )
             })
             .collect(),
         package_names: HashMap::from([("id-dependency".to_owned(), "dependency".to_owned())]),
@@ -44,7 +49,10 @@ fn selected_dependencies_are_approved_before_their_dependents() {
     let order = order(&["id-dependency", "id-dependent"], &[("id-dependent", &["id-dependency"])]);
     let sorted = sort_items_for_approval(items, &order);
     assert_eq!(
-        sorted.iter().map(|item| item.id.as_str()).collect::<Vec<_>>(),
+        sorted
+            .iter()
+            .map(|item| item.id.as_str())
+            .collect::<Vec<_>>(),
         ["id-dependency", "id-dependent"],
     );
 }
@@ -59,7 +67,10 @@ fn packages_without_dependencies_keep_their_selection_order() {
     let order = order(&["id-external", "id-unlisted", "id-dependency"], &[]);
     let sorted = sort_items_for_approval(items, &order);
     assert_eq!(
-        sorted.iter().map(|item| item.id.as_str()).collect::<Vec<_>>(),
+        sorted
+            .iter()
+            .map(|item| item.id.as_str())
+            .collect::<Vec<_>>(),
         ["id-external", "id-unlisted", "id-dependency"],
     );
 }

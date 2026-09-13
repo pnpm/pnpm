@@ -62,7 +62,9 @@ pub(in super::super) fn settle_selected_update<Reporter: self::Reporter>(
     persist_selected_manifests::<Reporter>(projects, &persist_indices)?;
     let workspace_dir = site.catalogs_dir(prepared.workspace_dir_for_catalogs.as_deref());
     if update.version.save
-        && let Some(applied) = applied.as_ref().filter(|applied| !applied.catalogs.is_empty())
+        && let Some(applied) = applied
+            .as_ref()
+            .filter(|applied| !applied.catalogs.is_empty())
     {
         write_workspace_catalogs_selected(
             update.config,
@@ -94,8 +96,7 @@ pub(in super::super) fn settle_update_manifest<Reporter: self::Reporter>(
     config: &Config,
     settle: SettleUpdate<'_>,
 ) -> Result<(), UpdateError> {
-    let bumped_manifest = settle
-        .applied
+    let bumped_manifest = settle.applied
         .and_then(|applied| applied.manifests.get(settle.importer_id))
         .is_some_and(|bumped| {
             apply_bumped_manifest_specs::<Reporter>(
@@ -165,7 +166,9 @@ pub(in super::super) fn apply_bumped_manifest_specs<Reporter: self::Reporter>(
     let declared = bumped
         .iter()
         .filter(|(alias, (group, _))| {
-            manifest.dependencies([*group]).any(|(name, _)| name == alias.as_str())
+            manifest
+                .dependencies([*group])
+                .any(|(name, _)| name == alias.as_str())
         })
         .collect::<Vec<_>>();
     if declared.is_empty() {

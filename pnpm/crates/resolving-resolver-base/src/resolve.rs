@@ -594,5 +594,7 @@ pub async fn resolve_package_version(
     Ok(resolver
         .resolve(wanted, options)
         .await?
-        .and_then(|result| result.package.name_ver.map(|name_ver| name_ver.suffix.to_string())))
+        .and_then(|result| {
+            result.package.name_ver.map(|name_ver| name_ver.suffix.to_string())
+        }))
 }

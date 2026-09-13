@@ -22,7 +22,10 @@ pub(super) fn check_a_project_has_the_script(
     if script_name == "test" || args.if_present {
         return Ok(());
     }
-    if task_graph.values().any(|node| node.requested && !node.scripts.is_empty()) {
+    if task_graph
+        .values()
+        .any(|node| node.requested && !node.scripts.is_empty())
+    {
         return Ok(());
     }
     Err(no_requested_script_error(script_name, all_packages_selected).into())
@@ -105,7 +108,10 @@ pub(super) fn print_selected_project_commands(
     if graph.len() != 1 {
         return Err(RecursiveRunError::ScriptNameRequired.into());
     }
-    let project = graph.values().next().expect("graph contains exactly one project");
+    let project = graph
+        .values()
+        .next()
+        .expect("graph contains exactly one project");
     let root_manifest = projects
         .iter()
         .find(|candidate| {
@@ -183,7 +189,13 @@ pub(super) fn report_run_outcome(
     result: &IndexMap<String, ExecutionStatus>,
     bail_prefix: Option<String>,
 ) -> miette::Result<()> {
-    let RunReporting { args, script_name, workspace_root, task_run_state, .. } = *reporting;
+    let RunReporting {
+        args,
+        script_name,
+        workspace_root,
+        task_run_state,
+        ..
+    } = *reporting;
     if let Some(prefix) = bail_prefix {
         if args.workspace.report_summary {
             write_recursive_summary(workspace_root, result)?;
@@ -237,17 +249,22 @@ pub(super) fn build_run_task_graph(
     selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
     emit: fn(&LogEvent),
 ) -> miette::Result<TaskGraph> {
-    let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> = if args.workspace.sort {
-        filtered_projects_dependencies(
-            graph,
-            selection.full_graph(),
-            selection.prod_all.as_ref(),
-            &selection.prod_only_selected,
-        )
-    } else {
-        warn_ignored_task_declarations(config, emit);
-        graph.keys().cloned().map(|root| (root, Vec::new())).collect()
-    };
+    let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> =
+        if args.workspace.sort {
+            filtered_projects_dependencies(
+                graph,
+                selection.full_graph(),
+                selection.prod_all.as_ref(),
+                &selection.prod_only_selected,
+            )
+        } else {
+            warn_ignored_task_declarations(config, emit);
+            graph
+                .keys()
+                .cloned()
+                .map(|root| (root, Vec::new()))
+                .collect()
+        };
     let select_scripts = |project: &Path, task_name: &str| -> Vec<String> {
         let manifest = graph[project].package.project.manifest.value();
         if task_name == script_name {

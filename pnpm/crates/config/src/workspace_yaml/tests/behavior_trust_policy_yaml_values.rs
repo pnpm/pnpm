@@ -108,15 +108,13 @@ registries:
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(
-        config
-            .registry_options_by_url
+        config.registry_options_by_url
             .get("https://artifactory.example/artifactory/api/npm/npm-virtual/")
             .map(|options| options.server_type),
         Some(Some(RegistryServerType::Artifactory)),
     );
     assert_eq!(
-        config
-            .registry_options_by_url
+        config.registry_options_by_url
             .get("https://npm.example.com/")
             .map(|options| options.server_type),
         Some(Some(RegistryServerType::Npm)),
@@ -221,8 +219,7 @@ registries:
         Some("https://npm.corp.example"),
     );
     assert_eq!(
-        config
-            .registry_options_by_url
+        config.registry_options_by_url
             .get("https://npm.corp.example/")
             .map(|options| options.server_type),
         Some(Some(RegistryServerType::Artifactory)),
@@ -533,12 +530,20 @@ fn parses_a_valid_tasks_section_and_applies_it() {
     let mut config = Config::default();
     settings.apply_to(&mut config, dir.path());
     assert_eq!(
-        config.tasks.get("build").unwrap().depends_on.as_deref(),
+        config.tasks
+            .get("build")
+            .unwrap()
+            .depends_on
+            .as_deref(),
         Some(&["^build".to_string()][..]),
     );
     assert_eq!(config.tasks.get("build").unwrap().concurrency, Some(2));
     assert_eq!(
-        config.tasks.get("test").unwrap().depends_on.as_deref(),
+        config.tasks
+            .get("test")
+            .unwrap()
+            .depends_on
+            .as_deref(),
         Some(&["build".to_string()][..]),
     );
     // `lint: {}` declares an explicitly empty dependency list — a different

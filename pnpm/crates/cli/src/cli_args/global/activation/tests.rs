@@ -237,7 +237,11 @@ fn arm_backup_cleanup_blocker(global_bin_dir: &Path) {
 fn replace_backup_dir_with_file(global_bin_dir: &Path) -> io::Result<()> {
     for entry in fs::read_dir(global_bin_dir)? {
         let entry = entry?;
-        if entry.file_name().to_string_lossy().starts_with(".pnpm-bin-backup-") {
+        if entry
+            .file_name()
+            .to_string_lossy()
+            .starts_with(".pnpm-bin-backup-")
+        {
             fs::remove_dir_all(entry.path())?;
             fs::write(entry.path(), b"not a directory\n")?;
         }
@@ -251,7 +255,11 @@ fn block_backup_cleanup() -> io::Result<()> {
     let Some(global_bin_dir) = guard.as_ref() else { return Ok(()) };
     for entry in fs::read_dir(global_bin_dir)? {
         let entry = entry?;
-        if entry.file_name().to_string_lossy().starts_with(".pnpm-bin-backup-") {
+        if entry
+            .file_name()
+            .to_string_lossy()
+            .starts_with(".pnpm-bin-backup-")
+        {
             fs::write(entry.path().join("cleanup-blocker"), b"keep backup non-empty\n")?;
         }
     }
@@ -629,7 +637,9 @@ fn resolved_hash_target(link: &Path) -> PathBuf {
     let target = if target.is_absolute() {
         target
     } else {
-        link.parent().expect("hash link parent").join(target)
+        link.parent()
+            .expect("hash link parent")
+            .join(target)
     };
     canonical(&target)
 }
@@ -642,7 +652,12 @@ fn backup_dirs(global_bin_dir: &Path) -> Vec<PathBuf> {
     fs::read_dir(global_bin_dir)
         .expect("read global bin directory")
         .map(|entry| entry.expect("read global bin entry"))
-        .filter(|entry| entry.file_name().to_string_lossy().starts_with(".pnpm-bin-backup-"))
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".pnpm-bin-backup-")
+        })
         .map(|entry| entry.path())
         .collect()
 }

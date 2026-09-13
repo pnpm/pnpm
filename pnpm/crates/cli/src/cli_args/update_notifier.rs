@@ -103,7 +103,10 @@ async fn check(config: &Config, state_file: &Path, state: Map<String, Value>, em
 /// registry that serves pnpm without a `latest` tag answers `None`.
 async fn latest_pnpm_version(config: &Config) -> miette::Result<Option<String>> {
     let client = build_registry_client(config)?;
-    let registries: HashMap<String, String> = config.resolved_registries().into_iter().collect();
+    let registries: HashMap<String, String> = config
+        .resolved_registries()
+        .into_iter()
+        .collect();
     let registry = pick_registry_for_package(&registries, "pnpm", None);
     let package = Package::fetch_from_registry("pnpm", &client, &registry, &config.auth_headers)
         .await

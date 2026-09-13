@@ -106,9 +106,12 @@ where
         return Ok(());
     }
 
-    let runtime = cache.runtime_for::<Sys>(spec.probe_path).map_err(|error| {
-        LinkBinsError::ProbeShimSource { path: spec.probe_path.to_path_buf(), error }
-    })?;
+    let runtime = cache
+        .runtime_for::<Sys>(spec.probe_path)
+        .map_err(|error| LinkBinsError::ProbeShimSource {
+            path: spec.probe_path.to_path_buf(),
+            error,
+        })?;
 
     let sh_body =
         generate_sh_shim(spec.target_path, spec.shim_path, runtime.as_ref(), spec.node_path);
@@ -283,11 +286,20 @@ fn write_shim_fresh<Sys>(
 where
     Sys: FsReadToString + FsReadHead + FsWrite + FsSetExecutable + FsEnsureExecutableBits,
 {
-    let &ShimSpec { target_path, probe_path, shim_path, node_path, make_powershell_shim, .. } =
-        spec;
-    let runtime = cache.runtime_for::<Sys>(probe_path).map_err(|error| {
-        LinkBinsError::ProbeShimSource { path: probe_path.to_path_buf(), error }
-    })?;
+    let &ShimSpec {
+        target_path,
+        probe_path,
+        shim_path,
+        node_path,
+        make_powershell_shim,
+        ..
+    } = spec;
+    let runtime = cache
+        .runtime_for::<Sys>(probe_path)
+        .map_err(|error| LinkBinsError::ProbeShimSource {
+            path: probe_path.to_path_buf(),
+            error,
+        })?;
     let sh_body = generate_sh_shim(target_path, shim_path, runtime.as_ref(), node_path);
     // Any failure — a lost race, a dangling symlink squatting on the
     // path, a `Sys` without exclusive creation — goes to the general

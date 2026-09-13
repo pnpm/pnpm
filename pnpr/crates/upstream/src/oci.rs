@@ -48,11 +48,11 @@ impl Upstream {
         let mut negotiated = false;
         for _ in 0..8 {
             self.ensure_allowed_url(url.as_str())?;
-            let guard = self
-                .http
-                .client
-                .acquire_for_url_without_redirects_with_priority(url.as_str(), UNPRIORITIZED)
-                .await;
+            let guard = self.http.client.acquire_for_url_without_redirects_with_priority(
+                url.as_str(),
+                UNPRIORITIZED,
+            )
+            .await;
             let request = guard
                 .request(method.clone(), url.clone())
                 .timeout(self.http.timeout.saturating_sub(started.elapsed()))
@@ -92,9 +92,10 @@ impl Upstream {
         }
         let response = self.checked(response, url.as_str()).await?;
         self.breaker.record_success();
-        Ok(FetchOutcome::Ok(
-            guard.retain_for_body(response, self.http.timeout.saturating_sub(started.elapsed())),
-        ))
+        Ok(FetchOutcome::Ok(guard.retain_for_body(
+            response,
+            self.http.timeout.saturating_sub(started.elapsed()),
+        )))
     }
 
     fn oci_object_url(&self, repository: &str, endpoint: &str) -> Result<(Url, Url)> {
@@ -178,11 +179,11 @@ impl Upstream {
             .query_pairs_mut()
             .append_pair("service", &challenge.service)
             .append_pair("scope", &format!("repository:{repository}:pull"));
-        let guard = self
-            .http
-            .client
-            .acquire_for_url_without_redirects_with_priority(realm.as_str(), UNPRIORITIZED)
-            .await;
+        let guard = self.http.client.acquire_for_url_without_redirects_with_priority(
+            realm.as_str(),
+            UNPRIORITIZED,
+        )
+        .await;
         let headers = self.oci_token_headers(base, &realm);
         let response = guard
             .get(realm.clone())
@@ -194,8 +195,7 @@ impl Upstream {
         if !response.status().is_success() {
             return Err(self.oci_error("OCI token service refused authentication"));
         }
-        let body = read_limited_body(response, 64 * 1024)
-            .await
+        let body = read_limited_body(response, 64 * 1024).await
             .map_err(|source| RegistryError::Upstream { url: self.base.clone(), source })?;
         if body.truncated {
             return Err(self.oci_error("OCI token response is too large"));
@@ -218,8 +218,7 @@ impl Upstream {
 
     fn cache_oci_token(&self, repository: &str, token: TokenResponse) -> Result<String> {
         let expires_in = token.expires_in.unwrap_or(60).min(3600);
-        let token = token
-            .token
+        let token = token.token
             .or(token.access_token)
             .filter(|token| !token.is_empty())
             .ok_or_else(|| self.oci_error("OCI token response contains no token"))?;
@@ -309,7 +308,11 @@ pub fn oci_download_allowed(base: &Url, target: &Url) -> bool {
         return true;
     }
     let origin = target.origin().ascii_serialization();
-    match base.origin().ascii_serialization().as_str() {
+    match base
+        .origin()
+        .ascii_serialization()
+        .as_str()
+    {
         "https://registry-1.docker.io" => matches!(
             origin.as_str(),
             "https://production.cloudflare.docker.com"

@@ -143,7 +143,11 @@ fn lex_cmp(left: &str, right: &str) -> Ordering {
 /// Prioritized keys come first in priority order, the rest follow in
 /// plain code-unit order.
 fn priority_cmp(priority: &[&str], left: &str, right: &str) -> Ordering {
-    let rank = |key: &str| priority.iter().position(|entry| *entry == key);
+    let rank = |key: &str| {
+        priority
+            .iter()
+            .position(|entry| *entry == key)
+    };
     match (rank(left), rank(right)) {
         (Some(left), Some(right)) => left.cmp(&right),
         (Some(_), None) => Ordering::Less,
@@ -157,7 +161,10 @@ fn map_values(
     transform: impl Fn(Value) -> Value + Sync,
 ) -> Map<String, Value> {
     if map.len() < PARALLEL_ENTRY_THRESHOLD {
-        return map.into_iter().map(|(key, value)| (key, transform(value))).collect();
+        return map
+            .into_iter()
+            .map(|(key, value)| (key, transform(value)))
+            .collect();
     }
     map.into_iter()
         .collect::<Vec<_>>()
@@ -199,9 +206,12 @@ fn sort_map(
 fn sort_value(value: Value, compare: &dyn Fn(&str, &str) -> Ordering) -> Value {
     match value {
         Value::Object(map) => Value::Object(sort_map(map, compare, true)),
-        Value::Array(items) => {
-            Value::Array(items.into_iter().map(|item| sort_value(item, compare)).collect())
-        }
+        Value::Array(items) => Value::Array(
+            items
+                .into_iter()
+                .map(|item| sort_value(item, compare))
+                .collect(),
+        ),
         other => other,
     }
 }

@@ -42,9 +42,7 @@ impl NpmResolutionVerifier {
         // send no extra request.
         let planned_key =
             (name.to_string(), version.to_string(), registry_name.map(str::to_string));
-        if self
-            .artifacts
-            .canonical_fetches
+        if self.artifacts.canonical_fetches
             .as_ref()
             .and_then(|cell| cell.get())
             .is_some_and(|planned| planned.contains(&planned_key))
@@ -105,38 +103,40 @@ impl NpmResolutionVerifier {
         let key = package_key(registry, &name.to_string());
         let cell = {
             let mut cache = self.lookup_context.head_modified.lock().await;
-            Arc::clone(cache.entry(key).or_insert_with(|| Arc::new(OnceCell::new())))
+            Arc::clone(
+                cache
+                    .entry(key)
+                    .or_insert_with(|| Arc::new(OnceCell::new())),
+            )
         };
-        let modified = cell
-            .get_or_init(|| async {
-                let url = to_registry_url(registry, &name.to_string());
-                let guard = self
-                    .metadata
-                    .http_client
-                    .acquire_for_url_with_priority(&url, pnpm_network::BACKGROUND)
-                    .await;
-                let mut request = guard.head(&url);
-                if let Some(value) =
-                    self.metadata.auth_headers.for_url_with_package(&url, Some(&name.to_string()))
-                {
-                    request = request.header("authorization", value);
-                }
-                let response = match request.send().await {
-                    Ok(response) if response.status().is_success() => response,
-                    _ => return None,
-                };
-                response
-                    .headers()
-                    .get("last-modified")
-                    .and_then(|value| value.to_str().ok())
-                    .map(str::to_string)
-            })
-            .await;
+        let modified = cell.get_or_init(|| self.fetch_head_modified(registry, name)).await;
         modified
             .as_deref()
             .and_then(|value| httpdate::parse_http_date(value).ok())
             .map(DateTime::<Utc>::from)
             .is_some_and(|parsed| parsed + chrono::Duration::seconds(1) <= cutoff)
+    }
+
+    async fn fetch_head_modified(&self, registry: &str, name: &PkgName) -> Option<String> {
+        let url = to_registry_url(registry, &name.to_string());
+        let guard =
+            self.metadata.http_client.acquire_for_url_with_priority(&url, pnpm_network::BACKGROUND)
+                .await;
+        let mut request = guard.head(&url);
+        if let Some(value) =
+            self.metadata.auth_headers.for_url_with_package(&url, Some(&name.to_string()))
+        {
+            request = request.header("authorization", value);
+        }
+        let response = match request.send().await {
+            Ok(response) if response.status().is_success() => response,
+            _ => return None,
+        };
+        response
+            .headers()
+            .get("last-modified")
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_string)
     }
 
     /// Per-`(registry, name, version)` lookup with a layered fallback.
@@ -149,7 +149,11 @@ impl NpmResolutionVerifier {
         let key = version_key(registry, &name.to_string(), version);
         let cell = {
             let mut cache = self.lookup_context.published_at.lock().await;
-            Arc::clone(cache.entry(key).or_insert_with(|| Arc::new(OnceCell::new())))
+            Arc::clone(
+                cache
+                    .entry(key)
+                    .or_insert_with(|| Arc::new(OnceCell::new())),
+            )
         };
         cell.get_or_init(|| async { self.resolve_published_at(registry, name, version).await })
             .await
@@ -232,7 +236,10 @@ impl NpmResolutionVerifier {
         if parsed >= cutoff {
             return None;
         }
-        if !meta.version_artifacts.as_ref().is_some_and(|map| map.contains_key(version)) {
+        if !meta.version_artifacts
+            .as_ref()
+            .is_some_and(|map| map.contains_key(version))
+        {
             return None;
         }
         Some(modified)
@@ -251,6 +258,9 @@ impl NpmResolutionVerifier {
         version: &str,
     ) -> Option<String> {
         let meta = self.fetch_abbreviated_meta(registry, name).await.ok()?;
-        meta.version_time.as_ref()?.get(version).cloned()
+        meta.version_time
+            .as_ref()?
+            .get(version)
+            .cloned()
     }
 }

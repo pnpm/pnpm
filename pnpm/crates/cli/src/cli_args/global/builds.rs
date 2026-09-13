@@ -24,10 +24,13 @@ pub async fn approve_global_builds<Reporter: self::Reporter + 'static>(
     write_approval_settings(global_pkg_dir, &decision)?;
     let mut rebuild_groups = Vec::new();
     for (install_dir, scan) in groups {
-        let build_packages: Vec<String> = decision
-            .build_packages
+        let build_packages: Vec<String> = decision.build_packages
             .iter()
-            .filter(|name| scan.names.as_ref().is_some_and(|names| names.contains(name)))
+            .filter(|name| {
+                scan.names
+                    .as_ref()
+                    .is_some_and(|names| names.contains(name))
+            })
             .cloned()
             .collect();
         clear_decided_ignored_builds(scan.modules_manifest, &scan.modules_dir, &decision)?;
@@ -57,9 +60,13 @@ fn scan_global_ignored_builds(
         .transpose()
         .into_diagnostic()
         .wrap_err("resolve the global packages directory")?;
-    let contained = packages.into_iter().filter(|package| {
-        canonical_global_pkg_dir.as_ref().is_none_or(|root| is_subdir(root, &package.install_dir))
-    });
+    let contained = packages
+        .into_iter()
+        .filter(|package| {
+            canonical_global_pkg_dir
+                .as_ref()
+                .is_none_or(|root| is_subdir(root, &package.install_dir))
+        });
     for package in contained {
         let config = global_group_config(
             base_config,

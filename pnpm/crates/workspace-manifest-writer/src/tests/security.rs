@@ -21,7 +21,10 @@ fn set_allow_builds_replaces_a_symlinked_manifest_without_following_it() {
     // outside target is untouched and the manifest is now a regular file.
     assert_eq!(fs::read_to_string(&outside).expect("read outside"), "");
     assert!(
-        !fs::symlink_metadata(&manifest).expect("stat manifest").file_type().is_symlink(),
+        !fs::symlink_metadata(&manifest)
+            .expect("stat manifest")
+            .file_type()
+            .is_symlink(),
         "the manifest should no longer be a symlink",
     );
     assert_eq!(

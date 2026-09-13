@@ -203,7 +203,10 @@ impl HostedGit {
     /// `httpstemplate` (gitlab and github share the same shape).
     #[must_use]
     pub fn https(&self, opts: HostedOpts) -> Option<String> {
-        let auth = self.auth.as_deref().map(|a| format!("{a}@")).unwrap_or_default();
+        let auth = self.auth
+            .as_deref()
+            .map(|a| format!("{a}@"))
+            .unwrap_or_default();
         let mut out = format!(
             "git+https://{auth}{domain}/{user}/{project}.git",
             domain = self.host_type.domain(),

@@ -34,16 +34,20 @@ struct IndexFile {
 
 impl IndexFile {
     fn metadata_digests(&self) -> Option<BTreeMap<String, String>> {
-        [&self.core_metadata, &self.dist_info_metadata].into_iter().find_map(|value| match value {
-            serde_json::Value::Bool(true) => Some(BTreeMap::new()),
-            serde_json::Value::Object(digests) => Some(
-                digests
-                    .iter()
-                    .filter_map(|(name, digest)| Some((name.clone(), digest.as_str()?.to_string())))
-                    .collect(),
-            ),
-            _ => None,
-        })
+        [&self.core_metadata, &self.dist_info_metadata]
+            .into_iter()
+            .find_map(|value| match value {
+                serde_json::Value::Bool(true) => Some(BTreeMap::new()),
+                serde_json::Value::Object(digests) => Some(
+                    digests
+                        .iter()
+                        .filter_map(|(name, digest)| {
+                            Some((name.clone(), digest.as_str()?.to_string()))
+                        })
+                        .collect(),
+                ),
+                _ => None,
+            })
     }
 }
 
@@ -73,13 +77,19 @@ pub fn candidates_from_page(
         else {
             continue;
         };
-        if candidates.get(&version).is_none_or(|(previous, existing)| {
-            (rank, &candidate.wheel.name) < (*previous, &existing.wheel.name)
-        }) {
+        if candidates
+            .get(&version)
+            .is_none_or(|(previous, existing)| {
+                (rank, &candidate.wheel.name) < (*previous, &existing.wheel.name)
+            })
+        {
             candidates.insert(version, (rank, candidate));
         }
     }
-    Ok(candidates.into_iter().map(|(version, (_, candidate))| (version, candidate)).collect())
+    Ok(candidates
+        .into_iter()
+        .map(|(version, (_, candidate))| (version, candidate))
+        .collect())
 }
 
 /// The candidate one index file offers, with the version and tag rank it
@@ -128,13 +138,20 @@ pub fn wheel_identity(
         bail!("invalid Python wheel filename: {filename}");
     }
     let wheel_tags = &parts[parts.len() - 3..];
-    let rank = tags.iter().position(|tag| {
-        let actual = tag.split('-').collect::<Vec<_>>();
-        actual.len() == 3
-            && wheel_tags.iter().zip(actual).all(|(supported, actual)| {
-                supported.split('.').any(|supported| supported == actual)
-            })
-    });
+    let rank = tags
+        .iter()
+        .position(|tag| {
+            let actual = tag.split('-').collect::<Vec<_>>();
+            actual.len() == 3
+                && wheel_tags
+                    .iter()
+                    .zip(actual)
+                    .all(|(supported, actual)| {
+                        supported
+                            .split('.')
+                            .any(|supported| supported == actual)
+                    })
+        });
     rank.map(|rank| {
         Ok((parts[0].parse().into_diagnostic()?, parts[1].parse().into_diagnostic()?, rank))
     })

@@ -70,11 +70,17 @@ fn cafile_not_found_is_silently_treated_as_unset() {
 fn inline_ca_and_cafile_concatenate() {
     use std::io::Write;
     let tmp = tempfile::NamedTempFile::new().expect("create tempfile");
-    tmp.as_file().write_all(TEST_CA_PEM.as_bytes()).expect("write");
+    tmp.as_file()
+        .write_all(TEST_CA_PEM.as_bytes())
+        .expect("write");
     let auth = NpmrcAuth {
         tls: crate::npmrc_auth::NpmrcTls {
             ca: vec![TEST_CA_PEM.to_string()],
-            cafile: Some(tmp.path().to_string_lossy().into_owned()),
+            cafile: Some(
+                tmp.path()
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
             ..Default::default()
         },
         ..NpmrcAuth::default()
@@ -89,7 +95,9 @@ fn inline_ca_and_cafile_concatenate() {
 fn parses_scoped_cafile_reads_from_disk() {
     use std::io::Write;
     let tmp = tempfile::NamedTempFile::new().expect("create tempfile");
-    tmp.as_file().write_all(TEST_CA_PEM.as_bytes()).expect("write");
+    tmp.as_file()
+        .write_all(TEST_CA_PEM.as_bytes())
+        .expect("write");
     let ini = format!("//reg.example.com/:cafile={}\n", tmp.path().display());
     let auth = NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new(""));
     let entry = auth.tls.by_uri.get("//reg.example.com/").expect("entry present");
@@ -117,7 +125,9 @@ fn parses_scoped_cafile_missing_silently_dropped() {
 fn scoped_inline_and_file_share_same_slot_last_wins() {
     use std::io::Write;
     let tmp = tempfile::NamedTempFile::new().expect("create tempfile");
-    tmp.as_file().write_all(b"FROM-FILE").expect("write");
+    tmp.as_file()
+        .write_all(b"FROM-FILE")
+        .expect("write");
     let ini = format!(
         "//reg.example.com/:cert=inline\n//reg.example.com/:certfile={}\n",
         tmp.path().display(),

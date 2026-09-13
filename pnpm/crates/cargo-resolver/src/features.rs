@@ -44,7 +44,10 @@ impl FeatureActivations {
     fn activate_weak_dependency_features(&mut self) {
         for (alias, feature) in std::mem::take(&mut self.weak_dependency_features) {
             if self.active_aliases.contains(&alias) {
-                self.dependency_features.entry(alias).or_default().insert(feature);
+                self.dependency_features
+                    .entry(alias)
+                    .or_default()
+                    .insert(feature);
             }
         }
     }
@@ -60,10 +63,12 @@ pub(crate) fn active_dependencies(
 pub(crate) fn supports_features(package: &RegistryVersion, selection: &FeatureSelection) -> bool {
     let implicit_optional_aliases =
         implicit_optional_aliases(&package.dependencies, &package.features);
-    selection.features.iter().all(|feature| {
-        package.features.contains_key(feature)
-            || implicit_optional_aliases.contains(feature.as_str())
-    })
+    selection.features
+        .iter()
+        .all(|feature| {
+            package.features.contains_key(feature)
+                || implicit_optional_aliases.contains(feature.as_str())
+        })
 }
 
 pub(crate) fn active_dependencies_from_parts(
@@ -95,7 +100,10 @@ fn collect_feature_activations(
     selection: &FeatureSelection,
 ) -> FeatureActivations {
     let implicit_optional_aliases = implicit_optional_aliases(dependencies, features);
-    let mut pending = selection.features.iter().cloned().collect::<VecDeque<_>>();
+    let mut pending = selection.features
+        .iter()
+        .cloned()
+        .collect::<VecDeque<_>>();
     if selection.default_features {
         pending.push_back("default".to_string());
     }

@@ -36,7 +36,10 @@ fn links_the_workspace_package_under_the_rolling_protocol() {
     pnpm_add(&app_dir, &["--workspace", LIB]).assert().success();
 
     assert_eq!(saved_spec(&app_dir, LIB).as_deref(), Some("workspace:*"));
-    let linked = app_dir.join("node_modules").join(LIB).join("package.json");
+    let linked = app_dir
+        .join("node_modules")
+        .join(LIB)
+        .join("package.json");
     assert!(linked.exists(), "{} should be linked into the app", linked.display());
     drop(root);
 }
@@ -78,7 +81,10 @@ fn keeps_the_typed_range_operator() {
 #[test]
 fn links_the_workspace_package_into_a_filtered_project() {
     let (root, app_dir) = workspace("");
-    let workspace_dir = app_dir.parent().and_then(Path::parent).expect("workspace root");
+    let workspace_dir = app_dir
+        .parent()
+        .and_then(Path::parent)
+        .expect("workspace root");
 
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
@@ -96,7 +102,10 @@ fn links_the_workspace_package_into_every_recursively_selected_project() {
     for shared_workspace_lockfile in [true, false] {
         let (root, app_dir) =
             workspace(&format!("sharedWorkspaceLockfile: {shared_workspace_lockfile}\n"));
-        let workspace_dir = app_dir.parent().and_then(Path::parent).expect("workspace root");
+        let workspace_dir = app_dir
+            .parent()
+            .and_then(Path::parent)
+            .expect("workspace root");
         let second_app_dir = workspace_dir.join("packages/app2");
         std::fs::create_dir_all(&second_app_dir).expect("create second app dir");
         write_json(
@@ -137,7 +146,10 @@ fn rejects_a_package_no_workspace_project_provides() {
 #[test]
 fn is_rejected_with_config_dependencies_and_ecosystem_selectors() {
     let (root, app_dir) = workspace("");
-    let workspace_dir = app_dir.parent().and_then(Path::parent).expect("workspace root");
+    let workspace_dir = app_dir
+        .parent()
+        .and_then(Path::parent)
+        .expect("workspace root");
     let yaml_path = workspace_dir.join("pnpm-workspace.yaml");
     let yaml_before = std::fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
 

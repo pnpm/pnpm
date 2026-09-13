@@ -71,8 +71,10 @@ where
         .await;
     }
 
-    let newest =
-        time.values().filter_map(|published_at| parse_packument_timestamp(published_at)).max();
+    let newest = time
+        .values()
+        .filter_map(|published_at| parse_packument_timestamp(published_at))
+        .max();
     let candidate = newest.and_then(|date| date.checked_add_signed(Duration::hours(1)));
     let published_by = match (candidate, maximum_published_by) {
         (Some(candidate), Some(maximum)) => Some(candidate.min(maximum)),
@@ -105,16 +107,18 @@ pub(super) async fn record_direct_publish_dates<Chain>(
     let mut direct_opts = opts.base_opts.clone();
     direct_opts.version.pick_lowest_version = settings.version.pick_lowest_direct;
     for spec in specs {
-        let Ok(Some(result)) = resolver
-            .resolve(&crate::resolve_dependency_tree::wanted_from_spec(spec), &direct_opts)
-            .await
+        let Ok(Some(result)) =
+            resolver.resolve(&crate::resolve_dependency_tree::wanted_from_spec(spec), &direct_opts)
+                .await
         else {
             continue;
         };
-        let published_at = result
-            .package
-            .published_at
-            .or_else(|| settings.recorded_time.as_ref()?.get(result.id.as_str()).cloned());
+        let published_at = result.package.published_at.or_else(|| {
+            settings.recorded_time
+                .as_ref()?
+                .get(result.id.as_str())
+                .cloned()
+        });
         if let Some(published_at) = published_at {
             time.insert(result.id.into_inner(), published_at);
         }

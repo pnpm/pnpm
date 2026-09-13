@@ -227,10 +227,16 @@ pub(super) fn is_safe_bundle_name(name: &str) -> bool {
 /// spellings appear in real published packages; npm-packlist accepts
 /// either.
 fn root_bundle_dep_names(manifest: &Value) -> Vec<String> {
-    let raw = manifest.get("bundleDependencies").or_else(|| manifest.get("bundledDependencies"));
+    let raw = manifest
+        .get("bundleDependencies")
+        .or_else(|| manifest.get("bundledDependencies"));
     let Some(raw) = raw else { return Vec::new() };
     match raw {
-        Value::Array(arr) => arr.iter().filter_map(Value::as_str).map(String::from).collect(),
+        Value::Array(arr) => arr
+            .iter()
+            .filter_map(Value::as_str)
+            .map(String::from)
+            .collect(),
         Value::Bool(true) => {
             // `bundleDependencies: true` means "bundle every entry in
             // `dependencies`". Rare but supported by npm. Materialize

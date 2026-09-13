@@ -57,10 +57,12 @@ impl StreamedScript<'_> {
     /// The child must have been spawned with both streams piped;
     /// whichever is absent is simply not pumped.
     pub fn pump(&self, child: &mut Child) -> io::Result<ExitStatus> {
-        let stdout_handle =
-            child.stdout.take().map(|stream| self.pump_stream(stream, LifecycleStdio::Stdout));
-        let stderr_handle =
-            child.stderr.take().map(|stream| self.pump_stream(stream, LifecycleStdio::Stderr));
+        let stdout_handle = child.stdout
+            .take()
+            .map(|stream| self.pump_stream(stream, LifecycleStdio::Stdout));
+        let stderr_handle = child.stderr
+            .take()
+            .map(|stream| self.pump_stream(stream, LifecycleStdio::Stderr));
         let status = child.wait();
         if let Some(handle) = stdout_handle {
             let _ = handle.join();
@@ -190,7 +192,9 @@ fn take_streamed_chunk(buffered: &[u8], line: &mut Vec<u8>) -> (usize, bool) {
 }
 
 fn streamed_chunk_len(buffered: &[u8], accumulated: usize) -> usize {
-    let through_newline =
-        buffered.iter().position(|byte| *byte == b'\n').map_or(buffered.len(), |i| i + 1);
+    let through_newline = buffered
+        .iter()
+        .position(|byte| *byte == b'\n')
+        .map_or(buffered.len(), |i| i + 1);
     through_newline.min(STREAMED_OUTPUT_CHUNK_BYTES - accumulated)
 }

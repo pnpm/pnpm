@@ -46,7 +46,11 @@ pub(super) fn resolve_project(
 ) -> ResolveProject {
     ResolveProject {
         dir,
-        name: manifest.value().get("name").and_then(|value| value.as_str()).map(str::to_string),
+        name: manifest
+            .value()
+            .get("name")
+            .and_then(|value| value.as_str())
+            .map(str::to_string),
         version: manifest
             .value()
             .get("version")
@@ -182,9 +186,11 @@ async fn prepare_pnpr_session<'a, Reporter: self::Reporter + 'static>(
     let merge_wanted = merge_source(state, link, previous_wanted)?;
 
     let selection_importer_ids = selection_importer_ids(state, selection);
-    let partial_selection = selection_importer_ids.as_ref().is_some_and(
-        |(real_importer_ids, selected_importer_ids)| real_importer_ids != selected_importer_ids,
-    );
+    let partial_selection = selection_importer_ids
+        .as_ref()
+        .is_some_and(|(real_importer_ids, selected_importer_ids)| {
+            real_importer_ids != selected_importer_ids
+        });
     let projects = resolve_projects_for_pnpr(state, selection, link.use_state_lockfile)?;
     let full_workspace_importer_ids =
         full_workspace_importer_ids(state, selection, link, &projects);
@@ -219,8 +225,13 @@ pub(super) async fn prefetch_allowed(
     let Some(hook) = pnpmfile_hook else {
         return Ok(true);
     };
-    let fetchers = hook.get_custom_fetchers().await.map_err(|error| miette::miette!("{error}"))?;
-    Ok(!fetchers.iter().any(|fetcher| fetcher.has_can_fetch() && fetcher.has_fetch()))
+    let fetchers = hook
+        .get_custom_fetchers()
+        .await
+        .map_err(|error| miette::miette!("{error}"))?;
+    Ok(!fetchers
+        .iter()
+        .any(|fetcher| fetcher.has_can_fetch() && fetcher.has_fetch()))
 }
 
 /// Whether the resolve streams its packages into a prefetcher, and what
@@ -255,22 +266,21 @@ async fn resolve_via_pnpr(
 
     let result = match prefetcher.as_ref() {
         Some(prefetcher) => {
-            client
-                .resolve_projects_streaming(opts, |pkg| {
-                    let tarball = benchmark_registry_override.map_or_else(
-                        || pkg.tarball.clone(),
-                        |registry| registry.client_tarball_url(&pkg.tarball),
-                    );
-                    prefetcher.prefetch(
-                        pkg.id,
-                        tarball,
-                        &pkg.integrity,
-                        pkg.unpacked_size,
-                        pkg.file_count,
-                        pkg.revision.is_some(),
-                    );
-                })
-                .await
+            client.resolve_projects_streaming(opts, |pkg| {
+                let tarball = benchmark_registry_override.map_or_else(
+                    || pkg.tarball.clone(),
+                    |registry| registry.client_tarball_url(&pkg.tarball),
+                );
+                prefetcher.prefetch(
+                    pkg.id,
+                    tarball,
+                    &pkg.integrity,
+                    pkg.unpacked_size,
+                    pkg.file_count,
+                    pkg.revision.is_some(),
+                );
+            })
+            .await
         }
         None => client.resolve_projects(opts).await,
     };

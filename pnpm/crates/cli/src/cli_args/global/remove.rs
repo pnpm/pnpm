@@ -19,11 +19,7 @@ pub fn handle_global_remove<Reporter: self::Reporter>(
     let _global_bin_lock = acquire_global_bin_lock(&global_bin_dir)?;
 
     let groups = requested_global_groups(&global_pkg_dir, params)?;
-    let protected = bin_names_of_other_groups(
-        &global_pkg_dir,
-        &groups.iter().map(|pkg| pkg.info.hash.clone()).collect::<HashSet<_>>(),
-    )
-    .wrap_err("scan global package bin ownership")?;
+    let protected = protected_bins_for_removal(&global_pkg_dir, &groups)?;
     let shims_to_restore = virtual_shims_to_restore(
         &groups,
         &global_bin_dir,
@@ -32,7 +28,12 @@ pub fn handle_global_remove<Reporter: self::Reporter>(
     )?;
     let affected_bin_names = unprotected_bin_names(&groups, &protected);
     let mut bins_to_keep = protected;
-    bins_to_keep.extend(shims_to_restore.values().flatten().cloned());
+    bins_to_keep.extend(
+        shims_to_restore
+            .values()
+            .flatten()
+            .cloned(),
+    );
     let cleanup = GlobalInstallCleanup {
         global_pkg_dir: &global_pkg_dir,
         global_bin_dir: &global_bin_dir,
@@ -51,6 +52,20 @@ pub fn handle_global_remove<Reporter: self::Reporter>(
         warn_global::<Reporter>(&leftover.to_string());
     }
     removed_global_install_result(cleanup_removed_global_install_dirs(&groups, &cleanup))
+}
+
+fn protected_bins_for_removal(
+    global_pkg_dir: &Path,
+    groups: &[GlobalPackageBinSnapshot],
+) -> miette::Result<HashSet<String>> {
+    bin_names_of_other_groups(
+        global_pkg_dir,
+        &groups
+            .iter()
+            .map(|pkg| pkg.info.hash.clone())
+            .collect::<HashSet<_>>(),
+    )
+    .wrap_err("scan global package bin ownership")
 }
 
 /// The groups holding the requested packages, each with the bins it owns.
@@ -121,7 +136,10 @@ pub(super) fn collect_existing_global_installs(
         .into_iter()
         .map(snapshot_global_package)
         .collect::<miette::Result<Vec<_>>>()?;
-    let exclude = groups_to_replace.iter().map(|pkg| pkg.info.hash.clone()).collect();
+    let exclude = groups_to_replace
+        .iter()
+        .map(|pkg| pkg.info.hash.clone())
+        .collect();
     let protected_bins = bin_names_of_other_groups(global_pkg_dir, &exclude)?;
     Ok(ExistingGlobalInstalls { groups_to_replace, protected_bins })
 }
@@ -179,7 +197,10 @@ pub(super) fn cleanup_replaced_global_installs(
     if groups.is_empty() {
         return Ok(None);
     }
-    let mut bins_to_keep = activated_bins.union(protected_bins).cloned().collect::<HashSet<_>>();
+    let mut bins_to_keep = activated_bins
+        .union(protected_bins)
+        .cloned()
+        .collect::<HashSet<_>>();
     bins_to_keep.extend(restored_bin_names.iter().cloned());
     let affected_bin_names = groups
         .iter()
@@ -272,7 +293,10 @@ fn cleanup_removed_global_install_dirs(
     groups: &[GlobalPackageBinSnapshot],
     cleanup: &GlobalInstallCleanup<'_>,
 ) -> Vec<ArtifactCleanupError> {
-    groups.iter().filter_map(|group| cleanup_global_install_dir(&group.info, cleanup)).collect()
+    groups
+        .iter()
+        .filter_map(|group| cleanup_global_install_dir(&group.info, cleanup))
+        .collect()
 }
 
 fn removed_global_install_result(
@@ -291,7 +315,10 @@ fn cleanup_global_bin_names<Sys: FsGlobalRemoval>(
     bin_names: &HashSet<String>,
     cleanup: &GlobalInstallCleanup<'_>,
 ) -> Vec<ArtifactCleanupError> {
-    bin_names.iter().filter_map(|bin_name| cleanup_global_bin::<Sys>(bin_name, cleanup)).collect()
+    bin_names
+        .iter()
+        .filter_map(|bin_name| cleanup_global_bin::<Sys>(bin_name, cleanup))
+        .collect()
 }
 
 fn cleanup_global_bin<Sys: FsGlobalRemoval>(
@@ -302,10 +329,12 @@ fn cleanup_global_bin<Sys: FsGlobalRemoval>(
         return None;
     }
     let bin_path = cleanup.global_bin_dir.join(bin_name);
-    Sys::remove_bin_slot(&bin_path).err().map(|source| ArtifactCleanupError {
-        context: format!("remove {} bin at {}", cleanup.context, bin_path.display()),
-        source,
-    })
+    Sys::remove_bin_slot(&bin_path)
+        .err()
+        .map(|source| ArtifactCleanupError {
+            context: format!("remove {} bin at {}", cleanup.context, bin_path.display()),
+            source,
+        })
 }
 
 fn remove_global_hash_link<Sys: FsGlobalRemoval>(

@@ -46,11 +46,16 @@ async fn fetcher_packs_subfolder_when_path_set() {
     .await
     .unwrap();
 
-    let keys: Vec<&str> = received.cas_paths.keys().map(String::as_str).collect();
+    let keys: Vec<&str> = received.cas_paths
+        .keys()
+        .map(String::as_str)
+        .collect();
     assert!(keys.contains(&"package.json"), "sub-dir manifest must be included: {keys:?}");
     assert!(keys.contains(&"index.js"), "sub-dir main must be included: {keys:?}");
     assert!(
-        !keys.iter().any(|key| key.contains("other") || key.contains("packages/")),
+        !keys
+            .iter()
+            .any(|key| key.contains("other") || key.contains("packages/")),
         "sibling-package files must not appear; keys are relative to the sub-dir: {keys:?}",
     );
 }
@@ -74,7 +79,10 @@ async fn fetcher_skips_build_when_ignore_scripts() {
     fs::write(work.join("index.js"), "module.exports = 1;\n").unwrap();
     exec_git(&["add", "-A"], Some(&work)).unwrap();
     exec_git(&["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"], Some(&work)).unwrap();
-    let commit = exec_git(&["rev-parse", "HEAD"], Some(&work)).unwrap().trim().to_string();
+    let commit = exec_git(&["rev-parse", "HEAD"], Some(&work))
+        .unwrap()
+        .trim()
+        .to_string();
     exec_git(&["clone", "--bare", "-q", &work.to_string_lossy(), &bare.to_string_lossy()], None)
         .unwrap();
 

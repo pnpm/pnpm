@@ -121,9 +121,11 @@ fn pre_command_plan_from_input(
     if input.switch.command.as_deref().is_some_and(should_skip_command_name) {
         return Ok(None);
     }
-    let dir = dunce::canonicalize(&input.switch.dir).into_diagnostic().wrap_err_with(|| {
-        format!("canonicalizing the `--dir` argument: {}", input.switch.dir.display())
-    })?;
+    let dir = dunce::canonicalize(&input.switch.dir)
+        .into_diagnostic()
+        .wrap_err_with(|| {
+            format!("canonicalizing the `--dir` argument: {}", input.switch.dir.display())
+        })?;
     let config = load_pre_command_config(&input.switch, config_overrides, &dir)?;
 
     let roots = PinRoots {
@@ -157,8 +159,9 @@ fn pre_command_plan_from_input(
     {
         check_runtimes(manifest, &config, input.emit)?;
     }
-    Ok(package_manager_to_sync
-        .map(|package_manager| env_lockfile_sync_plan(input, config, roots.env, package_manager)))
+    Ok(package_manager_to_sync.map(|package_manager| {
+        env_lockfile_sync_plan(input, config, roots.env, package_manager)
+    }))
 }
 
 /// Whether the manifest's pin names the pnpm that is running.

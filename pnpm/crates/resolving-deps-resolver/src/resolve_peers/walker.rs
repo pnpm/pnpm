@@ -236,9 +236,9 @@ impl<'tree> Walker<'tree> {
     /// The children-graph SCC table behind the canonical cycle gate;
     /// see [`PeerWalkTraversal::children_sccs`].
     pub(super) fn canonical_scc(&self) -> Arc<HashMap<Arc<str>, usize>> {
-        Arc::clone(
-            self.traversal.children_sccs.get_or_init(|| Arc::new(children_scc_ids(self.tree))),
-        )
+        Arc::clone(self.traversal.children_sccs.get_or_init(|| {
+            Arc::new(children_scc_ids(self.tree))
+        }))
     }
 
     /// Whether the peer walk drops the `pkg_id → child_pkg_id` edge:
@@ -355,8 +355,9 @@ impl Walker<'_> {
     /// providers at root context, draining the canonical queue after
     /// each.
     fn walk_direct(&mut self, direct: &[DirectDep], root: &RootWalk) {
-        let (own_direct, provider_direct): (Vec<&DirectDep>, Vec<&DirectDep>) =
-            direct.iter().partition(|dep| {
+        let (own_direct, provider_direct): (Vec<&DirectDep>, Vec<&DirectDep>) = direct
+            .iter()
+            .partition(|dep| {
                 !self.opts.scope.hoisted_peer_provider_node_ids.contains(&dep.node_id)
             });
         for dep in &own_direct {

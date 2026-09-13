@@ -96,8 +96,11 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
 ) -> Result<Vec<Arc<dyn PnpmfileHooks>>> {
     let pnpmfiles = resolve_pnpmfile_paths(config, root_dir)
         .map_err(|error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"))?;
-    let hooks: Vec<Arc<dyn PnpmfileHooks>> =
-        pnpmfiles.iter().cloned().map(finder::load_pnpmfile_at).collect();
+    let hooks: Vec<Arc<dyn PnpmfileHooks>> = pnpmfiles
+        .iter()
+        .cloned()
+        .map(finder::load_pnpmfile_at)
+        .collect();
     if pnpmfiles.is_empty() {
         return Ok(hooks);
     }
@@ -176,8 +179,10 @@ fn seed_hook_input(
         "extraBinPaths".to_string(),
         serde_json::to_value(&config.extra_bin_paths).into_diagnostic()?,
     );
-    object
-        .insert("extraEnv".to_string(), serde_json::to_value(&config.extra_env).into_diagnostic()?);
+    object.insert(
+        "extraEnv".to_string(),
+        serde_json::to_value(&config.extra_env).into_diagnostic()?,
+    );
     object.append(&mut resolved_config_views(config, root_dir).into_diagnostic()?);
     // The pnpmfiles being run, which is what the setting resolves to and
     // what pnpm reports, rather than only a pinned `pnpmfile` value.
@@ -206,12 +211,17 @@ fn apply_hook_delta(
     if delta.as_object().is_none_or(serde_json::Map::is_empty) && !script_shell_deleted {
         return Ok(());
     }
-    let changed_store_dir = delta.get("storeDir").and_then(Value::as_str).map(str::to_owned);
+    let changed_store_dir = delta
+        .get("storeDir")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
     // `extraBinPaths` / `extraEnv` aren't `WorkspaceSettings` fields, so
     // `from_value(delta)` below ignores them. Pull the hook's values out
     // first and assign them directly.
-    let HookExecutionChanges { changed_extra_bin_paths, changed_extra_env } =
-        hook_execution_changes(&delta)?;
+    let HookExecutionChanges {
+        changed_extra_bin_paths,
+        changed_extra_env,
+    } = hook_execution_changes(&delta)?;
     apply_registry_routing_changes(config, &delta)?;
 
     let delta_settings: WorkspaceSettings = serde_json::from_value(delta.clone())
@@ -280,7 +290,11 @@ fn record_explicit_setting_changes(
 ) {
     config.record_explicit_settings(delta_settings);
     let Some(delta) = delta.as_object() else { return };
-    for key in delta.iter().filter(|(_, value)| value.is_null()).map(|(key, _)| key) {
+    for key in delta
+        .iter()
+        .filter(|(_, value)| value.is_null())
+        .map(|(key, _)| key)
+    {
         if is_known_setting_key(key) {
             config.explicit_settings.remove(key);
         }
@@ -294,7 +308,11 @@ fn record_explicit_setting_changes(
 fn restore_defaults_of_nulled_settings(config: &mut Config, delta: &Value, base_dir: &Path) {
     let Some(delta) = delta.as_object() else { return };
     let mut defaults = None;
-    for key in delta.iter().filter(|(_, value)| value.is_null()).map(|(key, _)| key) {
+    for key in delta
+        .iter()
+        .filter(|(_, value)| value.is_null())
+        .map(|(key, _)| key)
+    {
         let defaults = defaults.get_or_insert_with(Config::default);
         WorkspaceSettings::reset_setting_to_default::<Host>(config, defaults, key, base_dir);
     }
@@ -304,7 +322,10 @@ fn restore_defaults_of_nulled_settings(config: &mut Config, delta: &Value, base_
 /// workspace, the way [`Config::current`] resolves it, so `apply_to` leaves
 /// it to this.
 fn apply_state_dir_change(config: &mut Config, delta: &Value) {
-    let Some(dir) = delta.get("stateDir").and_then(Value::as_str).filter(|dir| !dir.is_empty())
+    let Some(dir) = delta
+        .get("stateDir")
+        .and_then(Value::as_str)
+        .filter(|dir| !dir.is_empty())
     else {
         return;
     };
@@ -348,8 +369,10 @@ fn resolved_config_views(
     // answer the URL the install fetches from rather than whichever
     // `.npmrc` line happened to name one. `pnpm config list` merges them
     // the same way.
-    let mut auth_config: serde_json::Map<String, Value> =
-        config.raw_auth_config.iter().map(|(k, v)| (k.clone(), Value::String(v.clone()))).collect();
+    let mut auth_config: serde_json::Map<String, Value> = config.raw_auth_config
+        .iter()
+        .map(|(k, v)| (k.clone(), Value::String(v.clone())))
+        .collect();
     for (scope, url) in &registries_by_scope {
         let key =
             if scope == "default" { "registry".to_string() } else { format!("{scope}:registry") };
@@ -371,7 +394,12 @@ fn resolved_config_views(
     // reading it wants the directory the lockfile is actually written to.
     set(
         "lockfileDir",
-        Value::String(config.lockfile_dir_for(root_dir).to_string_lossy().into_owned()),
+        Value::String(
+            config
+                .lockfile_dir_for(root_dir)
+                .to_string_lossy()
+                .into_owned(),
+        ),
     );
 
     Ok(views)

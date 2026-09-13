@@ -28,7 +28,11 @@ fn agent_tick(root: &Path, repo: &str) -> assert_cmd::assert::Assert {
 /// The persistent checkout the agent created: the single repo directory
 /// under the agent state dir.
 fn agent_checkout(root: &Path) -> PathBuf {
-    let agents = root.join("xdg-state").join("pnpm").join("pipeline").join("agent");
+    let agents = root
+        .join("xdg-state")
+        .join("pnpm")
+        .join("pipeline")
+        .join("agent");
     let state_dir = fs::read_dir(&agents)
         .expect("agent state dir exists")
         .next()
@@ -74,7 +78,10 @@ fn watch_agent_builds_new_revisions_and_skips_quiet_ticks() {
     tick.success();
     assert!(stdout.contains(&format!("New revision {first}")), "unexpected output: {stdout}");
     assert!(stdout.contains("passed"), "unexpected output: {stdout}");
-    let built = agent_checkout(root.path()).join("pkg").join("out").join("index.txt");
+    let built = agent_checkout(root.path())
+        .join("pkg")
+        .join("out")
+        .join("index.txt");
     assert_eq!(fs::read_to_string(&built).expect("first build produced the output"), "v1");
 
     // Nothing new: no build, no output change.

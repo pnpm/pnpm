@@ -12,34 +12,25 @@ pub(crate) fn apply_store_dir_override<Sys>(
 where
     Sys: EnvVar + GetCurrentDir + GetHomeDir + LinkProbe,
 {
-    let workspace_dir = config.workspace_dir.as_deref().unwrap_or(dir).to_path_buf();
+    let workspace_dir = config.workspace_dir
+        .as_deref()
+        .unwrap_or(dir)
+        .to_path_buf();
     if store_dir.as_os_str().is_empty() {
         config.reset_store_dir_to_default::<Sys>(&workspace_dir);
-        config
-            .explicit_settings
-            .insert("storeDir".to_string(), serde_json::Value::String(String::new()));
+        config.explicit_settings.insert(
+            "storeDir".to_string(),
+            serde_json::Value::String(String::new()),
+        );
         return Ok(());
     }
-    let resolved = if let Some(relative) = home_relative_store_dir(store_dir) {
-        Sys::home_dir()
-            .ok_or_else(|| {
-                let store_dir_display = store_dir.display();
-                miette::miette!(
-                    "Cannot resolve store directory {} because the home directory is unknown",
-                    store_dir_display,
-                )
-            })?
-            .join(relative)
-    } else if store_dir.is_absolute() {
-        store_dir.to_path_buf()
-    } else {
-        workspace_dir.join(store_dir)
-    };
+    let resolved = resolve_store_dir::<Sys>(store_dir, &workspace_dir)?;
     config.store_dir = StoreDir::from(lexical_normalize(&resolved));
     if let Some(store_dir) = store_dir.to_str() {
-        config
-            .explicit_settings
-            .insert("storeDir".to_string(), serde_json::Value::String(store_dir.to_string()));
+        config.explicit_settings.insert(
+            "storeDir".to_string(),
+            serde_json::Value::String(store_dir.to_string()),
+        );
     }
     let virtual_store_dir_explicit = config.explicit_settings.contains_key("virtualStoreDir");
     let global_virtual_store_dir_explicit =
@@ -63,15 +54,40 @@ where
         lexical_normalize(&dir.join(state_dir))
     };
     if let Some(state_dir) = state_dir.to_str() {
-        config
-            .explicit_settings
-            .insert("stateDir".to_string(), serde_json::Value::String(state_dir.to_string()));
+        config.explicit_settings.insert(
+            "stateDir".to_string(),
+            serde_json::Value::String(state_dir.to_string()),
+        );
     }
+}
+
+fn resolve_store_dir<Sys: GetHomeDir>(
+    store_dir: &Path,
+    workspace_dir: &Path,
+) -> miette::Result<std::path::PathBuf> {
+    Ok(if let Some(relative) = home_relative_store_dir(store_dir) {
+        Sys::home_dir()
+            .ok_or_else(|| {
+                let store_dir_display = store_dir.display();
+                miette::miette!(
+                    "Cannot resolve store directory {} because the home directory is unknown",
+                    store_dir_display,
+                )
+            })?
+            .join(relative)
+    } else if store_dir.is_absolute() {
+        store_dir.to_path_buf()
+    } else {
+        workspace_dir.join(store_dir)
+    })
 }
 
 fn home_relative_store_dir(store_dir: &Path) -> Option<&Path> {
     let store_dir = store_dir.to_str()?;
-    store_dir.strip_prefix("~/").or_else(|| store_dir.strip_prefix(r"~\")).map(Path::new)
+    store_dir
+        .strip_prefix("~/")
+        .or_else(|| store_dir.strip_prefix(r"~\"))
+        .map(Path::new)
 }
 
 /// Layer a registry URL (the universal `--registry` flag or a
@@ -143,7 +159,10 @@ impl ConfigOverrides {
     }
 
     fn apply_global_directory(&self, config: &mut Config, dir: &Path) {
-        if let Some(value) = self.global_dir.as_deref().filter(|value| !value.is_empty()) {
+        if let Some(value) = self.global_dir
+            .as_deref()
+            .filter(|value| !value.is_empty())
+        {
             let global_dir = lexical_normalize(&dir.join(value));
             config.global_pkg_dir = Some(global_dir.join(GLOBAL_LAYOUT_VERSION));
             config.global_dir = Some(global_dir);
@@ -352,8 +371,7 @@ impl ConfigOverrides {
         if !anchored {
             return;
         }
-        let anchor = config
-            .lockfile_dir
+        let anchor = config.lockfile_dir
             .clone()
             .or_else(|| config.workspace_dir.clone())
             .unwrap_or_else(|| dir.to_path_buf());

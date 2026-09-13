@@ -51,8 +51,13 @@ struct SelectorModifiers<'a> {
 }
 
 pub fn parse_project_selector(raw_selector: &str, prefix: &Path) -> ProjectSelector {
-    let SelectorModifiers { raw, exclude, exclude_self, include_dependencies, include_dependents } =
-        strip_selector_modifiers(raw_selector);
+    let SelectorModifiers {
+        raw,
+        exclude,
+        exclude_self,
+        include_dependencies,
+        include_dependents,
+    } = strip_selector_modifiers(raw_selector);
 
     match match_selector_pattern(raw) {
         Some(SelectorParts { name, brace_inner, bracket_inner }) => ProjectSelector {
@@ -183,7 +188,8 @@ fn name_candidate_lengths(input: &str) -> Vec<usize> {
 fn match_groups(rest: &str) -> Option<(Option<&str>, Option<&str>)> {
     let (brace_inner, rest) = match_delimited(rest, '{', '}')?;
     let (bracket_inner, rest) = match_delimited(rest, '[', ']')?;
-    rest.is_empty().then_some((brace_inner, bracket_inner))
+    rest.is_empty()
+        .then_some((brace_inner, bracket_inner))
 }
 
 /// Match an optional `<open><inner><close>` group at the start of

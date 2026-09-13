@@ -242,7 +242,10 @@ impl NpmrcAuth {
         declared: &DeclaredRegistries,
     ) {
         let file_routes = std::mem::take(&mut self.routes.json_file);
-        for (scope, url) in file_routes.into_iter().filter(|(scope, _)| !declared.covers(scope)) {
+        for (scope, url) in file_routes
+            .into_iter()
+            .filter(|(scope, _)| !declared.covers(scope))
+        {
             if scope == "default" {
                 config.registry.clone_from(&url);
                 continue;

@@ -129,7 +129,10 @@ fn write_local_tarball_lockfile(
     dependency_group: &str,
     tarball: &[u8],
 ) -> Lockfile {
-    let integrity = IntegrityOpts::new().algorithm(Algorithm::Sha512).chain(tarball).result();
+    let integrity = IntegrityOpts::new()
+        .algorithm(Algorithm::Sha512)
+        .chain(tarball)
+        .result();
     fs::write(
         workspace_root.join(Lockfile::FILE_NAME),
         format!(
@@ -151,7 +154,10 @@ fn write_bare_tarball_lockfile(
     virtual_store_dir: &std::path::Path,
     tarball: &[u8],
 ) -> Lockfile {
-    let integrity = IntegrityOpts::new().algorithm(Algorithm::Sha512).chain(tarball).result();
+    let integrity = IntegrityOpts::new()
+        .algorithm(Algorithm::Sha512)
+        .chain(tarball)
+        .result();
     fs::write(
         workspace_root.join(Lockfile::FILE_NAME),
         format!(
@@ -173,7 +179,10 @@ fn write_registry_lockfile(
     virtual_store_dir: &std::path::Path,
     specifier: &str,
 ) -> Lockfile {
-    let integrity = IntegrityOpts::new().algorithm(Algorithm::Sha512).chain(b"registry").result();
+    let integrity = IntegrityOpts::new()
+        .algorithm(Algorithm::Sha512)
+        .chain(b"registry")
+        .result();
     fs::write(
         workspace_root.join(Lockfile::FILE_NAME),
         format!(
@@ -425,7 +434,10 @@ fn collide_mtimes_with_recorded_state(
 /// verdict after this can only have come from the pure-mtime fast path.
 fn poison_lockfile_content(workspace_root: &std::path::Path) {
     let path = workspace_root.join(Lockfile::FILE_NAME);
-    let modified = fs::metadata(&path).unwrap().modified().unwrap();
+    let modified = fs::metadata(&path)
+        .unwrap()
+        .modified()
+        .unwrap();
     fs::write(&path, FOO_LOCKFILE.replace("1.0.0", "1.0.1")).unwrap();
     set_mtime(&path, modified);
 }

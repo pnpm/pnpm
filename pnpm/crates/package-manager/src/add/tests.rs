@@ -137,8 +137,11 @@ async fn add_jsr_selector(selector: &str) -> Option<String> {
         .expect("create manifest");
 
     let mut default_registry = mockito::Server::new_async().await;
-    let default_requests =
-        default_registry.mock("GET", mockito::Matcher::Any).expect(0).create_async().await;
+    let default_requests = default_registry
+        .mock("GET", mockito::Matcher::Any)
+        .expect(0)
+        .create_async()
+        .await;
 
     let mut jsr_registry = mockito::Server::new_async().await;
     let jsr_registry_url = format!("{}/", jsr_registry.url());

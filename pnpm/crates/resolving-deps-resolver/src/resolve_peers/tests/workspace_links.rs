@@ -60,7 +60,9 @@ fn pruned_hoisted_provider_falls_back_in_workspace_pass() {
     );
 
     assert_eq!(
-        result.direct_dependencies_by_importer.get(".").and_then(|deps| deps.get("prov")),
+        result.direct_dependencies_by_importer
+            .get(".")
+            .and_then(|deps| deps.get("prov")),
         Some(&DepPath::from("prov@1.0.0")),
         "the pruned provider must get a depPath from the fallback",
     );

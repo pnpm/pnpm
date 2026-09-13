@@ -293,9 +293,10 @@ enum SecureAttemptError {
 impl std::fmt::Debug for SecureAttemptError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Response(response) => {
-                formatter.debug_tuple("HTTP").field(&response.status).finish()
-            }
+            Self::Response(response) => formatter
+                .debug_tuple("HTTP")
+                .field(&response.status)
+                .finish(),
             // Response bodies and transport error URLs can contain registry credentials.
             Self::Request(_) => formatter.write_str("request transport or body error"),
         }

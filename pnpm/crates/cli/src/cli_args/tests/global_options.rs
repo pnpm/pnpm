@@ -386,7 +386,10 @@ fn recursive_by_default_command_is_promoted_inside_workspace() {
         let mut parsed = CliArgs::try_parse_from([
             "pacquet",
             "--dir",
-            workspace.path().to_str().expect("UTF-8 path"),
+            workspace
+                .path()
+                .to_str()
+                .expect("UTF-8 path"),
             command,
         ])
         .expect("parses");
@@ -423,7 +426,10 @@ fn recursive_by_default_command_stays_non_recursive_outside_workspace() {
         let mut parsed = CliArgs::try_parse_from([
             "pacquet",
             "--dir",
-            project.path().to_str().expect("UTF-8 path"),
+            project
+                .path()
+                .to_str()
+                .expect("UTF-8 path"),
             command,
         ])
         .expect("parses");
@@ -445,7 +451,10 @@ fn commands_without_recursive_by_default_stay_non_recursive_in_workspace() {
     let mut parsed = CliArgs::try_parse_from([
         "pacquet",
         "--dir",
-        workspace.path().to_str().expect("UTF-8 path"),
+        workspace
+            .path()
+            .to_str()
+            .expect("UTF-8 path"),
         "outdated",
     ])
     .expect("parses");
@@ -561,10 +570,14 @@ fn workspace_root_conflicts_with_global_for_every_subcommand() {
             let argv = std::iter::once("pacquet")
                 .chain(subcommand.iter().copied())
                 .chain(["-w", global, "-C"])
-                .chain([root.path().to_str().expect("utf-8 tmp dir")]);
-            let mut args = CliArgs::try_parse_from(argv).unwrap_or_else(|error| {
-                panic!("{subcommand:?} should parse with -w {global}: {error}");
-            });
+                .chain([root
+                    .path()
+                    .to_str()
+                    .expect("utf-8 tmp dir")]);
+            let mut args = CliArgs::try_parse_from(argv)
+                .unwrap_or_else(|error| {
+                    panic!("{subcommand:?} should parse with -w {global}: {error}");
+                });
             let error = args
                 .apply_workspace_root()
                 .expect_err(&format!("{subcommand:?} must reject -w with {global}"));
@@ -589,12 +602,16 @@ fn workspace_root_is_allowed_for_subcommands_without_global() {
         // script's argument rather than pnpm's.
         let argv = std::iter::once("pacquet")
             .chain(["-w", "-C"])
-            .chain([root.path().to_str().expect("utf-8 tmp dir")])
+            .chain([root
+                .path()
+                .to_str()
+                .expect("utf-8 tmp dir")])
             .chain(subcommand.iter().copied());
         let mut args = CliArgs::try_parse_from(argv).expect("parses");
-        args.apply_workspace_root().unwrap_or_else(|error| {
-            panic!("{subcommand:?} should accept -w: {error}");
-        });
+        args.apply_workspace_root()
+            .unwrap_or_else(|error| {
+                panic!("{subcommand:?} should accept -w: {error}");
+            });
 
         assert_eq!(args.paths.dir, canonical, "{subcommand:?}");
     }

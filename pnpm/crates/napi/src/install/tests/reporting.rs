@@ -82,7 +82,13 @@ fn allow_unused_patches_downgrades_an_unmatched_patch_to_a_warning() {
         manifest: serde_json::json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }),
         dependency_manifest: None,
     }];
-    options.store_dir = Some(temp_dir.path().join("store").to_string_lossy().into_owned());
+    options.store_dir = Some(
+        temp_dir
+            .path()
+            .join("store")
+            .to_string_lossy()
+            .into_owned(),
+    );
     options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
     options.patched_dependencies = Some(indexmap::IndexMap::from_iter([(
         "is-negative@1.0.0".to_string(),

@@ -116,8 +116,7 @@ pub(crate) fn open_path_node(
     if walk.vulnerable_names.contains(&name)
         && let Some(version) = package_version(&key)
     {
-        let class = walk
-            .classes
+        let class = walk.classes
             .get(&key)
             .copied()
             .unwrap_or(DepClass { dev_only: false, optional_only: false });
@@ -147,11 +146,9 @@ pub(crate) fn record_path(
     is_optional: bool,
 ) {
     let by_version = paths.entry(name.to_string()).or_default();
-    let info = by_version.entry(version.to_string()).or_insert_with(|| PathInfo {
-        paths: Vec::new(),
-        dev: is_dev,
-        optional: is_optional,
-    });
+    let info = by_version
+        .entry(version.to_string())
+        .or_insert_with(|| PathInfo { paths: Vec::new(), dev: is_dev, optional: is_optional });
     if !is_dev {
         info.dev = false;
     }

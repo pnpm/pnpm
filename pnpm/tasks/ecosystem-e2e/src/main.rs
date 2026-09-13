@@ -147,7 +147,12 @@ fn report_cell(outcome: &Outcome) {
 
 fn print_report(report: &[(String, Outcome)]) {
     println!("\n=== Ecosystem E2E results ===");
-    let id_width = report.iter().map(|(id, _)| id.len()).max().unwrap_or(0).max(4);
+    let id_width = report
+        .iter()
+        .map(|(id, _)| id.len())
+        .max()
+        .unwrap_or(0)
+        .max(4);
     for (id, outcome) in report {
         let detail = if outcome.passed {
             String::new()
@@ -161,7 +166,10 @@ fn print_report(report: &[(String, Outcome)]) {
             outcome.duration_secs,
         );
     }
-    let failed = report.iter().filter(|(_, outcome)| !outcome.passed).count();
+    let failed = report
+        .iter()
+        .filter(|(_, outcome)| !outcome.passed)
+        .count();
     println!("\n{} cell(s), {failed} failed", report.len());
 }
 
@@ -177,5 +185,9 @@ fn ensure_program(program: &str) {
 }
 
 fn known_stack_names() -> String {
-    stacks::STACKS.iter().map(|stack| stack.name).collect::<Vec<_>>().join(", ")
+    stacks::STACKS
+        .iter()
+        .map(|stack| stack.name)
+        .collect::<Vec<_>>()
+        .join(", ")
 }

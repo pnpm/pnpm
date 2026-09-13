@@ -151,10 +151,7 @@ impl ImporterPass<'_> {
         // of leaving the symlink stage stuck on `node_modules` while
         // other stages (`.modules.yaml` writing, bin linking) use
         // `config.modules_dir`.
-        let modules_dir_name: &OsStr = self
-            .context
-            .config
-            .modules_dir
+        let modules_dir_name: &OsStr = self.context.config.modules_dir
             .file_name()
             .unwrap_or_else(|| OsStr::new("node_modules"));
 
@@ -163,7 +160,10 @@ impl ImporterPass<'_> {
         // event order is not pinned — the per-importer work runs on
         // rayon, matching pnpm's `Promise.all` over importers — so
         // consumers key events off their `prefix`, never their order.
-        let mut keys: Vec<&str> = self.graph.importers.keys().map(String::as_str).collect();
+        let mut keys: Vec<&str> = self.graph.importers
+            .keys()
+            .map(String::as_str)
+            .collect();
         keys.sort_unstable();
         let root_targets = self.root_dedupe_targets(&keys);
         self.validate_importer_ids(&keys)?;
@@ -175,11 +175,19 @@ impl ImporterPass<'_> {
         // a serial walk would insert a fork-join barrier per importer
         // between the filesystem batches.
         let task_groups = importer_task_groups(self.context.workspace_root, keys);
-        task_groups.par_iter().try_for_each(|group| {
-            group.iter().try_for_each(|importer_id| {
-                self.link_importer::<Reporter>(importer_id, modules_dir_name, root_targets.as_ref())
+        task_groups
+            .par_iter()
+            .try_for_each(|group| {
+                group
+                    .iter()
+                    .try_for_each(|importer_id| {
+                        self.link_importer::<Reporter>(
+                            importer_id,
+                            modules_dir_name,
+                            root_targets.as_ref(),
+                        )
+                    })
             })
-        })
     }
 
     /// `dedupeDirectDeps` short-circuits when there is no root importer
@@ -212,11 +220,9 @@ impl ImporterPass<'_> {
     /// a rejected lockfile writes nothing.
     fn validate_importer_ids(&self, keys: &[&str]) -> Result<(), SymlinkDirectDependenciesError> {
         for importer_id in keys {
-            if !self
-                .policy
-                .trusted_importer_ids
-                .is_some_and(|trusted| trusted.contains(*importer_id))
-            {
+            if !self.policy.trusted_importer_ids.is_some_and(|trusted| {
+                trusted.contains(*importer_id)
+            }) {
                 validate_importer_id(importer_id)?;
             }
         }
@@ -317,7 +323,10 @@ fn importer_task_groups<'a>(workspace_root: &Path, keys: Vec<&'a str>) -> Vec<Ve
     for importer_id in keys {
         let project_dir = importer_root_dir(workspace_root, importer_id);
         match std::fs::canonicalize(&project_dir) {
-            Ok(canonical) => task_groups.entry(canonical).or_default().push(importer_id),
+            Ok(canonical) => task_groups
+                .entry(canonical)
+                .or_default()
+                .push(importer_id),
             Err(_) => unresolved.push(importer_id),
         }
     }
@@ -417,7 +426,12 @@ where
     dependency_groups
         .into_iter()
         .filter(|group| !matches!(group, DependencyGroup::Peer))
-        .flat_map(|group| snapshot.get_map_by_group(group).into_iter().flatten())
+        .flat_map(|group| {
+            snapshot
+                .get_map_by_group(group)
+                .into_iter()
+                .flatten()
+        })
         .filter(|(name, _)| seen.insert(*name))
         .filter(|(name, spec)| match spec.version.resolved_key(name) {
             Some(resolved) => !skipped.contains(&resolved),
@@ -468,13 +482,12 @@ fn link_resolved_entry<Reporter: self::Reporter>(
     let ResolvedEntry { name_str, target, .. } = entry;
 
     if symlink {
-        let outcome = symlink_package(target, &modules_dir.join(name_str)).map_err(|source| {
-            SymlinkDirectDependenciesError::SymlinkPackage {
+        let outcome = symlink_package(target, &modules_dir.join(name_str))
+            .map_err(|source| SymlinkDirectDependenciesError::SymlinkPackage {
                 importer_id: importer_id.to_string(),
                 name: name_str.clone(),
                 source,
-            }
-        })?;
+            })?;
 
         if outcome.reused {
             return Ok(());
@@ -543,9 +556,18 @@ fn link_one_importer<Reporter: self::Reporter>(
     // `try_for_each` short-circuits on the first error and returns it
     // to the caller. The full result collection forces every task to
     // settle before we surface a single error.
-    entries.par_iter().try_for_each(|entry| -> Result<(), SymlinkDirectDependenciesError> {
-        link_resolved_entry::<Reporter>(entry, importer_id, modules_dir, symlink, packages, &prefix)
-    })?;
+    entries
+        .par_iter()
+        .try_for_each(|entry| -> Result<(), SymlinkDirectDependenciesError> {
+            link_resolved_entry::<Reporter>(
+                entry,
+                importer_id,
+                modules_dir,
+                symlink,
+                packages,
+                &prefix,
+            )
+        })?;
 
     // After the symlinks exist, walk them to discover each
     // direct dep's `package.json` and link declared bins into
@@ -553,22 +575,29 @@ fn link_one_importer<Reporter: self::Reporter>(
     // destination, so the bin pass gets the resolved location for
     // free.
     if symlink {
-        let deps: Vec<crate::PrefetchedDepBin> = entries
-            .iter()
-            .map(|entry| {
-                let snapshot_key = entry.spec.version.resolved_key(entry.name);
-                (entry.name_str.clone(), entry.target.clone(), snapshot_key)
-            })
-            .collect();
+        let deps = resolved_entry_bins(&entries);
         crate::link_direct_dep_bins_prefetched(modules_dir, &deps, bin_lookup, link_options)
             .map_err(SymlinkDirectDependenciesError::LinkBins)?;
     } else {
-        let locations: Vec<PathBuf> = entries.iter().map(|entry| entry.target.clone()).collect();
+        let locations: Vec<PathBuf> = entries
+            .iter()
+            .map(|entry| entry.target.clone())
+            .collect();
         crate::link_direct_dep_bins_from_locations(modules_dir, &locations, link_options)
             .map_err(SymlinkDirectDependenciesError::LinkBins)?;
     }
 
     Ok(())
+}
+
+fn resolved_entry_bins(entries: &[ResolvedEntry<'_>]) -> Vec<crate::PrefetchedDepBin> {
+    entries
+        .iter()
+        .map(|entry| {
+            let snapshot_key = entry.spec.version.resolved_key(entry.name);
+            (entry.name_str.clone(), entry.target.clone(), snapshot_key)
+        })
+        .collect()
 }
 
 #[cfg(test)]

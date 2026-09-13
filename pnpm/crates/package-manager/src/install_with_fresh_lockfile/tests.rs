@@ -58,8 +58,7 @@ async fn filtered_repair_verifies_the_merged_lockfile() {
     )
     .expect("parse lockfile");
 
-    let error = verify_merged_repair::<SilentReporter>(&lockfile, &[])
-        .await
+    let error = verify_merged_repair::<SilentReporter>(&lockfile, &[]).await
         .expect_err("the merged lockfile must pass structural verification");
     assert!(matches!(
         error,
@@ -189,7 +188,10 @@ fn workspace_manifests(
 
 fn linked_peer_consumers(projects: &[(&str, serde_json::Value)]) -> Vec<String> {
     let owned = workspace_manifests(projects);
-    let borrowed = owned.iter().map(|(id, manifest)| (id.clone(), manifest)).collect();
+    let borrowed = owned
+        .iter()
+        .map(|(id, manifest)| (id.clone(), manifest))
+        .collect();
     let mut consumers: Vec<String> =
         importers_consuming_linked_peers(&borrowed, std::path::Path::new("/repo"))
             .into_iter()

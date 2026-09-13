@@ -256,10 +256,9 @@ impl FreshInputs<'_> {
         IncludedDependencies {
             dependencies: self.projects.dependency_groups.contains(&DependencyGroup::Prod),
             dev_dependencies: self.projects.dependency_groups.contains(&DependencyGroup::Dev),
-            optional_dependencies: self
-                .projects
-                .dependency_groups
-                .contains(&DependencyGroup::Optional),
+            optional_dependencies: self.projects.dependency_groups.contains(
+                &DependencyGroup::Optional,
+            ),
         }
     }
 }
@@ -446,8 +445,7 @@ fn skipped_optional_log_fn<Reporter: self::Reporter>()
                 bare_specifier: skipped.bare_specifier,
             },
             parents: Some(
-                skipped
-                    .parents
+                skipped.parents
                     .into_iter()
                     .map(|parent| SkippedOptionalParent {
                         id: parent.id,
@@ -535,7 +533,10 @@ fn check_patch_usage<Reporter: self::Reporter>(
     }
     match pnpm_patching::verify_patches(
         deps,
-        &applied_patches.iter().cloned().collect(),
+        &applied_patches
+            .iter()
+            .cloned()
+            .collect(),
         config.allow_unused_patches,
     ) {
         Ok(None) => Ok(()),

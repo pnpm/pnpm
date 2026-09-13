@@ -8,8 +8,12 @@ use pnpm_resolving_resolver_base::Resolver;
 #[tokio::test]
 async fn range_specifier_picks_max_in_range() {
     let mut server = mockito::Server::new_async().await;
-    let _mock =
-        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
@@ -18,7 +22,11 @@ async fn range_specifier_picks_max_in_range() {
         bare_specifier: Some("^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
     let name_ver = result.package.name_ver.as_ref().expect("npm resolver fills name_ver");
     assert_eq!(name_ver.name.to_string(), "acme");
     assert_eq!(name_ver.suffix.to_string(), "1.1.0");
@@ -33,22 +41,41 @@ async fn range_specifier_picks_max_in_range() {
 #[tokio::test]
 async fn missing_bare_specifier_synthesizes_default_tag_query() {
     let mut server = mockito::Server::new_async().await;
-    let _mock =
-        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
     let wanted =
         WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
-    assert_eq!(result.package.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.1.0");
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        result.package.name_ver
+            .as_ref()
+            .expect("name_ver")
+            .suffix
+            .to_string(),
+        "1.1.0",
+    );
 }
 
 #[tokio::test]
 async fn resolve_latest_returns_picked_manifest() {
     let mut server = mockito::Server::new_async().await;
-    let _mock =
-        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
@@ -72,8 +99,12 @@ async fn resolve_latest_returns_picked_manifest() {
 #[tokio::test]
 async fn resolve_latest_under_compatible_does_not_override_update_to_latest() {
     let mut server = mockito::Server::new_async().await;
-    let _mock =
-        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
@@ -92,7 +123,11 @@ async fn resolve_latest_under_compatible_does_not_override_update_to_latest() {
         },
         ..ResolveOptions::default()
     };
-    let info = resolver.resolve_latest(&query, &opts).await.unwrap().expect("latest info");
+    let info = resolver
+        .resolve_latest(&query, &opts)
+        .await
+        .unwrap()
+        .expect("latest info");
     let manifest = info.latest_manifest.expect("manifest present");
     assert_eq!(manifest["version"].as_str(), Some("1.1.0"));
 }
@@ -117,9 +152,17 @@ async fn jsr_specifier_without_selector_uses_default_tag() {
         bare_specifier: Some("jsr:@foo/bar".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(
-        result.package.name_ver.as_ref().expect("npm resolver fills name_ver").suffix.to_string(),
+        result.package.name_ver
+            .as_ref()
+            .expect("npm resolver fills name_ver")
+            .suffix
+            .to_string(),
         "1.1.0",
     );
     assert_eq!(result.resolved_via, "jsr-registry");
@@ -143,7 +186,10 @@ async fn revision_refresh_revalidates_a_warm_packument_without_update_checksums(
         ..WantedDependency::default()
     };
 
-    resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap();
+    resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap();
     first_mock.assert_async().await;
     first_mock.remove_async().await;
 
@@ -170,8 +216,12 @@ async fn revision_refresh_revalidates_a_warm_packument_without_update_checksums(
 #[tokio::test]
 async fn latest_is_suppressed_when_all_versions_are_immature_fallback_case() {
     let mut server = mockito::Server::new_async().await;
-    let _mock =
-        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
@@ -190,7 +240,18 @@ async fn latest_is_suppressed_when_all_versions_are_immature_fallback_case() {
         bare_specifier: Some("^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
-    assert_eq!(result.package.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.0.0");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        result.package.name_ver
+            .as_ref()
+            .expect("name_ver")
+            .suffix
+            .to_string(),
+        "1.0.0",
+    );
     assert!(result.package.latest.is_none(), "immature dist-tags.latest suppresses the hint");
 }

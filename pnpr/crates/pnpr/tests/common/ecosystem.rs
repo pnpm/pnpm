@@ -54,18 +54,24 @@ pub fn mixed_router_config(
         upstream.0.to_string(),
         UpstreamConfig::with_defaults(upstream.1.to_string(), HeaderMap::new()),
     );
-    let claimed = hosted
-        .packages
+    let claimed = hosted.packages
         .iter()
         .map(|name| {
             PackagePattern::parse(name, ecosystem).expect("package name is a valid pattern")
         })
         .collect();
-    let mut graph: indexmap::IndexMap<String, Registry> = config
-        .routing
+    let mut graph: indexmap::IndexMap<String, Registry> = config.routing
         .registries
         .names()
-        .map(|name| (name.to_string(), config.routing.registries.get(name).unwrap().clone()))
+        .map(|name| {
+            (
+                name.to_string(),
+                config.routing.registries
+                    .get(name)
+                    .unwrap()
+                    .clone(),
+            )
+        })
         .collect();
     graph.insert(hosted.name.to_string(), Registry::Hosted { patterns: claimed });
     graph.insert(upstream.0.to_string(), Registry::Upstream { patterns: vec![] });
@@ -155,8 +161,12 @@ pub async fn assert_cache_tracks_metadata(ecosystem: Ecosystem) {
             Ecosystem::Cargo => json!({ "name": name, "vers": "1.0.0", "deps": [], "cksum": sha256_hex(bytes), "features": {}, "yanked": false }).to_string(),
             _ => json!({ "meta": { "api-version": "1.0" }, "name": name, "files": [{ "filename": filename, "url": format!("{}/artifact", upstream.url()), "hashes": { "sha256": sha256_hex(bytes) } }] }).to_string(),
         };
-        let index =
-            upstream.mock("GET", index_path).with_body(entry).expect(2).create_async().await;
+        let index = upstream
+            .mock("GET", index_path)
+            .with_body(entry)
+            .expect(2)
+            .create_async()
+            .await;
         let artifact = upstream
             .mock("GET", artifact_path.as_str())
             .with_body(bytes)
@@ -166,7 +176,11 @@ pub async fn assert_cache_tracks_metadata(ecosystem: Ecosystem) {
         for _ in 0..2 {
             let response = app
                 .clone()
-                .oneshot(Request::get(download_path).body(Body::empty()).unwrap())
+                .oneshot(
+                    Request::get(download_path)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
                 .await
                 .unwrap();
             assert_eq!(response.status(), StatusCode::OK);
@@ -181,9 +195,20 @@ pub async fn assert_cache_tracks_metadata(ecosystem: Ecosystem) {
         Ecosystem::Cargo => String::new(),
         _ => json!({ "meta": { "api-version": "1.0" }, "name": name, "files": [] }).to_string(),
     };
-    let index = upstream.mock("GET", index_path).with_body(empty).expect(1).create_async().await;
-    let response =
-        app.oneshot(Request::get(download_path).body(Body::empty()).unwrap()).await.unwrap();
+    let index = upstream
+        .mock("GET", index_path)
+        .with_body(empty)
+        .expect(1)
+        .create_async()
+        .await;
+    let response = app
+        .oneshot(
+            Request::get(download_path)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     index.assert_async().await;
 }

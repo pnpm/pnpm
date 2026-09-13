@@ -21,8 +21,13 @@ fn pacquet_at(workspace: &Path) -> Command {
 /// `pnpm-lock.yaml`).
 #[test]
 fn installs_configurational_dependencies() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(workspace.join("package.json"), serde_json::json!({}).to_string())
@@ -35,7 +40,10 @@ fn installs_configurational_dependencies() {
     yaml.push_str("\nconfigDependencies:\n  '@pnpm.e2e/foo': 100.0.0\n");
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let installed = workspace.join("node_modules/.pnpm-config/@pnpm.e2e/foo/package.json");
     assert!(installed.exists(), "config dep must be linked under .pnpm-config");
@@ -63,8 +71,14 @@ fn second_install_keeps_config_dependency() {
     yaml.push_str("\nconfigDependencies:\n  '@pnpm.e2e/foo': 100.0.0\n");
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 
-    pacquet_at(&workspace).with_arg("install").assert().success();
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     assert!(
         workspace.join("node_modules/.pnpm-config/@pnpm.e2e/foo/package.json").exists(),
@@ -95,7 +109,10 @@ fn update_config_hook_mutates_config_before_install() {
     )
     .expect("write .pnpmfile.cjs");
 
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let dep = workspace.join("node_modules/@pnpm.e2e/foo");
     assert!(dep.join("package.json").exists(), "dependency is installed");
@@ -183,8 +200,10 @@ fn add_config_accepts_multiple_package_selectors_in_one_operation() {
         assert_eq!(dependency.specifier, "100.0.0");
         assert_eq!(dependency.version, "100.0.0");
 
-        let installed =
-            workspace.join("node_modules/.pnpm-config").join(package_name).join("package.json");
+        let installed = workspace
+            .join("node_modules/.pnpm-config")
+            .join(package_name)
+            .join("package.json");
         assert!(installed.exists(), "config dependency installed at {}", installed.display());
     }
 
@@ -242,7 +261,10 @@ fn update_config_hook_injects_catalog() {
     )
     .expect("write .pnpmfile.cjs");
 
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     assert!(
         workspace.join("node_modules/.pnpm/@pnpm.e2e+foo@100.0.0").exists(),
@@ -270,7 +292,10 @@ fn update_config_observes_and_can_replace_the_cli_store_dir() {
     )
     .expect("write .pnpmfile.cjs");
 
-    pacquet_at(&workspace).with_args(["install", "--store-dir=cli-store"]).assert().success();
+    pacquet_at(&workspace)
+        .with_args(["install", "--store-dir=cli-store"])
+        .assert()
+        .success();
 
     let observed = fs::read_to_string(workspace.join("observed-store.txt"))
         .expect("read store observed by updateConfig");
@@ -312,7 +337,10 @@ fn update_config_observes_an_empty_cli_store_dir() {
     )
     .expect("write .pnpmfile.cjs");
 
-    pacquet_at(&workspace).with_args(["install", "--store-dir="]).assert().success();
+    pacquet_at(&workspace)
+        .with_args(["install", "--store-dir="])
+        .assert()
+        .success();
 
     assert_eq!(
         fs::read_to_string(workspace.join("observed-store.txt"))
@@ -352,7 +380,10 @@ fn ignore_pnpmfile_skips_a_config_dependency_plugin_pnpmfile() {
             .node_linker
     };
 
-    pacquet_at(&workspace).with_args(["install", "--ignore-pnpmfile"]).assert().success();
+    pacquet_at(&workspace)
+        .with_args(["install", "--ignore-pnpmfile"])
+        .assert()
+        .success();
     assert_eq!(
         recorded_node_linker(),
         Some(NodeLinker::Isolated),
@@ -362,7 +393,10 @@ fn ignore_pnpmfile_skips_a_config_dependency_plugin_pnpmfile() {
     // Install again with the plugin honored, so the assertion above
     // cannot pass on a fixture whose hook never ran.
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     assert_eq!(
         recorded_node_linker(),
         Some(NodeLinker::Hoisted),

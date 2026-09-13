@@ -215,14 +215,16 @@ fn plan_hoist(inputs: &LinkPhaseInputs<'_>, skipped: &SkippedSnapshots) -> Plann
         inputs.ctx.is_hoisted(),
         hoisted_workspace_packages.as_ref(),
     );
-    let public_targets = plan.as_ref().map(|plan| {
-        collect_public_hoist_targets(
-            &plan.result,
-            &plan.graph,
-            inputs.ctx.linker.layout,
-            &plan.skipped,
-        )
-    });
+    let public_targets = plan
+        .as_ref()
+        .map(|plan| {
+            collect_public_hoist_targets(
+                &plan.result,
+                &plan.graph,
+                inputs.ctx.linker.layout,
+                &plan.skipped,
+            )
+        });
     tracing::info!(target: "pacquet::install::phase", phase = "link.hoist_plan", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
     PlannedHoist { plan, public_targets }
 }
@@ -285,9 +287,7 @@ fn prune_importer_tree<Reporter: self::Reporter>(
     inputs: &LinkPhaseInputs<'_>,
 ) -> Result<(), LinkPhaseError> {
     let config = inputs.ctx.config;
-    let removed_count = inputs
-        .graph
-        .current_lockfile
+    let removed_count = inputs.graph.current_lockfile
         .map(|current| {
             crate::PruneStaleModules {
                 config,
@@ -421,8 +421,7 @@ fn link_hoisted_projects<Reporter: self::Reporter>(
     skipped: &mut SkippedSnapshots,
 ) -> Result<crate::HoistedLinkerOutput, LinkPhaseError> {
     let config = inputs.ctx.config;
-    let hoisted = inputs
-        .ctx
+    let hoisted = inputs.ctx
         .is_hoisted()
         .then(|| {
             run_hoisted_linker::<Reporter>(
@@ -474,8 +473,7 @@ fn link_hoisted_projects<Reporter: self::Reporter>(
 /// the hoist symlinks land.
 fn public_workspace_bin_deps(plan: Option<&HoistPlan>) -> Vec<(String, PathBuf)> {
     plan.map(|plan| {
-        plan.result
-            .hoisted_workspace_aliases
+        plan.result.hoisted_workspace_aliases
             .iter()
             .filter(|(_, kind, _)| matches!(kind, pnpm_modules_yaml::HoistKind::Public))
             .map(|(alias, _, project_dir)| (alias.clone(), project_dir.clone()))

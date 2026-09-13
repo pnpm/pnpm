@@ -113,8 +113,10 @@ fn a_large_section_renders_identically_through_the_parallel_path() {
     // Reverse insertion order, so unsorted input is visible if either
     // parallel stage loses the ordering.
     for index in (0..count).rev() {
-        packages
-            .insert(format!("pkg-{index:03}@1.0.0"), json!({ "version": "1.0.0", "dev": false }));
+        packages.insert(
+            format!("pkg-{index:03}@1.0.0"),
+            json!({ "version": "1.0.0", "dev": false }),
+        );
     }
     let yaml = to_string(serde_json::Value::Object(
         [
@@ -128,8 +130,9 @@ fn a_large_section_renders_identically_through_the_parallel_path() {
     use std::fmt::Write;
     let mut expected = String::from("lockfileVersion: '9.0'\n\npackages:\n");
     for index in 0..count {
-        write!(expected, "\n  pkg-{index:03}@1.0.0:\n    version: 1.0.0\n    dev: false\n")
-            .expect("write to a String is infallible");
+        write!(expected, "\n  pkg-{index:03}@1.0.0:\n    version: 1.0.0\n    dev: false\n").expect(
+            "write to a String is infallible",
+        );
     }
     assert_eq!(yaml, expected);
 }

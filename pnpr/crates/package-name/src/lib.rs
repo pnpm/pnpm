@@ -121,14 +121,15 @@ impl CanonicalPackageName {
                 return Ok(Self { raw: canonical, basename });
             }
         };
-        Self::parse_canonical(&canonical).map_err(|error| match ecosystem {
-            Ecosystem::Npm => error,
-            Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => invalid_ecosystem_name(
-                raw,
-                ecosystem,
-                "its canonical form is not a safe registry key".to_string(),
-            ),
-        })
+        Self::parse_canonical(&canonical)
+            .map_err(|error| match ecosystem {
+                Ecosystem::Npm => error,
+                Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => invalid_ecosystem_name(
+                    raw,
+                    ecosystem,
+                    "its canonical form is not a safe registry key".to_string(),
+                ),
+            })
     }
 
     fn parse_canonical(raw: &str) -> Result<Self, RegistryError> {
@@ -221,15 +222,23 @@ pub fn canonicalize_crate_name(name: &str) -> Result<String, CrateNameError> {
 
 pub fn canonicalize_python_name(raw: &str) -> Result<String, PythonNameError> {
     let invalid = || PythonNameError { name: raw.to_string() };
-    let normalized = PythonPackageName::from_str(raw).map_err(|_| invalid())?.as_ref().to_string();
-    let well_formed =
-        normalized.chars().all(|character| {
+    let normalized = PythonPackageName::from_str(raw)
+        .map_err(|_| invalid())?
+        .as_ref()
+        .to_string();
+    let well_formed = normalized
+        .chars()
+        .all(|character| {
             character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-'
-        }) && normalized.chars().next().is_some_and(|character| character.is_ascii_alphanumeric())
-            && normalized
-                .chars()
-                .next_back()
-                .is_some_and(|character| character.is_ascii_alphanumeric());
+        })
+        && normalized
+            .chars()
+            .next()
+            .is_some_and(|character| character.is_ascii_alphanumeric())
+        && normalized
+            .chars()
+            .next_back()
+            .is_some_and(|character| character.is_ascii_alphanumeric());
     well_formed.then_some(normalized).ok_or_else(invalid)
 }
 
@@ -260,9 +269,12 @@ fn validate_oci_component(component: &str, name: &str) -> Result<(), OciNameErro
     if !component.starts_with(alphanumeric) || !component.ends_with(alphanumeric) {
         return Err(OciNameError::ComponentBoundary { component: component.to_string() });
     }
-    if component.chars().any(|character| {
-        !(character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-'))
-    }) {
+    if component
+        .chars()
+        .any(|character| {
+            !(character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-'))
+        })
+    {
         return Err(OciNameError::InvalidCharacter { component: component.to_string() });
     }
     let mut rest = component;
@@ -297,11 +309,13 @@ fn is_safe_segment(segment: &str) -> bool {
     !segment.is_empty()
         && !segment.starts_with('.')
         && segment != ".."
-        && !segment.chars().any(|character| {
-            matches!(character, '/' | '\\' | ':' | '?' | '#' | '%')
-                || character.is_whitespace()
-                || character.is_control()
-        })
+        && !segment
+            .chars()
+            .any(|character| {
+                matches!(character, '/' | '\\' | ':' | '?' | '#' | '%')
+                    || character.is_whitespace()
+                    || character.is_control()
+            })
 }
 
 /// Whether `filename` is safe to use as a single on-disk path segment (no

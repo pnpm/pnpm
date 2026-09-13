@@ -431,7 +431,10 @@ async fn write_path_populates_side_effects_row() {
     writer_task.await.expect("await writer").expect("writer succeeds");
 
     let index = StoreIndex::open_readonly_in(&store_dir).expect("open index for read");
-    let row = index.get(&files_index_file).expect("get row").expect("row present");
+    let row = index
+        .get(&files_index_file)
+        .expect("get row")
+        .expect("row present");
     let side_effects = row.side_effects.expect("side_effects populated");
     let diff = side_effects.get(&expected_cache_key).expect("entry for cache key");
     let added = diff.added.as_ref().expect("added present");

@@ -51,5 +51,9 @@ pub fn tarball_entries(entries: &[(&str, &[u8])]) -> Vec<u8> {
 /// Returns the SHA-512 SSRI string for `bytes`.
 #[must_use]
 pub fn sha512_integrity(bytes: &[u8]) -> String {
-    ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512).chain(bytes).result().to_string()
+    ssri::IntegrityOpts::new()
+        .algorithm(ssri::Algorithm::Sha512)
+        .chain(bytes)
+        .result()
+        .to_string()
 }

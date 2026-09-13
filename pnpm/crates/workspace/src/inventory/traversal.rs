@@ -31,13 +31,14 @@ pub(super) fn walk_workspace(
         &mut pending,
     )?;
     while let Some(path) = pending.pop() {
-        let handle = match before_open_directory(&path).and_then(|()| {
-            super::open_directory::open_directory(
-                &root_handle,
-                path.strip_prefix(workspace_root).expect("descendant of workspace root"),
-                &mut navigation_opens,
-            )
-        }) {
+        let handle = match before_open_directory(&path)
+            .and_then(|()| {
+                super::open_directory::open_directory(
+                    &root_handle,
+                    path.strip_prefix(workspace_root).expect("descendant of workspace root"),
+                    &mut navigation_opens,
+                )
+            }) {
             Ok(handle) => handle,
             Err(error) if is_changed_candidate_error(&error) => continue,
             Err(source) => {
@@ -59,9 +60,11 @@ pub(super) fn walk_workspace(
 fn open_workspace_root(
     workspace_root: &Path,
 ) -> Result<std::fs::File, FindWorkspaceInventoryError> {
-    fs::open_ambient_dir(workspace_root, ambient_authority()).map_err(|source| {
-        FindWorkspaceInventoryError::ReadDirectory { path: workspace_root.to_path_buf(), source }
-    })
+    fs::open_ambient_dir(workspace_root, ambient_authority())
+        .map_err(|source| FindWorkspaceInventoryError::ReadDirectory {
+            path: workspace_root.to_path_buf(),
+            source,
+        })
 }
 
 fn read_children(

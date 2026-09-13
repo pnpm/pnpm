@@ -110,10 +110,13 @@ pub async fn fetch_yarn_releases(
     if let Some(token) = &token {
         request = request.header("authorization", format!("Bearer {token}"));
     }
-    let response = request.send().await.map_err(|error| ReadYarnReleasesError::Network {
-        url: RELEASES_URL.to_string(),
-        error: Arc::new(error),
-    })?;
+    let response = request
+        .send()
+        .await
+        .map_err(|error| ReadYarnReleasesError::Network {
+            url: RELEASES_URL.to_string(),
+            error: Arc::new(error),
+        })?;
     if !response.status().is_success() {
         return Err(ReadYarnReleasesError::StatusNotOk {
             url: RELEASES_URL.to_string(),
@@ -121,10 +124,13 @@ pub async fn fetch_yarn_releases(
             authenticated: token.is_some(),
         });
     }
-    let body = response.text().await.map_err(|error| ReadYarnReleasesError::Network {
-        url: RELEASES_URL.to_string(),
-        error: Arc::new(error),
-    })?;
+    let body = response
+        .text()
+        .await
+        .map_err(|error| ReadYarnReleasesError::Network {
+            url: RELEASES_URL.to_string(),
+            error: Arc::new(error),
+        })?;
     parse_releases(&body)
 }
 
@@ -170,15 +176,16 @@ fn pick_token(
 }
 
 pub fn parse_releases(body: &str) -> Result<Vec<YarnRelease>, ReadYarnReleasesError> {
-    let releases: Vec<GithubRelease> = serde_json::from_str(body).map_err(|error| {
-        ReadYarnReleasesError::Parse { url: RELEASES_URL.to_string(), error: Arc::new(error) }
-    })?;
+    let releases: Vec<GithubRelease> = serde_json::from_str(body)
+        .map_err(|error| ReadYarnReleasesError::Parse {
+            url: RELEASES_URL.to_string(),
+            error: Arc::new(error),
+        })?;
     Ok(releases
         .into_iter()
         .filter_map(|release| {
             let version = release.tag_name.strip_prefix('v')?.to_string();
-            let assets = release
-                .assets
+            let assets = release.assets
                 .into_iter()
                 .map(|asset| YarnAsset {
                     file_name: asset.name,
@@ -204,8 +211,9 @@ pub fn asset_variants(
         let Some(integrity) = asset.digest.as_deref().and_then(sha256_digest_to_sri) else {
             continue;
         };
-        let integrity: Integrity =
-            integrity.parse().map_err(|error| ReadYarnReleasesError::Integrity {
+        let integrity: Integrity = integrity
+            .parse()
+            .map_err(|error| ReadYarnReleasesError::Integrity {
                 integrity,
                 file_name: asset.file_name.clone(),
                 error: Arc::new(error),
@@ -239,8 +247,7 @@ pub fn asset_variants(
 /// A musl-only release also runs on glibc hosts. Constrain it by libc
 /// only when a usable glibc asset gives those hosts an alternative.
 fn has_valid_glibc_build(release: &YarnRelease) -> bool {
-    release
-        .assets
+    release.assets
         .iter()
         .filter_map(|asset| {
             let target = parse_asset_name(&asset.file_name)?;

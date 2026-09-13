@@ -170,7 +170,11 @@ impl WorkEnv {
     }
     pub(super) fn start_pnpr_server(&self, id: BenchId, pnpr_server_registry: &str) -> PnprServer {
         let bench_dir = self.bench_dir(id);
-        let binary = bench_dir.join("pacquet").join("target").join("release").join("pnpr");
+        let binary = bench_dir
+            .join("pacquet")
+            .join("target")
+            .join("release")
+            .join("pnpr");
         assert!(
             binary.is_file(),
             "pnpr binary not found at {binary:?} — the build step did not produce it",
@@ -376,7 +380,10 @@ impl WorkEnv {
         if id.is_proxy_cache_populator() {
             return &self.registry.cache_populator;
         }
-        if let Some(mock) = id.revision().and_then(|rev| revision_mocks.get(rev)) {
+        if let Some(mock) = id
+            .revision()
+            .and_then(|rev| revision_mocks.get(rev))
+        {
             return &mock.url;
         }
         client_registry
@@ -402,13 +409,20 @@ impl WorkEnv {
             if target.kind != TargetKind::Pnpr {
                 continue;
             }
-            mocks.entry(target.rev.clone()).or_insert_with(|| {
-                let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
-                    .expect("bind a port for the revision mock proxy");
-                let listen_port =
-                    listener.local_addr().expect("revision mock proxy local addr").port();
-                RevisionMockRegistry { listener, url: format!("http://127.0.0.1:{listen_port}/") }
-            });
+            mocks
+                .entry(target.rev.clone())
+                .or_insert_with(|| {
+                    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+                        .expect("bind a port for the revision mock proxy");
+                    let listen_port = listener
+                        .local_addr()
+                        .expect("revision mock proxy local addr")
+                        .port();
+                    RevisionMockRegistry {
+                        listener,
+                        url: format!("http://127.0.0.1:{listen_port}/"),
+                    }
+                });
         }
         mocks
     }

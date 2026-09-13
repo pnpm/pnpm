@@ -17,8 +17,11 @@ fn run_errors_on_missing_script_without_if_present() {
     .to_string();
     fs::write(&manifest_path, manifest).expect("write package.json");
 
-    let output =
-        pacquet.with_arg("run").with_arg("nonexistent").output().expect("spawn pacquet run");
+    let output = pacquet
+        .with_arg("run")
+        .with_arg("nonexistent")
+        .output()
+        .expect("spawn pacquet run");
     assert!(!output.status.success(), "missing script must surface as a failure");
 
     drop(root);
@@ -40,7 +43,12 @@ fn run_with_if_present_is_a_noop_for_missing_script() {
     .to_string();
     fs::write(&manifest_path, manifest).expect("write package.json");
 
-    pacquet.with_arg("run").with_arg("--if-present").with_arg("nonexistent").assert().success();
+    pacquet
+        .with_arg("run")
+        .with_arg("--if-present")
+        .with_arg("nonexistent")
+        .assert()
+        .success();
 
     drop(root);
 }
@@ -60,7 +68,11 @@ fn top_level_if_present_is_a_noop_for_missing_script() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    pacquet.with_arg("--if-present").with_arg("nonexistent").assert().success();
+    pacquet
+        .with_arg("--if-present")
+        .with_arg("nonexistent")
+        .assert()
+        .success();
 
     drop(root);
 }
@@ -78,7 +90,10 @@ fn run_lists_scripts_when_no_name_given() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    let output = pacquet.with_arg("run").output().expect("spawn pacquet run");
+    let output = pacquet
+        .with_arg("run")
+        .output()
+        .expect("spawn pacquet run");
     let stdout = String::from_utf8_lossy(&output.stdout);
     eprintln!("STDOUT:\n{stdout}\n");
     assert!(output.status.success(), "listing scripts should succeed");
@@ -109,7 +124,11 @@ fn run_executes_every_script_matching_a_regexp_selector() {
         .to_string();
         fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-        pacquet.with_args(prefix).with_arg("/^typecheck:.+/").assert().success();
+        pacquet
+            .with_args(prefix)
+            .with_arg("/^typecheck:.+/")
+            .assert()
+            .success();
 
         assert!(workspace.join("one.txt").exists(), "prefix: {prefix:?}");
         assert!(workspace.join("two.txt").exists(), "prefix: {prefix:?}");
@@ -299,7 +318,10 @@ fn run_rejects_regexp_flags_in_a_selector() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    let output = pacquet.with_args(["run", "/^BUILD/i"]).assert().failure();
+    let output = pacquet
+        .with_args(["run", "/^BUILD/i"])
+        .assert()
+        .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
     assert!(
         stderr.contains("ERR_PNPM_UNSUPPORTED_SCRIPT_COMMAND_FORMAT"),

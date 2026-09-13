@@ -22,7 +22,11 @@ fn run_from_a_plain_subdir_runs_the_projects_script() {
     let subdir = workspace.join("src/utils");
     fs::create_dir_all(&subdir).expect("create the subdirectory");
 
-    pacquet.with_current_dir(&subdir).with_args(["run", "touch-marker"]).assert().success();
+    pacquet
+        .with_current_dir(&subdir)
+        .with_args(["run", "touch-marker"])
+        .assert()
+        .success();
     assert!(workspace.join("marker.txt").exists(), "the script should have run in the project");
     assert!(!subdir.join("marker.txt").exists(), "the script should not have run in the subdir");
 
@@ -54,7 +58,11 @@ fn run_from_an_ecosystem_subdir_runs_the_npm_projects_script() {
         fs::create_dir(&member).expect("create the member dir");
         fs::write(member.join(manifest_name), contents).expect("write the ecosystem manifest");
 
-        pacquet.with_current_dir(&member).with_args(["run", "touch-marker"]).assert().success();
+        pacquet
+            .with_current_dir(&member)
+            .with_args(["run", "touch-marker"])
+            .assert()
+            .success();
         assert!(
             workspace.join("marker.txt").exists(),
             "the script should have run in the npm project, not the {manifest_name} member",
@@ -127,7 +135,11 @@ fn run_finds_local_bin_on_path() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    pacquet.with_arg("run").with_arg("hi").assert().success();
+    pacquet
+        .with_arg("run")
+        .with_arg("hi")
+        .assert()
+        .success();
     assert!(marker.exists(), "the local bin should be resolved via node_modules/.bin");
 
     drop(root);
@@ -192,7 +204,10 @@ fn top_level_fallback_runs_script_before_local_bin() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    pacquet.with_arg("commitlint").assert().success();
+    pacquet
+        .with_arg("commitlint")
+        .assert()
+        .success();
     assert_eq!(fs::read_to_string(&marker).expect("read marker"), "script");
 
     drop(root);
@@ -241,7 +256,10 @@ fn top_level_fallback_runs_local_bin_without_package_json() {
         &format!("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"{}\"\n", marker.display()),
     );
 
-    pacquet.with_args(["commitlint", "--edit", "COMMIT_EDITMSG"]).assert().success();
+    pacquet
+        .with_args(["commitlint", "--edit", "COMMIT_EDITMSG"])
+        .assert()
+        .success();
     assert_eq!(fs::read_to_string(&marker).expect("read marker"), "--edit\nCOMMIT_EDITMSG\n");
 
     drop(root);
@@ -259,7 +277,10 @@ fn top_level_fallback_forwards_dotted_config_args_to_local_bin() {
         &format!("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"{}\"\n", marker.display()),
     );
 
-    pacquet.with_args(["commitlint", "--config.foo=bar"]).assert().success();
+    pacquet
+        .with_args(["commitlint", "--config.foo=bar"])
+        .assert()
+        .success();
     assert_eq!(fs::read_to_string(&marker).expect("read marker"), "--config.foo=bar\n");
 
     drop(root);
@@ -286,7 +307,10 @@ fn run_exports_node_path_when_prefer_symlinked_executables() {
     fs::write(workspace.join("pnpm-workspace.yaml"), "preferSymlinkedExecutables: true\n")
         .expect("write pnpm-workspace.yaml");
 
-    pacquet.with_args(["run", "build"]).assert().success();
+    pacquet
+        .with_args(["run", "build"])
+        .assert()
+        .success();
     let node_path = fs::read_to_string(&marker_path).expect("read marker");
     assert!(
         node_path.contains("node_modules/.pnpm/node_modules"),
@@ -323,7 +347,10 @@ fn run_exports_node_path_from_a_custom_virtual_store_dir() {
     )
     .expect("write pnpm-workspace.yaml");
 
-    pacquet.with_args(["run", "build"]).assert().success();
+    pacquet
+        .with_args(["run", "build"])
+        .assert()
+        .success();
     let node_path = fs::read_to_string(&marker_path).expect("read marker");
     let expected = virtual_store_dir.join("node_modules");
     assert!(

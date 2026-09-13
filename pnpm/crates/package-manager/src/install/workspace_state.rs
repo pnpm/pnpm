@@ -103,8 +103,11 @@ fn fast_path_workspace_context(
     config: &Config,
     workspace_dir: Option<&Path>,
 ) -> Option<(Option<pnpm_workspace::WorkspaceManifest>, super::Catalogs)> {
-    let workspace_manifest =
-        workspace_dir.map(pnpm_workspace::read_workspace_manifest).transpose().ok()?.flatten();
+    let workspace_manifest = workspace_dir
+        .map(pnpm_workspace::read_workspace_manifest)
+        .transpose()
+        .ok()?
+        .flatten();
     let catalogs = match config.catalogs.clone() {
         Some(catalogs) => catalogs,
         None => get_catalogs_from_workspace_manifest(workspace_manifest.as_ref()).ok()?,
@@ -215,22 +218,23 @@ pub fn build_workspace_packages_map(
                 version.to_string()
             }
         };
-        map.entry(name).or_default().insert(
-            version,
-            pnpm_resolving_resolver_base::WorkspacePackage {
-                root_dir: project.root_dir.clone(),
-                // The map feeds workspace picks resolved as *dependencies*
-                // (injected instances), so a project that splits its two
-                // views contributes its dependency manifest here — see
-                // `pnpm_workspace::Project::dependency_manifest`.
-                manifest: project
-                    .dependency_manifest
-                    .as_ref()
-                    .unwrap_or(&project.manifest)
-                    .value()
-                    .clone(),
-            },
-        );
+        map.entry(name)
+            .or_default()
+            .insert(
+                version,
+                pnpm_resolving_resolver_base::WorkspacePackage {
+                    root_dir: project.root_dir.clone(),
+                    // The map feeds workspace picks resolved as *dependencies*
+                    // (injected instances), so a project that splits its two
+                    // views contributes its dependency manifest here — see
+                    // `pnpm_workspace::Project::dependency_manifest`.
+                    manifest: project.dependency_manifest
+                        .as_ref()
+                        .unwrap_or(&project.manifest)
+                        .value()
+                        .clone(),
+                },
+            );
     }
     Some(map)
 }

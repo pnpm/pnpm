@@ -58,10 +58,10 @@ impl MetadataFile {
         if current == self.state {
             return Ok(());
         }
-        let parent =
-            self.parent.open_descendant(&self.remaining_parent).into_diagnostic().wrap_err_with(
-                || format!("open parent of {} for restoration", self.path.display()),
-            )?;
+        let parent = self.parent
+            .open_descendant(&self.remaining_parent)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("open parent of {} for restoration", self.path.display()))?;
         let outcome = match self.state {
             FileState::Missing => remove_file(&parent, &self.name),
             FileState::Regular {
@@ -77,7 +77,9 @@ impl MetadataFile {
             ),
             FileState::Symlink(target) => write_symlink(&parent, &self.name, &target),
         };
-        outcome.into_diagnostic().wrap_err_with(|| format!("restore {}", self.path.display()))
+        outcome
+            .into_diagnostic()
+            .wrap_err_with(|| format!("restore {}", self.path.display()))
     }
 }
 
@@ -262,8 +264,16 @@ fn replace_windows_path(source: &Path, destination: &Path) -> io::Result<()> {
         MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
     };
 
-    let source = source.as_os_str().encode_wide().chain(Some(0)).collect::<Vec<_>>();
-    let destination = destination.as_os_str().encode_wide().chain(Some(0)).collect::<Vec<_>>();
+    let source = source
+        .as_os_str()
+        .encode_wide()
+        .chain(Some(0))
+        .collect::<Vec<_>>();
+    let destination = destination
+        .as_os_str()
+        .encode_wide()
+        .chain(Some(0))
+        .collect::<Vec<_>>();
     // SAFETY: both paths are NUL-terminated and remain alive for the call.
     if unsafe {
         MoveFileExW(

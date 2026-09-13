@@ -341,12 +341,8 @@ pub(crate) fn current_settings(
         )),
         node_linker: Some(map_node_linker(node_linker)),
         optional: Some(included.optional_dependencies),
-        overrides: config
-            .overrides
-            .as_ref()
-            .map(|map| map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()),
-        package_extensions: config
-            .package_extensions
+        overrides: recorded_overrides(config),
+        package_extensions: config.package_extensions
             .as_ref()
             .and_then(|map| serde_json::to_value(map).ok()),
         patched_dependencies: config.patched_dependencies.clone(),
@@ -359,8 +355,9 @@ pub(crate) fn current_settings(
         // The CLI-merged effective value (yaml plus `--cpu` / `--os` /
         // `--libc`), like `included` above: a change through either
         // channel re-evaluates the skipped optionals on the next run.
-        supported_architectures: supported_architectures
-            .and_then(|value| serde_json::to_value(value).ok()),
+        supported_architectures: supported_architectures.and_then(|value| {
+            serde_json::to_value(value).ok()
+        }),
         ..current_policy_settings(config)
     }
 }
@@ -369,7 +366,10 @@ fn recorded_allow_builds(
     config: &Config,
 ) -> Option<std::collections::BTreeMap<String, serde_json::Value>> {
     (!config.allow_builds.is_empty()).then(|| {
-        config.allow_builds.iter().map(|(k, v)| (k.clone(), serde_json::Value::Bool(*v))).collect()
+        config.allow_builds
+            .iter()
+            .map(|(k, v)| (k.clone(), serde_json::Value::Bool(*v)))
+            .collect()
     })
 }
 
@@ -382,15 +382,14 @@ fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
         ),
         // The resolved form pnpm records — see
         // `WorkspaceStateSettings::minimum_release_age_strict`.
-        minimum_release_age_strict: config
-            .minimum_release_age_strict
-            .or_else(|| config.resolved_minimum_release_age_strict().then_some(true)),
+        minimum_release_age_strict: config.minimum_release_age_strict.or_else(|| {
+            config.resolved_minimum_release_age_strict().then_some(true)
+        }),
         // pnpm records the raw config value, which stays `undefined`
         // until the user configures the setting — `explicit_settings` is
         // how pacquet tells its resolved default apart from a real
         // `trustPolicy: off`.
-        trust_policy: config
-            .explicit_settings
+        trust_policy: config.explicit_settings
             .contains_key("trustPolicy")
             .then(|| map_trust_policy(config.trust_policy)),
         trust_policy_exclude: config.trust_policy_exclude.clone(),
@@ -455,4 +454,14 @@ fn map_trust_policy(policy: TrustPolicy) -> WorkspaceStateTrustPolicy {
         TrustPolicy::Off => WorkspaceStateTrustPolicy::Off,
         TrustPolicy::NoDowngrade => WorkspaceStateTrustPolicy::NoDowngrade,
     }
+}
+
+fn recorded_overrides(config: &Config) -> Option<std::collections::BTreeMap<String, String>> {
+    config.overrides
+        .as_ref()
+        .map(|map| {
+            map.iter()
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect()
+        })
 }

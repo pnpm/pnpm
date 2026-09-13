@@ -48,7 +48,10 @@ pub(crate) fn build_publish_document(
         versions_object(manifest, &name, &version, dist_object(dist_hashes, tarball_url));
 
     // A manifest-level `tag` wins over the default.
-    let tag = manifest.get("tag").and_then(Value::as_str).unwrap_or(tag);
+    let tag = manifest
+        .get("tag")
+        .and_then(Value::as_str)
+        .unwrap_or(tag);
     let mut dist_tags = Map::new();
     dist_tags.insert(tag.to_owned(), Value::String(version));
 
@@ -87,7 +90,10 @@ fn versions_object(
     version: &str,
     dist: Map<String, Value>,
 ) -> Map<String, Value> {
-    let mut version_manifest = manifest.as_object().cloned().unwrap_or_default();
+    let mut version_manifest = manifest
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
     version_manifest.insert("_id".to_owned(), Value::String(format!("{name}@{version}")));
     version_manifest.insert("version".to_owned(), Value::String(version.to_owned()));
     version_manifest.insert("dist".to_owned(), Value::Object(dist));
@@ -108,7 +114,9 @@ fn attachment_object(tarball_data: &[u8]) -> Value {
 /// Clean a version string to `major.minor.patch` plus any prerelease,
 /// dropping build metadata.
 pub(super) fn clean_version(version: &str) -> Result<String, PublishPackedPkgError> {
-    let trimmed = version.trim().trim_start_matches(['=', 'v']);
+    let trimmed = version
+        .trim()
+        .trim_start_matches(['=', 'v']);
     let mut parsed = trimmed
         .parse::<node_semver::Version>()
         .map_err(|_| PublishPackedPkgError::BadSemver { version: version.to_owned() })?;
@@ -126,5 +134,9 @@ fn base64_standard(data: &[u8]) -> String {
 }
 
 pub(super) fn manifest_string(manifest: &Value, key: &str) -> String {
-    manifest.get(key).and_then(Value::as_str).unwrap_or_default().to_owned()
+    manifest
+        .get(key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned()
 }

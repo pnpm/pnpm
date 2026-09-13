@@ -21,12 +21,20 @@ fn bin_prints_the_local_node_modules_bin_dir() {
     fs::write(workspace.join("package.json"), r#"{ "name": "root-pkg" }"#)
         .expect("write package.json");
 
-    let output = pacquet.with_args(["bin"]).output().expect("run pacquet bin");
+    let output = pacquet
+        .with_args(["bin"])
+        .output()
+        .expect("run pacquet bin");
     dbg!(&output);
     assert!(output.status.success(), "pacquet bin should succeed");
 
-    let expected =
-        format!("{}\n", canonicalize(&workspace).join("node_modules").join(".bin").display());
+    let expected = format!(
+        "{}\n",
+        canonicalize(&workspace)
+            .join("node_modules")
+            .join(".bin")
+            .display(),
+    );
     assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
 
     drop(root);
@@ -39,12 +47,20 @@ fn bin_ignores_a_custom_modules_dir() {
     fs::write(workspace.join("pnpm-workspace.yaml"), "modulesDir: custom_nm\n")
         .expect("write pnpm-workspace.yaml");
 
-    let output = pacquet.with_args(["bin"]).output().expect("run pacquet bin");
+    let output = pacquet
+        .with_args(["bin"])
+        .output()
+        .expect("run pacquet bin");
     dbg!(&output);
     assert!(output.status.success(), "pacquet bin should succeed");
 
-    let expected =
-        format!("{}\n", canonicalize(&workspace).join("node_modules").join(".bin").display());
+    let expected = format!(
+        "{}\n",
+        canonicalize(&workspace)
+            .join("node_modules")
+            .join(".bin")
+            .display(),
+    );
     assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
 
     drop(root);
@@ -177,8 +193,13 @@ fn bin_prints_the_project_bin_dir_from_a_plain_subdir() {
     dbg!(&output);
     assert!(output.status.success(), "pacquet bin should succeed in the subdir");
 
-    let expected =
-        format!("{}\n", canonicalize(&workspace).join("node_modules").join(".bin").display());
+    let expected = format!(
+        "{}\n",
+        canonicalize(&workspace)
+            .join("node_modules")
+            .join(".bin")
+            .display(),
+    );
     assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
 
     drop(root);
@@ -210,8 +231,13 @@ fn bin_walks_past_an_ecosystem_manifest() {
         dbg!(&output);
         assert!(output.status.success(), "pacquet bin should succeed in the {manifest} member");
 
-        let expected =
-            format!("{}\n", canonicalize(&workspace).join("node_modules").join(".bin").display());
+        let expected = format!(
+            "{}\n",
+            canonicalize(&workspace)
+                .join("node_modules")
+                .join(".bin")
+                .display(),
+        );
         assert_eq!(String::from_utf8_lossy(&output.stdout), expected, "manifest: {manifest}");
 
         drop(root);

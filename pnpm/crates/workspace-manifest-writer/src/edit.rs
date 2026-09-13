@@ -47,13 +47,14 @@ pub(crate) fn add_config_dependency(
     specifier: &str,
 ) -> Result<bool, Box<yamlpatch::Error>> {
     const BLOCK: &str = "configDependencies";
-    let current_matches =
-        manifest.config_dependencies.as_ref().and_then(|deps| deps.get(name)).map(String::as_str)
-            == Some(specifier);
+    let current_matches = manifest.config_dependencies
+        .as_ref()
+        .and_then(|deps| deps.get(name))
+        .map(String::as_str)
+        == Some(specifier);
     let changed = upsert_top_level_entry(manifest, BLOCK, name, specifier, current_matches)?;
     if changed {
-        manifest
-            .config_dependencies
+        manifest.config_dependencies
             .get_or_insert_with(IndexMap::new)
             .insert(name.to_string(), specifier.to_string());
     }
@@ -74,15 +75,13 @@ pub(crate) fn add_patched_dependencies(
 
     let mut changed = drop_omitted_patches(manifest, BLOCK, patched_dependencies);
     for (key, path) in patched_dependencies {
-        let current_matches = manifest
-            .patched_dependencies
+        let current_matches = manifest.patched_dependencies
             .as_ref()
             .and_then(|deps| deps.get(key))
             .map(String::as_str)
             == Some(path);
         if upsert_top_level_entry(manifest, BLOCK, key, path, current_matches)? {
-            manifest
-                .patched_dependencies
+            manifest.patched_dependencies
                 .get_or_insert_with(IndexMap::new)
                 .insert(key.clone(), path.clone());
             changed = true;
@@ -93,7 +92,9 @@ pub(crate) fn add_patched_dependencies(
 
 /// Drop the whole block, for a patch set that is now empty.
 fn drop_patched_dependencies(manifest: &mut Manifest, block: &str) -> bool {
-    let has_block = manifest.document.keys.iter().any(|key| key == block);
+    let has_block = manifest.document.keys
+        .iter()
+        .any(|key| key == block);
     if manifest.patched_dependencies.is_none() && !has_block {
         return false;
     }
@@ -112,8 +113,11 @@ fn drop_omitted_patches(
     let Some(existing) = manifest.patched_dependencies.as_ref() else {
         return false;
     };
-    let omitted: Vec<String> =
-        existing.keys().filter(|key| !patched_dependencies.contains_key(*key)).cloned().collect();
+    let omitted: Vec<String> = existing
+        .keys()
+        .filter(|key| !patched_dependencies.contains_key(*key))
+        .cloned()
+        .collect();
     if omitted.is_empty() {
         return false;
     }
@@ -122,8 +126,7 @@ fn drop_omitted_patches(
         &[block],
         &omitted,
     ));
-    let current = manifest
-        .patched_dependencies
+    let current = manifest.patched_dependencies
         .as_mut()
         .expect("existing patched dependencies should remain decoded");
     for key in &omitted {
@@ -141,13 +144,14 @@ pub(crate) fn add_overrides(
     specifier: &str,
 ) -> Result<bool, Box<yamlpatch::Error>> {
     const BLOCK: &str = "overrides";
-    let current_matches =
-        manifest.overrides.as_ref().and_then(|deps| deps.get(selector)).map(String::as_str)
-            == Some(specifier);
+    let current_matches = manifest.overrides
+        .as_ref()
+        .and_then(|deps| deps.get(selector))
+        .map(String::as_str)
+        == Some(specifier);
     let changed = upsert_top_level_entry(manifest, BLOCK, selector, specifier, current_matches)?;
     if changed {
-        manifest
-            .overrides
+        manifest.overrides
             .get_or_insert_with(IndexMap::new)
             .insert(selector.to_string(), specifier.to_string());
     }
@@ -161,9 +165,11 @@ pub(crate) fn add_overrides(
 pub(crate) fn remove_overrides(manifest: &mut Manifest, selectors: &[String]) -> bool {
     const BLOCK: &str = "overrides";
     let present: Vec<String> = match manifest.overrides.as_ref() {
-        Some(overrides) => {
-            selectors.iter().filter(|selector| overrides.contains_key(*selector)).cloned().collect()
-        }
+        Some(overrides) => selectors
+            .iter()
+            .filter(|selector| overrides.contains_key(*selector))
+            .cloned()
+            .collect(),
         None => return false,
     };
     if present.is_empty() {
@@ -175,7 +181,9 @@ pub(crate) fn remove_overrides(manifest: &mut Manifest, selectors: &[String]) ->
     // map can be empty while the block still holds other entries. Deleting the
     // whole block off the decoded map would silently drop that configuration.
     let all_keys = override_keys_in_text(manifest.document.text());
-    let nothing_remains = all_keys.iter().all(|key| present.contains(key));
+    let nothing_remains = all_keys
+        .iter()
+        .all(|key| present.contains(key));
 
     if let Some(overrides) = manifest.overrides.as_mut() {
         for selector in &present {
@@ -237,16 +245,20 @@ fn replace_top_level_block(text: &str, span: &TopLevelSpan, rendered: &str) -> S
 /// Where a new `key` entry goes in `mapping` so the keys keep their target
 /// order: right after its predecessor, or at the body start when first.
 fn insertion_offset(mapping: &Mapping, key: &str) -> usize {
-    let existing: Vec<String> = mapping.entries.iter().map(|entry| entry.key.clone()).collect();
+    let existing: Vec<String> = mapping.entries
+        .iter()
+        .map(|entry| entry.key.clone())
+        .collect();
     let order = render::target_order(&existing, &[key.to_string()]);
-    let position =
-        order.iter().position(|order_key| order_key == key).expect("key is in the order");
+    let position = order
+        .iter()
+        .position(|order_key| order_key == key)
+        .expect("key is in the order");
     if position == 0 {
         return mapping.body_start;
     }
     let predecessor = &order[position - 1];
-    mapping
-        .entries
+    mapping.entries
         .iter()
         .find(|entry| &entry.key == predecessor)
         .expect("predecessor entry exists")
@@ -262,7 +274,10 @@ fn upsert_top_level_entry(
 ) -> Result<bool, Box<yamlpatch::Error>> {
     let text = manifest.document.text();
     if locate(text, &[block_name]).is_some() {
-        let new_text = if mapping_keys(text, &[block_name]).iter().any(|entry| entry == key) {
+        let new_text = if mapping_keys(text, &[block_name])
+            .iter()
+            .any(|entry| entry == key)
+        {
             if current_matches {
                 return Ok(false);
             }
@@ -303,7 +318,10 @@ pub(crate) fn set_top_level_field(
         return false;
     }
     let block = render_top_level_field(key, value);
-    if manifest.document.keys.iter().any(|existing| existing == key) {
+    if manifest.document.keys
+        .iter()
+        .any(|existing| existing == key)
+    {
         manifest.document.set_text(remove_top_level_block(manifest.document.text(), key));
         manifest.document.keys.retain(|existing| existing != key);
     }
@@ -317,7 +335,10 @@ pub(crate) fn set_top_level_field(
 /// key is absent). Used by `pnpm config delete` and by `pnpm config set` when
 /// the cast value is null/undefined.
 pub(crate) fn remove_top_level_field(manifest: &mut Manifest, key: &str) -> bool {
-    if !manifest.document.keys.iter().any(|existing| existing == key) {
+    if !manifest.document.keys
+        .iter()
+        .any(|existing| existing == key)
+    {
         return false;
     }
     manifest.document.set_text(remove_top_level_block(manifest.document.text(), key));
@@ -369,7 +390,11 @@ fn remove_mapping_entries(text: &str, path: &[&str], keys: &[String]) -> String 
         return text.to_string();
     };
     let mut out = text.to_string();
-    for entry in mapping.entries.iter().rev().filter(|entry| keys.contains(&entry.key)) {
+    for entry in mapping.entries
+        .iter()
+        .rev()
+        .filter(|entry| keys.contains(&entry.key))
+    {
         out.replace_range(entry.line_start..entry.block_end, "");
     }
     out
@@ -401,8 +426,10 @@ fn remove_top_level_block(text: &str, key: &str) -> String {
 fn insert_top_level_block(manifest: &Manifest, new_key: &str, block_text: &str) -> String {
     let text = manifest.document.text();
     let order = render::target_order(&manifest.document.keys, &[new_key.to_string()]);
-    let position =
-        order.iter().position(|key| key == new_key).expect("new key is in the merged order");
+    let position = order
+        .iter()
+        .position(|key| key == new_key)
+        .expect("new key is in the merged order");
     let blank_style = manifest.document.blank_lines;
 
     if position == 0 {

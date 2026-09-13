@@ -52,7 +52,9 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
 
     for (name, dep) in &normalized {
         let paths = config_dep_paths(name, dep, &config_modules_dir, &global_virtual_store_dir);
-        let parent_symlink_already_correct = existing.iter().any(|entry| entry == name)
+        let parent_symlink_already_correct = existing
+            .iter()
+            .any(|entry| entry == name)
             && symlink_points_to(&paths.config_dep_path, &paths.pkg_dir_in_gvs);
 
         materialize_config_dep::<Reporter>(
@@ -154,8 +156,7 @@ fn config_dep_paths(
     global_virtual_store_dir: &Path,
 ) -> ConfigDepPaths {
     let parent_full_pkg_id = full_pkg_id(name, &dep.version, &dep.integrity);
-    let subdep_ids: BTreeMap<String, String> = dep
-        .optional_subdeps
+    let subdep_ids: BTreeMap<String, String> = dep.optional_subdeps
         .iter()
         .map(|subdep| {
             (subdep.name.clone(), full_pkg_id(&subdep.name, &subdep.version, &subdep.integrity))

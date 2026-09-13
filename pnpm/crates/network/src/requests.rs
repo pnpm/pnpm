@@ -67,17 +67,16 @@ impl ThrottledClient {
         accept: Option<&str>,
         body_limit: usize,
     ) -> Result<SecureAuthResponse, reqwest::Error> {
-        let (response, _guard) = self
-            .get_response_with_scoped_headers(url, |mut request, url| {
-                if let Some(accept) = accept {
-                    request = request.header(reqwest::header::ACCEPT, accept);
-                }
-                if let Some(authorization) = auth_headers.for_secure_url(url) {
-                    request = request.header("authorization", authorization);
-                }
-                request
-            })
-            .await?;
+        let (response, _guard) = self.get_response_with_scoped_headers(url, |mut request, url| {
+            if let Some(accept) = accept {
+                request = request.header(reqwest::header::ACCEPT, accept);
+            }
+            if let Some(authorization) = auth_headers.for_secure_url(url) {
+                request = request.header("authorization", authorization);
+            }
+            request
+        })
+        .await?;
         let status = response.status();
         let url = response.url().to_string();
         let body = read_limited_body(response, body_limit).await?;
@@ -94,9 +93,9 @@ impl ThrottledClient {
     ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>), reqwest::Error> {
         let mut current_url = url.to_string();
         for redirect_count in 0..=MAX_REDIRECT_HOPS {
-            let client = self
-                .acquire_for_url_without_redirects_with_priority(&current_url, UNPRIORITIZED)
-                .await;
+            let client =
+                self.acquire_for_url_without_redirects_with_priority(&current_url, UNPRIORITIZED)
+                    .await;
             let request = configure(client.get(&current_url), &current_url);
             let response = request.send().await?;
             let target = response

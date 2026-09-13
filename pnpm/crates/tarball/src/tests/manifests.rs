@@ -145,8 +145,7 @@ async fn read_local_tarball_metadata_reads_a_manifest_past_the_eager_ceiling() {
     );
     std::fs::write(&tarball_path, &archive).unwrap();
 
-    let metadata = read_local_tarball_metadata(&tarball_path)
-        .await
+    let metadata = read_local_tarball_metadata(&tarball_path).await
         .expect("an archive past the eager ceiling must still resolve");
 
     let manifest = metadata.manifest.expect("bundled manifest");
@@ -164,8 +163,7 @@ async fn read_local_tarball_metadata_rejects_an_unparsable_manifest() {
     let tarball_path = local_dir.path().join("pkg.tgz");
     std::fs::write(&tarball_path, gzipped_tar(&[("package/package.json", b"{ BROKEN")])).unwrap();
 
-    let err = read_local_tarball_metadata(&tarball_path)
-        .await
+    let err = read_local_tarball_metadata(&tarball_path).await
         .expect_err("an unparsable bundled manifest must fail the read");
     match err {
         TarballError::ParseBundledManifest { tarball, .. } => {
@@ -191,8 +189,7 @@ async fn read_local_tarball_metadata_lets_a_later_manifest_supersede_a_malformed
     )
     .unwrap();
 
-    let metadata = read_local_tarball_metadata(&tarball_path)
-        .await
+    let metadata = read_local_tarball_metadata(&tarball_path).await
         .expect("the surviving manifest parses, so the read succeeds");
     let manifest = metadata.manifest.expect("bundled manifest");
     assert_eq!(manifest.get("name").and_then(serde_json::Value::as_str), Some("dup-pkg"));
@@ -207,8 +204,7 @@ async fn read_local_tarball_metadata_tolerates_an_archive_with_no_manifest() {
     let tarball_path = local_dir.path().join("pkg.tgz");
     std::fs::write(&tarball_path, gzipped_tar(&[("package/README.md", b"hi")])).unwrap();
 
-    let metadata = read_local_tarball_metadata(&tarball_path)
-        .await
+    let metadata = read_local_tarball_metadata(&tarball_path).await
         .expect("an archive without a manifest still reads");
     assert!(metadata.manifest.is_none(), "got {:?}", metadata.manifest);
 }
@@ -368,7 +364,13 @@ async fn store_index_partitions_synthesized_package_manifests_by_content() {
     }
 
     let index = StoreIndex::open_in(store_path).expect("open store index");
-    assert_eq!(index.keys().expect("read index keys").len(), 2);
+    assert_eq!(
+        index
+            .keys()
+            .expect("read index keys")
+            .len(),
+        2,
+    );
     drop((index, store_dir, local_dir));
 }
 
@@ -431,8 +433,12 @@ async fn fetch_for_resolution_reads_manifest_from_subdirectory() {
         ("package.json", r#"{"name":"the-monorepo","version":"0.0.0"}"#),
         ("packages/foo/package.json", r#"{"name":"foo","version":"1.2.3"}"#),
     ]);
-    let mock =
-        server.mock("GET", "/repo.tgz").with_status(200).with_body(archive).create_async().await;
+    let mock = server
+        .mock("GET", "/repo.tgz")
+        .with_status(200)
+        .with_body(archive)
+        .create_async()
+        .await;
 
     let url = format!("{}/repo.tgz", server.url());
     let client = ThrottledClient::default();
@@ -470,8 +476,12 @@ async fn fetch_for_resolution_returns_no_manifest_for_subdirectory_without_one()
         ("package.json", r#"{"name":"the-monorepo","version":"0.0.0"}"#),
         ("packages/foo/index.js", "module.exports = 1"),
     ]);
-    let mock =
-        server.mock("GET", "/repo.tgz").with_status(200).with_body(archive).create_async().await;
+    let mock = server
+        .mock("GET", "/repo.tgz")
+        .with_status(200)
+        .with_body(archive)
+        .create_async()
+        .await;
 
     let url = format!("{}/repo.tgz", server.url());
     let client = ThrottledClient::default();
@@ -599,8 +609,7 @@ async fn read_local_tarball_metadata_reads_a_manifest_at_the_archive_root() {
     ]);
     std::fs::write(&tarball_path, gzip_bytes(&tar_bytes)).unwrap();
 
-    let metadata = read_local_tarball_metadata(&tarball_path)
-        .await
+    let metadata = read_local_tarball_metadata(&tarball_path).await
         .expect("read the local tarball's metadata");
 
     assert!(metadata.has_manifest_entry);
@@ -613,7 +622,9 @@ async fn read_local_tarball_metadata_reads_a_manifest_at_the_archive_root() {
     let (_, pkg_files_idx) =
         extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
     assert_eq!(
-        pkg_files_idx.manifest.as_ref().and_then(|manifest| manifest["name"].as_str()),
+        pkg_files_idx.manifest
+            .as_ref()
+            .and_then(|manifest| manifest["name"].as_str()),
         Some("real-name"),
     );
     drop(tempdir);
@@ -635,8 +646,7 @@ async fn read_local_tarball_metadata_ignores_a_manifest_below_the_package_root()
     );
     std::fs::write(&tarball_path, gzip_bytes(&tar_bytes)).unwrap();
 
-    let metadata = read_local_tarball_metadata(&tarball_path)
-        .await
+    let metadata = read_local_tarball_metadata(&tarball_path).await
         .expect("read the local tarball's metadata");
 
     assert!(!metadata.has_manifest_entry);

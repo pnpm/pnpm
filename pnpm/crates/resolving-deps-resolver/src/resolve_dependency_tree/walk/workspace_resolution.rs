@@ -69,20 +69,22 @@ pub(super) fn render_workspace_resolution(
     }
 
     let target = directory_resolution.directory.as_str();
-    let consumer_target = anchor.target_relative_to_importer(target).unwrap_or_else(|| {
-        let target = Path::new(target);
-        let absolute_target = if target.is_absolute() {
-            pnpm_fs::lexical_normalize(target)
-        } else {
-            pnpm_fs::lexical_normalize(&lockfile_dir.join(target))
-        };
-        let project_dir = pnpm_fs::lexical_normalize(project_dir);
-        pathdiff::diff_paths(&absolute_target, project_dir)
-            .unwrap_or(absolute_target)
-            .display()
-            .to_string()
-            .replace('\\', "/")
-    });
+    let consumer_target = anchor
+        .target_relative_to_importer(target)
+        .unwrap_or_else(|| {
+            let target = Path::new(target);
+            let absolute_target = if target.is_absolute() {
+                pnpm_fs::lexical_normalize(target)
+            } else {
+                pnpm_fs::lexical_normalize(&lockfile_dir.join(target))
+            };
+            let project_dir = pnpm_fs::lexical_normalize(project_dir);
+            pathdiff::diff_paths(&absolute_target, project_dir)
+                .unwrap_or(absolute_target)
+                .display()
+                .to_string()
+                .replace('\\', "/")
+        });
     rendered.id =
         pnpm_resolving_resolver_base::PkgResolutionId::from(format!("link:{consumer_target}"));
     directory_resolution.directory = consumer_target;
@@ -151,10 +153,7 @@ where
     let owned_opts = per_wanted_opts(opts, pick_overlay, &cache_key);
     let opts = owned_opts.as_ref().unwrap_or(opts);
     let shared_workspace_key = shared_workspace_cache_key(ctx, &cache_key, wanted, opts);
-    let cached_workspace = shared_workspace_key.as_ref().and_then(|key| {
-        lock_recoverable(&ctx.workspace.cache.resolved_workspace_by_wanted).get(key).map(Arc::clone)
-    });
-    let mut canonical_workspace = cached_workspace;
+    let mut canonical_workspace = cached_workspace_result(ctx, shared_workspace_key.as_ref());
     let mut result = resolve_or_reuse_workspace(
         ctx,
         resolver,
@@ -208,7 +207,9 @@ pub(super) async fn apply_manifest_hooks(
     if let Some(pnpmfile_hook) = ctx.workspace.hooks.manifests.pnpmfile_hook.as_ref()
         && let Some(manifest) = result.package.manifest.take()
     {
-        let log = ctx.workspace.hooks.read_package_log.clone().unwrap_or_else(|| Arc::new(|_| {}));
+        let log = ctx.workspace.hooks.read_package_log
+            .clone()
+            .unwrap_or_else(|| Arc::new(|_| {}));
         // Directory resolutions carry their directory so the hook can tell a
         // workspace project's dependency instance apart from a registry
         // manifest — see `HookContext::dir`.
@@ -335,18 +336,24 @@ pub(super) fn fallback_manifest(
     current_pkg: Option<&CurrentPkg>,
 ) -> pnpm_resolving_resolver_base::DependencyManifest {
     if let Some(current) = current_pkg
-        && let Some(name) = current.name.as_deref().filter(|name| !name.is_empty())
-        && let Some(version) = current.version.as_deref().filter(|version| !version.is_empty())
+        && let Some(name) = current.name
+            .as_deref()
+            .filter(|name| !name.is_empty())
+        && let Some(version) = current.version
+            .as_deref()
+            .filter(|version| !version.is_empty())
     {
         return serde_json::json!({ "name": name, "version": version });
     }
-    let name = match wanted.alias.as_deref().filter(|alias| !alias.is_empty()) {
+    let name = match wanted.alias
+        .as_deref()
+        .filter(|alias| !alias.is_empty())
+    {
         Some(alias) => alias,
         // A specifier's last path segment is the closest thing to a name
         // an unaliased dep carries: `file:./no-manifest-1.0.0.tgz` and
         // `https://host/no-manifest-1.0.0.tgz` both name the archive.
-        None => wanted
-            .bare_specifier
+        None => wanted.bare_specifier
             .as_deref()
             .unwrap_or_default()
             .rsplit('/')
@@ -397,15 +404,22 @@ pub(super) fn cache_resolved_wanted(
     result
 }
 
-pub(super) fn shared_workspace_cache_key(
+pub(super) fn cached_workspace_result(
+    ctx: &TreeCtx,
+    key: Option<&SharedWorkspaceWantedKey>,
+) -> Option<Arc<pnpm_resolving_resolver_base::ResolveResult>> {
+    key.and_then(|key| {
+        lock_recoverable(&ctx.workspace.cache.resolved_workspace_by_wanted).get(key).map(Arc::clone)
+    })
+}
+
+fn shared_workspace_cache_key(
     ctx: &TreeCtx,
     cache_key: &WantedKey,
     wanted: &WantedDependency,
     opts: &ResolveOptions,
 ) -> Option<SharedWorkspaceWantedKey> {
-    ctx.workspace
-        .cache
-        .share_workspace_resolutions
+    ctx.workspace.cache.share_workspace_resolutions
         .then(|| shared_workspace_key(ctx, cache_key, wanted, opts))
         .flatten()
 }

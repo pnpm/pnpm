@@ -134,8 +134,7 @@ impl PackArgs {
                 before_packing_hooks,
             );
             set_injected_changelog(&mut options, config, dir).await?;
-            let result = api::<Reporter, Host>(&options)
-                .await
+            let result = api::<Reporter, Host>(&options).await
                 .map_err(miette::Report::new)
                 .wrap_err(PACK_ERROR_CONTEXT)?;
             Ok(format_pack_output(&[to_pack_result_json(&result)], self.json, false))
@@ -149,13 +148,15 @@ impl PackArgs {
         mut options: PackOptions,
     ) -> miette::Result<pnpm_pack::PackResult> {
         set_injected_changelog(&mut options, config, &project.root_dir).await?;
-        api::<Reporter, Host>(&options).await.map_err(miette::Report::new).wrap_err_with(|| {
-            if self.json {
-                PACK_ERROR_CONTEXT.to_string()
-            } else {
-                format!("pack {}", project.root_dir.display())
-            }
-        })
+        api::<Reporter, Host>(&options).await
+            .map_err(miette::Report::new)
+            .wrap_err_with(|| {
+                if self.json {
+                    PACK_ERROR_CONTEXT.to_string()
+                } else {
+                    format!("pack {}", project.root_dir.display())
+                }
+            })
     }
 
     /// Pack each `--filter`-selected workspace project that declares both
@@ -276,16 +277,14 @@ impl RecursivePack<'_, '_> {
         options.output.locks = Some(Arc::clone(&self.output.locks));
         match args.pack_one::<Reporter>(self.config, project, options).await {
             Ok(result) => {
-                self.results
-                    .packed
+                self.results.packed
                     .lock()
                     .expect("packed results lock is not poisoned")
                     .push((self.results.order_index[&root], to_pack_result_json(&result)));
                 TaskCompletion::Passed
             }
             Err(error) => {
-                self.results
-                    .first_error
+                self.results.first_error
                     .lock()
                     .expect("pack error lock is not poisoned")
                     .get_or_insert(error);
@@ -304,7 +303,10 @@ impl RecursivePack<'_, '_> {
         let mut packed =
             self.results.packed.into_inner().expect("packed results lock is not poisoned");
         packed.sort_unstable_by_key(|(index, _)| *index);
-        Ok(packed.into_iter().map(|(_, result)| result).collect())
+        Ok(packed
+            .into_iter()
+            .map(|(_, result)| result)
+            .collect())
     }
 }
 

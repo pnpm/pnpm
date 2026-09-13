@@ -171,20 +171,14 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
     opts: &RunPostinstallHooks<'_>,
     stages: &[&str],
 ) -> Result<bool, LifecycleScriptError> {
-    let manifest = match safe_read_package_json_from_dir(opts.pkg_root) {
-        Ok(Some(value)) => value,
-        Ok(None) => return Ok(false),
-        Err(source) => {
-            return Err(LifecycleScriptError::ReadManifest {
-                path: opts.pkg_root.join("package.json").display().to_string(),
-                source,
-            });
-        }
-    };
+    let Some(manifest) = read_lifecycle_manifest(opts.pkg_root)? else { return Ok(false) };
 
     let scripts = manifest.get("scripts").and_then(|v| v.as_object());
-    let get_script =
-        |name: &str| -> Option<&str> { scripts.and_then(|s| s.get(name)).and_then(|v| v.as_str()) };
+    let get_script = |name: &str| -> Option<&str> {
+        scripts
+            .and_then(|s| s.get(name))
+            .and_then(|v| v.as_str())
+    };
 
     // Snapshot the process env once for this package. Every stage reads
     // from this snapshot, which keeps the runs observably consistent
@@ -196,11 +190,14 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
 
     for &stage in stages {
         let script = if stage == "install" {
-            get_script("install").map(String::from).or_else(|| {
-                (get_script("preinstall").is_none() && opts.pkg_root.join("binding.gyp").exists())
+            get_script("install")
+                .map(String::from)
+                .or_else(|| {
+                    (get_script("preinstall").is_none()
+                        && opts.pkg_root.join("binding.gyp").exists())
                     .then_some("node-gyp rebuild")
                     .map(String::from)
-            })
+                })
         } else {
             get_script(stage).map(String::from)
         };
@@ -215,6 +212,19 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
     }
 
     Ok(ran_any)
+}
+
+fn read_lifecycle_manifest(
+    pkg_root: &Path,
+) -> Result<Option<serde_json::Value>, LifecycleScriptError> {
+    safe_read_package_json_from_dir(pkg_root)
+        .map_err(|source| LifecycleScriptError::ReadManifest {
+            path: pkg_root
+                .join("package.json")
+                .display()
+                .to_string(),
+            source,
+        })
 }
 
 /// Run a single lifecycle hook and emit `pnpm:lifecycle` events.
@@ -261,13 +271,12 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
     // shell pick anyway). The pick also runs when the emulator will
     // take over below, because pnpm rejects a `.bat` / `.cmd`
     // `scriptShell` regardless of `shellEmulator`.
-    let shell = select_shell(opts.execution.shell, cfg!(windows)).map_err(|source| {
-        LifecycleScriptError::ScriptShell {
+    let shell = select_shell(opts.execution.shell, cfg!(windows))
+        .map_err(|source| LifecycleScriptError::ScriptShell {
             dep_path: opts.dep_path.to_string(),
             stage: stage.to_string(),
             source,
-        }
-    })?;
+        })?;
 
     // Drop any inherited PATH-like key (`Path` on Windows, `PATH`
     // on POSIX) from the env map before spawning — otherwise on
@@ -347,11 +356,12 @@ fn prepare_lifecycle_path(
         // directories (it returns `Ok(())`), so no `EEXIST` swallow is
         // needed. Treat any error here — including `AlreadyExists`,
         // which signals a *file* at that path — as a real spawn failure.
-        fs::create_dir_all(tmpdir).map_err(|error| LifecycleScriptError::Spawn {
-            dep_path: opts.dep_path.to_string(),
-            stage: stage.to_string(),
-            source: error,
-        })?;
+        fs::create_dir_all(tmpdir)
+            .map_err(|error| LifecycleScriptError::Spawn {
+                dep_path: opts.dep_path.to_string(),
+                stage: stage.to_string(),
+                source: error,
+            })?;
     }
 
     // Set PATH via `extend_path`, with the original PATH coming from
@@ -397,11 +407,12 @@ fn run_in_shell<Reporter: self::Reporter>(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
-    let mut child = spawn_child(&mut cmd, None).map_err(|error| LifecycleScriptError::Spawn {
-        dep_path: opts.dep_path.to_string(),
-        stage: stage.to_string(),
-        source: error,
-    })?;
+    let mut child = spawn_child(&mut cmd, None)
+        .map_err(|error| LifecycleScriptError::Spawn {
+            dep_path: opts.dep_path.to_string(),
+            stage: stage.to_string(),
+            source: error,
+        })?;
 
     let stdout = child.child_mut().stdout.take();
     let stderr = child.child_mut().stderr.take();
@@ -410,11 +421,13 @@ fn run_in_shell<Reporter: self::Reporter>(
     let stdout_handle = stdout.map(|stream| target.pump_stream(stream, LifecycleStdio::Stdout));
     let stderr_handle = stderr.map(|stream| target.pump_stream(stream, LifecycleStdio::Stderr));
 
-    let status = child.wait().map_err(|error| LifecycleScriptError::Wait {
-        dep_path: opts.dep_path.to_string(),
-        stage: stage.to_string(),
-        source: error,
-    })?;
+    let status = child
+        .wait()
+        .map_err(|error| LifecycleScriptError::Wait {
+            dep_path: opts.dep_path.to_string(),
+            stage: stage.to_string(),
+            source: error,
+        })?;
 
     // Joining the pumps after `wait` ensures every line they read is
     // emitted before the caller's `Exit` event, matching pnpm's ordering.

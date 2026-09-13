@@ -87,21 +87,26 @@ impl Request {
         if document.deleting_blob.is_some() {
             return Err(RegistryError::DocumentWriteConflict { package: key.as_str().to_string() });
         }
-        if storage.open_hosted_blob(key, &digest.blob_filename()).await?.is_none() {
+        if storage
+            .open_hosted_blob(key, &digest.blob_filename())
+            .await?
+            .is_none()
+        {
             return Ok(Some(error(ErrorCode::BlobUnknown, "no such blob")));
         }
         self.ensure_blob_unreferenced(storage, key, digest, &document).await?;
-        document.generation = document.generation.checked_add(1).ok_or_else(|| {
-            RegistryError::Internal { reason: "OCI document generation exhausted".to_string() }
-        })?;
+        document.generation = document.generation
+            .checked_add(1)
+            .ok_or_else(|| RegistryError::Internal {
+                reason: "OCI document generation exhausted".to_string(),
+            })?;
         document.deleting_blob = Some(digest.clone());
-        let marked = storage
-            .write_hosted_document_if_current(
-                key,
-                &document.to_bytes(),
-                snapshot.as_ref().map(|stored| &stored.version),
-            )
-            .await?;
+        let marked = storage.write_hosted_document_if_current(
+            key,
+            &document.to_bytes(),
+            snapshot.as_ref().map(|stored| &stored.version),
+        )
+        .await?;
         if marked == DocumentWrite::Conflict {
             return Ok(None);
         }
@@ -117,19 +122,16 @@ async fn clear_deletion_mark(
     key: &CanonicalPackageName,
     digest: &Digest,
 ) -> Result<(), RegistryError> {
-    storage
-        .update_hosted_document_with_retry(key, DOCUMENT_WRITE_RETRIES, |bytes| {
-            let mut document = ImageDocument::parse(bytes.ok_or_else(|| {
-                RegistryError::Internal { reason: "OCI deletion document disappeared".to_string() }
-            })?)?;
-            if document.deleting_blob.as_ref() != Some(digest) {
-                return Err(RegistryError::DocumentWriteConflict {
-                    package: key.as_str().to_string(),
-                });
-            }
-            document.deleting_blob = None;
-            Ok(Some(document.to_bytes()))
-        })
-        .await?;
+    storage.update_hosted_document_with_retry(key, DOCUMENT_WRITE_RETRIES, |bytes| {
+        let mut document = ImageDocument::parse(bytes.ok_or_else(|| RegistryError::Internal {
+            reason: "OCI deletion document disappeared".to_string(),
+        })?)?;
+        if document.deleting_blob.as_ref() != Some(digest) {
+            return Err(RegistryError::DocumentWriteConflict { package: key.as_str().to_string() });
+        }
+        document.deleting_blob = None;
+        Ok(Some(document.to_bytes()))
+    })
+    .await?;
     Ok(())
 }

@@ -54,8 +54,12 @@ fn drops_a_peer_pair_removed_together() {
     )
     .expect("the peer-dependent snapshot is unreachable after the removal, so nothing rekeys");
 
-    let mut packages: Vec<_> =
-        updated.packages.as_ref().expect("packages").keys().map(ToString::to_string).collect();
+    let mut packages: Vec<_> = updated.packages
+        .as_ref()
+        .expect("packages")
+        .keys()
+        .map(ToString::to_string)
+        .collect();
     packages.sort();
     assert_eq!(packages, vec!["bar@2.0.0".to_string()]);
 }
@@ -188,8 +192,7 @@ fn moves_a_range_past_a_peer_suffix_naming_the_version_it_moves_to() {
 #[test]
 fn rejects_a_range_move_a_peer_suffix_names_the_version_it_moves_off() {
     let mut subject = parsed_lockfile(WITH_PEER_ON_ANOTHER_VERSION);
-    subject
-        .importers
+    subject.importers
         .get_mut(".")
         .expect("importer")
         .dependencies
@@ -200,10 +203,13 @@ fn rejects_a_range_move_a_peer_suffix_names_the_version_it_moves_off() {
             serde_saphyr::from_str("{specifier: ^4.0.0, version: 4.0.0(foo@1.0.0)}")
                 .expect("dependency"),
         );
-    subject.snapshots.as_mut().expect("snapshots").insert(
-        "baz@4.0.0(foo@1.0.0)".parse().expect("snapshot key"),
-        serde_saphyr::from_str("dependencies:\n  foo: 1.0.0").expect("snapshot"),
-    );
+    subject.snapshots
+        .as_mut()
+        .expect("snapshots")
+        .insert(
+            "baz@4.0.0(foo@1.0.0)".parse().expect("snapshot key"),
+            serde_saphyr::from_str("dependencies:\n  foo: 1.0.0").expect("snapshot"),
+        );
     let manifest = manifest_from(
         json!({ "dependencies": { "foo": "^1.1.0", "qux": "^5.0.0", "baz": "^4.0.0" } }),
     );

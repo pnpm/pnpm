@@ -105,7 +105,10 @@ fn verifies_signature_issuer_audience_and_times() {
     assert!(verify_workload(&config, &metadata, &unsigned).is_err());
     for missing in ["iss", "aud", "sub", "exp", "iat"] {
         let mut claims = payload(issuer);
-        claims.as_object_mut().unwrap().remove(missing);
+        claims
+            .as_object_mut()
+            .unwrap()
+            .remove(missing);
         assert!(
             verify_workload(&config, &metadata, &sign(&claims, &signing_key())).is_err(),
             "accepted missing {missing}",
@@ -196,16 +199,41 @@ async fn discovers_caches_and_enforces_workload_bindings() {
     let state = OidcState::new(&[config(&provider.issuer)], "https://registry.example").unwrap();
     let token = sign(&payload(&provider.issuer), &provider.key);
     for _ in 0..2 {
-        assert_eq!(state.workload(&token).await.unwrap().unwrap().identity.username, "ci");
+        assert_eq!(
+            state
+                .workload(&token)
+                .await
+                .unwrap()
+                .unwrap()
+                .identity
+                .username,
+            "ci",
+        );
     }
     assert_eq!(*provider.key_requests.lock().unwrap(), 1);
     let mut claims = payload(&provider.issuer);
     claims["repository_id"] = json!("456");
-    assert!(state.workload(&sign(&claims, &provider.key)).await.is_err());
+    assert!(
+        state
+            .workload(&sign(&claims, &provider.key))
+            .await
+            .is_err(),
+    );
     claims["iss"] = json!("http://127.0.0.1:1");
-    assert!(state.workload(&sign(&claims, &provider.key)).await.is_err());
+    assert!(
+        state
+            .workload(&sign(&claims, &provider.key))
+            .await
+            .is_err(),
+    );
     assert_eq!(*provider.key_requests.lock().unwrap(), 1);
-    assert!(state.workload("ordinary-pnpr-token").await.unwrap().is_none());
+    assert!(
+        state
+            .workload("ordinary-pnpr-token")
+            .await
+            .unwrap()
+            .is_none(),
+    );
     task.abort();
 }
 
@@ -235,7 +263,11 @@ async fn browser_login_uses_pkce_nonce_cookie_binding_and_single_use_state() {
     assert!(state.session(&session.token).is_err());
     let start = state.start("example").await.unwrap();
     assert!(state.finish("example", &start.state, "other-browser", "code").await.is_err());
-    let query: HashMap<_, _> = Url::parse(&start.url).unwrap().query_pairs().into_owned().collect();
+    let query: HashMap<_, _> = Url::parse(&start.url)
+        .unwrap()
+        .query_pairs()
+        .into_owned()
+        .collect();
     *provider.nonce.lock().unwrap() = Some(query["nonce"].clone());
     *provider.challenge.lock().unwrap() = Some(query["code_challenge"].clone());
     state.finish("example", &start.state, &start.browser_secret, "code").await.unwrap();
@@ -246,8 +278,14 @@ async fn browser_login_uses_pkce_nonce_cookie_binding_and_single_use_state() {
 fn sessions_expire_and_configuration_fails_closed() {
     let state = OidcState::new(&[], "http://localhost").unwrap();
     assert!(state.issue_session("alice", 0).is_err());
-    let session = state.issue_session("alice", Utc::now().timestamp() + 60).unwrap();
-    state.sessions.lock().unwrap().values_mut().for_each(|session| session.expires = 0);
+    let session = state
+        .issue_session("alice", Utc::now().timestamp() + 60)
+        .unwrap();
+    state.sessions
+        .lock()
+        .unwrap()
+        .values_mut()
+        .for_each(|session| session.expires = 0);
     assert!(state.session(&session.token).is_err());
     let mut config = config("https://issuer.example");
     config.name = "../bad".to_string();
@@ -266,8 +304,11 @@ async fn refresh_is_bounded_and_recovers_after_expiration() {
         state.metadata(configured, true).await.unwrap();
     }
     assert_eq!(*provider.key_requests.lock().unwrap(), 1);
-    configured.metadata.lock().await.attempted_at =
-        Some(Instant::now().checked_sub(Duration::from_secs(31)).unwrap());
+    configured.metadata.lock().await.attempted_at = Some(
+        Instant::now()
+            .checked_sub(Duration::from_secs(31))
+            .unwrap(),
+    );
     state.metadata(configured, true).await.unwrap();
     assert_eq!(*provider.key_requests.lock().unwrap(), 2);
     task.abort();
@@ -304,11 +345,20 @@ async fn rejects_expired_state_and_wrong_nonce() {
         Some(OidcLogin { client_secret: None, users: vec![config.workloads.remove(0).identity] });
     let state = OidcState::new(&[config], "https://registry.example").unwrap();
     let start = state.start("example").await.unwrap();
-    let query: HashMap<_, _> = Url::parse(&start.url).unwrap().query_pairs().into_owned().collect();
+    let query: HashMap<_, _> = Url::parse(&start.url)
+        .unwrap()
+        .query_pairs()
+        .into_owned()
+        .collect();
     *provider.nonce.lock().unwrap() = Some("wrong-nonce".to_string());
     *provider.challenge.lock().unwrap() = Some(query["code_challenge"].clone());
     assert!(state.finish("example", &start.state, &start.browser_secret, "code").await.is_err());
-    assert!(state.sessions.lock().unwrap().is_empty());
+    assert!(
+        state.sessions
+            .lock()
+            .unwrap()
+            .is_empty(),
+    );
     let start = state.start("example").await.unwrap();
     let mut login = state.open_login(&start.browser_secret).unwrap();
     login.expires = Utc::now().timestamp() - 1;
@@ -328,7 +378,11 @@ async fn selects_client_secret_post_from_discovery() {
     let state = OidcState::new(&[config], "https://registry.example").unwrap();
     *provider.auth_method.lock().unwrap() = "client_secret_post".to_string();
     let start = state.start("example").await.unwrap();
-    let query: HashMap<_, _> = Url::parse(&start.url).unwrap().query_pairs().into_owned().collect();
+    let query: HashMap<_, _> = Url::parse(&start.url)
+        .unwrap()
+        .query_pairs()
+        .into_owned()
+        .collect();
     *provider.nonce.lock().unwrap() = Some(query["nonce"].clone());
     *provider.challenge.lock().unwrap() = Some(query["code_challenge"].clone());
     state.finish("example", &start.state, &start.browser_secret, "code").await.unwrap();
@@ -343,13 +397,22 @@ async fn anonymous_login_starts_cannot_exhaust_or_evict_active_flows() {
         Some(OidcLogin { client_secret: None, users: vec![config.workloads.remove(0).identity] });
     let state = OidcState::new(&[config], "https://registry.example").unwrap();
     let start = state.start("example").await.unwrap();
-    let query: HashMap<_, _> = Url::parse(&start.url).unwrap().query_pairs().into_owned().collect();
+    let query: HashMap<_, _> = Url::parse(&start.url)
+        .unwrap()
+        .query_pairs()
+        .into_owned()
+        .collect();
     *provider.nonce.lock().unwrap() = Some(query["nonce"].clone());
     *provider.challenge.lock().unwrap() = Some(query["code_challenge"].clone());
     for _ in 0..super::MAX_ENTRIES + 32 {
         state.start("example").await.unwrap();
     }
-    assert!(state.consumed.lock().unwrap().is_empty());
+    assert!(
+        state.consumed
+            .lock()
+            .unwrap()
+            .is_empty(),
+    );
     state.finish("example", &start.state, &start.browser_secret, "code").await.unwrap();
     assert!(state.finish("example", &start.state, &start.browser_secret, "code").await.is_err());
     task.abort();
@@ -397,7 +460,12 @@ async fn failed_callbacks_are_rejected_on_repeated_and_concurrent_attempts() {
     assert!(concurrent.is_err());
     assert!(state.finish("example", &start.state, &start.browser_secret, "invalid").await.is_err());
     assert_eq!(*provider.token_requests.lock().unwrap(), 1);
-    assert!(state.sessions.lock().unwrap().is_empty());
+    assert!(
+        state.sessions
+            .lock()
+            .unwrap()
+            .is_empty(),
+    );
     task.abort();
 }
 
@@ -410,14 +478,20 @@ async fn callback_capacity_recovers_without_blocking_unattempted_logins() {
     let state = OidcState::new(&[config], "https://registry.example").unwrap();
     let start = state.start("example").await.unwrap();
     for index in 0..super::MAX_ENTRIES + 32 {
-        state.record_attempt(&index.to_string()).unwrap();
+        state
+            .record_attempt(&index.to_string())
+            .unwrap();
     }
     assert_eq!(state.attempts.lock().unwrap().len(), super::MAX_ENTRIES);
     let permits = state.exchanges.try_acquire_many(16).unwrap();
     assert!(state.finish("example", &start.state, &start.browser_secret, "invalid").await.is_err());
     assert_eq!(*provider.token_requests.lock().unwrap(), 0);
     drop(permits);
-    let query: HashMap<_, _> = Url::parse(&start.url).unwrap().query_pairs().into_owned().collect();
+    let query: HashMap<_, _> = Url::parse(&start.url)
+        .unwrap()
+        .query_pairs()
+        .into_owned()
+        .collect();
     *provider.nonce.lock().unwrap() = Some(query["nonce"].clone());
     *provider.challenge.lock().unwrap() = Some(query["code_challenge"].clone());
     state.finish("example", &start.state, &start.browser_secret, "code").await.unwrap();

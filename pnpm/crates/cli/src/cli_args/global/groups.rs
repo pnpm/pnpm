@@ -46,7 +46,7 @@ impl GlobalInstallTarget<'_> {
     ) -> miette::Result<()> {
         let pkgs = read_installed_packages(install_dir);
         let dependencies = read_direct_dependencies(install_dir);
-        let aliases = dependencies.iter().map(|(alias, _)| alias.clone()).collect::<Vec<_>>();
+        let aliases = dependency_aliases(&dependencies);
         let aliases_to_replace = replacement_aliases(&aliases);
         let _global_bin_lock = discard_install_dir_on_error(
             install_dir,
@@ -237,4 +237,11 @@ impl GlobalInstallTarget<'_> {
             ),
         )
     }
+}
+
+fn dependency_aliases(dependencies: &[(String, String)]) -> Vec<String> {
+    dependencies
+        .iter()
+        .map(|(alias, _)| alias.clone())
+        .collect()
 }

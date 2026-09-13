@@ -1,4 +1,5 @@
 pub use powershell::generate_pwsh_shim;
+pub use quoting::{cmd_escape, sh_single_quote};
 
 use crate::{capabilities::FsReadHead, path_util::lexical_normalize};
 use std::{
@@ -36,7 +37,10 @@ fn extension_program(extension: &str) -> Option<&'static str> {
 /// has already verified the bin path resolves under the package root by
 /// this point and a real failure deserves to surface.
 pub fn search_script_runtime<Sys: FsReadHead>(path: &Path) -> io::Result<Option<ScriptRuntime>> {
-    let extension = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+    let extension = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
 
     let runtime_from_shebang = read_shebang::<Sys>(path)?;
     if let Some(rt) = runtime_from_shebang {
@@ -101,7 +105,11 @@ pub fn read_head_filled<Sys: FsReadHead>(path: &Path, buf: &mut [u8]) -> io::Res
 #[must_use]
 pub fn parse_shebang_from_bytes(bytes: &[u8]) -> Option<ScriptRuntime> {
     let head = String::from_utf8_lossy(bytes);
-    let first_line = head.split('\n').next().unwrap_or("").trim_end_matches('\r');
+    let first_line = head
+        .split('\n')
+        .next()
+        .unwrap_or("")
+        .trim_end_matches('\r');
     parse_shebang(first_line)
 }
 
@@ -315,7 +323,12 @@ struct ShExec<'a> {
 /// One `exec` block: a program that already names an executable runs directly,
 /// while a bare program name is probed in the bin directory, then on `PATH`.
 fn sh_exec_block(exec: &ShExec<'_>, exec_args: &str) -> String {
-    let ShExec { prog, prog_exe, prog_has_exe, quoted } = *exec;
+    let ShExec {
+        prog,
+        prog_exe,
+        prog_has_exe,
+        quoted,
+    } = *exec;
     let quoted_target = &quoted.posix;
     let quoted_target_win = &quoted.windows;
     let sh_long_prog_exe = format!(r#""$basedir/{prog_exe}""#);
@@ -335,25 +348,6 @@ fn sh_exec_block(exec: &ShExec<'_>, exec_args: &str) -> String {
     )
     .unwrap();
     block
-}
-
-/// Escape `text` for interpolation into a double-quoted `cmd` argument:
-/// `%` would otherwise expand as a variable reference.
-///
-/// `cmd.exe` cannot escape a quote inside a quoted argument at all, so a
-/// caller interpolating something other than a file name (which cannot
-/// hold one) has to reject quotes before it gets here.
-#[must_use]
-pub fn cmd_escape(text: &str) -> String {
-    text.replace('%', "%%")
-}
-
-/// Wrap `text` in single quotes for POSIX `sh`, escaping embedded single
-/// quotes. Bin names come from package manifests, so they must not be
-/// able to break out of the generated script.
-#[must_use]
-pub fn sh_single_quote(text: &str) -> String {
-    format!("'{}'", text.replace('\'', r"'\''"))
 }
 
 /// Generate the Windows `.cmd` shim contents for `target_path`. Pacquet
@@ -494,7 +488,9 @@ fn escape_msys_cmd_switches(args: &str) -> String {
 
 fn strip_exe_suffix(prog: &str) -> Option<&str> {
     let suffix_start = prog.len().checked_sub(4)?;
-    prog.as_bytes()[suffix_start..].eq_ignore_ascii_case(b".exe").then(|| &prog[..suffix_start])
+    prog.as_bytes()[suffix_start..]
+        .eq_ignore_ascii_case(b".exe")
+        .then(|| &prog[..suffix_start])
 }
 
 /// Trailing `# cmd-shim-target=<rel>` marker. [`is_shim_pointing_at`]
@@ -514,7 +510,9 @@ pub fn is_shim_pointing_at(shim_content: &str, target_path: &Path) -> bool {
 
 fn is_shim_carrying_target(shim_content: &str, target: &str) -> bool {
     let marker = format!("# {}", shim_target_marker(target));
-    shim_content.lines().any(|line| line == marker)
+    shim_content
+        .lines()
+        .any(|line| line == marker)
 }
 
 /// Compute the relative path from `shim_path`'s parent directory to
@@ -534,8 +532,11 @@ fn relative_path_from(from: &Path, to: &Path) -> PathBuf {
     let from_components: Vec<_> = from.components().collect();
     let to_components: Vec<_> = to.components().collect();
 
-    let common =
-        from_components.iter().zip(to_components.iter()).take_while(|(a, b)| a == b).count();
+    let common = from_components
+        .iter()
+        .zip(to_components.iter())
+        .take_while(|(a, b)| a == b)
+        .count();
 
     let mut result = PathBuf::new();
     for _ in &from_components[common..] {
@@ -554,3 +555,5 @@ fn relative_path_from(from: &Path, to: &Path) -> PathBuf {
 mod tests;
 
 mod powershell;
+
+mod quoting;

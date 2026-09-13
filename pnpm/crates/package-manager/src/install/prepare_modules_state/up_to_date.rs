@@ -13,9 +13,12 @@ use crate::optimistic_repeat_install::filesystem_now_ms;
 /// materialized copy can go stale while every install-state artifact
 /// still says the tree is current.
 pub(super) fn has_directory_snapshot(lockfile: &Lockfile) -> bool {
-    lockfile.packages.iter().flat_map(|packages| packages.values()).any(|metadata| {
-        matches!(metadata.resolution, pnpm_lockfile::LockfileResolution::Directory(_))
-    })
+    lockfile.packages
+        .iter()
+        .flat_map(|packages| packages.values())
+        .any(|metadata| {
+            matches!(metadata.resolution, pnpm_lockfile::LockfileResolution::Directory(_))
+        })
 }
 /// Everything the "nothing to do" verdict rests on.
 pub(super) struct FrozenTreeUpToDate<'a> {

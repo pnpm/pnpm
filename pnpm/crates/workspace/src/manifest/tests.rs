@@ -92,10 +92,14 @@ fn parses_named_catalogs_field() {
     .unwrap();
     let manifest = read_workspace_manifest(tmp.path()).unwrap().unwrap();
     let mut expected = Catalogs::new();
-    expected
-        .insert("default".to_string(), Catalog::from([("foo".to_string(), "^1.0.0".to_string())]));
-    expected
-        .insert("legacy".to_string(), Catalog::from([("bar".to_string(), "^2.0.0".to_string())]));
+    expected.insert(
+        "default".to_string(),
+        Catalog::from([("foo".to_string(), "^1.0.0".to_string())]),
+    );
+    expected.insert(
+        "legacy".to_string(),
+        Catalog::from([("bar".to_string(), "^2.0.0".to_string())]),
+    );
     assert_eq!(manifest.catalog, None);
     assert_eq!(manifest.catalogs, Some(expected));
 }

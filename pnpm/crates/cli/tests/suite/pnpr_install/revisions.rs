@@ -12,8 +12,11 @@ fn revision_install_and_frozen_reinstall_work_through_pnpr() {
     let tarball = revision_fixture_tarball();
     let (integrity, packument) = revision_packument(&upstream, &tarball, 2, &[]);
     let revision_path = integrity_addressed_tarball_path(&integrity).unwrap();
-    let packument_mock =
-        upstream.mock("GET", "/revision-pkg").with_body(packument.to_string()).expect(1).create();
+    let packument_mock = upstream
+        .mock("GET", "/revision-pkg")
+        .with_body(packument.to_string())
+        .expect(1)
+        .create();
     let tarball_mock = upstream
         .mock("GET", format!("/{revision_path}").as_str())
         .with_body(&tarball)
@@ -21,9 +24,19 @@ fn revision_install_and_frozen_reinstall_work_through_pnpr() {
         .create();
     let registry = start_pnpr_registry(&upstream.url(), Ecosystem::Npm);
 
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { npmrc_path, store_dir, mock_instance, .. } = npmrc_info;
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry {
+        npmrc_path,
+        store_dir,
+        mock_instance,
+        ..
+    } = npmrc_info;
     point_npmrc_registry_at(&npmrc_path, &registry);
     fs::write(
         workspace.join("package.json"),
@@ -31,7 +44,10 @@ fn revision_install_and_frozen_reinstall_work_through_pnpr() {
     )
     .expect("write package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     assert!(workspace.join("node_modules/revision-pkg/index.js").exists());
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
     assert!(lockfile.contains("revision: 2"), "{lockfile}");
@@ -39,7 +55,10 @@ fn revision_install_and_frozen_reinstall_work_through_pnpr() {
 
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
     fs::remove_dir_all(&store_dir).expect("remove client store");
-    pacquet_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
     assert!(workspace.join("node_modules/revision-pkg/index.js").exists());
 
     packument_mock.assert();
@@ -56,7 +75,10 @@ fn update_patches_refreshes_a_pnpr_revision_without_changing_the_version() {
     let (first_integrity, first_packument) =
         revision_packument(&first_upstream, &first_tarball, 1, &[]);
     let first_path = integrity_addressed_tarball_path(&first_integrity).unwrap();
-    first_upstream.mock("GET", "/revision-pkg").with_body(first_packument.to_string()).create();
+    first_upstream
+        .mock("GET", "/revision-pkg")
+        .with_body(first_packument.to_string())
+        .create();
     first_upstream
         .mock("GET", format!("/{first_path}").as_str())
         .with_body(&first_tarball)
@@ -68,7 +90,10 @@ fn update_patches_refreshes_a_pnpr_revision_without_changing_the_version() {
     let (second_integrity, second_packument) =
         revision_packument(&second_upstream, &second_tarball, 2, &[(&first_integrity, 1)]);
     let second_path = integrity_addressed_tarball_path(&second_integrity).unwrap();
-    second_upstream.mock("GET", "/revision-pkg").with_body(second_packument.to_string()).create();
+    second_upstream
+        .mock("GET", "/revision-pkg")
+        .with_body(second_packument.to_string())
+        .create();
     second_upstream
         .mock("GET", format!("/{second_path}").as_str())
         .with_body(&second_tarball)
@@ -76,19 +101,30 @@ fn update_patches_refreshes_a_pnpr_revision_without_changing_the_version() {
         .create();
     let second_registry = start_pnpr_registry(&second_upstream.url(), Ecosystem::Npm);
 
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
     point_npmrc_registry_at(&npmrc_path, &first_registry);
     let manifest = serde_json::json!({ "dependencies": { "revision-pkg": "^1.0.0" } });
     fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     let initial = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
     assert!(initial.contains("revision: 1"), "{initial}");
 
     point_npmrc_registry_at(&npmrc_path, &second_registry);
-    pacquet_at(&workspace).with_args(["update", "--patches"]).assert().success();
+    pacquet_at(&workspace)
+        .with_args(["update", "--patches"])
+        .assert()
+        .success();
 
     let refreshed = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
     assert!(refreshed.contains("revision: 2"), "{refreshed}");
@@ -127,8 +163,13 @@ fn update_patches_refreshes_a_revision_through_the_pnpr_resolver() {
         .create();
     let (pnpr_url, token) = start_pnpr(&upstream.url());
 
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
     let manifest = serde_json::json!({ "dependencies": { "revision-pkg": "^1.0.0" } });

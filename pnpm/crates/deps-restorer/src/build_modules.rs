@@ -143,7 +143,9 @@ impl RebuildOptions {
     /// Whether a package named `name` is in the rebuild selection. An
     /// absent selection (`None`) matches every package.
     fn is_selected(&self, name: &str) -> bool {
-        self.selected_names.as_ref().is_none_or(|names| names.contains(name))
+        self.selected_names
+            .as_ref()
+            .is_none_or(|names| names.contains(name))
     }
 
     /// Whether this rebuild discharges the workspace project recorded
@@ -152,7 +154,9 @@ impl RebuildOptions {
     /// than settle it.
     #[must_use]
     pub fn settles_project(&self, importer_id: &str) -> bool {
-        self.pending_projects.iter().any(|id| id == importer_id)
+        self.pending_projects
+            .iter()
+            .any(|id| id == importer_id)
     }
 
     /// Whether this rebuild discharges the dependency recorded under

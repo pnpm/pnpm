@@ -14,7 +14,11 @@ use std::{
 async fn archive_requests_preserve_the_deployments_redirect_guard() {
     let mut source = mockito::Server::new_async().await;
     let mut target = mockito::Server::new_async().await;
-    let blocked = target.mock("GET", "/private").expect(0).create_async().await;
+    let blocked = target
+        .mock("GET", "/private")
+        .expect(0)
+        .create_async()
+        .await;
     let redirect = source
         .mock("GET", "/artifact")
         .with_status(302)
@@ -49,7 +53,10 @@ async fn archive_retry_redacts_secrets_and_accepts_the_maximum_retry_budget() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
     let mut server = mockito::Server::new_async().await;
@@ -148,8 +155,11 @@ async fn archive_requests_do_not_downgrade_secure_credentials_to_plain_http() {
         .expect(1)
         .create_async()
         .await;
-    let client =
-        reqwest::Client::builder().no_proxy().resolve("registry.example", address).build().unwrap();
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .resolve("registry.example", address)
+        .build()
+        .unwrap();
     let no_redirects = reqwest::Client::builder()
         .no_proxy()
         .resolve("registry.example", address)
@@ -241,8 +251,12 @@ async fn formats_share_projection_offline_replay_and_missing_blob_validation() {
             let mut registry = mockito::Server::new_async().await;
             let body = container.body();
             let integrity = Integrity::from(body.as_slice());
-            let request =
-                registry.mock("GET", "/artifact").with_body(body).expect(1).create_async().await;
+            let request = registry
+                .mock("GET", "/artifact")
+                .with_body(body)
+                .expect(1)
+                .create_async()
+                .await;
             let (_directory, store) = tempdir_with_leaked_path();
             store.init().unwrap();
             let (writer, task) = StoreIndexWriter::spawn(store);

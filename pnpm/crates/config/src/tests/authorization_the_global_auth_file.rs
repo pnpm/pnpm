@@ -73,16 +73,16 @@ pub fn an_npmrc_scope_route_beats_the_global_auth_file() {
     // The default registry is not declared, so the stored credential still routes it.
     assert_eq!(config.registry, "https://private.example/");
     assert_eq!(
-        config
-            .auth_headers
+        config.auth_headers
             .for_url_with_package("https://private.example/@org%2Fpkg", Some("@org/pkg"))
             .as_deref(),
         Some("Bearer stored-org-token"),
     );
     assert_eq!(
-        config
-            .auth_headers
-            .for_url_with_package("https://from-npmrc.example/@org%2Fpkg", Some("@org/pkg")),
+        config.auth_headers.for_url_with_package(
+            "https://from-npmrc.example/@org%2Fpkg",
+            Some("@org/pkg")
+        ),
         None,
     );
 }

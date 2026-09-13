@@ -66,13 +66,14 @@ impl Walker<'_> {
         current_pkg_id: &str,
     ) -> BTreeMap<String, NodeId> {
         let mut children = BTreeMap::new();
-        if !parent_pkg_ids_chain.iter().any(|pkg_id| pkg_id == current_pkg_id) {
+        if !parent_pkg_ids_chain
+            .iter()
+            .any(|pkg_id| pkg_id == current_pkg_id)
+        {
             return children;
         }
         for parent_node_id in parent_node_ids.iter() {
-            let same_pkg = self
-                .tree
-                .dependencies_tree
+            let same_pkg = self.tree.dependencies_tree
                 .get(parent_node_id)
                 .is_some_and(|node| &*node.resolved_package_id == current_pkg_id);
             if !same_pkg {
@@ -90,8 +91,7 @@ impl Walker<'_> {
         pkg_id: &str,
         edges: &BTreeMap<String, NodeId>,
     ) -> HashSet<String> {
-        self.tree
-            .children_by_id
+        self.tree.children_by_id
             .get(pkg_id)
             .into_iter()
             .flat_map(|children| children.iter())
@@ -122,8 +122,7 @@ impl Walker<'_> {
         children
             .iter()
             .filter(|(alias, child_node_id)| {
-                self.tree
-                    .dependencies_tree
+                self.tree.dependencies_tree
                     .get(*child_node_id)
                     .and_then(|child| self.tree.packages.get(&child.resolved_package_id))
                     .is_some_and(|pkg| self.is_peer_relevant(alias, pkg))
@@ -139,10 +138,11 @@ impl Walker<'_> {
         &mut self,
         lazy: LazyProviders,
     ) -> (BTreeMap<String, NodeId>, Option<UndoRealize>) {
-        let children = self.tree.children_by_id.get(&lazy.pkg_id).cloned().unwrap_or_default();
-        let provider_edge_indices = self
-            .caches
-            .peer_provider_children_by_pkg_id
+        let children = self.tree.children_by_id
+            .get(&lazy.pkg_id)
+            .cloned()
+            .unwrap_or_default();
+        let provider_edge_indices = self.caches.peer_provider_children_by_pkg_id
             .get(&*lazy.pkg_id)
             .map_or(&[][..], |providers| providers.relevant_edge_indices.as_slice());
         let canonical_scc = self.canonical_scc();
@@ -219,8 +219,9 @@ impl Walker<'_> {
         };
         // No spec means the first walk never recorded children for this
         // package id — defensive empty case.
-        let children_spec =
-            self.tree.children_by_id.get(&pkg_id).map_or_else(|| Arc::new(Vec::new()), Arc::clone);
+        let children_spec = self.tree.children_by_id
+            .get(&pkg_id)
+            .map_or_else(|| Arc::new(Vec::new()), Arc::clone);
         let canonical_scc = self.canonical_scc();
         let context = EdgeRealization {
             canonical_scc: &canonical_scc,

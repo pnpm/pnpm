@@ -209,7 +209,9 @@ fn run_in_shell(
     let mut cmd = Command::new(&shell.program);
     cmd.args(&shell.args);
     push_script_arg(&mut cmd, command, shell.windows_verbatim_args);
-    cmd.current_dir(opts.pkg_root).env_clear().envs(child_env);
+    cmd.current_dir(opts.pkg_root)
+        .env_clear()
+        .envs(child_env);
     let mut child = spawn_child(&mut cmd, opts.process_tracker)
         .map_err(|source| RunScriptError::Spawn { script: command.to_string(), source })?;
     let status = child
@@ -258,9 +260,15 @@ fn build_command(script: &str, args: &[String], windows_shell: bool) -> String {
         return script.to_string();
     }
     let quoted = if windows_shell {
-        args.iter().map(|arg| Value::String(arg.clone()).to_string()).collect::<Vec<_>>().join(" ")
+        args.iter()
+            .map(|arg| Value::String(arg.clone()).to_string())
+            .collect::<Vec<_>>()
+            .join(" ")
     } else {
-        args.iter().map(|arg| posix_quote(arg)).collect::<Vec<_>>().join(" ")
+        args.iter()
+            .map(|arg| posix_quote(arg))
+            .collect::<Vec<_>>()
+            .join(" ")
     };
     format!("{script} {quoted}")
 }
@@ -273,7 +281,9 @@ fn posix_quote(arg: &str) -> String {
     if arg.is_empty() {
         return "''".to_string();
     }
-    let safe = arg.chars().all(|ch| ch.is_ascii_alphanumeric() || "_@%+=:,./-".contains(ch));
+    let safe = arg
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || "_@%+=:,./-".contains(ch));
     if safe { arg.to_string() } else { format!("'{}'", arg.replace('\'', r#"'"'"'"#)) }
 }
 

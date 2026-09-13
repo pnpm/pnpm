@@ -138,9 +138,7 @@ pub(super) async fn resolve_importer_scoped_update_direct(
         })
         .await
         .expect("resolve importer-scoped update");
-    result
-        .peers
-        .direct_dependencies_by_importer
+    result.peers.direct_dependencies_by_importer
         .into_iter()
         .map(|(importer_id, dependencies)| (importer_id, dependencies["pkg"].as_str().to_string()))
         .collect()
@@ -295,13 +293,16 @@ pub(super) fn reuse_graph_lockfile(
     let catalog_snapshots = (!catalogs.is_empty()).then(|| {
         let mut snapshot: pnpm_lockfile::CatalogSnapshots = BTreeMap::new();
         for (catalog, alias, specifier, version) in catalogs {
-            snapshot.entry((*catalog).to_string()).or_default().insert(
-                (*alias).to_string(),
-                ResolvedCatalogEntry {
-                    specifier: (*specifier).to_string(),
-                    version: (*version).to_string(),
-                },
-            );
+            snapshot
+                .entry((*catalog).to_string())
+                .or_default()
+                .insert(
+                    (*alias).to_string(),
+                    ResolvedCatalogEntry {
+                        specifier: (*specifier).to_string(),
+                        version: (*version).to_string(),
+                    },
+                );
         }
         snapshot
     });
@@ -327,9 +328,7 @@ pub(super) fn graph_versions_of(
     name: &str,
 ) -> Vec<String> {
     let prefix = format!("{name}@");
-    let mut versions: Vec<String> = result
-        .peers
-        .graph
+    let mut versions: Vec<String> = result.peers.graph
         .keys()
         .filter_map(|dep_path| dep_path.as_str().strip_prefix(&prefix))
         .map(str::to_string)

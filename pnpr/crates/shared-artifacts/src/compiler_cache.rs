@@ -23,13 +23,17 @@ impl TryFrom<String> for CompilerCacheKey {
     fn try_from(key: String) -> Result<Self> {
         if key.is_empty()
             || key.len() > 1024
-            || key.split('/').any(|segment| {
-                segment.is_empty()
-                    || matches!(segment, "." | "..")
-                    || !segment.bytes().all(|byte| {
-                        byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.')
-                    })
-            })
+            || key
+                .split('/')
+                .any(|segment| {
+                    segment.is_empty()
+                        || matches!(segment, "." | "..")
+                        || !segment
+                            .bytes()
+                            .all(|byte| {
+                                byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.')
+                            })
+                })
         {
             return Err(bad_request("invalid compiler cache key".to_string()));
         }
@@ -58,28 +62,27 @@ impl SharedArtifactStore {
         let publication = artifact_operation_id()?;
         self.begin_publication(&publication).await?;
         let mut reclamation_needed = false;
-        let result = self
-            .while_renewing(&publication, PUBLICATION_RENEWAL_INTERVAL, async {
-                let started = Instant::now();
-                let size = (bytes.len() + DIGEST_SIZE) as u64;
-                // A failed object-store write can have committed remotely. Keep
-                // its reservation until reclamation counts the actual objects.
-                if let Err(error) = self.reserve_quota(&owner, size).await {
-                    reclamation_needed = matches!(&error, RegistryError::ObjectStore(_));
-                    return Err(error);
-                }
-                reclamation_needed = true;
-                let digest = Bytes::copy_from_slice(&compiler_cache_digest(&owner, key, &bytes));
-                let stored: PutPayload = [digest, bytes].into_iter().collect();
-                let created = self.create_object(&path, stored).await?;
-                self.release_uncommitted(&owner, size, if created { size } else { 0 }).await?;
-                reclamation_needed = started.elapsed() >= ACTIVE_PUBLICATION_EXPIRY;
-                if reclamation_needed {
-                    self.begin_publication(&publication).await?;
-                }
-                Ok(created)
-            })
-            .await;
+        let result = self.while_renewing(&publication, PUBLICATION_RENEWAL_INTERVAL, async {
+            let started = Instant::now();
+            let size = (bytes.len() + DIGEST_SIZE) as u64;
+            // A failed object-store write can have committed remotely. Keep
+            // its reservation until reclamation counts the actual objects.
+            if let Err(error) = self.reserve_quota(&owner, size).await {
+                reclamation_needed = matches!(&error, RegistryError::ObjectStore(_));
+                return Err(error);
+            }
+            reclamation_needed = true;
+            let digest = Bytes::copy_from_slice(&compiler_cache_digest(&owner, key, &bytes));
+            let stored: PutPayload = [digest, bytes].into_iter().collect();
+            let created = self.create_object(&path, stored).await?;
+            self.release_uncommitted(&owner, size, if created { size } else { 0 }).await?;
+            reclamation_needed = started.elapsed() >= ACTIVE_PUBLICATION_EXPIRY;
+            if reclamation_needed {
+                self.begin_publication(&publication).await?;
+            }
+            Ok(created)
+        })
+        .await;
         self.complete_publication(&publication, reclamation_needed, result).await
     }
 
@@ -94,8 +97,7 @@ impl SharedArtifactStore {
         let path = self.object_path(&compiler_cache_path(&owner, key));
         match self.store.head(&path).await {
             Ok(metadata) => {
-                let size = metadata
-                    .size
+                let size = metadata.size
                     .checked_sub(DIGEST_SIZE as u64)
                     .filter(|size| *size <= MAX_COMPILER_CACHE_ENTRY_SIZE as u64)
                     .ok_or_else(|| RegistryError::Internal {
@@ -117,9 +119,9 @@ impl SharedArtifactStore {
     ) -> Result<Option<Bytes>> {
         let owner = owner_key(cache, &OwnerScope::organization(cache))?;
         let path = compiler_cache_path(&owner, key);
-        let Some(stored) = self
-            .read_object_bounded(&path, (MAX_COMPILER_CACHE_ENTRY_SIZE + DIGEST_SIZE) as u64)
-            .await?
+        let Some(stored) =
+            self.read_object_bounded(&path, (MAX_COMPILER_CACHE_ENTRY_SIZE + DIGEST_SIZE) as u64)
+                .await?
         else {
             return Ok(None);
         };

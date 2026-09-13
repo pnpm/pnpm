@@ -47,7 +47,9 @@ pub fn git_branch_lockfile_names_the_lockfile_after_the_current_branch() {
     let repo = repo_on_branch("ref: refs/heads/feat/Login\n");
     fs::write(repo.path().join("pnpm-workspace.yaml"), "gitBranchLockfile: true\n").unwrap();
     static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    REPO_DIR
+        .set(repo.path().to_path_buf())
+        .expect("set once");
     host_in_repo!(HostOnBranch);
 
     let config = Config::new().current::<HostOnBranch>(repo.path()).expect("yaml is valid");
@@ -67,7 +69,9 @@ pub fn merging_puts_the_install_back_on_the_shared_lockfile() {
     )
     .unwrap();
     static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    REPO_DIR
+        .set(repo.path().to_path_buf())
+        .expect("set once");
     host_in_repo!(HostMerging);
 
     let config = Config::new().current::<HostMerging>(repo.path()).expect("yaml is valid");
@@ -83,7 +87,9 @@ pub fn a_detached_head_leaves_the_install_on_the_shared_lockfile() {
     let repo = repo_on_branch("0123456789abcdef0123456789abcdef01234567\n");
     fs::write(repo.path().join("pnpm-workspace.yaml"), "gitBranchLockfile: true\n").unwrap();
     static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    REPO_DIR
+        .set(repo.path().to_path_buf())
+        .expect("set once");
     host_in_repo!(HostDetached);
 
     let config = Config::new().current::<HostDetached>(repo.path()).expect("yaml is valid");

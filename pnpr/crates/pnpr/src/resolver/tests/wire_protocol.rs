@@ -35,10 +35,10 @@ fn private_cached_resolution_keeps_routed_tarball_urls() {
     let key = "base".to_string();
     let pnpm_config = config_for_registry("https://npm.corp.example/");
     let mut registry = registry_config();
-    registry
-        .routing
-        .upstreams
-        .insert("corp".to_string(), upstream_with_access("https://npm.corp.example/", "alice"));
+    registry.routing.upstreams.insert(
+        "corp".to_string(),
+        upstream_with_access("https://npm.corp.example/", "alice"),
+    );
     let router = tarball_router(&registry, user("alice"));
     let routed = router.route_lockfile(&pnpm_config, &lockfile("1.0.0"));
 

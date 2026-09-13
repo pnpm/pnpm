@@ -129,10 +129,11 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
 /// caller's project dir and mistake it for the dlx workspace.
 pub(super) fn dlx_command_cache_dir(config: &Config, cache_key: &str) -> miette::Result<PathBuf> {
     let dlx_command_cache_dir = config.cache_dir.join("dlx").join(cache_key);
-    fs::create_dir_all(&dlx_command_cache_dir).map_err(|source| DlxError::Cache {
-        dir: dlx_command_cache_dir.display().to_string(),
-        source,
-    })?;
+    fs::create_dir_all(&dlx_command_cache_dir)
+        .map_err(|source| DlxError::Cache {
+            dir: dlx_command_cache_dir.display().to_string(),
+            source,
+        })?;
     dunce::canonicalize(&dlx_command_cache_dir)
         .into_diagnostic()
         .wrap_err("canonicalizing the dlx cache directory")
@@ -148,8 +149,7 @@ pub(super) fn resolve_catalog_specs(
     config: &Config,
 ) -> miette::Result<Vec<String>> {
     let uses_catalog = |pkg: &String| {
-        parse_wanted_dependency(pkg)
-            .bare_specifier
+        parse_wanted_dependency(pkg).bare_specifier
             .is_some_and(|bare_specifier| parse_catalog_protocol(&bare_specifier).is_some())
     };
     if !pkgs.iter().any(uses_catalog) {
@@ -199,22 +199,36 @@ pub(super) fn create_cache_key(
     allow_build: &[String],
     supported_architectures: Option<&SupportedArchitectures>,
 ) -> String {
-    let mut sorted: Vec<&str> = pkgs.iter().map(String::as_str).collect();
+    let mut sorted: Vec<&str> = pkgs
+        .iter()
+        .map(String::as_str)
+        .collect();
     sorted.sort_unstable();
-    let registry_pairs: Vec<(&str, &str)> =
-        registries.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+    let registry_pairs: Vec<(&str, &str)> = registries
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect();
     let mut args = vec![json!(sorted), json!(registry_pairs)];
     if !allow_build.is_empty() {
-        let mut sorted_allow: Vec<&str> = allow_build.iter().map(String::as_str).collect();
+        let mut sorted_allow: Vec<&str> = allow_build
+            .iter()
+            .map(String::as_str)
+            .collect();
         sorted_allow.sort_unstable();
         args.push(json!({ "allowBuild": sorted_allow }));
     }
     if let Some(arch) = supported_architectures {
         for (key, values) in [("cpu", &arch.cpu), ("libc", &arch.libc), ("os", &arch.os)] {
-            let Some(values) = values.as_ref().filter(|values| !values.is_empty()) else {
+            let Some(values) = values
+                .as_ref()
+                .filter(|values| !values.is_empty())
+            else {
                 continue;
             };
-            let mut deduped: Vec<&str> = values.iter().map(String::as_str).collect();
+            let mut deduped: Vec<&str> = values
+                .iter()
+                .map(String::as_str)
+                .collect();
             deduped.sort_unstable();
             deduped.dedup();
             args.push(json!({ "supportedArchitectures": { key: deduped } }));
@@ -281,17 +295,20 @@ fn to_base36(mut n: u128) -> String {
 pub(super) fn read_json(path: &Path) -> Result<Value, DlxError> {
     let text = fs::read_to_string(path)
         .map_err(|source| DlxError::ReadManifest { path: path.display().to_string(), source })?;
-    parse_manifest(&text).map_err(|error| DlxError::ReadManifest {
-        path: path.display().to_string(),
-        source: error.into(),
-    })
+    parse_manifest(&text)
+        .map_err(|error| DlxError::ReadManifest {
+            path: path.display().to_string(),
+            source: error.into(),
+        })
 }
 
 /// Resolve caller catalogs before the cache install severs its workspace anchor.
 fn resolve_cache_overrides(config: &mut Config) -> miette::Result<()> {
     if let Some(overrides) = config.overrides.as_ref()
         && config.workspace_dir.is_some()
-        && overrides.values().any(|spec| spec.starts_with("catalog:"))
+        && overrides
+            .values()
+            .any(|spec| spec.starts_with("catalog:"))
     {
         let catalogs = configured_catalogs(config)?;
         let resolved = parse_overrides_iter(overrides.iter(), &catalogs)

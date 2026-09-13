@@ -374,12 +374,14 @@ impl FileApply<'_> {
     /// outside the package directory.
     fn resolve_target(&self, rel: &Path) -> Result<PathBuf, PatchApplyError> {
         let escapes = rel.is_absolute()
-            || rel.components().any(|component| {
-                matches!(
-                    component,
-                    Component::ParentDir | Component::RootDir | Component::Prefix(_),
-                )
-            });
+            || rel
+                .components()
+                .any(|component| {
+                    matches!(
+                        component,
+                        Component::ParentDir | Component::RootDir | Component::Prefix(_),
+                    )
+                });
         if escapes {
             return Err(self.failed(format!("patch path escapes target dir: {}", rel.display())));
         }
@@ -456,9 +458,10 @@ impl FileApply<'_> {
             return Err(self.failed(format!("cannot create {target}: target already exists")));
         }
         if let Some(parent) = target.parent() {
-            fs::create_dir_all(parent).map_err(|source| {
-                self.failed(format!("create parent of {}: {source}", target.display()))
-            })?;
+            fs::create_dir_all(parent)
+                .map_err(|source| {
+                    self.failed(format!("create parent of {}: {source}", target.display()))
+                })?;
         }
         fs::write(target, created)
             .map_err(|source| self.failed(format!("write {}: {source}", target.display())))
@@ -564,7 +567,11 @@ fn write_atomic_with_mode(
         let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
         let tmp = parent.join(format!(".{file_name}.{pid}.{counter}.pacquet-tmp"));
 
-        let mut file = match OpenOptions::new().write(true).create_new(true).open(&tmp) {
+        let mut file = match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&tmp)
+        {
             Ok(file) => file,
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
                 last_already_exists = Some(error);
@@ -586,14 +593,7 @@ fn write_atomic_with_mode(
         // the `fn` doc above.
         drop(file);
 
-        if let Err(error) = fs::set_permissions(&tmp, permissions.clone()) {
-            let _ = fs::remove_file(&tmp);
-            return Err(error);
-        }
-
-        return fs::rename(&tmp, target).inspect_err(|_| {
-            let _ = fs::remove_file(&tmp);
-        });
+        return replace_with_permissions(&tmp, target, permissions);
     }
 
     Err(last_already_exists.unwrap_or_else(|| {
@@ -602,6 +602,22 @@ fn write_atomic_with_mode(
             "exhausted temp-path attempts for atomic patch write",
         )
     }))
+}
+
+fn replace_with_permissions(
+    tmp: &Path,
+    target: &Path,
+    permissions: &Permissions,
+) -> io::Result<()> {
+    if let Err(error) = fs::set_permissions(tmp, permissions.clone()) {
+        let _ = fs::remove_file(tmp);
+        return Err(error);
+    }
+
+    fs::rename(tmp, target)
+        .inspect_err(|_| {
+            let _ = fs::remove_file(tmp);
+        })
 }
 
 #[cfg(test)]

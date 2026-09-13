@@ -149,7 +149,9 @@ impl Eq for ParentChain {}
 
 impl std::fmt::Debug for ParentChain {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_list().entries(self.0.to_root_vec()).finish()
+        f.debug_list()
+            .entries(self.0.to_root_vec())
+            .finish()
     }
 }
 

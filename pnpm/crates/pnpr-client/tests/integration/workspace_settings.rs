@@ -48,7 +48,10 @@ async fn multi_project_request_sends_every_workspace_project_without_a_synthetic
     ];
 
     let outcome = client.resolve_projects(opts).await.expect("multi-project response should parse");
-    let mut importer_ids = outcome.lockfile.importers.keys().cloned().collect::<Vec<_>>();
+    let mut importer_ids = outcome.lockfile.importers
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
     importer_ids.sort();
     assert_eq!(importer_ids, ["packages/app".to_string(), "packages/lib".to_string()]);
 

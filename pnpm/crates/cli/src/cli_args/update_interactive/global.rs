@@ -10,9 +10,14 @@ pub(crate) async fn select_global_package_groups<Reporter: self::Reporter>(
     latest: bool,
     prompt: UpdatePrompt,
 ) -> miette::Result<Option<HashSet<String>>> {
-    let global_pkg_dir = base_config.global_pkg_dir.clone().ok_or_else(|| {
-        miette!(code = "ERR_PNPM_NO_GLOBAL_BIN_DIR", "Unable to find the global packages directory")
-    })?;
+    let global_pkg_dir = base_config.global_pkg_dir
+        .clone()
+        .ok_or_else(|| {
+            miette!(
+                code = "ERR_PNPM_NO_GLOBAL_BIN_DIR",
+                "Unable to find the global packages directory"
+            )
+        })?;
     let config = global_update_config(base_config);
     let ignored = ignored_dependencies_matcher(config);
     let query = OutdatedQuery {
@@ -27,12 +32,7 @@ pub(crate) async fn select_global_package_groups<Reporter: self::Reporter>(
     };
     let rows = outdated_group_rows(matched_packages, config, &query).await?;
     if rows.is_empty() {
-        let message = if latest {
-            "All of your dependencies are already up to date"
-        } else {
-            "All of your dependencies are already up to date inside the specified ranges. Use the --latest option to update the ranges in package.json"
-        };
-        println!("{message}");
+        super::print_up_to_date(latest);
         return Ok(None);
     }
     let Some(selected_indices) = prompt.select(
@@ -62,8 +62,7 @@ async fn outdated_group_rows(
     for pkg in matched_packages {
         let state = crate::State::init(pkg.install_dir.join("package.json"), config, false)
             .map_err(|err| miette::Report::new(err).wrap_err("initialize global state"))?;
-        let lockfile = state
-            .lockfile
+        let lockfile = state.lockfile
             .get()
             .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
         let outdated = collect_outdated_for_importer(
@@ -109,8 +108,10 @@ fn matching_global_packages(
         println!("No global packages found");
         return Ok(None);
     }
-    let global_packages: Vec<_> =
-        global_packages.into_iter().filter(|pkg| !has_pnpm_cli_dependency(pkg)).collect();
+    let global_packages: Vec<_> = global_packages
+        .into_iter()
+        .filter(|pkg| !has_pnpm_cli_dependency(pkg))
+        .collect();
     if global_packages.is_empty() {
         println!(r#"No global packages to update. Run "pnpm self-update" to update pnpm itself."#);
         return Ok(None);
@@ -120,7 +121,11 @@ fn matching_global_packages(
     }
     let matched = global_packages
         .into_iter()
-        .filter(|pkg| packages.iter().any(|param| pkg.has_alias(param)))
+        .filter(|pkg| {
+            packages
+                .iter()
+                .any(|param| pkg.has_alias(param))
+        })
         .collect::<Vec<_>>();
     if matched.is_empty() {
         println!("No matching global packages found");

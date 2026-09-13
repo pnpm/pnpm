@@ -49,8 +49,12 @@ impl WorkEnv {
             .benchmarked_ids()
             .map(|id| {
                 let id = id.to_string();
-                let phase_events =
-                    read_phase_events(&self.root().join(&id).join(BENCHMARK_OUTPUT_LOG));
+                let phase_events = read_phase_events(
+                    &self
+                        .root()
+                        .join(&id)
+                        .join(BENCHMARK_OUTPUT_LOG),
+                );
                 let command = commands_by_name.get(&id);
                 BenchmarkTargetDiagnostics {
                     id,
@@ -80,12 +84,14 @@ impl WorkEnv {
         {
             return;
         }
-        let mut lockfiles = self.target_ids().map(|id| {
-            let path = self.bench_dir(id).join("pnpm-lock.yaml");
-            let contents =
-                fs::read(&path).unwrap_or_else(|error| panic!("read {path:?} for {id}: {error}"));
-            (id.to_string(), contents)
-        });
+        let mut lockfiles = self
+            .target_ids()
+            .map(|id| {
+                let path = self.bench_dir(id).join("pnpm-lock.yaml");
+                let contents = fs::read(&path)
+                    .unwrap_or_else(|error| panic!("read {path:?} for {id}: {error}"));
+                (id.to_string(), contents)
+            });
         let (reference_id, reference) =
             lockfiles.next().expect("peer-heavy benchmark has at least one target");
         for (target_id, lockfile) in lockfiles {
@@ -101,8 +107,7 @@ impl WorkEnv {
         {
             return;
         }
-        for target in diagnostics
-            .targets
+        for target in diagnostics.targets
             .iter()
             .filter(|target| requires_fresh_pnpr_cold_batch_metrics(&target.id))
         {
@@ -150,16 +155,10 @@ impl WorkEnv {
     pub(super) fn verify_peer_heavy_pacquet_pnpm_ratio(&self, diagnostics: &BenchmarkDiagnostics) {
         if self.options.selection.scenario
             != Some(BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline)
-            || !self
-                .options
-                .selection
-                .targets
+            || !self.options.selection.targets
                 .iter()
                 .any(|target| target.kind == TargetKind::Pnpm && target.rev == "HEAD")
-            || !self
-                .options
-                .selection
-                .targets
+            || !self.options.selection.targets
                 .iter()
                 .any(|target| target.kind == TargetKind::Pacquet && target.rev == "HEAD")
         {

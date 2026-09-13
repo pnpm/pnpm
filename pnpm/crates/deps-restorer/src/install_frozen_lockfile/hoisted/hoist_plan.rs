@@ -67,8 +67,16 @@ pub fn compute_hoist_plan(
         return None;
     }
     let (Some(snaps), Some(pkgs)) = (snapshots, packages) else { return None };
-    let private_pattern = create_matcher(config.hoist_pattern.as_deref().unwrap_or(&[]));
-    let public_pattern = create_matcher(config.public_hoist_pattern.as_deref().unwrap_or(&[]));
+    let private_pattern = create_matcher(
+        config.hoist_pattern
+            .as_deref()
+            .unwrap_or(&[]),
+    );
+    let public_pattern = create_matcher(
+        config.public_hoist_pattern
+            .as_deref()
+            .unwrap_or(&[]),
+    );
     // Static fast-path: when both compiled matchers come from empty
     // pattern lists (`Some([])`), there's no alias they could match,
     // so the traversal would visit every node only to drop every child.
@@ -137,7 +145,10 @@ pub fn collect_public_hoist_targets(
             continue;
         }
         let Some(node) = graph.get(node_id) else { continue };
-        let dep_dir = layout.slot_dir(node_id).join("node_modules").join(node.name.to_string());
+        let dep_dir = layout
+            .slot_dir(node_id)
+            .join("node_modules")
+            .join(node.name.to_string());
         add_public_aliases(&mut targets, alias_map, &dep_dir);
     }
     targets

@@ -24,7 +24,10 @@ fn split_ini_line(line: &str) -> Option<(&str, std::borrow::Cow<'_, str>)> {
 fn decode_ini_value(value: &str) -> Cow<'_, str> {
     if value.starts_with('\'') && value.ends_with('\'') {
         Cow::Borrowed(
-            value.strip_prefix('\'').and_then(|value| value.strip_suffix('\'')).unwrap_or(""),
+            value
+                .strip_prefix('\'')
+                .and_then(|value| value.strip_suffix('\''))
+                .unwrap_or(""),
         )
     } else if value.len() >= 2 && value.starts_with('"') && value.ends_with('"') {
         serde_json::from_str::<String>(value).map_or(Cow::Borrowed(value), Cow::Owned)
@@ -53,7 +56,11 @@ fn scoped_registry_key(key: &str) -> Option<&str> {
 fn has_env_placeholder(value: &str) -> bool {
     value
         .match_indices("${")
-        .any(|(start, _)| value[start + 2..].find('}').is_some_and(|end| end > 0))
+        .any(|(start, _)| {
+            value[start + 2..]
+                .find('}')
+                .is_some_and(|end| end > 0)
+        })
 }
 
 impl NpmrcAuth {

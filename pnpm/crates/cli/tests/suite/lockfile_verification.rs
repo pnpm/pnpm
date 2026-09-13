@@ -58,8 +58,13 @@ fn write_policy_rejected_project(workspace: &Path) {
 /// and `pnpm errors` URL routing both work.
 #[test]
 fn install_fails_under_huge_minimum_release_age() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_policy_rejected_project(&workspace);
@@ -100,15 +105,22 @@ fn install_fails_under_huge_minimum_release_age() {
 /// by default, so reaching non-strict mode takes an explicit opt-out.
 #[test]
 fn non_strict_minimum_release_age_falls_back_when_no_mature_version_matches() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     set_minimum_release_age(&workspace, 60 * 24 * 365 * 100);
     append_workspace_yaml_key(&workspace, "minimumReleaseAgeStrict", false);
 
-    let output =
-        pacquet.with_args(["add", "@pnpm.e2e/bravo-dep@1.0"]).output().expect("spawn pacquet add");
+    let output = pacquet
+        .with_args(["add", "@pnpm.e2e/bravo-dep@1.0"])
+        .output()
+        .expect("spawn pacquet add");
     assert!(
         output.status.success(),
         "non-strict mode must proceed with the immature fallback (stderr: {})",
@@ -128,7 +140,9 @@ fn non_strict_minimum_release_age_falls_back_when_no_mature_version_matches() {
     let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
     let snapshots = lockfile.snapshots.as_ref().expect("lockfile has snapshots");
     assert!(
-        snapshots.keys().any(|key| key.to_string() == "@pnpm.e2e/bravo-dep@1.0.0"),
+        snapshots
+            .keys()
+            .any(|key| key.to_string() == "@pnpm.e2e/bravo-dep@1.0.0"),
         "the lockfile must resolve the lowest matching version",
     );
 
@@ -145,8 +159,13 @@ fn non_strict_minimum_release_age_falls_back_when_no_mature_version_matches() {
 /// comment above the assertion below.
 #[test]
 fn trust_lockfile_skips_verification() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_policy_rejected_project(&workspace);
@@ -185,8 +204,13 @@ fn trust_lockfile_skips_verification() {
 /// install success); see the inline comment above the assertion.
 #[test]
 fn trust_lockfile_cli_flag_skips_verification() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_policy_rejected_project(&workspace);
@@ -216,8 +240,13 @@ fn trust_lockfile_cli_flag_skips_verification() {
 /// the manifest is left alone, with the flag the removal completes.
 #[test]
 fn remove_honors_the_bare_trust_lockfile_flag() {
-    let CommandTempCwd { pacquet: initial_install, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet: initial_install,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     let package_json = serde_json::json!({
         "dependencies": {
@@ -286,8 +315,13 @@ fn read_manifest(workspace: &Path) -> serde_json::Value {
 /// materialized.
 #[test]
 fn trust_lockfile_still_rejects_traversal_dependency_name() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     // A legit direct dependency keeps the frozen-lockfile freshness

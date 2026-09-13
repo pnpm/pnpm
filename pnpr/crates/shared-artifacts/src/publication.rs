@@ -16,13 +16,12 @@ impl SharedArtifactStore {
         let publication = artifact_operation_id()?;
         self.begin_publication(&publication).await?;
         let mut reclamation_needed = false;
-        let result = self
-            .while_renewing(
-                &publication,
-                PUBLICATION_RENEWAL_INTERVAL,
-                self.publish_active(prepared, &publication, &mut reclamation_needed),
-            )
-            .await;
+        let result = self.while_renewing(
+            &publication,
+            PUBLICATION_RENEWAL_INTERVAL,
+            self.publish_active(prepared, &publication, &mut reclamation_needed),
+        )
+        .await;
         self.complete_publication(&publication, reclamation_needed, result).await
     }
 
@@ -199,33 +198,48 @@ impl SharedArtifactStore {
             return Err(error);
         }
 
-        let Some(retained_bytes) = self
-            .claim_publication_scopes(&prepared, created, &owner, added_bytes, reclamation_needed)
-            .await?
+        let Some(retained_bytes) = self.claim_publication_scopes(
+            &prepared,
+            created,
+            &owner,
+            added_bytes,
+            reclamation_needed,
+        )
+        .await?
         else {
             return Ok(false);
         };
         let mut charge =
             PublicationQuota { owner: &owner, added_bytes, retained_bytes, reclamation_needed };
         self.store_new_blobs(new_blobs, &mut charge).await?;
-        let created = self
-            .store_envelope(
-                &prepared.variant_path,
-                prepared.envelope_bytes.clone(),
-                envelope_size,
-                &mut charge,
-            )
-            .await?;
-        if !self
-            .settle_envelope(created, &prepared.variant_path, &prepared.envelope_bytes, charge)
-            .await?
-        {
-            return Err(RegistryError::ArtifactAlreadyPublished { owner, entry: prepared.entry });
-        }
+        let created = self.store_publication_envelope(&prepared, charge).await?;
         if created && started.elapsed() >= ACTIVE_PUBLICATION_EXPIRY {
             self.recover_expired_publication(&prepared, publication, reclamation_needed).await?;
         }
 
+        Ok(created)
+    }
+
+    async fn store_publication_envelope(
+        &self,
+        prepared: &PreparedPublication,
+        mut charge: PublicationQuota<'_>,
+    ) -> Result<bool> {
+        let created = self.store_envelope(
+            &prepared.variant_path,
+            prepared.envelope_bytes.clone(),
+            prepared.envelope_bytes.len() as u64,
+            &mut charge,
+        )
+        .await?;
+        if !self.settle_envelope(created, &prepared.variant_path, &prepared.envelope_bytes, charge)
+            .await?
+        {
+            return Err(RegistryError::ArtifactAlreadyPublished {
+                owner: prepared.owner.clone(),
+                entry: prepared.entry.clone(),
+            });
+        }
         Ok(created)
     }
 
@@ -236,10 +250,7 @@ impl SharedArtifactStore {
         prepared: &mut PreparedPublication,
         owner: &str,
     ) -> Result<Vec<(String, Vec<u8>)>> {
-        let required: BTreeMap<String, u64> = prepared
-            .payload
-            .manifest
-            .added
+        let required: BTreeMap<String, u64> = prepared.payload.manifest.added
             .iter()
             .map(|file| (file.integrity.clone(), file.size))
             .collect();

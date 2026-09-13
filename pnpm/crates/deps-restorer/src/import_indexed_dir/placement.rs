@@ -73,10 +73,11 @@ pub(super) fn create_indexed_dirs(
     // `newDir` before calling `tryImportIndexedDir`, so do that here
     // too. Files at the package root (e.g. `package.json`) need this
     // even when `rel_dirs` is empty.
-    fs::create_dir_all(dir_path).map_err(|error| ImportIndexedDirError::CreateDir {
-        dirname: dir_path.to_path_buf(),
-        error,
-    })?;
+    fs::create_dir_all(dir_path)
+        .map_err(|error| ImportIndexedDirError::CreateDir {
+            dirname: dir_path.to_path_buf(),
+            error,
+        })?;
 
     let mut ordered: Vec<&str> = rel_dirs.into_iter().collect();
     ordered.sort_by_key(|s| s.len());
@@ -143,9 +144,11 @@ pub(super) fn place_marker<Reporter: self::Reporter>(
 /// in [`import_atomic`] replaces a file but never a directory.
 pub(super) fn clear_dir_blocking_file(target: &Path) -> Result<(), ImportIndexedDirError> {
     match fs::symlink_metadata(target) {
-        Ok(meta) if meta.is_dir() => fs::remove_dir_all(target).map_err(|error| {
-            ImportIndexedDirError::ClearBlockingDirEntry { path: target.to_path_buf(), error }
-        }),
+        Ok(meta) if meta.is_dir() => fs::remove_dir_all(target)
+            .map_err(|error| ImportIndexedDirError::ClearBlockingDirEntry {
+                path: target.to_path_buf(),
+                error,
+            }),
         Ok(_) => Ok(()),
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(error) => {
@@ -167,9 +170,11 @@ pub(super) fn clear_dirent_blocking_dir(
         abs.push(component);
         match fs::symlink_metadata(&abs) {
             Ok(meta) if meta.is_dir() => {}
-            Ok(meta) => remove_non_dir_dirent(&abs, meta.file_type()).map_err(|error| {
-                ImportIndexedDirError::ClearBlockingDirEntry { path: abs.clone(), error }
-            })?,
+            Ok(meta) => remove_non_dir_dirent(&abs, meta.file_type())
+                .map_err(|error| ImportIndexedDirError::ClearBlockingDirEntry {
+                    path: abs.clone(),
+                    error,
+                })?,
             Err(err) if err.kind() == io::ErrorKind::NotFound => break,
             Err(error) => return Err(ImportIndexedDirError::InspectTarget { path: abs, error }),
         }
@@ -187,7 +192,11 @@ pub(super) fn marker_file(cas_paths: &HashMap<String, PathBuf>) -> Option<&str> 
     if cas_paths.contains_key(PACKAGE_JSON) {
         return Some(PACKAGE_JSON);
     }
-    cas_paths.keys().map(String::as_str).filter(|path| *path != crate::NEEDS_BUILD_MARKER).min()
+    cas_paths
+        .keys()
+        .map(String::as_str)
+        .filter(|path| *path != crate::NEEDS_BUILD_MARKER)
+        .min()
 }
 /// Whether `dir_path` already holds exactly this import, pnpm's
 /// `allFilesMatch`. Existence is not enough: the completion marker goes

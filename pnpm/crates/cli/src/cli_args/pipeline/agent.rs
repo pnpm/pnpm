@@ -49,10 +49,13 @@ pub fn run_watch(invocation: &WatchInvocation, state_dir: &Path) -> miette::Resu
     if invocation.polling.interval.is_zero() {
         return Err(miette::miette!("watch interval must be at least one second"));
     }
-    let agent_dir = state_dir.join("pipeline").join("agent").join(create_short_hash(&format!(
-        "{}\0{}",
-        invocation.polling.repo, invocation.polling.branch,
-    )));
+    let agent_dir = state_dir
+        .join("pipeline")
+        .join("agent")
+        .join(create_short_hash(&format!(
+            "{}\0{}",
+            invocation.polling.repo, invocation.polling.branch,
+        )));
     fs::create_dir_all(&agent_dir)
         .map_err(|error| miette::miette!("creating the agent directory: {error}"))?;
     let agent_display = agent_dir.display();
@@ -62,7 +65,9 @@ pub fn run_watch(invocation: &WatchInvocation, state_dir: &Path) -> miette::Resu
     // path — the run record's workspace identity above all — reads as the
     // project, not as "checkout".
     let dirs = AgentDirs {
-        checkout: agent_dir.join("checkout").join(repo_basename(&invocation.polling.repo)),
+        checkout: agent_dir
+            .join("checkout")
+            .join(repo_basename(&invocation.polling.repo)),
         head_file: agent_dir.join("head"),
     };
     println!(
@@ -72,8 +77,12 @@ pub fn run_watch(invocation: &WatchInvocation, state_dir: &Path) -> miette::Resu
         invocation.polling.interval.as_secs(),
         dirs.checkout.display(),
     );
+    watch_revisions(invocation, &dirs)
+}
+
+fn watch_revisions(invocation: &WatchInvocation, dirs: &AgentDirs) -> miette::Result<()> {
     loop {
-        let result = poll_and_build(invocation, &dirs);
+        let result = poll_and_build(invocation, dirs);
         match result {
             Ok(Some(revision)) => println!("Built {revision}."),
             Ok(None) => println!("{} is up to date.", invocation.polling.branch),
@@ -180,8 +189,9 @@ fn git_ok(cwd: Option<&Path>, args: &[&str]) -> miette::Result<()> {
     if let Some(cwd) = cwd {
         command.current_dir(cwd);
     }
-    let output =
-        command.output().map_err(|error| miette::miette!("running git {args:?}: {error}"))?;
+    let output = command
+        .output()
+        .map_err(|error| miette::miette!("running git {args:?}: {error}"))?;
     if output.status.success() {
         return Ok(());
     }

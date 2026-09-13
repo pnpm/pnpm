@@ -83,7 +83,10 @@ fn alias_scripts_are_written_and_executable() {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mode = std::fs::metadata(&pn).expect("stat pn").permissions().mode();
+        let mode = std::fs::metadata(&pn)
+            .expect("stat pn")
+            .permissions()
+            .mode();
         assert_eq!(mode & 0o777, 0o755);
     }
 }

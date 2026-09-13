@@ -188,7 +188,10 @@ impl ResolutionVerifier for CapturingVerifier {
         resolution: &'a LockfileResolution,
         _ctx: VerifyCtx<'a>,
     ) -> VerifyFuture<'a> {
-        self.seen.lock().expect("seen lock").push(resolution.clone());
+        self.seen
+            .lock()
+            .expect("seen lock")
+            .push(resolution.clone());
         Box::pin(async { ResolutionVerification::Ok })
     }
 

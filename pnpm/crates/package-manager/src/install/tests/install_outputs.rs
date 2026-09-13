@@ -52,7 +52,10 @@ async fn should_install_dependencies() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .push(event.clone());
         }
     }
 
@@ -158,20 +161,24 @@ async fn should_install_dependencies() {
         "install must report the input package manifest exactly once; events={captured:#?}",
     );
     assert!(
-        captured.iter().any(|event| matches!(
-            event,
-            LogEvent::Stats(StatsLog {
-                message: StatsMessage::Added { added, .. },
-                ..
-            }) if *added > 0
-        )),
+        captured
+            .iter()
+            .any(|event| matches!(
+                event,
+                LogEvent::Stats(StatsLog {
+                    message: StatsMessage::Added { added, .. },
+                    ..
+                }) if *added > 0
+            )),
         "install must report a positive added count; events={captured:#?}",
     );
     assert!(
-        captured.iter().any(|event| matches!(
-            event,
-            LogEvent::Stats(StatsLog { message: StatsMessage::Removed { removed: 0, .. }, .. })
-        )),
+        captured
+            .iter()
+            .any(|event| matches!(
+                event,
+                LogEvent::Stats(StatsLog { message: StatsMessage::Removed { removed: 0, .. }, .. })
+            )),
         "install must report that it removed no packages; events={captured:#?}",
     );
     let importing_done_indices: Vec<_> = captured
@@ -229,8 +236,9 @@ async fn should_install_dependencies() {
     // matching the snapshot key shape `pnpm install` would write
     // to `pnpm-lock.yaml` and the slot the frozen-lockfile
     // path materialises into.
-    let path = project_root
-        .join("node_modules/.pacquet/@pnpm+xyz@1.0.0_@pnpm+x@1.0.0_@pnpm+y@1.0.0_@pnpm+z@1.0.0");
+    let path = project_root.join(
+        "node_modules/.pacquet/@pnpm+xyz@1.0.0_@pnpm+x@1.0.0_@pnpm+y@1.0.0_@pnpm+z@1.0.0",
+    );
     eprintln!("path={path:?} is_dir={}", path.is_dir());
     assert!(path.is_dir());
 
@@ -530,9 +538,14 @@ async fn unversioned_npm_alias_defaults_to_latest() {
     // Virtual-store directory uses the real package name (version resolved
     // at runtime from `latest` — just assert the real name prefix exists).
     let virtual_store_dir_path = dirs.project_root.join("node_modules/.pacquet");
-    let has_real_name_dir =
-        std::fs::read_dir(&virtual_store_dir_path).unwrap().flatten().any(|entry| {
-            entry.file_name().to_string_lossy().starts_with("@pnpm.e2e+hello-world-js-bin@")
+    let has_real_name_dir = std::fs::read_dir(&virtual_store_dir_path)
+        .unwrap()
+        .flatten()
+        .any(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with("@pnpm.e2e+hello-world-js-bin@")
         });
     assert!(has_real_name_dir, "expected real-name virtual store directory");
 
@@ -555,9 +568,10 @@ pub(super) async fn install_writes_modules_yaml() {
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
     config.virtual_store_dir = dirs.virtual_store_dir.clone();
-    config
-        .registries_by_scope
-        .insert("@private".to_string(), "https://private.example.com/npm/".to_string());
+    config.registries_by_scope.insert(
+        "@private".to_string(),
+        "https://private.example.com/npm/".to_string(),
+    );
     let config = config.leak();
 
     // Empty v9 lockfile drives the cheapest successful install path,
@@ -635,8 +649,7 @@ pub(super) async fn install_writes_modules_yaml() {
         virtual_store_dir_max_length,
         package_manager,
         ..
-    } = dirs
-        .modules_dir
+    } = dirs.modules_dir
         .pipe_as_ref(read_modules_manifest::<Host>)
         .expect("read .modules.yaml")
         .expect("modules manifest exists");
@@ -646,7 +659,13 @@ pub(super) async fn install_writes_modules_yaml() {
     assert!(included.dependencies);
     assert!(!included.dev_dependencies);
     assert!(included.optional_dependencies);
-    assert_eq!(emitted_store_dir, dirs.store_dir.join(STORE_VERSION).display().to_string());
+    assert_eq!(
+        emitted_store_dir,
+        dirs.store_dir
+            .join(STORE_VERSION)
+            .display()
+            .to_string(),
+    );
     // `read_modules_manifest` resolves `virtualStoreDir` against
     // `dirs.modules_dir`, so a relative on-disk value round-trips back
     // to the absolute install-time path.
@@ -747,9 +766,9 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
 
     // Both the wrapper and the transitive must reach the virtual store.
     assert!(
-        is_symlink_or_junction(
-            &dirs.project_root.join("node_modules/@pnpm.e2e/has-failing-postinstall-dep"),
-        )
+        is_symlink_or_junction(&dirs.project_root.join(
+            "node_modules/@pnpm.e2e/has-failing-postinstall-dep"
+        ),)
         .unwrap(),
         "wrapper symlink missing",
     );

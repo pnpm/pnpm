@@ -60,7 +60,10 @@ fn write_workspace(workspace: &Path, manifests: &[(&str, Value)]) {
     if !yaml.ends_with('\n') {
         yaml.push('\n');
     }
-    let packages: Vec<String> = manifests.iter().map(|(name, _)| format!("  - '{name}'")).collect();
+    let packages: Vec<String> = manifests
+        .iter()
+        .map(|(name, _)| format!("  - '{name}'"))
+        .collect();
     fs::write(&yaml_path, format!("{yaml}packages:\n{}\n", packages.join("\n")))
         .expect("write pnpm-workspace.yaml");
 
@@ -80,7 +83,10 @@ fn dep_spec(project_dir: &Path, name: &str) -> Option<String> {
 }
 
 fn has_module(project_dir: &Path, name: &str) -> bool {
-    project_dir.join("node_modules").join(name).exists()
+    project_dir
+        .join("node_modules")
+        .join(name)
+        .exists()
 }
 
 /// The names under a project's `node_modules`, with scope directories
@@ -91,9 +97,15 @@ fn list_modules(project_dir: &Path) -> Vec<String> {
         entries
             .filter_map(Result::ok)
             .flat_map(|entry| {
-                let name = entry.file_name().to_string_lossy().into_owned();
+                let name = entry
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned();
                 if name.starts_with('@') {
-                    names(&entry.path()).iter().map(|inner| format!("{name}/{inner}")).collect()
+                    names(&entry.path())
+                        .iter()
+                        .map(|inner| format!("{name}/{inner}"))
+                        .collect()
                 } else {
                     vec![name]
                 }
@@ -110,7 +122,10 @@ fn module_target(project_dir: &Path, name: &str) -> Option<std::path::PathBuf> {
 }
 
 fn installed_version(project_dir: &Path, name: &str) -> Option<String> {
-    let manifest_path = project_dir.join("node_modules").join(name).join("package.json");
+    let manifest_path = project_dir
+        .join("node_modules")
+        .join(name)
+        .join("package.json");
     let contents = fs::read_to_string(manifest_path).ok()?;
     let value: Value = serde_json::from_str(&contents).ok()?;
     value["version"].as_str().map(str::to_string)

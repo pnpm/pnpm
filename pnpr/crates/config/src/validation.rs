@@ -132,8 +132,10 @@ impl RoutingConfig {
                     ),
                 });
             }
-            if let Some((other, _)) =
-                self.hosted.iter().take(index).find(|(_, existing)| existing.org == hosted.org)
+            if let Some((other, _)) = self.hosted
+                .iter()
+                .take(index)
+                .find(|(_, existing)| existing.org == hosted.org)
             {
                 return Err(org_collision_error(name, &hosted.org, other));
             }

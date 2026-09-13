@@ -162,8 +162,10 @@ impl<'c> BuildCandidate<'c> {
     fn of(context: &BuildOneSnapshot<'c>, snapshot_key: &PackageKey) -> Option<Self> {
         let metadata_key = snapshot_key.without_peer();
         let patch = context.graph.patches.and_then(|patches| patches.get(&metadata_key));
-        let requires_build =
-            context.graph.requires_build_map.get(snapshot_key).copied().unwrap_or(false);
+        let requires_build = context.graph.requires_build_map
+            .get(snapshot_key)
+            .copied()
+            .unwrap_or(false);
         if !is_build_candidate(requires_build, patch.is_some()) {
             return None;
         }
@@ -225,7 +227,11 @@ fn reject_frozen_store_build<Reporter: self::Reporter>(
     writes: &FrozenStoreWrites,
 ) -> Result<bool, BuildModulesError> {
     let (name, version) = named;
-    let &FrozenStoreWrites { optional, has_patch, should_run_scripts } = writes;
+    let &FrozenStoreWrites {
+        optional,
+        has_patch,
+        should_run_scripts,
+    } = writes;
     if !context.cache.frozen_store
         || !context.directories.layout.enable_global_virtual_store()
         || !(has_patch || should_run_scripts)
@@ -273,9 +279,11 @@ fn apply_configured_patch(
     patch: Option<&pnpm_patching::ExtendedPatchInfo>,
 ) -> Result<bool, BuildModulesError> {
     let Some(patch) = patch else { return Ok(false) };
-    let patch_file_path = patch.patch_file_path.as_deref().ok_or_else(|| {
-        BuildModulesError::PatchFilePathMissing { dep_path: snapshot_key.to_string() }
-    })?;
+    let patch_file_path = patch.patch_file_path
+        .as_deref()
+        .ok_or_else(|| BuildModulesError::PatchFilePathMissing {
+            dep_path: snapshot_key.to_string(),
+        })?;
     context.progress.slot_mutations.store(true, Ordering::Relaxed);
     for patched_dir in context.pkg_roots().all(snapshot_key) {
         if !patched_dir.exists() {
@@ -469,9 +477,7 @@ fn scripts_are_allowed(
             // same reason. `dep_path` has already lost it, so it is re-derived
             // from the full key.
             let ignored_key = get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string();
-            context
-                .progress
-                .ignored_builds
+            context.progress.ignored_builds
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .insert(ignored_key);

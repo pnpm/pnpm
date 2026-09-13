@@ -184,10 +184,9 @@ impl<'a> MaterializationInputs<'a, '_> {
                 lockfile_dir: self.workspace.workspace_root,
                 supported_architectures: self.execution.supported_architectures,
                 is_full_install: self.install.execution.mutation.is_full_install(),
-                real_ids: self
-                    .workspace
-                    .requested_importer_ids
-                    .map(|_| self.workspace.real_importer_ids),
+                real_ids: self.workspace.requested_importer_ids.map(|_| {
+                    self.workspace.real_importer_ids
+                }),
                 selected_ids: self.workspace.requested_importer_ids,
             },
             execution: crate::install_with_fresh_lockfile::FreshInstallExecution {
@@ -235,8 +234,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                 meta_cache: self.lockfiles.verification.meta_cache,
             },
             projects: crate::install_with_fresh_lockfile::FreshProjectInputs {
-                lockfile_specifier_manifests: self
-                    .workspace
+                lockfile_specifier_manifests: self.workspace
                     .lockfile_specifier_project_manifests
                     .map(|manifests| {
                         lockfile_specifier_manifests_by_id(manifests, self.workspace.workspace_root)
@@ -261,8 +259,9 @@ impl<'a> MaterializationInputs<'a, '_> {
         &mut self,
     ) -> Result<Option<crate::LockfileVerificationGate>, InstallError> {
         Ok(
-            if let Some(lockfile_verification_override) =
-                self.lockfiles.verification_override.take()
+            if let Some(lockfile_verification_override) = self.lockfiles
+                .verification_override
+                .take()
             {
                 lockfile_verification_override.await.map_err(map_frozen_lockfile_error)?;
                 None
@@ -286,7 +285,9 @@ impl<'a> MaterializationInputs<'a, '_> {
         let dependency_groups = std::mem::take(&mut self.workspace.dependency_groups);
         let resolution_verifiers =
             std::mem::take(&mut self.lockfiles.verification.resolution_verifiers);
-        let derived_lockfile_path = self.lockfiles.verification.derived_lockfile_path.take();
+        let derived_lockfile_path = self.lockfiles.verification
+            .derived_lockfile_path
+            .take();
         let site = (self.workspace.workspace_root, self.install.context.config);
         let prior_unbuilt = prior_unbuilt_builds(self.modules.modules_manifest);
         let fresh_result = InstallWithFreshLockfile {

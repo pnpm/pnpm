@@ -29,7 +29,10 @@ pub fn config_dir(
     }
     let home = home()?;
     Some(match os {
-        "macos" => home.join("Library").join("Preferences").join(app_name),
+        "macos" => home
+            .join("Library")
+            .join("Preferences")
+            .join(app_name),
         _ => home.join(".config").join(app_name),
     })
 }
@@ -53,7 +56,12 @@ pub fn state_dir(
         return Some(Path::new(xdg_state_home).join(app_name));
     }
     if os != "windows" {
-        return Some(home()?.join(".local").join("state").join(app_name));
+        return Some(
+            home()?
+                .join(".local")
+                .join("state")
+                .join(app_name),
+        );
     }
     if let Some(local_app_data) = local_app_data.filter(|value| Path::new(value).is_absolute()) {
         return Some(Path::new(local_app_data).join(format!("{app_name}-state")));

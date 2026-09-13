@@ -7,7 +7,10 @@ use super::{
 #[test]
 fn switch_target_uses_global_env_when_lockfile_is_disabled() {
     let root = TempDir::new().expect("tmp dir");
-    let global_pkg_dir = root.path().join("pnpm-home").join("global");
+    let global_pkg_dir = root
+        .path()
+        .join("pnpm-home")
+        .join("global");
     write_dev_engine_manifest(root.path(), "99.0.0");
 
     let target = switch_target(
@@ -190,7 +193,10 @@ fn switch_target_reresolves_when_locked_version_no_longer_satisfies_range() {
 #[test]
 fn switch_target_uses_global_env_for_legacy_package_manager_field() {
     let root = TempDir::new().expect("tmp dir");
-    let global_pkg_dir = root.path().join("pnpm-home").join("global");
+    let global_pkg_dir = root
+        .path()
+        .join("pnpm-home")
+        .join("global");
     write_manifest(root.path(), r#"{"packageManager":"pnpm@9.3.0"}"#);
 
     let target = switch_target(
@@ -222,7 +228,11 @@ fn switch_target_respects_pm_on_fail_ignore() {
     let target = switch_target(
         &Config {
             pm_on_fail: Some(PmOnFail::Ignore),
-            global_pkg_dir: Some(root.path().join("pnpm-home").join("global")),
+            global_pkg_dir: Some(
+                root.path()
+                    .join("pnpm-home")
+                    .join("global"),
+            ),
             ..Config::default()
         },
         &pin_roots(root.path()),
@@ -258,7 +268,10 @@ fn switch_target_refuses_to_record_a_persisting_pin_under_frozen_lockfile() {
 #[test]
 fn switch_target_leaves_the_global_env_writable_under_frozen_lockfile() {
     let root = TempDir::new().expect("tmp dir");
-    let global_pkg_dir = root.path().join("pnpm-home").join("global");
+    let global_pkg_dir = root
+        .path()
+        .join("pnpm-home")
+        .join("global");
     write_manifest(root.path(), r#"{"packageManager":"pnpm@9.3.0"}"#);
 
     let target = switch_target(

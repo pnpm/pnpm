@@ -52,7 +52,10 @@ pub fn link_manifest_link_deps<Reporter: pnpm_reporter::Reporter>(
     // symlinks (which force-replace squatters) land, so it enforces
     // the contract itself rather than trusting every caller.
     let valid_name = matches!(
-        Path::new(modules_dir_name).components().collect::<Vec<_>>().as_slice(),
+        Path::new(modules_dir_name)
+            .components()
+            .collect::<Vec<_>>()
+            .as_slice(),
         [std::path::Component::Normal(_)],
     );
     if !valid_name {
@@ -146,9 +149,11 @@ fn link_manifest_dep<Reporter: pnpm_reporter::Reporter>(
     let symlink_path = safe_join_modules_dir(project.modules_dir, alias)
         .map_err(LinkManifestLinkDepsError::InvalidAlias)?;
     let target_path = resolve_link_target(project.project_dir, target);
-    let outcome = symlink_package(&target_path, &symlink_path).map_err(|source| {
-        LinkManifestLinkDepsError::Symlink { alias: alias.to_string(), source }
-    })?;
+    let outcome = symlink_package(&target_path, &symlink_path)
+        .map_err(|source| LinkManifestLinkDepsError::Symlink {
+            alias: alias.to_string(),
+            source,
+        })?;
     if !outcome.reused {
         // `pnpm:root added`: mirror the lockfile-driven pass's
         // per-dependency emit so manifest-linked deps show up
@@ -190,7 +195,10 @@ fn snapshot_has_alias(snapshot: &ProjectSnapshot, alias: &str) -> bool {
     [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]
         .into_iter()
         .filter_map(|group| snapshot.get_map_by_group(group))
-        .any(|deps| deps.keys().any(|name| name.to_string() == alias))
+        .any(|deps| {
+            deps.keys()
+                .any(|name| name.to_string() == alias)
+        })
 }
 
 /// Resolve a `link:` payload against the project directory. An

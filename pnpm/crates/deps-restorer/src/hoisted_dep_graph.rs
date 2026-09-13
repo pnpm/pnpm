@@ -292,7 +292,11 @@ pub fn lockfile_to_hoisted_dep_graph(
         // consider". Pacquet collapses both absent and empty into
         // `prev_graph: None` so the API contract is unambiguous
         // and the empty case skips the (no-op) second walk.
-        Some(current) if current.packages.as_ref().is_some_and(|packages| !packages.is_empty()) => {
+        Some(current)
+            if current.packages
+                .as_ref()
+                .is_some_and(|packages| !packages.is_empty()) =>
+        {
             let prev_opts = LockfileToHoistedDepGraphOptions {
                 force: true,
                 skipped: BTreeSet::new(),

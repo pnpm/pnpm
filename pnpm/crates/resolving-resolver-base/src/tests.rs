@@ -80,7 +80,10 @@ impl ResolutionVerifier for StubVerifier {
         &self,
         cached_policy: &serde_json::Map<String, serde_json::Value>,
     ) -> bool {
-        cached_policy.get("stub").and_then(serde_json::Value::as_bool).unwrap_or(false)
+        cached_policy
+            .get("stub")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false)
     }
 }
 
@@ -94,9 +97,11 @@ async fn resolution_verifier_dispatches_through_dyn() {
 
     let name: PkgName = "lodash".parse().unwrap();
     let resolution = fake_resolution();
-    let outcome = verifier
-        .verify(&resolution, VerifyCtx { name: &name, version: "4.17.21", registry_name: None })
-        .await;
+    let outcome = verifier.verify(
+        &resolution,
+        VerifyCtx { name: &name, version: "4.17.21", registry_name: None },
+    )
+    .await;
     assert_eq!(
         outcome,
         ResolutionVerification::Err { code: "STUB", reason: "stub fails by design".to_string() },

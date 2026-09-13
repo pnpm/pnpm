@@ -169,8 +169,11 @@ fn later_hash_cleanup_failure_restores_earlier_groups() {
     let first_group =
         fixture.seed_group(GlobalGroupSpec { alias: "first", hash: "first-hash", bin: "first" });
     let groups = vec![first_group.clone(), fixture.group.clone()];
-    let affected_bin_names =
-        fixture.affected_bin_names.iter().cloned().chain(["first".to_string()]).collect();
+    let affected_bin_names = fixture.affected_bin_names
+        .iter()
+        .cloned()
+        .chain(["first".to_string()])
+        .collect();
     let bins_to_keep = HashSet::new();
     let cleanup = fixture.cleanup(&bins_to_keep);
     let transaction = GlobalRemovalTransaction {
@@ -226,7 +229,10 @@ fn latest_update_drops_the_spec_only_of_plain_version_dependencies() {
     );
     assert_eq!(
         update_selectors(&dependencies, false, &HashMap::new()),
-        dependencies.iter().map(|(alias, spec)| format!("{alias}@{spec}")).collect::<Vec<String>>(),
+        dependencies
+            .iter()
+            .map(|(alias, spec)| format!("{alias}@{spec}"))
+            .collect::<Vec<String>>(),
     );
 }
 
@@ -394,7 +400,11 @@ fn ownership_snapshot_preserves_manifest_diagnostic_codes() {
         .expect("cleanup failure reports the remaining artifact")
         .collect::<Vec<_>>();
     assert_eq!(cleanup_reports.len(), 1);
-    assert!(cleanup_reports[0].to_string().contains(&root.path().display().to_string()));
+    assert!(
+        cleanup_reports[0]
+            .to_string()
+            .contains(&root.path().display().to_string()),
+    );
 
     std::fs::create_dir_all(manifest_path.parent().expect("manifest parent"))
         .expect("create dependency directory");
@@ -534,7 +544,12 @@ impl GlobalRemovalFixture {
         let backup_count = fs::read_dir(&self.global_bin_dir)
             .expect("read global bin directory")
             .filter_map(Result::ok)
-            .filter(|entry| entry.file_name().to_string_lossy().starts_with(".pnpm-bin-backup-"))
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(".pnpm-bin-backup-")
+            })
             .count();
         assert_eq!(backup_count, 0);
     }

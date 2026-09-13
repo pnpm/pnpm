@@ -22,7 +22,10 @@ const NEVER_ABANDONED: Duration = Duration::from_mins(1);
 #[test]
 fn acquire_creates_the_lock_and_drop_releases_it() {
     let root = tempdir().expect("create tempdir");
-    let path = root.path().join("nested").join("engine.lock");
+    let path = root
+        .path()
+        .join("nested")
+        .join("engine.lock");
 
     let lock = DirLock::acquire(path.clone(), Duration::ZERO, NEVER_ABANDONED)
         .expect("acquire")

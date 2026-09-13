@@ -12,9 +12,12 @@ pub(crate) fn satisfies_including_prerelease(version: &Version, range: &Range) -
     if version.satisfies(range) {
         return true;
     }
-    range.to_string().split("||").any(|comparators| {
-        comparators.split_whitespace().all(|comparator| comparator_matches(version, comparator))
-    })
+    range
+        .to_string()
+        .split("||")
+        .any(|comparators| {
+            comparators.split_whitespace().all(|comparator| comparator_matches(version, comparator))
+        })
 }
 
 pub(crate) fn comparator_matches(version: &Version, comparator: &str) -> bool {

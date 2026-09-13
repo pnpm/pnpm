@@ -82,7 +82,10 @@ pub(crate) async fn plan<Reporter: self::Reporter + 'static>(
 ) -> Result<InstallTask<'static>> {
     let roots =
         discover_workspace_roots(inventory.manifests(EcosystemManifest::Cargo).await?).await?;
-    let metadata = roots.iter().flat_map(|root| metadata_paths(root)).collect();
+    let metadata = roots
+        .iter()
+        .flat_map(|root| metadata_paths(root))
+        .collect();
     Ok(InstallTask::new(
         metadata,
         prepare::<Reporter>(context, roots, CargoLockfilePolicy::UseExisting),
@@ -98,7 +101,12 @@ pub(crate) async fn prepare<Reporter: self::Reporter + 'static>(
     roots: Vec<PathBuf>,
     lockfile_policy: CargoLockfilePolicy,
 ) -> Result<Vec<Prepared>> {
-    let InstallContext { config, http_client, lockfile_only, frozen_lockfile } = context;
+    let InstallContext {
+        config,
+        http_client,
+        lockfile_only,
+        frozen_lockfile,
+    } = context;
     let mut prepared = stream::iter(roots)
         .map(|root| {
             let http_client = Arc::clone(&http_client);
@@ -301,11 +309,13 @@ fn managed_config(index_url: &str, git_sources: &[GitSource]) -> String {
     };
     if !git_sources.is_empty() {
         let git = GIT_SOURCE_DIRECTORY.join("/");
-        let blocks = git_sources.iter().fold(String::new(), |mut blocks, source| {
-            blocks.push('\n');
-            blocks.push_str(&source.config_block());
-            blocks
-        });
+        let blocks = git_sources
+            .iter()
+            .fold(String::new(), |mut blocks, source| {
+                blocks.push('\n');
+                blocks.push_str(&source.config_block());
+                blocks
+            });
         body = format!("{body}\n[source.{GIT_SOURCE_NAME}]\ndirectory = \"{git}\"\n{blocks}");
     }
     format!("{MANAGED_START}\n{body}{MANAGED_END}")
@@ -327,9 +337,12 @@ async fn prepare_workspace_slots<Reporter: self::Reporter + 'static>(
     let logged_methods = Arc::new(AtomicU8::new(0));
     let store_dir = &config.store_dir;
     if !packages.crates.is_empty() || !packages.git.is_empty() {
-        store_dir.init().into_diagnostic().wrap_err_with(|| {
-            format!("initialize cargo package store at {}", store_dir.display())
-        })?;
+        store_dir
+            .init()
+            .into_diagnostic()
+            .wrap_err_with(|| {
+                format!("initialize cargo package store at {}", store_dir.display())
+            })?;
     }
     let crates = download_crates::<Reporter>(DownloadOptions {
         config,

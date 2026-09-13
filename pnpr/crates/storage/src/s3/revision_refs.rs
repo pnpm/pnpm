@@ -10,7 +10,10 @@ impl S3Store {
         let Some((index, _)) = self.read_revision_ref_index(digest).await? else {
             return Ok(Vec::new());
         };
-        Ok(index.bodies().map(<[u8]>::to_vec).collect())
+        Ok(index
+            .bodies()
+            .map(<[u8]>::to_vec)
+            .collect())
     }
 
     pub async fn write_revision_ref(
@@ -111,14 +114,12 @@ impl S3Store {
         index: &HostedRevisionRefIndex,
         mode: PutMode,
     ) -> Result<bool> {
-        match self
-            .store
-            .put_opts(
-                &self.revision_ref_index_key(digest),
-                PutPayload::from(index.to_bytes()),
-                PutOptions { mode, ..PutOptions::default() },
-            )
-            .await
+        match self.store.put_opts(
+            &self.revision_ref_index_key(digest),
+            PutPayload::from(index.to_bytes()),
+            PutOptions { mode, ..PutOptions::default() },
+        )
+        .await
         {
             Ok(_) => Ok(true),
             Err(

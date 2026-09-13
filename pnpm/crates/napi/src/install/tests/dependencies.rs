@@ -66,8 +66,7 @@ fn peer_issues_options_preserve_shared_engine_options() {
 #[test]
 fn peer_issues_options_disable_auto_install_peers_by_default() {
     assert_eq!(
-        peer_issues_install_options(peer_issues_options())
-            .expect("valid peer issues options")
+        peer_issues_install_options(peer_issues_options()).expect("valid peer issues options")
             .auto_install_peers,
         Some(false),
     );

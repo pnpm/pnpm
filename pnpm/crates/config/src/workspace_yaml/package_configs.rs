@@ -152,7 +152,9 @@ impl PackageConfigsSetting {
                 .flat_map(|mut entry| {
                     let names = std::mem::take(&mut entry.r#match);
                     let config = ProjectConfig::from(entry);
-                    names.into_iter().map(move |name| (name, config.clone()))
+                    names
+                        .into_iter()
+                        .map(move |name| (name, config.clone()))
                 })
                 .collect(),
         }

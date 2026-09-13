@@ -170,18 +170,21 @@ impl PatchCommitArgs {
                 .unwrap_or("patches"),
         );
         let patches_dir = workspace_dir.join(path_from_forward_slash(&patches_dir_name));
-        fs::create_dir_all(&patches_dir).map_err(|source| PatchCommitError::CreatePatchesDir {
-            path: patches_dir.clone(),
-            source,
-        })?;
+        fs::create_dir_all(&patches_dir)
+            .map_err(|source| PatchCommitError::CreatePatchesDir {
+                path: patches_dir.clone(),
+                source,
+            })?;
         let patch_file_context = PatchFileWriteContext::new(&workspace_dir, &patches_dir_name)?;
 
         let patch_key = if apply_to_all { name.to_string() } else { format!("{name}@{version}") };
         let patch_file_name = format!("{}.patch", patch_key.replace('/', "__"));
         let patch_file_path = patch_file_context.patch_file_path(&patch_file_name)?;
-        write_patch_file_atomically(&patch_file_path, patch_content.as_bytes()).map_err(
-            |source| PatchCommitError::WritePatch { path: patch_file_path.clone(), source },
-        )?;
+        write_patch_file_atomically(&patch_file_path, patch_content.as_bytes())
+            .map_err(|source| PatchCommitError::WritePatch {
+                path: patch_file_path.clone(),
+                source,
+            })?;
 
         let mut patched_dependencies =
             state.config.patched_dependencies.clone().unwrap_or_default();
@@ -234,15 +237,7 @@ async fn diff_against_clean<Reporter: self::Reporter + 'static>(
         }
     })?;
 
-    let filtered = match prepare_pkg_files_for_diff(patch_dir) {
-        Ok(filtered) => filtered,
-        Err(source) => {
-            remove_dir_if_exists(&clean_dir).map_err(|cleanup_source| {
-                PatchCommitError::CleanupTempDir { path: clean_dir.clone(), source: cleanup_source }
-            })?;
-            return Err(PatchCommitError::PatchCommit(source));
-        }
-    };
+    let filtered = prepare_diff_files(patch_dir, &clean_dir)?;
     let filtered_path = match &filtered {
         PkgFilesForDiff::Original(path) | PkgFilesForDiff::Temporary(path) => path,
     };
@@ -255,6 +250,23 @@ async fn diff_against_clean<Reporter: self::Reporter + 'static>(
     };
     cleanup_after_diff(&clean_dir, &filtered)?;
     Ok(patch_content)
+}
+
+fn prepare_diff_files(
+    patch_dir: &Path,
+    clean_dir: &Path,
+) -> Result<PkgFilesForDiff, PatchCommitError> {
+    match prepare_pkg_files_for_diff(patch_dir) {
+        Ok(filtered) => Ok(filtered),
+        Err(source) => {
+            remove_dir_if_exists(clean_dir)
+                .map_err(|cleanup_source| PatchCommitError::CleanupTempDir {
+                    path: clean_dir.to_path_buf(),
+                    source: cleanup_source,
+                })?;
+            Err(PatchCommitError::PatchCommit(source))
+        }
+    }
 }
 
 fn manifest_string(

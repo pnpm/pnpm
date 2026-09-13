@@ -164,8 +164,9 @@ impl Manifest {
 
         let top: Option<IndexMap<String, serde::de::IgnoredAny>> =
             serde_saphyr::from_str(&text).map_err(Box::new)?;
-        let top_level_keys: Vec<String> =
-            top.map(|map| map.into_keys().collect()).unwrap_or_default();
+        let top_level_keys: Vec<String> = top
+            .map(|map| map.into_keys().collect())
+            .unwrap_or_default();
         let blank_line_style = crate::edit::uses_blank_line_style(&text, &top_level_keys);
 
         let data: CatalogData = serde_saphyr::from_str(&text).map_err(Box::new)?;

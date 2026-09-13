@@ -244,7 +244,10 @@ fn fresh_import_places_marker_and_leaks_no_temp() {
     for entry in walkdir::WalkDir::new(&target) {
         let path = entry.unwrap().into_path();
         assert!(
-            !path.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.contains("pacquet-stage")),
+            !path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.contains("pacquet-stage")),
             "marker staging temp leaked at {path:?}",
         );
     }
@@ -274,7 +277,10 @@ fn marker_only_map_creates_target_and_places_marker() {
     for entry in walkdir::WalkDir::new(&target) {
         let path = entry.unwrap().into_path();
         assert!(
-            !path.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.contains("pacquet-stage")),
+            !path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.contains("pacquet-stage")),
             "marker staging temp leaked at {path:?}",
         );
     }

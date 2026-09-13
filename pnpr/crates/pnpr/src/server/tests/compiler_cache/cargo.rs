@@ -20,7 +20,14 @@ impl CompilerSession {
         let port = listener.local_addr().unwrap().port();
         drop(listener);
         let session = Self { directory, port, endpoint, readonly };
-        successful(session.command("sccache").arg("--start-server").output().await.unwrap());
+        successful(
+            session
+                .command("sccache")
+                .arg("--start-server")
+                .output()
+                .await
+                .unwrap(),
+        );
         session
     }
 
@@ -89,7 +96,12 @@ impl CompilerSession {
 
 impl Drop for CompilerSession {
     fn drop(&mut self) {
-        if let Err(error) = self.command("sccache").into_std().arg("--stop-server").output() {
+        if let Err(error) = self
+            .command("sccache")
+            .into_std()
+            .arg("--stop-server")
+            .output()
+        {
             eprintln!("could not stop test sccache server: {error}");
         }
     }

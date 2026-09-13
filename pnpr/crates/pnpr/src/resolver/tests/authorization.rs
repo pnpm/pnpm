@@ -21,10 +21,10 @@ fn private_cached_resolution_requires_current_alias_authorization() {
     ));
 
     let mut config = registry_config();
-    config
-        .routing
-        .upstreams
-        .insert("corp".to_string(), upstream_with_access("https://npm.corp.example/", "alice"));
+    config.routing.upstreams.insert(
+        "corp".to_string(),
+        upstream_with_access("https://npm.corp.example/", "alice"),
+    );
     let context = RouteContext::from_config(&config);
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_some(),
@@ -94,19 +94,19 @@ fn revoked_alias_access_stops_matching_private_resolution_hits() {
     ));
 
     let mut config = registry_config();
-    config
-        .routing
-        .upstreams
-        .insert("corp".to_string(), upstream_with_access("https://npm.corp.example/", "alice"));
+    config.routing.upstreams.insert(
+        "corp".to_string(),
+        upstream_with_access("https://npm.corp.example/", "alice"),
+    );
     let context = RouteContext::from_config(&config);
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_some(),
     );
 
-    config
-        .routing
-        .upstreams
-        .insert("corp".to_string(), upstream_with_access("https://npm.corp.example/", "bob"));
+    config.routing.upstreams.insert(
+        "corp".to_string(),
+        upstream_with_access("https://npm.corp.example/", "bob"),
+    );
     let context = RouteContext::from_config(&config);
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_none(),

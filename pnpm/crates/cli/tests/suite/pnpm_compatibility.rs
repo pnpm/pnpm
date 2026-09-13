@@ -17,8 +17,14 @@ use std::fs;
 #[test]
 #[ignore = "requires metadata cache feature which pacquet doesn't yet have"]
 fn store_usable_by_pnpm_offline() {
-    let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        pnpm,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     eprintln!("Creating package.json...");
@@ -31,19 +37,29 @@ fn store_usable_by_pnpm_offline() {
     fs::write(manifest_path, package_json_content.to_string()).expect("write to package.json");
 
     eprintln!("Using pacquet to populate the store...");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     fs::remove_dir_all(workspace.join("node_modules")).expect("delete node_modules");
 
     eprintln!("pnpm install --offline --ignore-scripts");
-    pnpm.with_args(["install", "--offline", "--ignore-scripts"]).assert().success();
+    pnpm.with_args(["install", "--offline", "--ignore-scripts"])
+        .assert()
+        .success();
 
     drop((root, mock_instance));
 }
 
 #[test]
 fn same_file_structure() {
-    let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        pnpm,
+        root,
+        workspace,
+        npmrc_info,
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
     let modules_dir = workspace.join("node_modules");
@@ -97,13 +113,18 @@ fn same_file_structure() {
     };
 
     eprintln!("Installing with pacquet...");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     let pacquet_store_files = normalize(get_all_files(&store_dir));
 
     cleanup();
 
     eprintln!("Installing with pnpm...");
-    pnpm.with_args(["install", "--ignore-scripts"]).assert().success();
+    pnpm.with_args(["install", "--ignore-scripts"])
+        .assert()
+        .success();
     let pnpm_store_files = normalize(get_all_files(&store_dir));
 
     cleanup();
@@ -123,8 +144,13 @@ fn same_file_structure() {
 // from msgpackr's, but the post-decode structs compare equal.
 #[test]
 fn same_index_file_contents() {
-    let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        pnpm,
+        root,
+        workspace,
+        npmrc_info,
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
     let modules_dir = workspace.join("node_modules");
@@ -149,7 +175,10 @@ fn same_index_file_contents() {
     fs::write(manifest_path, package_json_content.to_string()).expect("write to package.json");
 
     eprintln!("Installing with pacquet...");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     let pacquet_index_file_contents = store_dir
         .pipe_as_ref(index_file_contents)
         .pipe(serde_json::to_value)
@@ -158,7 +187,9 @@ fn same_index_file_contents() {
     cleanup();
 
     eprintln!("Installing with pnpm...");
-    pnpm.with_args(["install", "--ignore-scripts"]).assert().success();
+    pnpm.with_args(["install", "--ignore-scripts"])
+        .assert()
+        .success();
     let pnpm_index_file_contents = store_dir
         .pipe_as_ref(index_file_contents)
         .pipe(serde_json::to_value)
@@ -195,8 +226,13 @@ fn same_index_file_contents() {
 // rows.
 #[test]
 fn pnpm_reads_pacquet_written_rows() {
-    let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        pnpm,
+        root,
+        workspace,
+        npmrc_info,
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     eprintln!("Creating package.json...");
@@ -209,13 +245,18 @@ fn pnpm_reads_pacquet_written_rows() {
     fs::write(manifest_path, package_json_content.to_string()).expect("write to package.json");
 
     eprintln!("pacquet install (populates store with msgpackr records)...");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     eprintln!("Removing node_modules; store is kept so pnpm has to read pacquet's rows...");
     fs::remove_dir_all(workspace.join("node_modules")).expect("delete node_modules");
 
     eprintln!("pnpm install --ignore-scripts (reads pacquet's index.db rows)...");
-    pnpm.with_args(["install", "--ignore-scripts"]).assert().success();
+    pnpm.with_args(["install", "--ignore-scripts"])
+        .assert()
+        .success();
 
     drop((root, mock_instance));
 }
@@ -262,7 +303,9 @@ fn install_then_compare_gvs(
     let mut pnpm_args = vec!["install"];
     pnpm_args.extend_from_slice(pnpm_extra_args);
     eprintln!("Installing with pnpm (writes lockfile + pnpm-side GVS slots)...");
-    pnpm.with_args(pnpm_args).assert().success();
+    pnpm.with_args(pnpm_args)
+        .assert()
+        .success();
     let pnpm_gvs_paths = gvs_paths_only(get_all_files(store_dir));
     assert!(
         !pnpm_gvs_paths.is_empty(),
@@ -274,7 +317,10 @@ fn install_then_compare_gvs(
     fs::remove_dir_all(modules_dir).expect("delete node_modules");
 
     eprintln!("Installing with pacquet --frozen-lockfile (writes pacquet-side GVS slots)...");
-    pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
     let pacquet_gvs_paths = gvs_paths_only(get_all_files(store_dir));
 
     eprintln!("Comparing GVS layouts (pnpm on the right, pacquet on the left)...");
@@ -289,8 +335,13 @@ fn install_then_compare_gvs(
 /// Node.js / OS / arch the test runs on.
 #[test]
 fn same_global_virtual_store_layout_pure_js() {
-    let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        pnpm,
+        root,
+        workspace,
+        npmrc_info,
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
     enable_gvs_in_workspace_yaml(&workspace, "");
@@ -352,8 +403,13 @@ fn same_global_virtual_store_layout_pure_js() {
 #[test]
 #[ignore = "depends on a published pnpm version that includes commit 8f05529c11; see test doc comment"]
 fn same_global_virtual_store_layout_with_approved_postinstall() {
-    let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        pnpm,
+        root,
+        workspace,
+        npmrc_info,
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
     enable_gvs_in_workspace_yaml(
@@ -397,8 +453,13 @@ fn same_global_virtual_store_layout_with_approved_postinstall() {
 /// install pipeline.
 #[test]
 fn same_global_virtual_store_layout_diamond() {
-    let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        pnpm,
+        root,
+        workspace,
+        npmrc_info,
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
     enable_gvs_in_workspace_yaml(&workspace, "");

@@ -429,8 +429,11 @@ fn group_slots_by_dir_collapses_hash_equal_peer_variants() {
 
     assert_eq!(groups.len(), 1, "hash-equal variants must share one link task");
     assert_eq!(groups[0].duplicates.len(), 1);
-    let mut merged: Vec<String> =
-        groups[0].removed_aliases().iter().map(PkgName::to_string).collect();
+    let mut merged: Vec<String> = groups[0]
+        .removed_aliases()
+        .iter()
+        .map(PkgName::to_string)
+        .collect();
     merged.sort();
     assert_eq!(
         merged,

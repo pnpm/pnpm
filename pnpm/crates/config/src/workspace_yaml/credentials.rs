@@ -16,8 +16,12 @@ pub(super) fn registry_url_has_userinfo(url: &str) -> bool {
 fn userinfo_end(url: &str) -> Option<usize> {
     let authority_start = authority_start_of(url)?;
     let authority = &url[authority_start..];
-    let authority_end = authority.find(['/', '?', '#']).unwrap_or(authority.len());
-    authority[..authority_end].rfind('@').map(|at| authority_start + at + 1)
+    let authority_end = authority
+        .find(['/', '?', '#'])
+        .unwrap_or(authority.len());
+    authority[..authority_end]
+        .rfind('@')
+        .map(|at| authority_start + at + 1)
 }
 
 /// Where the authority of `url` begins, or [`None`] if it has none.

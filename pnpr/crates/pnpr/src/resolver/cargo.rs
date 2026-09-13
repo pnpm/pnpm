@@ -99,8 +99,7 @@ pub(super) async fn handle_resolve(
         Ok(request) => request,
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
     };
-    let registry = request
-        .registry
+    let registry = request.registry
         .as_deref()
         .unwrap_or(pnpm_cargo_resolver::CRATES_IO_SPARSE_INDEX)
         .trim_end_matches('/')
@@ -279,8 +278,7 @@ impl IndexFetcher {
         url: &str,
         auth: &AuthHeaders,
     ) -> Result<String, String> {
-        let response = self
-            .client
+        let response = self.client
             .get_limited_bytes_with_secure_auth_and_retry(
                 url,
                 auth,
@@ -321,10 +319,11 @@ impl IndexFetcher {
     /// route policy for the caller, with the crate bound in so the
     /// package-blind fetch helpers still classify by it.
     fn auth_for(&self, canonical_name: &str) -> AuthHeaders {
-        AuthHeaders::default().with_route_hook(Arc::new(PackageRoute::new(
-            Arc::clone(&self.hook),
-            canonical_name.to_string(),
-        )))
+        AuthHeaders::default()
+            .with_route_hook(Arc::new(PackageRoute::new(
+                Arc::clone(&self.hook),
+                canonical_name.to_string(),
+            )))
     }
 
     /// Where `url`'s index file is cached. The route scope keys the
@@ -343,7 +342,9 @@ impl IndexFetcher {
     /// truth and refetching is always correct.
     async fn cached(&self, path: &Path) -> Option<String> {
         let metadata = tokio::fs::metadata(path).await.ok()?;
-        let age = SystemTime::now().duration_since(metadata.modified().ok()?).ok()?;
+        let age = SystemTime::now()
+            .duration_since(metadata.modified().ok()?)
+            .ok()?;
         if age >= self.ttl {
             return None;
         }

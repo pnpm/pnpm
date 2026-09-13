@@ -303,8 +303,9 @@ impl OutdatedArgs {
         state: State,
     ) -> miette::Result<OutdatedOutcome> {
         let config = state.config;
-        let workspace_root =
-            config.workspace_dir.clone().unwrap_or_else(|| state.lockfile_dir().to_path_buf());
+        let workspace_root = config.workspace_dir
+            .clone()
+            .unwrap_or_else(|| state.lockfile_dir().to_path_buf());
         let (projects, _) = discover_workspace_projects(&workspace_root, config)?;
         let selection = select_recursive_projects(
             &projects,
@@ -368,12 +369,14 @@ impl OutdatedArgs {
     /// treating each install dir's `package.json` as a project, and report
     /// the aggregate.
     pub async fn run_global(self, config: &'static Config) -> miette::Result<OutdatedOutcome> {
-        let global_pkg_dir = config.global_pkg_dir.clone().ok_or_else(|| {
-            miette::miette!(
-                code = "ERR_PNPM_NO_GLOBAL_BIN_DIR",
-                "Unable to find the global packages directory"
-            )
-        })?;
+        let global_pkg_dir = config.global_pkg_dir
+            .clone()
+            .ok_or_else(|| {
+                miette::miette!(
+                    code = "ERR_PNPM_NO_GLOBAL_BIN_DIR",
+                    "Unable to find the global packages directory"
+                )
+            })?;
         let config = isolated_global_config(config);
         let filters = OutdatedFilters::new(&self, config, &self.packages);
         let query = filters.query(self.target_version());

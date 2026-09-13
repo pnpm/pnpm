@@ -11,7 +11,9 @@ struct DropProbe {
 
 impl Drop for DropProbe {
     fn drop(&mut self) {
-        self.dropped_on.send(thread::current().id()).expect("report the dropping thread");
+        self.dropped_on
+            .send(thread::current().id())
+            .expect("report the dropping thread");
     }
 }
 

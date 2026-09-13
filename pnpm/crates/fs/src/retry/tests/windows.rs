@@ -47,7 +47,11 @@ fn readonly_destination_rename_fails_promptly() {
 }
 
 fn icacls(path: &Path, arguments: &[&str]) {
-    let output = Command::new("icacls").arg(path).args(arguments).output().unwrap();
+    let output = Command::new("icacls")
+        .arg(path)
+        .args(arguments)
+        .output()
+        .unwrap();
     eprintln!("icacls {path:?} {arguments:?}: {output:?}");
     assert!(output.status.success(), "icacls failed: {output:?}");
 }
@@ -103,7 +107,11 @@ fn directory_rename_recovers_after_a_child_handle_closes() {
     fs::create_dir(&source).unwrap();
     let child = source.join("child");
     fs::write(&child, "preserved").unwrap();
-    let handle = fs::OpenOptions::new().read(true).share_mode(0x1 | 0x2).open(&child).unwrap();
+    let handle = fs::OpenOptions::new()
+        .read(true)
+        .share_mode(0x1 | 0x2)
+        .open(&child)
+        .unwrap();
     assert_eq!(fs::rename(&source, &destination).unwrap_err().raw_os_error(), Some(5));
 
     std::thread::scope(|scope| {

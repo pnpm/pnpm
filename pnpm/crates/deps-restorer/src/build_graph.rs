@@ -54,7 +54,10 @@ pub fn build_graph(
             let edges = children
                 .get(key)
                 .map(|cs| {
-                    cs.iter().filter(|child| nodes_to_build_set.contains(child)).cloned().collect()
+                    cs.iter()
+                        .filter(|child| nodes_to_build_set.contains(child))
+                        .cloned()
+                        .collect()
                 })
                 .unwrap_or_default();
             (key.clone(), edges)
@@ -175,7 +178,10 @@ fn get_subgraph_to_build(
         }
         walked.insert(dep_path.clone());
 
-        let child_paths = ctx.children.get(dep_path).cloned().unwrap_or_default();
+        let child_paths = ctx.children
+            .get(dep_path)
+            .cloned()
+            .unwrap_or_default();
         let child_should_be_built =
             get_subgraph_to_build(&child_paths, ctx, nodes_to_build_set, nodes_to_build, walked);
 
@@ -216,7 +222,10 @@ fn enters_build_graph(
 }
 
 fn node_builds(dep_path: &PackageKey, ctx: &GetSubgraphCtx<'_>) -> bool {
-    ctx.requires_build.get(dep_path).copied().unwrap_or(false)
+    ctx.requires_build
+        .get(dep_path)
+        .copied()
+        .unwrap_or(false)
         || ctx.patches.is_some_and(|patches| patches.contains_key(&dep_path.without_peer()))
 }
 

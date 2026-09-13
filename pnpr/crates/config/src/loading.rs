@@ -29,18 +29,18 @@ impl Config {
         public_url: Option<String>,
         overrides: FeatureOverrides,
     ) -> std::io::Result<Self> {
-        let raw = std::fs::read_to_string(path).map_err(|err| {
-            std::io::Error::new(err.kind(), format!("read {}: {err}", path.display()))
-        })?;
+        let raw = std::fs::read_to_string(path)
+            .map_err(|err| {
+                std::io::Error::new(err.kind(), format!("read {}: {err}", path.display()))
+            })?;
         let base = path.parent().unwrap_or_else(|| Path::new("."));
-        Self::from_yaml_str_with_overrides(&raw, base, listen, public_url, overrides).map_err(
-            |err| {
+        Self::from_yaml_str_with_overrides(&raw, base, listen, public_url, overrides)
+            .map_err(|err| {
                 std::io::Error::new(
                     std::io::ErrorKind::InvalidData,
                     format!("parse {}: {err}", path.display()),
                 )
-            },
-        )
+            })
     }
 
     /// Parse [`DEFAULT_CONFIG_YAML`] (the verdaccio-shaped YAML
@@ -154,11 +154,11 @@ impl Config {
         let config =
             Self::from_default_yaml_with_overrides(Path::new("."), listen, public_url, overrides)
                 .map_err(|err| {
-                std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    format!("parse bundled config: {err}"),
-                )
-            })?;
+                    std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        format!("parse bundled config: {err}"),
+                    )
+                })?;
         Ok((config, ConfigSource::Bundled))
     }
 

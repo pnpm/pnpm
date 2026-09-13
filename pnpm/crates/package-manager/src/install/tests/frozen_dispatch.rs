@@ -753,7 +753,10 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -803,7 +806,10 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
         hoist_pattern: config.hoist_pattern.clone(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         store_dir: config.store_dir.display().to_string(),
-        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir: config
+            .effective_virtual_store_dir()
+            .to_string_lossy()
+            .into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
         ..Default::default()
     };
@@ -882,20 +888,26 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
 
     let captured = EVENTS.lock().unwrap();
     assert!(
-        captured.iter().any(|event| matches!(
-            event,
-            LogEvent::Pnpm(log)
-                if log.message == "Lockfile is up to date, resolution step is skipped"
-        )),
+        captured
+            .iter()
+            .any(|event| matches!(
+                event,
+                LogEvent::Pnpm(log)
+                    if log.message == "Lockfile is up to date, resolution step is skipped"
+            )),
         r#"the `name: "pnpm"` up-to-date log must be emitted when the install short-circuits"#,
     );
 
     assert!(
-        captured.iter().any(|e| matches!(e, LogEvent::Stage(s) if s.stage == Stage::ImportingDone)),
+        captured
+            .iter()
+            .any(|e| matches!(e, LogEvent::Stage(s) if s.stage == Stage::ImportingDone)),
         "ImportingDone must close the importing bracket on the fast path",
     );
     assert!(
-        captured.iter().any(|e| matches!(e, LogEvent::Summary(_))),
+        captured
+            .iter()
+            .any(|e| matches!(e, LogEvent::Summary(_))),
         "Summary must fire so `pnpm:root` history renders even on the fast path",
     );
 

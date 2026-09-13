@@ -42,17 +42,26 @@ fn global_shims_all_prefers_local_bins() {
     fs::set_permissions(global_bin.join("pnpm"), fs::Permissions::from_mode(0o755)).unwrap();
 
     let project = root.path().join("project");
-    let local_script =
-        project.join("node_modules").join("@foo").join("touch-file-one-bin").join("cli.sh");
+    let local_script = project
+        .join("node_modules")
+        .join("@foo")
+        .join("touch-file-one-bin")
+        .join("cli.sh");
     fs::create_dir_all(local_script.parent().unwrap()).unwrap();
     fs::write(
-        local_script.parent().unwrap().join("package.json"),
+        local_script
+            .parent()
+            .unwrap()
+            .join("package.json"),
         serde_json::json!({ "name": "@foo/touch-file-one-bin", "version": "1.0.0" }).to_string(),
     )
     .unwrap();
     fs::write(&local_script, "#!/bin/sh\necho local\n").unwrap();
     fs::set_permissions(&local_script, fs::Permissions::from_mode(0o755)).unwrap();
-    let local_bin = project.join("node_modules").join(".bin").join("touch-file-one-bin");
+    let local_bin = project
+        .join("node_modules")
+        .join(".bin")
+        .join("touch-file-one-bin");
     fs::create_dir_all(local_bin.parent().unwrap()).unwrap();
     std::os::unix::fs::symlink("../@foo/touch-file-one-bin/cli.sh", &local_bin).unwrap();
 
@@ -305,7 +314,12 @@ fn global_shims_auto_writes_direct_shims_for_ordinary_packages() {
     let shim = fs::read_to_string(pnpm_home.join("bin").join("touch-file-one-bin"))
         .expect("read the generated global shim");
     assert!(!shim.contains("--shim"), "shim should exec directly, was:\n{shim}");
-    assert!(!pnpm_home.join("bin").join(".pnpm-shim-v1-touch-file-one-bin-target").exists());
+    assert!(
+        !pnpm_home
+            .join("bin")
+            .join(".pnpm-shim-v1-touch-file-one-bin-target")
+            .exists(),
+    );
 
     drop(npmrc_info);
     drop(root);

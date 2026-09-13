@@ -49,8 +49,10 @@ pub fn check_deps_status_before_run_at(
         GateManifest::NoManifest => return None,
         GateManifest::Unreadable => return cannot_check_deps(),
     };
-    let Ok(workspace_manifest) =
-        workspace_dir_opt.as_deref().map(pnpm_workspace::read_workspace_manifest).transpose()
+    let Ok(workspace_manifest) = workspace_dir_opt
+        .as_deref()
+        .map(pnpm_workspace::read_workspace_manifest)
+        .transpose()
     else {
         return cannot_check_deps();
     };

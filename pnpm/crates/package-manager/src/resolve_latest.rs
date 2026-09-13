@@ -82,7 +82,10 @@ impl<'a> LatestPicker<'a> {
             policy,
             meta_cache,
             fetch_locker,
-            registries: config.resolved_registries().into_iter().collect(),
+            registries: config
+                .resolved_registries()
+                .into_iter()
+                .collect(),
         }
     }
 
@@ -150,8 +153,7 @@ impl<'a> LatestPicker<'a> {
             &self.fetch_locker,
         );
 
-        let pick = pick_package(&ctx, &spec, &opts)
-            .await
+        let pick = pick_package(&ctx, &spec, &opts).await
             .map_err(|error| ResolveLatestError::Pick(Box::new(error)))?;
         if let Some(picked) = pick.picked_package {
             return Ok(picked);

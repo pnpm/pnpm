@@ -132,8 +132,9 @@ fn importer_store_index_keys(
     if !request_matches_dependency(alias, requested_bare, dependency, &metadata_key.to_string()) {
         return Vec::new();
     }
-    let Some(metadata) =
-        lockfile.packages.as_ref().and_then(|packages| packages.get(&metadata_key))
+    let Some(metadata) = lockfile.packages
+        .as_ref()
+        .and_then(|packages| packages.get(&metadata_key))
     else {
         return Vec::new();
     };
@@ -163,7 +164,9 @@ fn find_dependency<'a>(
     [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
         .into_iter()
         .find_map(|dependencies| {
-            dependencies.as_ref().and_then(|dependencies| dependencies.get(alias))
+            dependencies
+                .as_ref()
+                .and_then(|dependencies| dependencies.get(alias))
         })
 }
 
@@ -182,8 +185,7 @@ fn metadata_store_index_keys(pkg_id: &str, metadata: &PackageMetadata) -> Vec<St
         LockfileResolution::Tarball(resolution) if resolution.is_git_hosted() => {
             git_store_index_keys(pkg_id)
         }
-        LockfileResolution::Tarball(resolution) => resolution
-            .integrity
+        LockfileResolution::Tarball(resolution) => resolution.integrity
             .as_ref()
             .map(|integrity| vec![store_index_key(&integrity.to_string(), pkg_id)])
             .unwrap_or_default(),
@@ -217,9 +219,13 @@ fn fallback_pkg_ids(alias: &str, requested_bare: Option<&str>) -> Vec<String> {
 }
 
 fn npm_alias_pkg_id(target: &str) -> Option<String> {
-    let at_index = target.bytes().enumerate().rev().find_map(|(idx, byte)| {
-        (byte == b'@' && idx > usize::from(target.starts_with('@'))).then_some(idx)
-    })?;
+    let at_index = target
+        .bytes()
+        .enumerate()
+        .rev()
+        .find_map(|(idx, byte)| {
+            (byte == b'@' && idx > usize::from(target.starts_with('@'))).then_some(idx)
+        })?;
     let mut pkg_id = target[..at_index].to_string();
     pkg_id.push('@');
     pkg_id.push_str(&target[at_index + 1..]);

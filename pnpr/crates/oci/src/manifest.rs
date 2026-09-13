@@ -108,15 +108,18 @@ impl Manifest {
     /// has no fallback artifact type.
     #[must_use]
     pub fn artifact_type(&self) -> Option<&str> {
-        self.artifact_type.as_deref().filter(|value| !value.is_empty()).or_else(|| {
-            if media_type::is_index(self.media_type()) {
-                return None;
-            }
-            self.config
-                .as_ref()
-                .and_then(|config| config.media_type.as_deref())
-                .filter(|value| !value.is_empty())
-        })
+        self.artifact_type
+            .as_deref()
+            .filter(|value| !value.is_empty())
+            .or_else(|| {
+                if media_type::is_index(self.media_type()) {
+                    return None;
+                }
+                self.config
+                    .as_ref()
+                    .and_then(|config| config.media_type.as_deref())
+                    .filter(|value| !value.is_empty())
+            })
     }
 
     #[must_use]
@@ -129,6 +132,9 @@ impl Manifest {
     /// config and layers. A `subject` is deliberately absent, because the
     /// spec lets a referrer name one the registry does not hold.
     pub fn references(&self) -> impl Iterator<Item = &Descriptor> {
-        self.manifests.iter().chain(self.config.iter()).chain(self.layers.iter())
+        self.manifests
+            .iter()
+            .chain(self.config.iter())
+            .chain(self.layers.iter())
     }
 }

@@ -199,7 +199,10 @@ where
     // The size pass must run before `postpack`, which may delete
     // prepack-generated files that were packed. See pnpm/pnpm#12775.
     let unpacked_size = unpacked_size::<Sys>(&files_map, manifest_json.len() as u64)?
-        + opts.output.injected_files.iter().map(|(_, bytes)| bytes.len() as u64).sum::<u64>();
+        + opts.output.injected_files
+            .iter()
+            .map(|(_, bytes)| bytes.len() as u64)
+            .sum::<u64>();
     let contents = packed_contents_with_injected(&files_map, &opts.output.injected_files);
 
     if !opts.output.dry_run {
@@ -381,9 +384,13 @@ fn published_identity(
     publish_manifest: &mut Value,
     name: &str,
 ) -> Result<(String, String), PackError> {
-    let published_version =
-        strip_build_metadata(publish_manifest.get("version").and_then(Value::as_str).unwrap_or(""))
-            .to_string();
+    let published_version = strip_build_metadata(
+        publish_manifest
+            .get("version")
+            .and_then(Value::as_str)
+            .unwrap_or(""),
+    )
+    .to_string();
     if let Some(object) = publish_manifest.as_object_mut() {
         object.insert("version".to_string(), Value::String(published_version.clone()));
     }
@@ -404,7 +411,10 @@ fn published_identity(
 /// [`create_exportable_manifest`]), which is why it is filled in on the returned manifest here
 /// rather than in the packed one.
 fn with_registry_readme(mut manifest: Value, dir: &Path) -> Result<Value, PackError> {
-    if manifest.get("readme").is_some_and(|readme| !readme.is_null()) {
+    if manifest
+        .get("readme")
+        .is_some_and(|readme| !readme.is_null())
+    {
         return Ok(manifest);
     }
     let readme = read_readme_file(dir)

@@ -210,8 +210,10 @@ async fn frozen_lockfile_under_gvs_registers_workspace_root_only() {
         projects_dir.is_dir(),
         "GVS-on workspace install must create <store_dir>/v11/projects/",
     );
-    let entries: Vec<_> =
-        std::fs::read_dir(&projects_dir).unwrap().collect::<Result<_, _>>().unwrap();
+    let entries: Vec<_> = std::fs::read_dir(&projects_dir)
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
     assert_eq!(
         entries.len(),
         1,
@@ -265,7 +267,10 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
         store_dir: dirs.store_dir.display().to_string(),
         virtual_store_dir: dirs.virtual_store_dir.to_string_lossy().into_owned(),
         virtual_store_dir_max_length: DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH,
-        skipped: seeded_keys.iter().map(|s| (*s).to_string()).collect(),
+        skipped: seeded_keys
+            .iter()
+            .map(|s| (*s).to_string())
+            .collect(),
         ..Default::default()
     };
     write_modules_manifest::<Host>(&dirs.modules_dir, seed_modules).expect("seed .modules.yaml");
@@ -333,8 +338,7 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
     .await
     .expect("frozen-lockfile install should succeed");
 
-    let written = dirs
-        .modules_dir
+    let written = dirs.modules_dir
         .pipe_as_ref(read_modules_manifest::<Host>)
         .expect("read .modules.yaml")
         .expect("modules manifest exists");
@@ -346,7 +350,10 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
     assert_eq!(written.skipped.len(), 2, "both seeded entries must survive");
     assert!(written.skipped.contains(&"previously-skipped@1.0.0".to_string()));
     assert!(written.skipped.contains(&"@scope/also-skipped@2.3.4".to_string()));
-    let sorted: Vec<&str> = written.skipped.iter().map(String::as_str).collect();
+    let sorted: Vec<&str> = written.skipped
+        .iter()
+        .map(String::as_str)
+        .collect();
     assert_eq!(
         sorted,
         ["@scope/also-skipped@2.3.4", "previously-skipped@1.0.0"],
@@ -488,8 +495,7 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
     // `.modules.yaml.skipped`. The silent catch site never updates
     // `opts.skipped`, so a future install retries the fetch (in case
     // the URL becomes reachable again).
-    let written = dirs
-        .modules_dir
+    let written = dirs.modules_dir
         .pipe_as_ref(read_modules_manifest::<Host>)
         .expect("read .modules.yaml")
         .expect("modules manifest exists");
@@ -730,8 +736,7 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
 
     // Transient — must not bleed into the persistent
     // `.modules.yaml.skipped` set.
-    let written = dirs
-        .modules_dir
+    let written = dirs.modules_dir
         .pipe_as_ref(read_modules_manifest::<Host>)
         .expect("read .modules.yaml")
         .expect("modules manifest exists");

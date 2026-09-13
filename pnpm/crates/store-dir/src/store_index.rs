@@ -113,10 +113,11 @@ impl StoreIndex {
     /// Open (or create) the `index.db` under `store_dir` and configure the
     /// same PRAGMAs pnpm v11 uses.
     pub fn open(store_dir: &Path) -> Result<Self, StoreIndexError> {
-        std::fs::create_dir_all(store_dir).map_err(|source| StoreIndexError::CreateDir {
-            path: store_dir.to_path_buf(),
-            source,
-        })?;
+        std::fs::create_dir_all(store_dir)
+            .map_err(|source| StoreIndexError::CreateDir {
+                path: store_dir.to_path_buf(),
+                source,
+            })?;
         let db_path = store_dir.join("index.db");
         let conn = Connection::open(&db_path)
             .map_err(|source| StoreIndexError::Open { path: db_path, source })?;
@@ -282,7 +283,9 @@ impl StoreIndex {
         if !store_root.join("index.db").exists() {
             return None;
         }
-        open(store_root).ok().map(|index| Arc::new(Mutex::new(index)))
+        open(store_root)
+            .ok()
+            .map(|index| Arc::new(Mutex::new(index)))
     }
 }
 
@@ -491,10 +494,11 @@ pub struct RemoteSideEffectsOrigin {
 /// path is first absolutized against the current directory — the same
 /// resolution Node's `pathToFileURL` applies on the pnpm side.
 fn immutable_sqlite_uri(db_path: &Path) -> Result<String, StoreIndexError> {
-    let absolute = std::path::absolute(db_path).map_err(|source| StoreIndexError::FileUri {
-        path: db_path.to_path_buf(),
-        source: Some(source),
-    })?;
+    let absolute = std::path::absolute(db_path)
+        .map_err(|source| StoreIndexError::FileUri {
+            path: db_path.to_path_buf(),
+            source: Some(source),
+        })?;
     let mut url = Url::from_file_path(&absolute)
         .map_err(|()| StoreIndexError::FileUri { path: absolute, source: None })?;
     url.query_pairs_mut().append_pair("immutable", "1");

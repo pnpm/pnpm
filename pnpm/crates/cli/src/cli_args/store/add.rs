@@ -147,7 +147,9 @@ fn report_add_outcome<Reporter: self::Reporter>(outcome: miette::Result<String>)
             false
         }
         Err(error) => {
-            let code = error.code().map_or_else(String::new, |code| format!("{code}: "));
+            let code = error
+                .code()
+                .map_or_else(String::new, |code| format!("{code}: "));
             emit_global_warning::<Reporter>(&format!("{code}{error}"));
             true
         }

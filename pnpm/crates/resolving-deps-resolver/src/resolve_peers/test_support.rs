@@ -42,8 +42,10 @@ pub(super) fn package(
     peer_dependencies: &[(&str, &str)],
     is_leaf: bool,
 ) -> ResolvedPackage {
-    let peer_dependencies: Vec<_> =
-        peer_dependencies.iter().map(|(name, version)| (*name, *version, false)).collect();
+    let peer_dependencies: Vec<_> = peer_dependencies
+        .iter()
+        .map(|(name, version)| (*name, *version, false))
+        .collect();
     package_with_peer_dependencies(name, version, &peer_dependencies, is_leaf)
 }
 

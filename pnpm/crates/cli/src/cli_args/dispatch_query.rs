@@ -72,7 +72,10 @@ use pnpm_reporter::{NdjsonReporter, SilentReporter};
 pub(super) fn recursive<'a>(_ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
     Ok(Box::pin(async move {
         let mut cmd = crate::cli_args::CliArgs::command();
-        let _ = cmd.find_subcommand_mut("recursive").expect("recursive subcommand").print_help();
+        let _ = cmd
+            .find_subcommand_mut("recursive")
+            .expect("recursive subcommand")
+            .print_help();
         #[expect(clippy::exit, reason = "`recursive` exits non-zero, mirroring pnpm")]
         std::process::exit(1);
     }))
@@ -321,7 +324,10 @@ pub(super) fn stage<'a>(
         config: &mut Config,
         recursive: bool,
     ) -> miette::Result<()> {
-        let hooks = if args.params.first().is_some_and(|subcommand| subcommand == "publish") {
+        let hooks = if args.params
+            .first()
+            .is_some_and(|subcommand| subcommand == "publish")
+        {
             prepare_config::<Reporter>(config, dir).await?
         } else {
             Vec::new()

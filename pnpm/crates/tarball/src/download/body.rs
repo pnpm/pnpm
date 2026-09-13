@@ -40,14 +40,15 @@ impl BodyHasher {
 
     fn finish(self, package_url: &str) -> Result<Integrity, TarballError> {
         match self {
-            BodyHasher::Pinned { expected, checker } => {
-                checker.result().map(|_| expected).map_err(|error| {
+            BodyHasher::Pinned { expected, checker } => checker
+                .result()
+                .map(|_| expected)
+                .map_err(|error| {
                     TarballError::Checksum(VerifyChecksumError {
                         url: package_url.to_string(),
                         error,
                     })
-                })
-            }
+                }),
             BodyHasher::Computed(opts) => Ok(opts.result()),
         }
     }
@@ -138,7 +139,12 @@ struct ExtractorFeed {
 
 impl ExtractorFeed {
     async fn send(&mut self, chunk: bytes::Bytes) {
-        if self.open && self.chunk_tx.send(Ok(chunk)).await.is_err() {
+        if self.open
+            && self.chunk_tx
+                .send(Ok(chunk))
+                .await
+                .is_err()
+        {
             self.open = false;
         }
     }
@@ -147,10 +153,10 @@ impl ExtractorFeed {
     /// treating the truncated stream as a complete archive.
     async fn fail(&self) {
         if self.open {
-            let _ = self
-                .chunk_tx
-                .send(Err(std::io::Error::other("the tarball body failed mid-download")))
-                .await;
+            let _ = self.chunk_tx.send(Err(std::io::Error::other(
+                "the tarball body failed mid-download",
+            )))
+            .await;
         }
     }
 }
@@ -306,7 +312,9 @@ where
 }
 
 pub(super) fn starts_with_gzip_magic(prefix: &[bytes::Bytes]) -> bool {
-    let mut magic = prefix.iter().flat_map(|chunk| chunk.iter().copied());
+    let mut magic = prefix
+        .iter()
+        .flat_map(|chunk| chunk.iter().copied());
     (magic.next(), magic.next()) == (Some(GZIP_MAGIC[0]), Some(GZIP_MAGIC[1]))
 }
 

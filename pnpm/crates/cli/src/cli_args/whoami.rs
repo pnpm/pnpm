@@ -72,7 +72,10 @@ pub(crate) async fn fetch_whoami(
         let status = response.status();
         return Err(WhoamiError::Failed {
             status: status.as_u16(),
-            status_text: status.canonical_reason().unwrap_or_default().to_string(),
+            status_text: status
+                .canonical_reason()
+                .unwrap_or_default()
+                .to_string(),
         }
         .into());
     }

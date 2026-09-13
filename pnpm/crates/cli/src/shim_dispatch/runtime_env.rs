@@ -194,7 +194,9 @@ async fn install_runtime(
     .await
     .wrap_err("install the managed runtime into the global virtual store")?;
 
-    let global_virtual_store_dir_display = install_config.global_virtual_store_dir.display();
+    let global_virtual_store_dir_display = install_config
+        .global_virtual_store_dir
+        .display();
     managed_runtime_bin(environment_dir, name, &install_config.global_virtual_store_dir).ok_or_else(
         || {
             miette::miette!(

@@ -190,7 +190,10 @@ fn claim(path: PathBuf) -> io::Result<DirLock> {
 /// acquisitions within the same clock tick.
 fn mint_token() -> String {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
     format!("{}-{nanos}-{}", std::process::id(), COUNTER.fetch_add(1, Ordering::Relaxed))
 }
 
@@ -198,7 +201,9 @@ fn is_abandoned(path: &Path, abandoned_after: Duration) -> bool {
     let Ok(modified) = fs::metadata(path).and_then(|meta| meta.modified()) else {
         return false;
     };
-    SystemTime::now().duration_since(modified).is_ok_and(|age| age > abandoned_after)
+    SystemTime::now()
+        .duration_since(modified)
+        .is_ok_and(|age| age > abandoned_after)
 }
 
 #[cfg(test)]

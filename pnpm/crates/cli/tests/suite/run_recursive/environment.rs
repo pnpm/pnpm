@@ -39,7 +39,10 @@ fn task_concurrency_of_one_keeps_scripts_in_the_foreground_process_group() {
     )
     .expect("write task settings");
 
-    pacquet.with_args(["-r", "run", "build"]).assert().success();
+    pacquet
+        .with_args(["-r", "run", "build"])
+        .assert()
+        .success();
 
     let groups =
         fs::read_to_string(workspace.join("process-groups.txt")).expect("read process groups");
@@ -50,7 +53,10 @@ fn task_concurrency_of_one_keeps_scripts_in_the_foreground_process_group() {
         .expect("parent process group")
         .to_string();
     for line in groups.lines() {
-        let child_group = line.split_whitespace().next().expect("child process group");
+        let child_group = line
+            .split_whitespace()
+            .next()
+            .expect("child process group");
         assert_eq!(
             child_group, parent_group,
             "every serialized script must share pacquet's process group",
@@ -81,7 +87,10 @@ fn recursive_run_respects_workspace_concurrency() {
     );
     write_concurrency_probe(&workspace);
 
-    pacquet.with_args(["--workspace-concurrency=2", "-r", "run", "build"]).assert().success();
+    pacquet
+        .with_args(["--workspace-concurrency=2", "-r", "run", "build"])
+        .assert()
+        .success();
 
     assert!(workspace.join("saw-parallel").exists(), "two scripts should overlap");
     assert!(
@@ -136,14 +145,23 @@ touch ran.txt
 "#,
     );
 
-    pacquet.with_args(["--workspace-concurrency=3", "-r", "run", "build"]).assert().success();
+    pacquet
+        .with_args(["--workspace-concurrency=3", "-r", "run", "build"])
+        .assert()
+        .success();
 
     assert!(
         !workspace.join("exceeded-task-concurrency").exists(),
         "only one build task should run at a time",
     );
     for name in ["project-1", "project-2", "project-3"] {
-        assert!(workspace.join(name).join("ran.txt").exists(), "{name} should have run");
+        assert!(
+            workspace
+                .join(name)
+                .join("ran.txt")
+                .exists(),
+            "{name} should have run",
+        );
     }
 
     drop(root);
@@ -174,11 +192,17 @@ fn recursive_run_preloads_each_project_pnp_loader() {
         .expect("write project PnP loader");
     }
 
-    pacquet.with_args(["-r", "run", "build"]).assert().success();
+    pacquet
+        .with_args(["-r", "run", "build"])
+        .assert()
+        .success();
 
     for name in ["project-1", "project-2"] {
         assert!(
-            workspace.join(name).join("pnp-loader-ran.txt").exists(),
+            workspace
+                .join(name)
+                .join("pnp-loader-ran.txt")
+                .exists(),
             "{name} should preload its own PnP loader",
         );
     }
@@ -245,12 +269,19 @@ fn top_level_fallback_does_not_exec_local_bin_recursively() {
         ],
     );
     for name in ["project-1", "project-2"] {
-        let bin_dir = workspace.join(name).join("node_modules").join(".bin");
+        let bin_dir = workspace
+            .join(name)
+            .join("node_modules")
+            .join(".bin");
         fs::create_dir_all(&bin_dir).expect("create node_modules/.bin");
         write_executable(&bin_dir.join("commitlint"), "#!/bin/sh\ntouch bin-ran.txt\n");
     }
 
-    let output = pacquet.with_arg("-r").with_arg("commitlint").output().expect("spawn pacquet");
+    let output = pacquet
+        .with_arg("-r")
+        .with_arg("commitlint")
+        .output()
+        .expect("spawn pacquet");
     assert!(!output.status.success(), "recursive shorthand without matching scripts must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
@@ -259,7 +290,10 @@ fn top_level_fallback_does_not_exec_local_bin_recursively() {
     );
     for name in ["project-1", "project-2"] {
         assert!(
-            !workspace.join(name).join("bin-ran.txt").exists(),
+            !workspace
+                .join(name)
+                .join("bin-ran.txt")
+                .exists(),
             "{name} local binary must not run from recursive shorthand",
         );
     }
@@ -294,7 +328,12 @@ fn recursive_run_resolves_local_bin_on_path_per_project() {
     perms.set_mode(0o755);
     fs::set_permissions(&script_path, perms).expect("chmod +x");
 
-    pacquet.with_arg("-r").with_arg("run").with_arg("build").assert().success();
+    pacquet
+        .with_arg("-r")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
     assert!(
         pkg_root.join("hi.txt").exists(),
         "recursive run should resolve `say-hi` from the package's node_modules/.bin",

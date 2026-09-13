@@ -104,13 +104,24 @@ fn build_npm_resolver(
     opts: &StandaloneChainOptions<'_>,
     retry_opts: RetryOpts,
 ) -> NpmResolver<InMemoryPackageMetaCache> {
-    let &StandaloneChainOptions { config, http_client, full_metadata, filter_metadata } = opts;
+    let &StandaloneChainOptions {
+        config,
+        http_client,
+        full_metadata,
+        filter_metadata,
+    } = opts;
     NpmResolver {
         // `resolved_registries` inserts the `default` route from
         // `config.registry`; `config.registries` alone omits it, which
         // would leave the picker with a host-less `/pkg` URL.
-        registries: config.resolved_registries().into_iter().collect(),
-        registries_by_prefix: config.registries_by_prefix.clone().into_iter().collect(),
+        registries: config
+            .resolved_registries()
+            .into_iter()
+            .collect(),
+        registries_by_prefix: config.registries_by_prefix
+            .clone()
+            .into_iter()
+            .collect(),
         metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
             http_client: Arc::clone(http_client),
             auth_headers: Arc::clone(&config.auth_headers),
@@ -150,12 +161,23 @@ fn build_named_registry_resolver(
     opts: &StandaloneChainOptions<'_>,
     retry_opts: RetryOpts,
 ) -> Result<NamedRegistryResolver<InMemoryPackageMetaCache>, MergeNamedRegistriesError> {
-    let &StandaloneChainOptions { config, http_client, full_metadata, filter_metadata } = opts;
-    let user_registries_by_prefix: HashMap<String, String> =
-        config.registries_by_prefix.iter().map(|(name, url)| (name.clone(), url.clone())).collect();
+    let &StandaloneChainOptions {
+        config,
+        http_client,
+        full_metadata,
+        filter_metadata,
+    } = opts;
+    let user_registries_by_prefix: HashMap<String, String> = config
+        .registries_by_prefix
+        .iter()
+        .map(|(name, url)| (name.clone(), url.clone()))
+        .collect();
     let merged_registries_by_prefix = merge_named_registries(&user_registries_by_prefix)?;
     Ok(NamedRegistryResolver {
-        registry_names: merged_registries_by_prefix.keys().cloned().collect(),
+        registry_names: merged_registries_by_prefix
+            .keys()
+            .cloned()
+            .collect(),
         registries_by_prefix: merged_registries_by_prefix,
         metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
             http_client: Arc::clone(http_client),

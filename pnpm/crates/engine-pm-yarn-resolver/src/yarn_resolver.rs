@@ -95,12 +95,13 @@ impl YarnResolver {
             .releases()
             .await
             .map_err(|error| Box::new(YarnResolverError::ReadReleases(error)) as ResolveError)?;
-        let release = pick_release(releases, version_spec).ok_or_else(|| {
-            // The specifier comes from a manifest, so it can carry
-            // credentials — the message a user sees must not.
-            let spec = redact_and_sanitize(version_spec);
-            Box::new(YarnResolverError::ResolutionFailure { spec }) as ResolveError
-        })?;
+        let release = pick_release(releases, version_spec)
+            .ok_or_else(|| {
+                // The specifier comes from a manifest, so it can carry
+                // credentials — the message a user sees must not.
+                let spec = redact_and_sanitize(version_spec);
+                Box::new(YarnResolverError::ResolutionFailure { spec }) as ResolveError
+            })?;
         let variants = asset_variants(release)
             .map_err(|error| Box::new(YarnResolverError::ReadReleases(error)) as ResolveError)?;
 
@@ -159,12 +160,13 @@ pub async fn resolve_yarn_version(
     version_spec: &str,
     authenticate: bool,
 ) -> Result<String, YarnResolverError> {
-    let releases = fetch_yarn_releases(http_client, authenticate)
-        .await
+    let releases = fetch_yarn_releases(http_client, authenticate).await
         .map_err(YarnResolverError::ReadReleases)?;
-    pick_release(&releases, version_spec).map(|release| release.version.clone()).ok_or_else(|| {
-        YarnResolverError::ResolutionFailure { spec: redact_and_sanitize(version_spec) }
-    })
+    pick_release(&releases, version_spec)
+        .map(|release| release.version.clone())
+        .ok_or_else(|| YarnResolverError::ResolutionFailure {
+            spec: redact_and_sanitize(version_spec),
+        })
 }
 
 /// The newest release satisfying `version_spec`.
@@ -193,7 +195,9 @@ pub(crate) fn pick_release<'a>(
         .iter()
         .find(|(version, _)| version.satisfies(&range))
         .or_else(|| {
-            candidates.iter().find(|(version, _)| without_prerelease(version).satisfies(&range))
+            candidates
+                .iter()
+                .find(|(version, _)| without_prerelease(version).satisfies(&range))
         })
         .map(|(_, release)| *release)
 }
@@ -212,7 +216,9 @@ fn bare_runtime_spec(wanted: &WantedDependency) -> Option<&str> {
     if wanted.alias.as_deref() != Some("yarn") {
         return None;
     }
-    wanted.bare_specifier.as_deref().and_then(|spec| spec.strip_prefix(BARE_SPEC_PREFIX))
+    wanted.bare_specifier
+        .as_deref()
+        .and_then(|spec| spec.strip_prefix(BARE_SPEC_PREFIX))
 }
 
 /// The archive member the manifest advertises as the engine's bin. See

@@ -9,8 +9,7 @@ pub(crate) fn render_json_report(
     report: &AuditReport,
     audit_level: ConfigAuditLevel,
 ) -> miette::Result<String> {
-    let advisories = report
-        .advisories
+    let advisories = report.advisories
         .iter()
         .filter(|(_, advisory)| severity_number(advisory.severity) >= severity_number(audit_level))
         .map(|(id, advisory)| (id.clone(), advisory.clone()))
@@ -24,8 +23,7 @@ pub(crate) fn render_text_report(
     audit_level: ConfigAuditLevel,
     ignored: &AuditVulnerabilityCounts,
 ) -> String {
-    let mut advisories = report
-        .advisories
+    let mut advisories = report.advisories
         .values()
         .filter(|advisory| severity_number(advisory.severity) >= severity_number(audit_level))
         .collect::<Vec<_>>();
@@ -55,16 +53,18 @@ pub(crate) fn render_advisory(advisory: &AuditAdvisory) -> String {
         bold(&advisory.title),
     ]);
     builder.push_record(vec!["Package".to_string(), advisory.module_name.clone()]);
-    builder
-        .push_record(vec!["Vulnerable versions".to_string(), advisory.vulnerable_versions.clone()]);
+    builder.push_record(vec![
+        "Vulnerable versions".to_string(),
+        advisory.vulnerable_versions.clone(),
+    ]);
     builder.push_record(vec![
         "Patched versions".to_string(),
-        advisory.patched_versions.clone().unwrap_or_else(|| {
-            match advisory.patched_versions_unpublished {
+        advisory.patched_versions
+            .clone()
+            .unwrap_or_else(|| match advisory.patched_versions_unpublished {
                 Some(true) => "None".to_string(),
                 _ => "(unknown)".to_string(),
-            }
-        }),
+            }),
     ]);
     builder.push_record(vec!["Paths".to_string(), rendered_paths]);
     builder.push_record(vec!["More info".to_string(), advisory.url.clone()]);
@@ -124,11 +124,13 @@ pub(crate) fn color_severity(level: ConfigAuditLevel, text: &str) -> String {
         ConfigAuditLevel::Low => text.if_supports_color(Stream::Stdout, |t| t.bold()).to_string(),
         ConfigAuditLevel::Moderate => {
             let style = owo_colors::Style::new().yellow().bold();
-            text.if_supports_color(Stream::Stdout, |t| t.style(style)).to_string()
+            text.if_supports_color(Stream::Stdout, |t| t.style(style))
+                .to_string()
         }
         ConfigAuditLevel::High | ConfigAuditLevel::Critical => {
             let style = owo_colors::Style::new().red().bold();
-            text.if_supports_color(Stream::Stdout, |t| t.style(style)).to_string()
+            text.if_supports_color(Stream::Stdout, |t| t.style(style))
+                .to_string()
         }
     }
 }
@@ -142,8 +144,7 @@ pub(crate) fn blue(text: &str) -> String {
 }
 
 fn render_advisory_paths(advisory: &AuditAdvisory) -> String {
-    let paths = advisory
-        .findings
+    let paths = advisory.findings
         .iter()
         .flat_map(|finding| finding.paths.iter().cloned())
         .collect::<Vec<_>>();

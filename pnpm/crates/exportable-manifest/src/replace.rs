@@ -232,7 +232,10 @@ fn parse_version_alias_spec(after_protocol: &str) -> Option<VersionAliasMatch> {
     let sentinel = match after_alias.chars().count() {
         0 => None,
         1 => {
-            let first_char = after_alias.chars().next().expect("char count == 1");
+            let first_char = after_alias
+                .chars()
+                .next()
+                .expect("char count == 1");
             if matches!(first_char, '^' | '~' | '*') {
                 Some(first_char)
             } else {

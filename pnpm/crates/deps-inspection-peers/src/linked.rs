@@ -50,7 +50,11 @@ fn resolve_file_version(
 }
 
 pub(super) fn package_manifest_version(manifest: &PackageManifest) -> Option<String> {
-    manifest.value().get("version").and_then(|version| version.as_str()).map(String::from)
+    manifest
+        .value()
+        .get("version")
+        .and_then(|version| version.as_str())
+        .map(String::from)
 }
 
 /// A workspace package an importer reaches through `link:`, whose own
@@ -78,8 +82,10 @@ pub(super) fn check_linked_package_peers(
     inputs: LinkedPackagePeers<'_>,
 ) -> Result<(), CatalogResolutionError> {
     let issues = inputs.issues;
-    let Some(peer_deps) =
-        inputs.manifest.value().get("peerDependencies").and_then(|deps_val| deps_val.as_object())
+    let Some(peer_deps) = inputs.manifest
+        .value()
+        .get("peerDependencies")
+        .and_then(|deps_val| deps_val.as_object())
     else {
         return Ok(());
     };
@@ -162,11 +168,14 @@ pub(super) fn record_missing_peer(
     if optional {
         return;
     }
-    issues.missing.entry(peer_name.to_string()).or_default().push(MissingPeerIssue {
-        parents: parents.to_vec(),
-        optional,
-        wanted_range: wanted_range.to_string(),
-    });
+    issues.missing
+        .entry(peer_name.to_string())
+        .or_default()
+        .push(MissingPeerIssue {
+            parents: parents.to_vec(),
+            optional,
+            wanted_range: wanted_range.to_string(),
+        });
 }
 
 /// A resolved peer outside the wanted range is an issue, optional or not.
@@ -181,13 +190,16 @@ pub(super) fn record_bad_peer(
     if satisfies(&found_version, wanted_range) {
         return;
     }
-    issues.bad.entry(peer_name.to_string()).or_default().push(BadPeerIssue {
-        parents: parents.to_vec(),
-        optional,
-        wanted_range: wanted_range.to_string(),
-        found_version,
-        resolved_from: Vec::new(),
-    });
+    issues.bad
+        .entry(peer_name.to_string())
+        .or_default()
+        .push(BadPeerIssue {
+            parents: parents.to_vec(),
+            optional,
+            wanted_range: wanted_range.to_string(),
+            found_version,
+            resolved_from: Vec::new(),
+        });
 }
 
 fn peer_is_optional(manifest: &PackageManifest, peer_name: &str) -> bool {
@@ -218,22 +230,31 @@ fn resolved_peer_version(
                 .unwrap_or_else(|| format!("link:{link_target}")),
         );
     }
-    spec.version.as_file_target().map(|file_target| {
-        resolve_file_version(lockfile, lockfile_dir, peer_pkg_name, spec)
-            .unwrap_or_else(|| format!("file:{file_target}"))
-    })
+    spec.version
+        .as_file_target()
+        .map(|file_target| {
+            resolve_file_version(lockfile, lockfile_dir, peer_pkg_name, spec)
+                .unwrap_or_else(|| format!("file:{file_target}"))
+        })
 }
 
 fn project_dependency<'a>(
     importer: &'a ProjectSnapshot,
     name: &PkgName,
 ) -> Option<&'a ResolvedDependencySpec> {
-    importer
-        .dependencies
+    importer.dependencies
         .as_ref()
         .and_then(|deps| deps.get(name))
-        .or_else(|| importer.dev_dependencies.as_ref().and_then(|deps| deps.get(name)))
-        .or_else(|| importer.optional_dependencies.as_ref().and_then(|deps| deps.get(name)))
+        .or_else(|| {
+            importer.dev_dependencies
+                .as_ref()
+                .and_then(|deps| deps.get(name))
+        })
+        .or_else(|| {
+            importer.optional_dependencies
+                .as_ref()
+                .and_then(|deps| deps.get(name))
+        })
 }
 
 fn resolve_peer_range(
@@ -253,12 +274,12 @@ fn resolve_peer_range(
 
 impl PeerProviders<'_> {
     fn resolve_reference(&self, name: &PkgName) -> Option<(&ResolvedDependencySpec, &Path)> {
-        project_dependency(self.importer, name).map(|spec| (spec, self.importer_dir)).or_else(
-            || {
+        project_dependency(self.importer, name)
+            .map(|spec| (spec, self.importer_dir))
+            .or_else(|| {
                 self.linked_importer
                     .and_then(|importer| project_dependency(importer, name))
                     .map(|spec| (spec, self.linked_importer_dir))
-            },
-        )
+            })
     }
 }

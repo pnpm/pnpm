@@ -112,7 +112,10 @@ impl ApprovalPrompt for DialoguerPrompt {
     async fn confirm(&mut self, message: &str) -> dialoguer::Result<bool> {
         let message = message.to_owned();
         tokio::task::spawn_blocking(move || {
-            dialoguer::Confirm::new().with_prompt(message).default(false).interact()
+            dialoguer::Confirm::new()
+                .with_prompt(message)
+                .default(false)
+                .interact()
         })
         .await
         .map_err(|error| dialoguer::Error::IO(std::io::Error::other(error)))?
@@ -186,8 +189,7 @@ fn persist_and_report_excludes<ReporterImpl: Reporter>(
         .iter()
         .map(|violation| format!("{}@{}", violation.name, violation.version))
         .collect();
-    let added =
-        merge_package_version_specs(&added).map_err(MinimumReleaseAgeError::VersionPolicy)?;
+    let added = merge_package_version_specs(&added).map_err(MinimumReleaseAgeError::VersionPolicy)?;
     update_workspace_manifest(
         workspace_dir,
         &UpdateWorkspaceManifestOptions {

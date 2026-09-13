@@ -39,8 +39,11 @@ pub(super) async fn get_status(
         publish_requires_tfa: Option<serde_json::Value>,
     }
 
-    let status: AccessStatus =
-        response.json().await.into_diagnostic().wrap_err("parsing the access status response")?;
+    let status: AccessStatus = response
+        .json()
+        .await
+        .into_diagnostic()
+        .wrap_err("parsing the access status response")?;
 
     if context.json {
         let output = serde_json::to_string_pretty(&status)
@@ -156,7 +159,9 @@ pub(super) async fn grant_access(
     let (permissions, scope_team, package_name) = grant_parameters(params)?;
 
     let parts: Vec<&str> = scope_team.splitn(2, ':').collect();
-    let scope = parts[0].strip_prefix('@').unwrap_or(parts[0]);
+    let scope = parts[0]
+        .strip_prefix('@')
+        .unwrap_or(parts[0]);
     let team = parts[1];
 
     let auth_header =
@@ -208,7 +213,9 @@ pub(super) async fn revoke_access(
     let package_name = params.get(1).ok_or(AccessError::RevokePackageRequired)?;
 
     let parts: Vec<&str> = scope_team.splitn(2, ':').collect();
-    let scope = parts[0].strip_prefix('@').unwrap_or(parts[0]);
+    let scope = parts[0]
+        .strip_prefix('@')
+        .unwrap_or(parts[0]);
     let team = parts[1];
 
     let auth_header =

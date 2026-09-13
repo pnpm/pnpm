@@ -57,7 +57,10 @@ fn links_absolute_relative_and_self_reference_specs() {
     assert!(is_symlink_or_junction(&modules.join("rel-linked")).unwrap());
     assert_eq!(
         fs::canonicalize(modules.join("rel-linked")).unwrap(),
-        dir.path().join("sibling").canonicalize().unwrap(),
+        dir.path()
+            .join("sibling")
+            .canonicalize()
+            .unwrap(),
     );
     // `link:.` self-reference resolves back to the project dir.
     assert_eq!(
@@ -196,7 +199,13 @@ fn traversal_alias_is_rejected_without_writes() {
     }
     // Nothing was written anywhere.
     assert!(!project_dir.join("node_modules").exists());
-    assert!(victim.exists() && fs::read_dir(&victim).unwrap().next().is_none());
+    assert!(
+        victim.exists()
+            && fs::read_dir(&victim)
+                .unwrap()
+                .next()
+                .is_none(),
+    );
 
     drop(dir);
 }

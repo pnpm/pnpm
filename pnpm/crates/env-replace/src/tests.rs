@@ -144,7 +144,9 @@ fn handles_multiple_placeholders() {
     struct StaticEnv;
     impl EnvVar for StaticEnv {
         fn var(name: &str) -> Option<String> {
-            ENV.iter().find(|(key, _)| *key == name).map(|(_, value)| (*value).to_owned())
+            ENV.iter()
+                .find(|(key, _)| *key == name)
+                .map(|(_, value)| (*value).to_owned())
         }
     }
     assert_eq!(replace_clean::<StaticEnv>("${A}-${B}-${A}"), "1-2-1");

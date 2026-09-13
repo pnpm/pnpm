@@ -189,8 +189,9 @@ fn decode_and_write(
 ) -> Result<u64, RegistryError> {
     let mut checker = integrity_checker(&expected.integrity)
         .map_err(|err| expected.invalid(format!("EINTEGRITY: malformed dist.integrity: {err}")))?;
-    let mut shasum_hasher =
-        expected.shasum.is_some().then(|| IntegrityOpts::new().algorithm(Algorithm::Sha1));
+    let mut shasum_hasher = expected.shasum
+        .is_some()
+        .then(|| IntegrityOpts::new().algorithm(Algorithm::Sha1));
 
     let mut decoder = DecoderReader::new(Cursor::new(base64_data.as_bytes()), &BASE64);
     let mut file = File::create(dest).map_err(RegistryError::Io)?;
@@ -224,8 +225,7 @@ fn decode_and_write(
 /// we decode and re-encode as hex for the comparison.
 fn sha1_hex_from_integrity_opts(opts: IntegrityOpts) -> String {
     let integrity = opts.result();
-    let digest_base64 = integrity
-        .hashes
+    let digest_base64 = integrity.hashes
         .first()
         .expect("ssri produces a Sha1 hash entry when requested")
         .digest
@@ -283,8 +283,10 @@ pub fn merge_manifest(
     // serde_json's `preserve_order` feature — without sorting, two
     // publishes of the same package can produce different bytes.
     if let Some(versions) = out.get_mut("versions").and_then(Value::as_object_mut) {
-        let sorted: BTreeMap<String, Value> =
-            versions.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+        let sorted: BTreeMap<String, Value> = versions
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
         *versions = sorted.into_iter().collect();
     }
 
@@ -383,7 +385,9 @@ fn stamp_time_entries(out: &mut Map<String, Value>, now_iso: &str) {
         .and_then(Value::as_object)
         .map(|versions| versions.keys().cloned().collect())
         .unwrap_or_default();
-    let time_entry = out.entry("time".to_string()).or_insert_with(|| Value::Object(Map::new()));
+    let time_entry = out
+        .entry("time".to_string())
+        .or_insert_with(|| Value::Object(Map::new()));
     let Some(time_obj) = time_entry.as_object_mut() else {
         return;
     };
@@ -395,7 +399,9 @@ fn stamp_time_entries(out: &mut Map<String, Value>, now_iso: &str) {
 }
 
 fn merge_versions(existing: Option<&Value>, incoming: &Value, hosted: Option<&Value>) -> Value {
-    let hosted_versions = hosted.and_then(|h| h.get("versions")).and_then(Value::as_object);
+    let hosted_versions = hosted
+        .and_then(|h| h.get("versions"))
+        .and_then(Value::as_object);
     let mut merged = match existing {
         Some(Value::Object(obj)) => obj.clone(),
         _ => Map::new(),
@@ -443,8 +449,7 @@ fn with_incoming_deprecation(
 pub fn merge_journaled_packument(merge: &DocumentMerge<'_>) -> Result<Option<Vec<u8>>> {
     let mut journaled: Value = serde_json::from_slice(merge.journaled)?;
     if !merge.lost_blobs.is_empty() {
-        let lost_versions = merge
-            .lost_blobs
+        let lost_versions = merge.lost_blobs
             .iter()
             .map(|filename| merge.name.parse_tarball_name(filename).map(|(_, version)| version))
             .collect::<Result<HashSet<String>>>()?;
@@ -479,7 +484,9 @@ fn drop_lost_versions(journaled: &mut Value, lost: &HashSet<String>) {
 
     if let Some(tags) = journaled.get_mut("dist-tags").and_then(Value::as_object_mut) {
         tags.retain(|_, version| {
-            version.as_str().is_none_or(|version| !removed_versions.contains(version))
+            version
+                .as_str()
+                .is_none_or(|version| !removed_versions.contains(version))
         });
     }
     if let Some(time) = journaled.get_mut("time").and_then(Value::as_object_mut) {

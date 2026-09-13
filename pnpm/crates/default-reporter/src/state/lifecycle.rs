@@ -20,18 +20,20 @@ impl ReporterState {
         let (stage, dep_path, wd) = lifecycle_ids(message);
         let key = format!("{stage}:{dep_path}");
         let collapsed = contains_path(wd, "/node_modules/") || contains_path(wd, "tmp/_tmp_");
-        let running = self
-            .rendering
-            .format_indented_status(&self.rendering.colors.magenta_bright("Running..."));
+        let running = self.rendering.format_indented_status(
+            &self.rendering.colors.magenta_bright("Running..."),
+        );
         let now = std::time::Instant::now();
-        self.scripts.entries.entry(key.clone()).or_insert_with(|| LifecycleEntry {
-            collapsed,
-            label: None,
-            output: Vec::new(),
-            script: String::new(),
-            status: running,
-            start: Some(now),
-        });
+        self.scripts.entries
+            .entry(key.clone())
+            .or_insert_with(|| LifecycleEntry {
+                collapsed,
+                label: None,
+                output: Vec::new(),
+                script: String::new(),
+                status: running,
+                start: Some(now),
+            });
         let exit = matches!(message, LifecycleMessage::Exit { .. });
         let msg = if self.scripts.entries[&key].collapsed {
             self.render_collapsed(&key, message, dep_path, wd)
@@ -58,27 +60,29 @@ impl ReporterState {
             }
             LifecycleMessage::Stdio { line, stdio, .. } => {
                 let formatted = self.rendering.format_indented_output(line, *stdio);
-                self.scripts.entries.get_mut(key).unwrap().output.push(formatted);
+                self.scripts.entries
+                    .get_mut(key)
+                    .unwrap()
+                    .output
+                    .push(formatted);
             }
         }
     }
 
     pub(super) fn exit_status(&self, key: &str, exit_code: i32, wd: &str) -> String {
-        let time = self
-            .scripts
-            .entries
+        let time = self.scripts.entries
             .get(key)
             .and_then(|e| e.start)
             .map(|start| pretty_ms(start.elapsed().as_millis()))
             .unwrap_or_default();
         if exit_code == 0 {
-            self.rendering.format_indented_status(
-                &self.rendering.colors.magenta_bright(&format!("Done in {time}")),
-            )
+            self.rendering.format_indented_status(&self.rendering.colors.magenta_bright(&format!(
+                "Done in {time}",
+            )))
         } else {
-            self.rendering.format_indented_status(
-                &self.rendering.colors.red(&format!("Failed in {time} at {wd}")),
-            )
+            self.rendering.format_indented_status(&self.rendering.colors.red(&format!(
+                "Failed in {time} at {wd}",
+            )))
         }
     }
 
@@ -122,9 +126,7 @@ impl ReporterState {
             self.update_lifecycle_cache(key, message);
             return format!("{label}...");
         };
-        let time = self
-            .scripts
-            .entries
+        let time = self.scripts.entries
             .get(key)
             .and_then(|e| e.start)
             .map(|start| pretty_ms(start.elapsed().as_millis()))
@@ -154,7 +156,10 @@ impl ReporterState {
         // Format on flush rather than on arrival so the prefix color
         // wheel advances in the order the blocks are printed.
         if !matches!(message, LifecycleMessage::Exit { .. }) {
-            self.scripts.buffers.entry(key).or_default().push(message.clone());
+            self.scripts.buffers
+                .entry(key)
+                .or_default()
+                .push(message.clone());
             return None;
         }
         let mut lines = Vec::new();

@@ -42,8 +42,7 @@ impl WorkspaceSettings {
                 field: field.clone(),
             });
         }
-        let concurrency = settings
-            .concurrency
+        let concurrency = settings.concurrency
             .filter(|concurrency| *concurrency < 1)
             .map(|concurrency| concurrency.to_string())
             .or_else(|| settings.invalid_concurrency.as_ref().map(ToString::to_string));
@@ -151,7 +150,11 @@ impl WorkspaceSettings {
             return;
         };
         let mut issues = WorkspaceKeyIssues::default();
-        for key in document.iter().filter(|(_, value)| value.is_some()).map(|(key, _)| key) {
+        for key in document
+            .iter()
+            .filter(|(_, value)| value.is_some())
+            .map(|(key, _)| key)
+        {
             if key == SCHEMA_DIRECTIVE_KEY {
                 continue;
             }
@@ -181,16 +184,21 @@ impl WorkspaceSettings {
     /// measure or classify counts as one to look at, so the answer errs only
     /// towards re-reading, never towards missing a key.
     pub(super) fn may_have_key_issues(text: &str) -> bool {
-        let content_lines = text.lines().filter(|line| {
-            let trimmed = line.trim_start();
-            !trimmed.is_empty() && !trimmed.starts_with('#')
-        });
+        let content_lines = text
+            .lines()
+            .filter(|line| {
+                let trimmed = line.trim_start();
+                !trimmed.is_empty() && !trimmed.starts_with('#')
+            });
         let mut root_indent = usize::MAX;
         for line in content_lines.clone() {
             let indent = line.len() - line.trim_start().len();
             // YAML forbids a tab as indentation, so a file that uses one is
             // not worth measuring against.
-            if line[..indent].bytes().any(|byte| byte != b' ') {
+            if line[..indent]
+                .bytes()
+                .any(|byte| byte != b' ')
+            {
                 return true;
             }
             root_indent = root_indent.min(indent);
@@ -198,15 +206,15 @@ impl WorkspaceSettings {
         if root_indent == usize::MAX {
             return false;
         }
-        content_lines.filter(|line| line.len() - line.trim_start().len() == root_indent).any(
-            |line| {
+        content_lines
+            .filter(|line| line.len() - line.trim_start().len() == root_indent)
+            .any(|line| {
                 let Some((key, _)) = line.trim_start().split_once(':') else { return true };
                 let key = key.trim_end();
                 key != SCHEMA_DIRECTIVE_KEY
                     && (!is_camel_case(key)
                         || !is_known_setting_key(key)
                         || is_refused_by_a_project_manifest(key))
-            },
-        )
+            })
     }
 }

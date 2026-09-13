@@ -103,7 +103,12 @@ async fn pack_for_publish_writes_a_tarball_and_returns_the_manifest() {
     let wrote_tarball = std::fs::read_dir(dest.path())
         .expect("read the destination")
         .flatten()
-        .any(|entry| entry.path().extension().is_some_and(|ext| ext == "tgz"));
+        .any(|entry| {
+            entry
+                .path()
+                .extension()
+                .is_some_and(|ext| ext == "tgz")
+        });
     assert!(wrote_tarball, "a .tgz should be written to the destination");
 }
 
@@ -163,7 +168,9 @@ async fn publish_directory_errors_when_no_manifest_is_present() {
         .expect_err("an empty directory has no package.json");
 
     assert_eq!(
-        err.code().map(|code| code.to_string()).as_deref(),
+        err.code()
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND"),
     );
 }
@@ -178,7 +185,9 @@ async fn run_rejects_batch_without_recursive() {
         .await
         .expect_err("--batch requires --recursive");
     assert_eq!(
-        err.code().map(|code| code.to_string()).as_deref(),
+        err.code()
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_BATCH_PUBLISH_REQUIRES_RECURSIVE"),
     );
 }

@@ -17,7 +17,10 @@ use super::{default_store_dir_windows, get_drive_letter};
 use std::path::Path;
 
 fn display_store_dir(store_dir: &StoreDir) -> String {
-    store_dir.display().to_string().replace('\\', "/")
+    store_dir
+        .display()
+        .to_string()
+        .replace('\\', "/")
 }
 
 #[test]
@@ -159,7 +162,10 @@ fn test_default_cache_dir_with_xdg_cache_home_env() {
         }
     }
     let cache_dir = default_cache_dir::<EnvWithXdgCacheHome>();
-    let display = cache_dir.display().to_string().replace('\\', "/");
+    let display = cache_dir
+        .display()
+        .to_string()
+        .replace('\\', "/");
     assert_eq!(display, "/tmp/xdg-cache-home/pnpm");
 }
 
@@ -205,7 +211,10 @@ fn test_default_config_dir_with_xdg_config_home_env() {
     }
     let config_dir =
         default_config_dir::<EnvWithXdgConfigHome>().expect("XDG_CONFIG_HOME bypasses home_dir");
-    let display = config_dir.display().to_string().replace('\\', "/");
+    let display = config_dir
+        .display()
+        .to_string()
+        .replace('\\', "/");
     assert_eq!(display, "/tmp/xdg-config-home/pnpm");
 }
 
@@ -423,7 +432,11 @@ fn user_agent_default_matches_pnpm_format() {
     assert!(ua.starts_with(&prefix), "user-agent {ua:?} must start with {prefix:?}");
     let tail: Vec<&str> = ua[prefix.len()..].split(' ').collect();
     assert_eq!(tail.len(), 2, "expected `<platform> <arch>` tail, got {ua:?}");
-    assert!(tail.iter().all(|token| !token.is_empty()), "platform/arch must be non-empty: {ua:?}");
+    assert!(
+        tail.iter()
+            .all(|token| !token.is_empty()),
+        "platform/arch must be non-empty: {ua:?}",
+    );
 }
 
 /// Both forms are asserted here rather than through

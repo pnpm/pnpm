@@ -40,8 +40,10 @@ fn empty_lockfile() -> Lockfile {
 }
 
 fn lockfile_with_packages(keys: &[&str]) -> Lockfile {
-    let packages =
-        keys.iter().map(|key| (key.parse::<PackageKey>().unwrap(), registry_metadata())).collect();
+    let packages = keys
+        .iter()
+        .map(|key| (key.parse::<PackageKey>().unwrap(), registry_metadata()))
+        .collect();
     Lockfile { packages: Some(packages), ..empty_lockfile() }
 }
 
@@ -67,7 +69,10 @@ fn patch_target(raw: &str, lockfile: &Lockfile) -> PatchTarget {
 }
 
 fn versions(candidates: &[PatchCandidate]) -> Vec<&str> {
-    candidates.iter().map(|candidate| candidate.version.as_str()).collect()
+    candidates
+        .iter()
+        .map(|candidate| candidate.version.as_str())
+        .collect()
 }
 
 #[test]
@@ -295,8 +300,11 @@ async fn patch_extract_records_download_in_store_index() {
 
     let store_index = StoreIndex::shared_readonly_in(&config.store_dir)
         .expect("patch extraction should create a store index");
-    let indexed_package =
-        store_index.lock().expect("store index lock").get(&store_index_key).expect("read row");
+    let indexed_package = store_index
+        .lock()
+        .expect("store index lock")
+        .get(&store_index_key)
+        .expect("read row");
     assert!(indexed_package.is_some(), "store index row should exist for {store_index_key}");
 }
 

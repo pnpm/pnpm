@@ -236,8 +236,7 @@ fn publish_authorization(
     registry: &NormalizedRegistryUrl,
     name: &str,
 ) -> Option<String> {
-    resolved
-        .auth_token_override
+    resolved.auth_token_override
         .as_ref()
         .map(|token| format!("Bearer {token}"))
         .or_else(|| network.auth_headers.for_url_with_package(registry.as_str(), Some(name)))

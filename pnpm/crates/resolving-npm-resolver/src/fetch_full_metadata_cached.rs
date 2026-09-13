@@ -115,7 +115,11 @@ struct FetchAttempt<'a> {
 }
 
 fn response_etag(response: &reqwest::Response) -> Option<String> {
-    response.headers().get(header::ETAG).and_then(|value| value.to_str().ok()).map(str::to_string)
+    response
+        .headers()
+        .get(header::ETAG)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string)
 }
 
 impl FetchAttempt<'_> {
@@ -136,17 +140,23 @@ impl FetchAttempt<'_> {
             (client, response)
         };
 
-        let response = response.error_for_status().map_err(|error| {
-            FetchMetadataError::Network { url: redact_url_credentials(self.url), error }
-        })?;
+        let response = response
+            .error_for_status()
+            .map_err(|error| FetchMetadataError::Network {
+                url: redact_url_credentials(self.url),
+                error,
+            })?;
 
         let etag = response_etag(&response);
         let normalize_to_abbreviated =
             !opts.full_metadata && !is_abbreviated_content_type(response.headers());
-        let raw_body = response.text().await.map_err(|error| FetchMetadataError::BodyRead {
-            url: redact_url_credentials(self.url),
-            error,
-        })?;
+        let raw_body = response
+            .text()
+            .await
+            .map_err(|error| FetchMetadataError::BodyRead {
+                url: redact_url_credentials(self.url),
+                error,
+            })?;
 
         // Body fully buffered — release the connection and its
         // network-concurrency permit before the CPU-bound parse so the
@@ -166,9 +176,9 @@ impl FetchAttempt<'_> {
         let (meta, elapsed) = tokio::task::spawn_blocking(move || decode.run(&raw_body))
             .await
             .map_err(|error| FetchMetadataError::ParseTask {
-            url: redact_url_credentials(self.url),
-            error,
-        })??;
+                url: redact_url_credentials(self.url),
+                error,
+            })??;
 
         warn_if_request_is_slow(opts.http.http_client, elapsed, self.url);
         meta.pipe(Ok)
@@ -198,7 +208,9 @@ impl FetchAttempt<'_> {
             accept: if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC },
             priority: opts.priority,
             etag: self.cache_headers.as_ref().and_then(|headers| headers.etag.as_deref()),
-            modified: self.cache_headers.as_ref().and_then(|headers| headers.modified.as_deref()),
+            modified: self.cache_headers
+                .as_ref()
+                .and_then(|headers| headers.modified.as_deref()),
             bypass_cache: self.cache_bypass.load(Ordering::Relaxed),
             http: opts.http,
         }
@@ -257,19 +269,22 @@ struct DecodeMeta {
 
 impl DecodeMeta {
     fn run(self, raw_body: &str) -> Result<(Package, Duration), FetchMetadataError> {
-        let mut meta: Package = serde_json::from_str(raw_body).map_err(|error| {
-            FetchMetadataError::Decode { url: redact_url_credentials(&self.url), error }
-        })?;
+        let mut meta: Package = serde_json::from_str(raw_body)
+            .map_err(|error| FetchMetadataError::Decode {
+                url: redact_url_credentials(&self.url),
+                error,
+            })?;
         meta.drop_incomplete_publish_times();
         let elapsed = self.started_at.elapsed();
         if self.normalize_to_abbreviated {
             meta = normalize_abbreviated_meta(meta);
         }
         if self.should_filter_metadata {
-            meta = clear_meta(&meta).map_err(|error| FetchMetadataError::FilterMetadata {
-                url: redact_url_credentials(&self.url),
-                error: error.into_inner(),
-            })?;
+            meta = clear_meta(&meta)
+                .map_err(|error| FetchMetadataError::FilterMetadata {
+                    url: redact_url_credentials(&self.url),
+                    error: error.into_inner(),
+                })?;
         }
         match self.persist(&meta) {
             // Serve the just-persisted mirror instead of the response body:

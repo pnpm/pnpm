@@ -82,7 +82,11 @@ impl DependencyProvider for Provider<'_> {
         let Package::Distribution(name, _) = package else { return Ok(Some(Version::new([0]))) };
         let versions =
             self.packages.candidates.get(name).ok_or_else(|| Needed::Candidates(name.clone()))?;
-        Ok(versions.keys().rev().find(|version| range.contains(version)).cloned())
+        Ok(versions
+            .keys()
+            .rev()
+            .find(|version| range.contains(version))
+            .cloned())
     }
 
     fn get_dependencies(
@@ -94,20 +98,26 @@ impl DependencyProvider for Provider<'_> {
         match package {
             Package::Root => self.constraints(self.requirements, &[], &mut constraints)?,
             Package::Distribution(name, extra) => {
-                let metadata = self
-                    .packages
-                    .metadata
+                let metadata = self.packages.metadata
                     .get(&(name.clone(), version.clone()))
                     .ok_or_else(|| Needed::Metadata(name.clone(), version.clone()))?;
                 if let Some(unusable) = self.incompatible_interpreter(metadata)? {
                     return Ok(Dependencies::Unavailable(unusable));
                 }
-                let extras = extra.clone().into_iter().collect::<Vec<_>>();
+                let extras = extra
+                    .clone()
+                    .into_iter()
+                    .collect::<Vec<_>>();
                 if let Some(extra) = extra {
-                    if !metadata
-                        .provides_extra
+                    if !metadata.provides_extra
                         .iter()
-                        .any(|provided| provided.parse::<ExtraName>().ok().as_ref() == Some(extra))
+                        .any(|provided| {
+                            provided
+                                .parse::<ExtraName>()
+                                .ok()
+                                .as_ref()
+                                == Some(extra)
+                        })
                     {
                         return Ok(Dependencies::Unavailable(format!(
                             "extra {extra} is not provided",
@@ -118,19 +128,24 @@ impl DependencyProvider for Provider<'_> {
                         Ranges::singleton(version.clone()),
                     );
                 }
-                let requirements = metadata
-                    .requires_dist
-                    .iter()
-                    .map(|requirement| {
-                        crate::candidates::parse_requirement(requirement)
-                            .map_err(|error| Needed::Invalid(error.to_string()))
-                    })
-                    .collect::<std::result::Result<Vec<_>, _>>()?;
+                let requirements = metadata_requirements(metadata)?;
                 self.constraints(&requirements, &extras, &mut constraints)?;
             }
         }
         Ok(Dependencies::Available(DependencyConstraints::from_iter(constraints)))
     }
+}
+
+fn metadata_requirements(
+    metadata: &WheelMetadata,
+) -> std::result::Result<Vec<Requirement>, Needed> {
+    metadata.requires_dist
+        .iter()
+        .map(|requirement| {
+            crate::candidates::parse_requirement(requirement)
+                .map_err(|error| Needed::Invalid(error.to_string()))
+        })
+        .collect::<std::result::Result<Vec<_>, _>>()
 }
 
 impl Provider<'_> {
@@ -144,8 +159,9 @@ impl Provider<'_> {
         let specifier: pep440_rs::VersionSpecifiers = specifier
             .parse()
             .map_err(|error| Needed::Invalid(format!("invalid Requires-Python: {error}")))?;
-        Ok((!specifier.contains(self.environment.python_full_version()))
-            .then(|| "incompatible Python interpreter".to_string()))
+        Ok((!specifier.contains(self.environment.python_full_version())).then(|| {
+            "incompatible Python interpreter".to_string()
+        }))
     }
 
     fn constraints(
@@ -158,20 +174,10 @@ impl Provider<'_> {
             if !requirement.marker.evaluate(self.environment, extras) {
                 continue;
             }
-            let candidates = self
-                .packages
-                .candidates
+            let candidates = self.packages.candidates
                 .get(&requirement.name)
                 .ok_or_else(|| Needed::Candidates(requirement.name.clone()))?;
-            let specifiers = match &requirement.version_or_url {
-                Some(VersionOrUrl::VersionSpecifier(specifiers)) => Some(specifiers),
-                None => None,
-                Some(VersionOrUrl::Url(_)) => {
-                    return Err(Needed::Invalid(
-                        "Python URL requirements are not supported".to_string(),
-                    ));
-                }
-            };
+            let specifiers = requirement_specifiers(requirement)?;
             let matched = candidates
                 .keys()
                 .filter(|version| specifiers.is_none_or(|specifiers| specifiers.contains(version)))
@@ -185,7 +191,14 @@ impl Provider<'_> {
                 .fold(Ranges::empty(), |range, version| {
                     range.union(&Ranges::singleton(version.clone()))
                 });
-            for extra in std::iter::once(None).chain(requirement.extras.iter().cloned().map(Some)) {
+            for extra in std::iter::once(None)
+                .chain(
+                    requirement.extras
+                        .iter()
+                        .cloned()
+                        .map(Some),
+                )
+            {
                 let package = Package::Distribution(requirement.name.clone(), extra);
                 constraints
                     .entry(package)
@@ -195,6 +208,18 @@ impl Provider<'_> {
         }
         Ok(())
     }
+}
+
+fn requirement_specifiers(
+    requirement: &Requirement,
+) -> std::result::Result<Option<&pep440_rs::VersionSpecifiers>, Needed> {
+    Ok(match &requirement.version_or_url {
+        Some(VersionOrUrl::VersionSpecifier(specifiers)) => Some(specifiers),
+        None => None,
+        Some(VersionOrUrl::Url(_)) => {
+            return Err(Needed::Invalid("Python URL requirements are not supported".to_string()));
+        }
+    })
 }
 
 /// Run one pubgrub pass over what `packages` holds so far.

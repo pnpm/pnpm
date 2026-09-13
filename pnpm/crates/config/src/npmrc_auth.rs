@@ -168,7 +168,10 @@ impl NpmrcAuth {
         // once. `pnpm_config_` is extended last so it wins over `npm_config_`.
         let mut npm_scoped: HashMap<String, String> = HashMap::new();
         let mut pnpm_scoped: HashMap<String, String> = HashMap::new();
-        for (name, value) in Sys::vars().into_iter().filter(|(_, value)| !value.is_empty()) {
+        for (name, value) in Sys::vars()
+            .into_iter()
+            .filter(|(_, value)| !value.is_empty())
+        {
             let Some((is_pnpm, key)) = parse_url_scoped_env_name(&name) else {
                 continue;
             };
@@ -235,7 +238,10 @@ impl NpmrcAuth {
         for (uri, lower_by_scope) in lower.creds_by_scope_by_uri {
             let by_scope = self.creds_by_scope_by_uri.entry(uri).or_default();
             for (scope, creds) in lower_by_scope {
-                by_scope.entry(scope).or_default().fill_from(creds);
+                by_scope
+                    .entry(scope)
+                    .or_default()
+                    .fill_from(creds);
             }
         }
         // Lower-priority warnings come first — they were produced while
@@ -324,7 +330,9 @@ impl NpmrcTls {
         config.tls.cert = self.cert.take();
         config.tls.key = self.key.take();
         config.tls.strict_ssl = self.strict_ssl.take();
-        config.tls.local_address = self.local_address.take().and_then(|raw| raw.parse().ok());
+        config.tls.local_address = self.local_address
+            .take()
+            .and_then(|raw| raw.parse().ok());
         // Per-registry TLS overrides. `PerRegistryTls::from_map`
         // drops any entry whose three fields are all `None`, so the
         // lookup never returns an empty hit that would otherwise

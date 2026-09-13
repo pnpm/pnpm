@@ -128,7 +128,10 @@ async fn filters_files_outside_files_field() {
     .await
     .unwrap();
 
-    let keys: Vec<&str> = received.cas_paths.keys().map(String::as_str).collect();
+    let keys: Vec<&str> = received.cas_paths
+        .keys()
+        .map(String::as_str)
+        .collect();
     assert!(keys.contains(&"dist/index.js"));
     assert!(keys.contains(&"package.json"), "package.json always included");
     assert!(!keys.contains(&"src/index.ts"), "src excluded by files field");
@@ -290,7 +293,10 @@ async fn path_field_packs_only_subdirectory() {
     .await
     .unwrap();
 
-    let keys: Vec<&str> = received.cas_paths.keys().map(String::as_str).collect();
+    let keys: Vec<&str> = received.cas_paths
+        .keys()
+        .map(String::as_str)
+        .collect();
     // The fetcher packlists relative to `pkg_dir` (which is
     // `<tmp>/packages/sub`), so the returned keys are *also* relative
     // to that sub-dir — never carrying the `packages/sub/` prefix.
@@ -302,7 +308,9 @@ async fn path_field_packs_only_subdirectory() {
         "sibling-package files must not appear in {keys:?}",
     );
     assert!(
-        !keys.iter().any(|k| k.contains("packages/")),
+        !keys
+            .iter()
+            .any(|k| k.contains("packages/")),
         "keys are relative to the sub-dir, not the monorepo root: {keys:?}",
     );
 }
@@ -409,10 +417,16 @@ async fn writes_index_row_when_writer_provided() {
     writer_task.await.unwrap().unwrap();
 
     let index = StoreIndex::open_in(&store_dir).unwrap();
-    let row = index.get(key).unwrap().expect("row must exist at the git-hosted key");
+    let row = index
+        .get(key)
+        .unwrap()
+        .expect("row must exist at the git-hosted key");
     assert_eq!(row.algo, "sha512");
     assert_eq!(row.requires_build, Some(received.built));
-    let keys: Vec<&str> = row.files.keys().map(String::as_str).collect();
+    let keys: Vec<&str> = row.files
+        .keys()
+        .map(String::as_str)
+        .collect();
     assert!(keys.contains(&"package.json"), "package.json missing from row.files: {keys:?}");
     assert!(keys.contains(&"index.js"), "index.js missing from row.files: {keys:?}");
 
@@ -553,10 +567,16 @@ async fn fast_path_queues_synthesized_index_row() {
     writer_task.await.unwrap().unwrap();
 
     let index = StoreIndex::open_in(&store_dir).unwrap();
-    let row = index.get(key).unwrap().expect("fast path must still queue a row at the final key");
+    let row = index
+        .get(key)
+        .unwrap()
+        .expect("fast path must still queue a row at the final key");
     assert_eq!(row.requires_build, Some(false), "fast path implies no build needed");
     assert_eq!(row.algo, "sha512");
-    let row_keys: Vec<&str> = row.files.keys().map(String::as_str).collect();
+    let row_keys: Vec<&str> = row.files
+        .keys()
+        .map(String::as_str)
+        .collect();
     assert!(row_keys.contains(&"package.json"));
     assert!(row_keys.contains(&"index.js"));
     assert!(row_keys.contains(&"bin/cli.js"));
@@ -639,21 +659,34 @@ async fn sub_path_never_takes_fast_path() {
     // `packages/sub/` prefix. If the fast path had triggered
     // (returning input `cas_paths` verbatim), the keys would still
     // be the monorepo-prefixed paths.
-    let out_keys: Vec<&str> = received.cas_paths.keys().map(String::as_str).collect();
+    let out_keys: Vec<&str> = received.cas_paths
+        .keys()
+        .map(String::as_str)
+        .collect();
     assert!(
-        !out_keys.iter().any(|k| k.contains("packages/")),
+        !out_keys
+            .iter()
+            .any(|k| k.contains("packages/")),
         "slow path strips the sub-dir prefix: {out_keys:?}",
     );
     assert!(out_keys.contains(&"package.json"));
     assert!(out_keys.contains(&"index.js"));
 
     let index = StoreIndex::open_in(&store_dir).unwrap();
-    let row = index.get(key).unwrap().expect("sub-path takes slow path and writes a row");
-    let row_keys: Vec<&str> = row.files.keys().map(String::as_str).collect();
+    let row = index
+        .get(key)
+        .unwrap()
+        .expect("sub-path takes slow path and writes a row");
+    let row_keys: Vec<&str> = row.files
+        .keys()
+        .map(String::as_str)
+        .collect();
     assert!(row_keys.contains(&"package.json"), "sub-dir manifest");
     assert!(row_keys.contains(&"index.js"), "sub-dir main");
     assert!(
-        !row_keys.iter().any(|k| k.contains("packages/")),
+        !row_keys
+            .iter()
+            .any(|k| k.contains("packages/")),
         "no monorepo prefixes in {row_keys:?}",
     );
 }
@@ -769,7 +802,10 @@ async fn tarball_path_traversal_attack_is_rejected() {
 
     {
         use miette::Diagnostic;
-        let code = err.code().map(|c| c.to_string()).unwrap_or_default();
+        let code = err
+            .code()
+            .map(|c| c.to_string())
+            .unwrap_or_default();
         assert_eq!(
             code, "ERR_PNPM_INVALID_PATH",
             "diagnostic code must match the upstream error contract",
@@ -823,7 +859,10 @@ async fn tarball_path_to_missing_subdir_is_rejected() {
 
     {
         use miette::Diagnostic;
-        let code = err.code().map(|c| c.to_string()).unwrap_or_default();
+        let code = err
+            .code()
+            .map(|c| c.to_string())
+            .unwrap_or_default();
         assert_eq!(
             code, "ERR_PNPM_INVALID_PATH",
             "diagnostic code must match the upstream error contract",

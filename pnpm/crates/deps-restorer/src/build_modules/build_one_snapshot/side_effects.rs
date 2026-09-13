@@ -220,10 +220,9 @@ pub(super) fn upload_side_effects_cache(
     };
     let Some(metadata) = packages.get(upload.metadata_key) else { return };
     let publishes_remotely = upload.has_side_effects
-        && context
-            .cache
-            .publisher
-            .is_some_and(|publisher| publisher.can_publish(upload.metadata_key, metadata));
+        && context.cache.publisher.is_some_and(|publisher| {
+            publisher.can_publish(upload.metadata_key, metadata)
+        });
     if !context.cache.write && !publishes_remotely {
         return;
     }

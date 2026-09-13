@@ -122,18 +122,7 @@ impl ArchiveIngestion<'_> {
         record_computed_integrity: bool,
     ) -> Result<FetchedTarball, TarballError> {
         let cache_key = self.cache_key();
-        if self.fetching.offline && !self.format.is_local(self.package.url) {
-            tracing::warn!(
-                target: "pacquet::download",
-                package_url = ?self.package.url,
-                package_id = ?self.package.id,
-                "offline mode: tarball missing from local store; refusing network fetch",
-            );
-            return Err(TarballError::NoOfflineTarball {
-                package_id: self.package.id.to_string(),
-                url: self.package.url.to_string(),
-            });
-        }
+        self.check_offline_availability()?;
 
         tracing::info!(target: "pacquet::download", package_url = ?self.package.url, "New cache");
 
@@ -144,16 +133,18 @@ impl ArchiveIngestion<'_> {
 
         let manifest = pkg_files_idx.manifest.clone();
         let requires_build = match self.format {
-            ArchiveFormat::TarGz { .. } => pkg_files_idx
-                .requires_build
-                .expect("fresh tarball extraction records build requirement"),
+            ArchiveFormat::TarGz { .. } => pkg_files_idx.requires_build.expect(
+                "fresh tarball extraction records build requirement",
+            ),
             ArchiveFormat::Zip { .. } => pkg_files_idx.requires_build.unwrap_or(false),
         };
         self.queue_index_row(
             cache_key.or_else(|| {
                 record_computed_integrity.then(|| {
-                    self.store_projection
-                        .store_index_key(&computed_integrity.to_string(), self.package.id)
+                    self.store_projection.store_index_key(
+                        &computed_integrity.to_string(),
+                        self.package.id,
+                    )
                 })
             }),
             pkg_files_idx,
@@ -167,12 +158,32 @@ impl ArchiveIngestion<'_> {
         })
     }
 
+    fn check_offline_availability(&self) -> Result<(), TarballError> {
+        if self.fetching.offline && !self.format.is_local(self.package.url) {
+            tracing::warn!(
+                target: "pacquet::download",
+                package_url = ?self.package.url,
+                package_id = ?self.package.id,
+                "offline mode: tarball missing from local store; refusing network fetch",
+            );
+            return Err(TarballError::NoOfflineTarball {
+                package_id: self.package.id.to_string(),
+                url: self.package.url.to_string(),
+            });
+        }
+        Ok(())
+    }
+
     async fn fetch_archive<Reporter: self::Reporter>(
         &self,
         progress_key: Option<(&SharedReportedProgressKeys, &str)>,
     ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
         match self.format {
-            ArchiveFormat::TarGz { unpacked_size, file_count, revision_addressed } => {
+            ArchiveFormat::TarGz {
+                unpacked_size,
+                file_count,
+                revision_addressed,
+            } => {
                 fetch_and_extract_with_retry::<Reporter>(
                     self.fetching.http_client,
                     self.package.url,

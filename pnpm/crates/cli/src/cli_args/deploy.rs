@@ -264,9 +264,7 @@ impl DeployArgs {
         };
 
         let project_id = importer_id_from_root_dir(lockfile_dir, &selected.project.root_dir);
-        let dependency_groups = self
-            .install_args
-            .dependency_options
+        let dependency_groups = self.install_args.dependency_options
             .dependency_groups(config.optional)
             .collect::<Vec<_>>();
         let deploy_files = create_deploy_files(
@@ -341,10 +339,10 @@ fn select_project(
 fn index_projects(projects: &[Project]) -> HashMap<ProjectPathKey, ProjectInfo> {
     let mut projects_by_path = HashMap::with_capacity(projects.len());
     for project in projects {
-        projects_by_path.entry(ProjectPathKey::new(&project.root_dir)).or_insert_with(|| {
-            ProjectInfo {
-                name: project
-                    .manifest
+        projects_by_path
+            .entry(ProjectPathKey::new(&project.root_dir))
+            .or_insert_with(|| ProjectInfo {
+                name: project.manifest
                     .value()
                     .get("name")
                     .and_then(Value::as_str)
@@ -359,8 +357,7 @@ fn index_projects(projects: &[Project]) -> HashMap<ProjectPathKey, ProjectInfo> 
                 )
                 .into_iter()
                 .collect(),
-            }
-        });
+            });
     }
     projects_by_path
 }

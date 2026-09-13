@@ -27,8 +27,9 @@ async fn catalog_protocol_on_direct_dep_is_rewritten() {
         resolution: crate::ImporterResolutionInputs { catalogs, ..default_opts().resolution },
         ..default_opts()
     };
-    let result =
-        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts)
+        .await
+        .unwrap();
     assert_eq!(result.resolved_tree.direct.len(), 1);
     assert_eq!(result.resolved_tree.direct[0].alias, "foo");
     let calls = resolver.calls.lock().unwrap();

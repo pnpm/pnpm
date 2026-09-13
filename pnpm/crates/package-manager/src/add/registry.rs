@@ -19,9 +19,7 @@ pub(super) async fn pick_latest_range(
     inputs: &AddResolveInputs<'_, '_>,
 ) -> Result<String, AddError> {
     let config = inputs.add.config;
-    let latest = inputs
-        .resolution
-        .latest_picker
+    let latest = inputs.resolution.latest_picker
         .get_or_try_init(|| {
             std::future::ready(
                 PickPolicy::from_config(config)
@@ -97,8 +95,7 @@ pub(super) async fn resolve_explicit_registry_spec(
         preferred_versions.get(package_name),
     );
 
-    let pick = pick_package(&ctx, &spec_parsed, &opts)
-        .await
+    let pick = pick_package(&ctx, &spec_parsed, &opts).await
         .map_err(|error| AddError::ResolveSpec(Box::new(error)))?;
     let Some(picked) = pick.picked_package else {
         return Ok(None);
@@ -163,8 +160,10 @@ pub(super) fn saved_registry_range(
 }
 /// The registry `package_name` resolves against under the configured scopes.
 pub(super) fn package_registry(config: &Config, package_name: &str) -> String {
-    let registries: std::collections::HashMap<String, String> =
-        config.resolved_registries().into_iter().collect();
+    let registries: std::collections::HashMap<String, String> = config
+        .resolved_registries()
+        .into_iter()
+        .collect();
     pick_registry_for_package(&registries, package_name, None)
 }
 /// Whether `specifier` is a plain registry range/tag/version for

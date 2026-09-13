@@ -18,9 +18,10 @@ use pretty_assertions::assert_eq;
 #[test]
 fn registry_revision_uses_the_registry_declared_for_its_prefix() {
     let mut config = Config::new();
-    config
-        .registries_by_prefix
-        .insert("work".to_string(), "https://registry.example/workspace/npm/".to_string());
+    config.registries_by_prefix.insert(
+        "work".to_string(),
+        "https://registry.example/workspace/npm/".to_string(),
+    );
     let resolution = LockfileResolution::Registry(RegistryResolution {
         integrity: DUMMY_SHA512.parse().expect("parse integrity"),
         revision: Some(TarballRevision::try_from(4).unwrap()),

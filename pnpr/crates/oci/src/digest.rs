@@ -33,13 +33,16 @@ pub struct Digest {
 
 impl Digest {
     pub fn parse(raw: &str) -> Result<Self, DigestError> {
-        let (algorithm, hex) =
-            raw.split_once(':').ok_or_else(|| DigestError::Malformed { raw: raw.to_string() })?;
+        let (algorithm, hex) = raw
+            .split_once(':')
+            .ok_or_else(|| DigestError::Malformed { raw: raw.to_string() })?;
         if algorithm != ALGORITHM {
             return Err(DigestError::UnsupportedAlgorithm { algorithm: algorithm.to_string() });
         }
         if hex.len() != HEX_LEN
-            || !hex.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+            || !hex
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
         {
             return Err(DigestError::NotHex { raw: raw.to_string() });
         }

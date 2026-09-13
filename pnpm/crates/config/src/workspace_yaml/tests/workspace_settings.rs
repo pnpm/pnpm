@@ -33,12 +33,14 @@ ignoredBuiltDependencies: [core-js]
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     assert_eq!(settings.packages.as_deref(), Some(&[".".to_owned()][..]));
     assert_eq!(
-        settings.catalog.as_ref().and_then(|c| c.get("react")).map(String::as_str),
+        settings.catalog
+            .as_ref()
+            .and_then(|c| c.get("react"))
+            .map(String::as_str),
         Some("^19.0.0"),
     );
     assert_eq!(
-        settings
-            .catalogs
+        settings.catalogs
             .as_ref()
             .and_then(|c| c.get("react17"))
             .and_then(|c| c.get("react"))
@@ -403,7 +405,10 @@ remoteSideEffectsCache:
 
     let mut config = Config::new();
     global.apply_to(&mut config, Path::new("/workspace"));
-    WorkspaceSettings::load_at(dir.path()).unwrap().unwrap().apply_to(&mut config, dir.path());
+    WorkspaceSettings::load_at(dir.path())
+        .unwrap()
+        .unwrap()
+        .apply_to(&mut config, dir.path());
 
     let shared = config.remote_side_effects_cache.expect("shared cache config");
     assert_eq!(shared.org, "acme");
@@ -692,7 +697,10 @@ registries:
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     settings.clear_workspace_only_fields();
     let entries = settings.registries.as_ref().expect("registries present");
-    let RegistryEntry::Declaration(declaration) = entries.values().next().expect("one declaration")
+    let RegistryEntry::Declaration(declaration) = entries
+        .values()
+        .next()
+        .expect("one declaration")
     else {
         panic!("expected a declaration: {entries:?}")
     };

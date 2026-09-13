@@ -171,9 +171,14 @@ impl TarballDownload<'_> {
             && let Ok(permit) = streaming_extract_semaphore().try_acquire()
         {
             progress.on_chunks::<Reporter>(&prefix.chunks);
-            return self
-                .stream_body::<Reporter, _, _>(prefix.chunks, stream, progress, client, permit)
-                .await;
+            return self.stream_body::<Reporter, _, _>(
+                prefix.chunks,
+                stream,
+                progress,
+                client,
+                permit,
+            )
+            .await;
         }
         let buffered = buffer_body::<Reporter, _>(BufferBody {
             stream: &mut stream,
@@ -207,15 +212,14 @@ impl TarballDownload<'_> {
                     .acquire()
                     .await
                     .expect("streaming-extract semaphore shouldn't be closed this soon");
-                return self
-                    .stream_body::<Reporter, _, _>(
-                        vec![bytes::Bytes::from(buffer)],
-                        stream,
-                        progress,
-                        client,
-                        permit,
-                    )
-                    .await;
+                return self.stream_body::<Reporter, _, _>(
+                    vec![bytes::Bytes::from(buffer)],
+                    stream,
+                    progress,
+                    client,
+                    permit,
+                )
+                .await;
             }
         };
         drop(stream);

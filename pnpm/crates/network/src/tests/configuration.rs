@@ -25,7 +25,11 @@ async fn from_clients_uses_the_supplied_no_redirect_configuration() {
         .expect(1)
         .create_async()
         .await;
-    let final_mock = registry.mock("GET", "/final").expect(0).create_async().await;
+    let final_mock = registry
+        .mock("GET", "/final")
+        .expect(0)
+        .create_async()
+        .await;
     // Bundled roots only: a sibling test may have pointed `SSL_CERT_FILE` at
     // an empty bundle, which makes a platform-verifier client unbuildable.
     let client = reqwest::Client::builder()

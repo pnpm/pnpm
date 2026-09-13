@@ -244,9 +244,10 @@ fn hoisted_package_map_loose_mode_includes_physical_ancestor_dependencies() {
     let root_manifest = manifest("root");
     let project_manifests = vec![(cwd.clone(), &root_manifest)];
     let mut graph = LockfileToDepGraphResult::default();
-    graph
-        .direct_dependencies_by_importer_id
-        .insert(".".to_string(), BTreeMap::from([("dep1".to_string(), dep1_dir.clone())]));
+    graph.direct_dependencies_by_importer_id.insert(
+        ".".to_string(),
+        BTreeMap::from([("dep1".to_string(), dep1_dir.clone())]),
+    );
     graph.graph.insert(dep1_dir.clone(), graph_node("dep1", "1.0.0", &dep1_dir));
     let lockfile = Lockfile {
         importers: HashMap::from([(
@@ -456,7 +457,10 @@ fn snapshot_optional_deps(entries: &[(&str, &str)]) -> SnapshotEntry {
 }
 
 fn snapshot_dep_map(entries: &[(&str, &str)]) -> HashMap<PkgName, SnapshotDepRef> {
-    entries.iter().map(|(alias, version)| (pkg(alias), version.parse().unwrap())).collect()
+    entries
+        .iter()
+        .map(|(alias, version)| (pkg(alias), version.parse().unwrap()))
+        .collect()
 }
 
 fn pkg(name: &str) -> PkgName {
@@ -502,7 +506,10 @@ fn graph_node(name: &str, version: &str, dir: &Path) -> DependenciesGraphNode {
         },
         alias: Some(name.to_string()),
         dir: dir.to_path_buf(),
-        modules: dir.parent().expect("package dir has parent").to_path_buf(),
+        modules: dir
+            .parent()
+            .expect("package dir has parent")
+            .to_path_buf(),
         optional: false,
         optional_dependencies: BTreeSet::new(),
         present: false,

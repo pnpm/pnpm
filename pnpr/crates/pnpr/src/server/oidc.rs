@@ -43,8 +43,7 @@ pub(super) async fn callback(
 ) -> Response {
     if query.state.len() > 128
         || query.state.is_empty()
-        || !query
-            .state
+        || !query.state
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
     {
@@ -54,12 +53,13 @@ pub(super) async fn callback(
     }
     let cookie_name = format!("__Host-pnpr-oidc-{}", query.state);
     let response = if let Some(secret) = browser_secret(&headers, &cookie_name) {
-        match state
-            .inner
-            .identity
-            .oidc
-            .finish(&provider, &query.state, secret, query.code.as_deref().unwrap_or(""))
-            .await
+        match state.inner.identity.oidc.finish(
+            &provider,
+            &query.state,
+            secret,
+            query.code.as_deref().unwrap_or(""),
+        )
+        .await
         {
             Ok(session) => {
                 let token = session.token;
@@ -93,16 +93,23 @@ fn browser_secret<'h>(headers: &'h HeaderMap, cookie_name: &str) -> Option<&'h s
         .filter_map(|cookie| cookie.trim().split_once('='))
         .filter(|(name, _)| *name == cookie_name);
     let secret = cookies.next().map(|(_, value)| value)?;
-    cookies.next().is_none().then_some(secret)
+    cookies
+        .next()
+        .is_none()
+        .then_some(secret)
 }
 
 fn protect(response: Response) -> Response {
     let mut response = private_no_cache(response);
-    response.headers_mut().insert(header::REFERRER_POLICY, HeaderValue::from_static("no-referrer"));
-    response.headers_mut().insert(
-        header::CONTENT_SECURITY_POLICY,
-        HeaderValue::from_static("default-src 'none'; frame-ancestors 'none'"),
-    );
+    response
+        .headers_mut()
+        .insert(header::REFERRER_POLICY, HeaderValue::from_static("no-referrer"));
+    response
+        .headers_mut()
+        .insert(
+            header::CONTENT_SECURITY_POLICY,
+            HeaderValue::from_static("default-src 'none'; frame-ancestors 'none'"),
+        );
     response
         .headers_mut()
         .insert(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
@@ -146,8 +153,7 @@ pub(super) fn check_workload_request(
     let decoded = pnpr_search::percent_decode(path);
     let base = config.routing.registries.base_path(pnpr_registry::Ecosystem::Npm);
     if *method == axum::http::Method::PUT
-        && workload
-            .packages
+        && workload.packages
             .iter()
             .any(|package| decoded == format!("{base}/~{}/{package}", workload.registry))
     {

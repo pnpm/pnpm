@@ -88,9 +88,9 @@ pub(super) fn merge_into_slot_group<'a>(group: &mut SlotDirGroup<'a>, slot: &'a 
     if slot.removed_aliases.is_empty() {
         return;
     }
-    let merged = group
-        .merged_removed_aliases
-        .get_or_insert_with(|| group.representative.removed_aliases.to_vec());
+    let merged = group.merged_removed_aliases.get_or_insert_with(|| {
+        group.representative.removed_aliases.to_vec()
+    });
     for alias in slot.removed_aliases {
         if !merged.contains(alias) {
             merged.push(alias.clone());

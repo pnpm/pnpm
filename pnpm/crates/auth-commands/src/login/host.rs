@@ -29,7 +29,10 @@ impl FsWrite for Host {
 
 impl PromptInput for Host {
     fn prompt_input(message: &str) -> Result<String, dialoguer::Error> {
-        dialoguer::Input::<String>::new().with_prompt(message).allow_empty(true).interact_text()
+        dialoguer::Input::<String>::new()
+            .with_prompt(message)
+            .allow_empty(true)
+            .interact_text()
     }
 }
 
@@ -39,7 +42,10 @@ impl PromptPassword for Host {
         // which returns an empty string on a bare Enter. Without it dialoguer
         // loops until non-empty, so pnpm's empty-password path
         // (`LOGIN_MISSING_CREDENTIALS`) would be unreachable.
-        dialoguer::Password::new().with_prompt(message).allow_empty_password(true).interact()
+        dialoguer::Password::new()
+            .with_prompt(message)
+            .allow_empty_password(true)
+            .interact()
     }
 }
 

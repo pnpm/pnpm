@@ -154,7 +154,10 @@ fn make_env_stamps_lifecycle_specific_keys() {
     // assertions are correct on Windows (`\\` separator) as well as
     // POSIX. Path-separator handling itself is `std`'s job — these
     // tests verify build_env's mapping, not separator policy.
-    let expected_package_json = pkg_root.join("package.json").to_string_lossy().into_owned();
+    let expected_package_json = pkg_root
+        .join("package.json")
+        .to_string_lossy()
+        .into_owned();
     let expected_init_cwd = init_cwd.to_string_lossy().into_owned();
     let expected_src_dir = pkg_root.to_string_lossy().into_owned();
 
@@ -196,8 +199,10 @@ fn make_env_windows_tmpdir_override_removes_differently_cased_keys() {
     let expected_tmpdir = pkg_root.join("node_modules").join(".tmp");
 
     assert_eq!(built.env.get("TMPDIR"), Some(&expected_tmpdir.to_string_lossy().into_owned()));
-    let tmpdir_key_count =
-        built.env.keys().filter(|key| key.eq_ignore_ascii_case("TMPDIR")).count();
+    let tmpdir_key_count = built.env
+        .keys()
+        .filter(|key| key.eq_ignore_ascii_case("TMPDIR"))
+        .count();
     assert_eq!(tmpdir_key_count, 1);
 }
 

@@ -129,7 +129,10 @@ fn dry_run_uploads_nothing() {
     .expect("write .pnpmfile.cjs");
 
     // Any PUT during a dry run is a failure: the mock expects zero hits.
-    let mock = server.mock("PUT", Matcher::Any).expect(0).create();
+    let mock = server
+        .mock("PUT", Matcher::Any)
+        .expect(0)
+        .create();
 
     let output = publish(dir.path(), &["--dry-run"]);
     assert_success(&output);
@@ -158,7 +161,10 @@ fn publish_config_registry_overrides_the_default() {
         }),
     );
 
-    let default_mock = default_registry.mock("PUT", Matcher::Any).expect(0).create();
+    let default_mock = default_registry
+        .mock("PUT", Matcher::Any)
+        .expect(0)
+        .create();
     let publish_mock = publish_registry
         .mock("PUT", "/test-publish-override")
         .with_status(200)
@@ -226,13 +232,20 @@ fn publish_from_a_prebuilt_tarball() {
     );
 
     // Build a tarball with `pacquet pack`, then publish it by path.
-    let pack = pacquet(dir.path()).with_arg("pack").output().expect("spawn pacquet pack");
+    let pack = pacquet(dir.path())
+        .with_arg("pack")
+        .output()
+        .expect("spawn pacquet pack");
     assert!(pack.status.success(), "pack stderr: {}", String::from_utf8_lossy(&pack.stderr));
     let tarball = "test-publish-tgz-1.0.0.tgz";
     assert!(dir.path().join(tarball).exists(), "pack should write {tarball}");
 
-    let mock =
-        server.mock("PUT", "/test-publish-tgz").with_status(200).with_body("{}").expect(1).create();
+    let mock = server
+        .mock("PUT", "/test-publish-tgz")
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
 
     assert_success(&publish(dir.path(), &[tarball]));
     mock.assert();
@@ -276,7 +289,11 @@ fn errors_when_the_registry_rejects_the_publish() {
         &registry,
         &json!({ "name": "test-publish-rejected", "version": "1.0.0" }),
     );
-    server.mock("PUT", "/test-publish-rejected").with_status(500).with_body("boom").create();
+    server
+        .mock("PUT", "/test-publish-rejected")
+        .with_status(500)
+        .with_body("boom")
+        .create();
 
     let output = publish(dir.path(), &[]);
     assert!(!output.status.success(), "a 5xx registry response must fail the publish");
@@ -307,7 +324,11 @@ fn json_flag_prints_the_per_package_summary() {
         &registry,
         &json!({ "name": "test-publish-json", "version": "1.0.0" }),
     );
-    server.mock("PUT", "/test-publish-json").with_status(200).with_body("{}").create();
+    server
+        .mock("PUT", "/test-publish-json")
+        .with_status(200)
+        .with_body("{}")
+        .create();
 
     let output = publish(dir.path(), &["--json"]);
     assert_success(&output);
@@ -328,7 +349,11 @@ fn json_flag_suppresses_explicit_reporter_output() {
         &registry,
         &json!({ "name": "test-publish-json-reporter", "version": "1.0.0" }),
     );
-    server.mock("PUT", "/test-publish-json-reporter").with_status(200).with_body("{}").create();
+    server
+        .mock("PUT", "/test-publish-json-reporter")
+        .with_status(200)
+        .with_body("{}")
+        .create();
 
     let output = publish(dir.path(), &["--json", "--reporter=ndjson"]);
     assert_success(&output);
@@ -338,12 +363,13 @@ fn json_flag_suppresses_explicit_reporter_output() {
         String::from_utf8_lossy(&output.stderr),
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let parsed: Value = serde_json::from_str(&stdout).unwrap_or_else(|error| {
-        panic!(
-            "stdout is one JSON value: {error}; stdout: {stdout}; stderr: {}",
-            String::from_utf8_lossy(&output.stderr),
-        )
-    });
+    let parsed: Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|error| {
+            panic!(
+                "stdout is one JSON value: {error}; stdout: {stdout}; stderr: {}",
+                String::from_utf8_lossy(&output.stderr),
+            )
+        });
     assert_eq!(parsed["id"], "test-publish-json-reporter@1.0.0");
 }
 
@@ -364,12 +390,13 @@ fn json_flag_prints_errors_to_stdout() {
         String::from_utf8_lossy(&output.stderr),
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    serde_json::from_str::<Value>(&stdout).unwrap_or_else(|error| {
-        panic!(
-            "stdout is a JSON error envelope: {error}; stdout: {stdout}; stderr: {}",
-            String::from_utf8_lossy(&output.stderr),
-        )
-    });
+    serde_json::from_str::<Value>(&stdout)
+        .unwrap_or_else(|error| {
+            panic!(
+                "stdout is a JSON error envelope: {error}; stdout: {stdout}; stderr: {}",
+                String::from_utf8_lossy(&output.stderr),
+            )
+        });
     assert_eq!(
         stdout,
         "{\n  \"error\": {\n    \"code\": \"ERR_PNPM_PACKAGE_VERSION_NOT_FOUND\",\n    \"message\": \"Package version is not defined in the package.json.\"\n  }\n}\n",
@@ -408,12 +435,13 @@ fn json_flag_preserves_webauth_urls_on_noninteractive_otp_errors() {
         String::from_utf8_lossy(&output.stderr),
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let parsed: Value = serde_json::from_str(&stdout).unwrap_or_else(|error| {
-        panic!(
-            "stdout is a JSON error envelope: {error}; stdout: {stdout}; stderr: {}",
-            String::from_utf8_lossy(&output.stderr),
-        )
-    });
+    let parsed: Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|error| {
+            panic!(
+                "stdout is a JSON error envelope: {error}; stdout: {stdout}; stderr: {}",
+                String::from_utf8_lossy(&output.stderr),
+            )
+        });
     assert_eq!(parsed["error"]["code"], "ERR_PNPM_OTP_NON_INTERACTIVE");
     assert_eq!(
         parsed["error"]["message"],
@@ -450,7 +478,9 @@ fn runs_the_publish_lifecycle_scripts() {
 
     assert_success(&publish(dir.path(), &[]));
     assert!(
-        dir.path().join("prepublish-ran.txt").exists(),
+        dir.path()
+            .join("prepublish-ran.txt")
+            .exists(),
         "prepublishOnly should have run and written its marker",
     );
     mock.assert();
@@ -482,7 +512,9 @@ fn ignore_scripts_skips_the_publish_lifecycle_scripts() {
 
     assert_success(&publish(dir.path(), &["--ignore-scripts"]));
     assert!(
-        !dir.path().join("prepublish-ran.txt").exists(),
+        !dir.path()
+            .join("prepublish-ran.txt")
+            .exists(),
         "prepublishOnly must not run under --ignore-scripts",
     );
     mock.assert();

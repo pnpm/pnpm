@@ -360,8 +360,7 @@ pub fn hoist(lockfile: &Lockfile, opts: &HoistOpts) -> Result<HoisterResult, Hoi
     // Strip `externalDependencies` from the top-level result —
     // they exist only to reserve a name slot at the root.
     if !opts.external_dependencies.is_empty() {
-        result
-            .dependencies
+        result.dependencies
             .borrow_mut()
             .retain(|dep| !opts.external_dependencies.contains(&dep.name));
     }
@@ -442,8 +441,11 @@ fn hoist_to(
     let used = if is_top_root { HashMap::new() } else { get_used_dependencies(root) };
     hoist_into_root(root, &node_locator(root), opts, &used);
 
-    let children: Vec<RcByPtr<HoisterResult>> =
-        root.dependencies.borrow().iter().cloned().collect();
+    let children: Vec<RcByPtr<HoisterResult>> = root.dependencies
+        .borrow()
+        .iter()
+        .cloned()
+        .collect();
     for child in children {
         if root.peer_names.contains(&child.0.name) {
             continue;
@@ -506,7 +508,10 @@ fn node_locator(node: &HoisterResult) -> String {
 fn same_ident(left: &HoisterResult, right: &HoisterResult) -> bool {
     fn ident_of(node: &HoisterResult) -> String {
         let references = node.references.borrow();
-        let reference = references.iter().next().map_or("", String::as_str);
+        let reference = references
+            .iter()
+            .next()
+            .map_or("", String::as_str);
         match reference.find('(') {
             Some(idx) => reference[..idx].to_string(),
             None => reference.to_string(),
@@ -520,13 +525,14 @@ fn same_ident(left: &HoisterResult, right: &HoisterResult) -> bool {
 /// [`AbsorbDecision::PathShadow`](crate::absorption::AbsorbDecision::PathShadow)). `path[0]` is the hoist root —
 /// its slot is judged by the root-index decision, not here.
 fn path_shadowed(candidate: &HoisterResult, path: &[Rc<HoisterResult>]) -> bool {
-    path.iter().skip(1).any(|ancestor| {
-        ancestor
-            .dependencies
-            .borrow()
-            .iter()
-            .any(|dep| dep.0.name == candidate.name && !same_ident(&dep.0, candidate))
-    })
+    path.iter()
+        .skip(1)
+        .any(|ancestor| {
+            ancestor.dependencies
+                .borrow()
+                .iter()
+                .any(|dep| dep.0.name == candidate.name && !same_ident(&dep.0, candidate))
+        })
 }
 
 /// Whether two nodes are the same package — equal locators — without
@@ -624,8 +630,12 @@ fn hoist_into_root(
     opts: &HoistOpts,
     used: &HashMap<String, Rc<HoisterResult>>,
 ) {
-    let mut root_index: HashMap<String, RcByPtr<HoisterResult>> =
-        root.dependencies.borrow().iter().map(|dep| (dep.0.name.clone(), dep.clone())).collect();
+    let mut root_index: HashMap<String, RcByPtr<HoisterResult>> = root
+        .dependencies
+        .borrow()
+        .iter()
+        .map(|dep| (dep.0.name.clone(), dep.clone()))
+        .collect();
 
     // Per-name candidate idents ordered most-preferred first. Only
     // the front ident of each name may claim the root slot; the
@@ -676,7 +686,12 @@ fn hoist_into_root(
 /// candidate lists. Pre-hoist nodes carry exactly one reference
 /// (see [`convert`]).
 fn node_ident(node: &HoisterResult) -> String {
-    node.references.borrow().iter().next().cloned().unwrap_or_default()
+    node.references
+        .borrow()
+        .iter()
+        .next()
+        .cloned()
+        .unwrap_or_default()
 }
 
 /// Depth-first hoist driver. `ancestor_path` is the path from
@@ -716,8 +731,11 @@ fn hoist_subtree(
     // Snapshot the current children so we can mutate
     // `node.dependencies` mid-iteration without invalidating the
     // borrow. `RcByPtr::clone` just bumps refcounts.
-    let children: Vec<RcByPtr<HoisterResult>> =
-        node.dependencies.borrow().iter().cloned().collect();
+    let children: Vec<RcByPtr<HoisterResult>> = node.dependencies
+        .borrow()
+        .iter()
+        .cloned()
+        .collect();
 
     // Path from root down to and including `node` — i.e. the
     // ancestor path for `node`'s direct children. Used for the
@@ -780,7 +798,8 @@ fn hoist_subtree(
 /// removes them outright because its layout walkers require the result to be
 /// a DAG. The parent is decoupled, so the cut is per-path.
 fn is_cycle_edge(child: &Rc<HoisterResult>, path: &[Rc<HoisterResult>]) -> bool {
-    path.iter().any(|ancestor| ancestor.name == child.name && same_locator(ancestor, child))
+    path.iter()
+        .any(|ancestor| ancestor.name == child.name && same_locator(ancestor, child))
 }
 
 #[cfg(test)]

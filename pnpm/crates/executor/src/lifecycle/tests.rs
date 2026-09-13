@@ -19,7 +19,10 @@ fn streamed_output_splits_newline_free_data_into_bounded_chunks() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS
+                .lock()
+                .expect("lock")
+                .push(event.clone());
         }
     }
 
@@ -71,7 +74,10 @@ fn lifecycle_emits_script_stdio_and_exit_in_order() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS
+                .lock()
+                .expect("lock")
+                .push(event.clone());
         }
     }
 
@@ -152,11 +158,15 @@ fn lifecycle_emits_script_stdio_and_exit_in_order() {
     let stdio = stdio_lines(&captured);
     dbg!(&stdio);
     assert!(
-        stdio.iter().any(|(s, l)| **s == LifecycleStdio::Stdout && *l == "HELLO"),
+        stdio
+            .iter()
+            .any(|(s, l)| **s == LifecycleStdio::Stdout && *l == "HELLO"),
         "stdout 'HELLO' must be emitted: {stdio:?}",
     );
     assert!(
-        stdio.iter().any(|(s, l)| **s == LifecycleStdio::Stderr && *l == "BAD"),
+        stdio
+            .iter()
+            .any(|(s, l)| **s == LifecycleStdio::Stderr && *l == "BAD"),
         "stderr 'BAD' must be emitted: {stdio:?}",
     );
 }
@@ -185,7 +195,10 @@ fn lifecycle_events_carry_optional_flag() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS
+                .lock()
+                .expect("lock")
+                .push(event.clone());
         }
     }
 
@@ -262,7 +275,10 @@ fn lifecycle_emits_exit_with_nonzero_code_on_failure() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS
+                .lock()
+                .expect("lock")
+                .push(event.clone());
         }
     }
 
@@ -543,7 +559,8 @@ fn malformed_manifest_propagates_error() {
     let err = run_postinstall_hooks::<SilentReporter>(&opts).expect_err("malformed JSON must fail");
     eprintln!("ERR: {err}");
     let LifecycleScriptError::ReadManifest {
-        source: PackageManifestError::Parse { path, .. }, ..
+        source: PackageManifestError::Parse { path, .. },
+        ..
     } = &err
     else {
         panic!("expected ReadManifest(Parse), got {err:?}")
@@ -563,7 +580,10 @@ fn shell_emulator_lifecycle_emits_stdio_and_a_failing_exit() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS
+                .lock()
+                .expect("lock")
+                .push(event.clone());
         }
     }
 
@@ -646,11 +666,15 @@ fn shell_emulator_lifecycle_emits_stdio_and_a_failing_exit() {
         .collect();
     dbg!(&stdio);
     assert!(
-        stdio.iter().any(|(s, l)| **s == LifecycleStdio::Stdout && *l == "HELLO"),
+        stdio
+            .iter()
+            .any(|(s, l)| **s == LifecycleStdio::Stdout && *l == "HELLO"),
         "stdout 'HELLO' must be emitted: {stdio:?}",
     );
     assert!(
-        stdio.iter().any(|(s, l)| **s == LifecycleStdio::Stderr && *l == "BAD"),
+        stdio
+            .iter()
+            .any(|(s, l)| **s == LifecycleStdio::Stderr && *l == "BAD"),
         "stderr 'BAD' must be emitted: {stdio:?}",
     );
 }

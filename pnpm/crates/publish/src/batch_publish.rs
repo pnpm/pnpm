@@ -107,11 +107,11 @@ fn group_packed_pkg(
     groups: &mut Vec<BatchGroup>,
 ) -> Result<(), BatchPublishError> {
     let manifest = package.published_manifest;
-    let name = manifest.get("name").and_then(Value::as_str).unwrap_or_default();
-    let publish_config_registry = manifest
-        .get("publishConfig")
-        .and_then(|config| config.get("registry"))
-        .and_then(Value::as_str);
+    let name = manifest
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let publish_config_registry = crate::publish_options::manifest_registry(manifest);
     let registry = find_registry_info(
         name,
         &opts.registry.default,
@@ -130,7 +130,10 @@ fn group_packed_pkg(
     let summary_index = summaries.len();
     summaries.push(summary);
 
-    if let Some(group) = groups.iter_mut().find(|group| group.registry == registry) {
+    if let Some(group) = groups
+        .iter_mut()
+        .find(|group| group.registry == registry)
+    {
         group.package_names.push(name.to_string());
         group.summary_indexes.push(summary_index);
         group.documents.push(document);
@@ -189,9 +192,11 @@ fn batch_authorization(
     network: &PublishNetwork<'_>,
 ) -> Result<Option<String>, BatchPublishError> {
     let mut package_names = group.package_names.iter();
-    let authorization = package_names.next().and_then(|name| {
-        network.auth_headers.for_url_with_package(group.registry.as_str(), Some(name))
-    });
+    let authorization = package_names
+        .next()
+        .and_then(|name| {
+            network.auth_headers.for_url_with_package(group.registry.as_str(), Some(name))
+        });
     if package_names.any(|name| {
         network.auth_headers.for_url_with_package(group.registry.as_str(), Some(name))
             != authorization

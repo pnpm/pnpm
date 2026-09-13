@@ -102,8 +102,10 @@ impl SkippedSnapshots {
         Iter: IntoIterator,
         Iter::Item: AsRef<str>,
     {
-        let installability =
-            iter.into_iter().filter_map(|text| text.as_ref().parse::<PackageKey>().ok()).collect();
+        let installability = iter
+            .into_iter()
+            .filter_map(|text| text.as_ref().parse::<PackageKey>().ok())
+            .collect();
         Self { installability, ..Self::default() }
     }
 
@@ -208,13 +210,16 @@ impl SkippedSnapshots {
         &mut self,
         snapshots: &HashMap<PackageKey, SnapshotEntry>,
     ) {
-        self.installability
-            .retain(|key| snapshots.get(key).is_some_and(|snapshot| snapshot.optional));
+        self.installability.retain(|key| {
+            snapshots.get(key).is_some_and(|snapshot| snapshot.optional)
+        });
     }
 
     #[must_use]
     pub fn len(&self) -> usize {
-        self.installability.len() + self.fetch_failed.len() + self.optional_excluded.len()
+        self.installability.len()
+            + self.fetch_failed.len()
+            + self.optional_excluded.len()
     }
 
     #[must_use]

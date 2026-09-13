@@ -2,7 +2,10 @@ use super::{ParentPkgAliases, peer_shadowed_dependencies};
 use rustc_hash::FxHashSet as HashSet;
 
 fn names<const COUNT: usize>(names: [&str; COUNT]) -> HashSet<String> {
-    names.into_iter().map(str::to_string).collect()
+    names
+        .into_iter()
+        .map(str::to_string)
+        .collect()
 }
 
 #[test]

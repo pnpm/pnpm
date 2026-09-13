@@ -99,7 +99,9 @@ struct Waiter {
 /// priority, then by *earlier* registration among equals.
 impl Ord for Waiter {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.priority.cmp(&other.priority).then_with(|| other.seq.cmp(&self.seq))
+        self.priority
+            .cmp(&other.priority)
+            .then_with(|| other.seq.cmp(&self.seq))
     }
 }
 
@@ -143,7 +145,9 @@ impl PrioritySemaphore {
             state: Arc::new(Mutex::new(SemState {
                 free: permits,
                 in_flight: InFlight::default(),
-                throughput_reserve: permits.div_ceil(2).min(permits.saturating_sub(1)),
+                throughput_reserve: permits
+                    .div_ceil(2)
+                    .min(permits.saturating_sub(1)),
                 next_seq: 0,
                 latency_waiters: VecDeque::new(),
                 background_waiters: VecDeque::new(),
@@ -217,7 +221,9 @@ impl SemState {
         if let Some(waiter) = self.background_waiters.pop_front() {
             return Some((waiter, Class::Background));
         }
-        self.throughput_waiters.pop().map(|waiter| (waiter, Class::Throughput))
+        self.throughput_waiters
+            .pop()
+            .map(|waiter| (waiter, Class::Throughput))
     }
 }
 

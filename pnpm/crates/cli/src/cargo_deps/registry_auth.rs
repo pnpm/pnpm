@@ -42,7 +42,10 @@ fn crates_io_from_sources(
 ) -> Result<Arc<AuthHeaders>> {
     let token = match nonempty(env_token) {
         Some(token) => Some(token),
-        None => cargo_home.map(token_from_credentials).transpose()?.flatten(),
+        None => cargo_home
+            .map(token_from_credentials)
+            .transpose()?
+            .flatten(),
     };
     let Some(token) = token else { return Ok(Arc::clone(configured)) };
 

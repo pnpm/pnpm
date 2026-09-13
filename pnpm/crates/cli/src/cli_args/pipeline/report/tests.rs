@@ -17,7 +17,11 @@ fn empty_selection_upload_has_a_summary_and_an_opaque_run_id() {
     assert_eq!(upload.summary["pipeline"], pipeline);
     assert_eq!(upload.summary["tasks"], serde_json::json!({}));
     assert_eq!(upload.summary["selection"]["requestedProjects"], 0);
-    assert!(upload.run_id.bytes().all(|byte| byte.is_ascii_hexdigit() || byte == b'-'));
+    assert!(
+        upload.run_id
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() || byte == b'-'),
+    );
     let directory = tempfile::tempdir().unwrap();
     let written = report.write(directory.path()).unwrap();
     assert_eq!(written.parent().unwrap(), directory.path().join("runs"));

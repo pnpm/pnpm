@@ -26,12 +26,11 @@ impl HostedBackend for S3Store {
         &self,
         name: &CanonicalPackageName,
     ) -> Result<Option<HostedDocumentForUpdate>> {
-        Ok(S3Store::read_document_for_update(self, name).await?.map(|document| {
-            HostedDocumentForUpdate {
+        Ok(S3Store::read_document_for_update(self, name).await?
+            .map(|document| HostedDocumentForUpdate {
                 bytes: document.bytes,
                 version: HostedDocumentVersion::ObjectVersion(document.version),
-            }
-        }))
+            }))
     }
 
     async fn write_document_if_current(
@@ -136,7 +135,10 @@ impl HostedBackend for S3Store {
                     Err(error) => return Some(Err(error.into())),
                 };
                 let path = meta.location.as_ref().strip_prefix(&self.prefix)?;
-                if path.split('/').any(|part| part.starts_with('.')) {
+                if path
+                    .split('/')
+                    .any(|part| part.starts_with('.'))
+                {
                     return None;
                 }
                 Some(Ok(crate::HostedBlobFile {

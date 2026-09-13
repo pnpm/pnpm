@@ -301,8 +301,10 @@ fn intern_config_applies_project_transforms() {
 
     assert!(config.allow_unused_patches);
     assert_eq!(
-        config.patched_dependency_hashes().expect("read precomputed hashes").expect("patch hashes")
-            ["foo@1.0.0"],
+        config
+            .patched_dependency_hashes()
+            .expect("read precomputed hashes")
+            .expect("patch hashes")["foo@1.0.0"],
         "abc123",
     );
     let extensions = config.package_extensions.as_ref().expect("package extensions");
@@ -437,7 +439,13 @@ fn intern_config_prefers_request_settings_and_keys_effective_values() {
             }
         }
     }
-    assert_eq!(configs.lock().expect("config cache poisoned").len(), 8);
+    assert_eq!(
+        configs
+            .lock()
+            .expect("config cache poisoned")
+            .len(),
+        8,
+    );
     assert_eq!(cache_keys.len(), 8);
 }
 
@@ -538,7 +546,13 @@ fn intern_config_caps_distinct_leaked_configs_but_keeps_serving_known_ones() {
     // leak by varying its registry/policy fields.
     assert!(intern("https://c.test/").is_none());
     // ...and nothing was interned beyond the cap (the refusal didn't leak).
-    assert_eq!(configs.lock().expect("config cache poisoned").len(), max);
+    assert_eq!(
+        configs
+            .lock()
+            .expect("config cache poisoned")
+            .len(),
+        max,
+    );
 
     // An already-interned configuration is still served even at the cap.
     assert!(intern("https://a.test/").is_some());
@@ -590,7 +604,13 @@ fn intern_config_keys_overrides_canonically_regardless_of_order() {
         intern(serde_json::json!({ "a": "1.0.0", "b": "2.0.0" })).expect("first config interned");
     let second = intern(serde_json::json!({ "b": "2.0.0", "a": "1.0.0" })).expect("config reused");
     assert!(std::ptr::eq(first, second));
-    assert_eq!(configs.lock().expect("config cache poisoned").len(), 1);
+    assert_eq!(
+        configs
+            .lock()
+            .expect("config cache poisoned")
+            .len(),
+        1,
+    );
 }
 
 /// The client's `resolutionMode` decides which version a pick lands on, so a
@@ -620,5 +640,11 @@ fn intern_config_resolves_in_the_client_s_resolution_mode() {
         assert_eq!(intern(&request).resolution_mode, mode);
     }
 
-    assert_eq!(configs.lock().expect("config cache").len(), 3);
+    assert_eq!(
+        configs
+            .lock()
+            .expect("config cache")
+            .len(),
+        3,
+    );
 }

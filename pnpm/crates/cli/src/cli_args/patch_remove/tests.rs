@@ -86,7 +86,9 @@ fn dialoguer_prompt_reports_cancellation_when_stdin_is_not_interactive() {
     assert!(!std::io::stdin().is_terminal(), "test requires non-interactive stdin");
 
     let prompt = DialoguerPatchRemovePrompt;
-    let err = prompt.select_patches(&["pkg".to_string()]).expect_err("prompt should cancel");
+    let err = prompt
+        .select_patches(&["pkg".to_string()])
+        .expect_err("prompt should cancel");
 
     assert!(matches!(err, PatchRemoveError::Canceled));
 }
@@ -234,7 +236,9 @@ fn join_setting_path_ignores_root_and_current_dir_components() {
 
     assert_eq!(
         join_setting_path(tmp.path(), "./patches/./nested"),
-        tmp.path().join("patches").join("nested"),
+        tmp.path()
+            .join("patches")
+            .join("nested"),
     );
 
     #[cfg(unix)]
@@ -274,9 +278,15 @@ fn unlink_patch_if_exists_reports_remove_errors() {
 #[test]
 fn remove_empty_patch_dirs_removes_empty_dirs_and_ignores_missing_dirs() {
     let tmp = tempfile::tempdir().expect("temp dir");
-    let empty = tmp.path().join("patches").join("nested");
+    let empty = tmp
+        .path()
+        .join("patches")
+        .join("nested");
     std::fs::create_dir_all(&empty).expect("create empty patch dir");
-    let missing = tmp.path().join("patches").join("missing");
+    let missing = tmp
+        .path()
+        .join("patches")
+        .join("missing");
 
     remove_empty_patch_dirs(&[
         PatchRemovalTarget {
@@ -317,7 +327,10 @@ fn remove_empty_patch_dirs_reports_read_errors() {
 #[test]
 fn remove_empty_patch_dirs_reports_remove_errors() {
     let tmp = tempfile::tempdir().expect("temp dir");
-    let empty = tmp.path().join("patches").join("nested");
+    let empty = tmp
+        .path()
+        .join("patches")
+        .join("nested");
 
     let result = remove_empty_patch_dirs_with_fs(
         &[PatchRemovalTarget {
@@ -335,7 +348,10 @@ fn remove_empty_patch_dirs_reports_remove_errors() {
 #[test]
 fn remove_empty_patch_dirs_keeps_non_empty_dirs() {
     let tmp = tempfile::tempdir().expect("temp dir");
-    let parent = tmp.path().join("patches").join("nested");
+    let parent = tmp
+        .path()
+        .join("patches")
+        .join("nested");
 
     remove_empty_patch_dirs_with_fs(
         &[PatchRemovalTarget {

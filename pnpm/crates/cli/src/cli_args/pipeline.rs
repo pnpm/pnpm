@@ -256,7 +256,11 @@ impl<'a> PipelineRun<'a> {
         let Some(requested_tasks) = self.config.pipelines.get(name) else {
             return Err(PipelineError::UnknownPipeline {
                 name: name.to_string(),
-                available: self.config.pipelines.keys().cloned().collect::<Vec<_>>().join(", "),
+                available: self.config.pipelines
+                    .keys()
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", "),
             }
             .into());
         };
@@ -340,8 +344,7 @@ impl<'a> PipelineRun<'a> {
     /// The task graph over the selection: the requested projects' tasks
     /// plus the `dependsOn` edges into the rest of the selected projects.
     fn task_graph(&self, plan: &PipelinePlan<'_, '_>) -> TaskGraph {
-        let selected_graph: ProjectGraph<GraphPkg<'_>> = plan
-            .graph
+        let selected_graph: ProjectGraph<GraphPkg<'_>> = plan.graph
             .iter()
             .filter(|(root, _)| plan.selection.selected.contains(root.as_path()))
             .map(|(root, node)| (root.clone(), node.clone()))
@@ -356,7 +359,10 @@ impl<'a> PipelineRun<'a> {
                 Err(_) => Vec::new(),
             }
         };
-        let task_names: Vec<&str> = plan.requested_tasks.iter().map(String::as_str).collect();
+        let task_names: Vec<&str> = plan.requested_tasks
+            .iter()
+            .map(String::as_str)
+            .collect();
         build_pipeline_task_graph(&BuildPipelineTaskGraphOptions {
             project_dependencies: &project_dependencies,
             select_scripts,
@@ -474,8 +480,7 @@ fn pipeline_data_dir(config: &Config, workspace_root: &Path) -> PathBuf {
 }
 
 fn pipeline_base(invocation: &PipelineInvocation, config: &Config) -> String {
-    invocation
-        .base
+    invocation.base
         .clone()
         .or_else(|| config.pipeline_base.clone())
         .unwrap_or_else(|| DEFAULT_PIPELINE_BASE.to_string())
@@ -486,17 +491,3 @@ mod selection;
 mod execution;
 
 mod reporting;
-
-impl PipelineResults {
-    fn new(graph: &TaskGraph, workspace_root: &Path) -> Self {
-        Self {
-            statuses: Mutex::new(
-                graph
-                    .keys()
-                    .map(|key| (format_task(key, workspace_root), ExecutionStatus::queued()))
-                    .collect(),
-            ),
-            abort: Mutex::new(None),
-        }
-    }
-}

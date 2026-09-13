@@ -40,16 +40,25 @@ fn pkg(
 
 /// The package each selectable row of a group updates, in order.
 fn values(group: &ChoiceGroup) -> Vec<&str> {
-    group.rows.iter().filter_map(|row| row.value.as_deref()).collect()
+    group.rows
+        .iter()
+        .filter_map(|row| row.value.as_deref())
+        .collect()
 }
 
 /// The terminal column each selectable row's `❯` starts at, in order.
 fn arrow_offsets(group: &ChoiceGroup) -> Vec<usize> {
-    group
-        .rows
+    group.rows
         .iter()
         .skip(1)
-        .map(|row| measure_text_width(row.label.split('❯').next().expect("row has an arrow")))
+        .map(|row| {
+            measure_text_width(
+                row.label
+                    .split('❯')
+                    .next()
+                    .expect("row has an arrow"),
+            )
+        })
         .collect()
 }
 
@@ -64,8 +73,10 @@ fn groups_by_dependency_type_in_manifest_order() {
 
     let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
 
-    let rendered: Vec<(&str, Vec<&str>)> =
-        groups.iter().map(|group| (group.message.as_str(), values(group))).collect();
+    let rendered: Vec<(&str, Vec<&str>)> = groups
+        .iter()
+        .map(|group| (group.message.as_str(), values(group)))
+        .collect();
     assert_eq!(
         rendered,
         vec![
@@ -135,8 +146,10 @@ fn github_actions_form_their_own_group() {
 
     let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
 
-    let rendered: Vec<(&str, Vec<&str>)> =
-        groups.iter().map(|group| (group.message.as_str(), values(group))).collect();
+    let rendered: Vec<(&str, Vec<&str>)> = groups
+        .iter()
+        .map(|group| (group.message.as_str(), values(group)))
+        .collect();
     assert_eq!(
         rendered,
         vec![("devDependencies", vec!["foo"]), ("GitHub Actions", vec!["actions/checkout"])],
@@ -240,7 +253,9 @@ fn the_header_row_lines_up_with_its_rows() {
 
 /// The terminal column `text` starts at in `line`.
 fn column_of(line: &str, text: &str) -> usize {
-    let start = line.find(text).unwrap_or_else(|| panic!("{text:?} is missing from {line:?}"));
+    let start = line
+        .find(text)
+        .unwrap_or_else(|| panic!("{text:?} is missing from {line:?}"));
     measure_text_width(&line[..start])
 }
 

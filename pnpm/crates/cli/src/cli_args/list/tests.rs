@@ -311,7 +311,13 @@ fn render_parseable_search_shared_dep_across_packages_is_not_duplicated() {
     assert!(lines.contains(&"/workspace/packages/pkg-a"));
     assert!(lines.contains(&"/workspace/packages/pkg-b"));
     assert!(lines.contains(&"/workspace/packages/shared"));
-    assert_eq!(lines.iter().filter(|line| **line == "/workspace/packages/shared").count(), 1);
+    assert_eq!(
+        lines
+            .iter()
+            .filter(|line| **line == "/workspace/packages/shared")
+            .count(),
+        1,
+    );
 }
 
 // Port of upstream's 'renderParseable search: packages unrelated to search are excluded' (deps/inspection/list/test/index.ts).
@@ -384,7 +390,10 @@ fn render_parseable_search_long_shared_dep_across_packages_is_not_duplicated() {
     assert!(lines.contains(&"/workspace/packages/pkg-a:pkg-a@1.0.0"));
     assert!(lines.contains(&"/workspace/packages/pkg-b:pkg-b@1.0.0"));
     assert_eq!(
-        lines.iter().filter(|line| line.starts_with("/workspace/packages/shared")).count(),
+        lines
+            .iter()
+            .filter(|line| line.starts_with("/workspace/packages/shared"))
+            .count(),
         1,
     );
 }

@@ -190,7 +190,10 @@ fn custom_resolution_metadata(resolution_type: &str) -> pnpm_lockfile::PackageMe
     );
     let mut metadata = registry_metadata();
     metadata.resolution = LockfileResolution::Custom(pnpm_lockfile::CustomResolution {
-        resolution_type: resolution_type.to_string().try_into().expect("custom type tag"),
+        resolution_type: resolution_type
+            .to_string()
+            .try_into()
+            .expect("custom type tag"),
         extra,
     });
     metadata

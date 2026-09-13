@@ -6,10 +6,16 @@ use std::ffi::OsString;
 
 fn relocate(tokens: &[&str]) -> Vec<String> {
     let cmd = with_boolean_negations(CliArgs::command());
-    relocate_pre_subcommand_flags(&cmd, tokens.iter().map(OsString::from).collect())
-        .into_iter()
-        .map(|token| token.into_string().expect("test tokens are UTF-8"))
-        .collect()
+    relocate_pre_subcommand_flags(
+        &cmd,
+        tokens
+            .iter()
+            .map(OsString::from)
+            .collect(),
+    )
+    .into_iter()
+    .map(|token| token.into_string().expect("test tokens are UTF-8"))
+    .collect()
 }
 
 fn parse(tokens: &[&str]) -> CliArgs {
@@ -18,7 +24,13 @@ fn parse(tokens: &[&str]) -> CliArgs {
 
 fn try_parse(tokens: &[&str]) -> Result<CliArgs, clap::Error> {
     let cmd = with_boolean_negations(CliArgs::command());
-    let argv = relocate_pre_subcommand_flags(&cmd, tokens.iter().map(OsString::from).collect());
+    let argv = relocate_pre_subcommand_flags(
+        &cmd,
+        tokens
+            .iter()
+            .map(OsString::from)
+            .collect(),
+    );
     cmd.try_get_matches_from(argv).and_then(|matches| CliArgs::from_arg_matches(&matches))
 }
 

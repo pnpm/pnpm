@@ -63,8 +63,7 @@ fn add_accepts_multiple_local_package_selectors() {
         std::fs::read_to_string(workspace.join(Lockfile::FILE_NAME)).expect("read pnpm-lock.yaml");
     let lockfile: Lockfile = serde_saphyr::from_str(&lockfile_text)
         .unwrap_or_else(|error| panic!("parse pnpm-lock.yaml: {error}\n{lockfile_text}"));
-    let dependencies = lockfile
-        .importers
+    let dependencies = lockfile.importers
         .get(Lockfile::ROOT_IMPORTER_KEY)
         .and_then(|importer| importer.dependencies.as_ref())
         .expect("root importer dependencies");
@@ -72,7 +71,11 @@ fn add_accepts_multiple_local_package_selectors() {
         let parsed_name: PkgName = package_name.parse().expect("parse local package name");
         assert!(dependencies.contains_key(&parsed_name), "lockfile contains {package_name}");
         assert!(
-            workspace.join("node_modules").join(package_name).join("package.json").exists(),
+            workspace
+                .join("node_modules")
+                .join(package_name)
+                .join("package.json")
+                .exists(),
             "{package_name} is installed",
         );
     }
@@ -97,7 +100,10 @@ fn add_installs_a_local_package_reached_through_a_symlinked_directory() {
     pnpm_fs::symlink_dir(&real_dir, &workspace.join("fixtures/linked-local"))
         .expect("link the local package directory");
 
-    pacquet.with_args(["add", "file:./fixtures/linked-local"]).assert().success();
+    pacquet
+        .with_args(["add", "file:./fixtures/linked-local"])
+        .assert()
+        .success();
 
     assert_eq!(prod_spec(&workspace, "local"), "file:fixtures/linked-local");
     assert!(workspace.join("node_modules/local/index.js").is_file());
@@ -129,7 +135,9 @@ fn add_workspace_root_tolerates_a_dir_that_does_not_exist() {
         .pipe(PackageManifest::from_path)
         .expect("read root manifest");
     assert!(
-        root_manifest.dependencies([DependencyGroup::Dev]).any(|(key, _)| key == "local-a"),
+        root_manifest
+            .dependencies([DependencyGroup::Dev])
+            .any(|(key, _)| key == "local-a"),
         "a nonexistent --dir must still redirect the add to the root manifest",
     );
 
@@ -191,7 +199,9 @@ fn add_workspace_root_saves_to_the_root_manifest_from_a_subdir() {
         .expect("read root manifest");
     for package_name in ["local-a", "local-b"] {
         assert!(
-            root_manifest.dependencies([DependencyGroup::Dev]).any(|(key, _)| key == package_name),
+            root_manifest
+                .dependencies([DependencyGroup::Dev])
+                .any(|(key, _)| key == package_name),
             "--workspace-root must save {package_name} to the root manifest",
         );
     }
@@ -218,8 +228,13 @@ fn add_workspace_root_saves_to_the_root_manifest_from_a_subdir() {
 
 #[test]
 fn add_lockfile_only_from_workspace_subdir_prints_manifest_summary() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
 
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut workspace_yaml =

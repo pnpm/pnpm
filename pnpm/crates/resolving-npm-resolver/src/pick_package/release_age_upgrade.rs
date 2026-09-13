@@ -138,10 +138,9 @@ pub(super) fn release_age_upgrade_needed<Cache: PackageMetaCache>(
     {
         return false;
     }
-    let fully_excluded = opts
-        .policy
-        .published_by_exclude
-        .is_some_and(|policy| matches!(policy.matches(&spec.name), PolicyMatch::AnyVersion));
+    let fully_excluded = opts.policy.published_by_exclude.is_some_and(|policy| {
+        matches!(policy.matches(&spec.name), PolicyMatch::AnyVersion)
+    });
     if fully_excluded {
         return false;
     }
@@ -149,8 +148,7 @@ pub(super) fn release_age_upgrade_needed<Cache: PackageMetaCache>(
     // `filter_pkg_metadata_by_publish_date`. When `modified` is missing or
     // unparsable this falls through to the upgrade — better to spend one
     // extra fetch than to silently bypass the maturity check.
-    let modified_before_cutoff = meta
-        .modified
+    let modified_before_cutoff = meta.modified
         .as_deref()
         .and_then(parse_packument_timestamp)
         .is_some_and(|modified| modified <= cutoff);
@@ -212,8 +210,7 @@ pub(super) fn release_age_upgrade_limit(
     cache_key: &str,
 ) -> Arc<Semaphore> {
     Arc::clone(
-        fetch_locker
-            .limits
+        fetch_locker.limits
             .entry(format!("{cache_key}#release-age-upgrade"))
             .or_insert_with(|| Arc::new(Semaphore::new(1)))
             .value(),

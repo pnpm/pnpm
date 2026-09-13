@@ -413,8 +413,9 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
     ) -> Result<RegistryPick, ResolveError> {
         let overlay_selectors =
             crate::preferred_overlay::overlay_merged_selectors(opts, &spec.name);
-        let base_selectors =
-            overlay_selectors.as_ref().or_else(|| opts.version.preferred_versions.get(&spec.name));
+        let base_selectors = overlay_selectors
+            .as_ref()
+            .or_else(|| opts.version.preferred_versions.get(&spec.name));
         let ctx = self.metadata.pick_context(&self.format, self.cache_policy);
 
         let picked = pick_from_registry_with_guard(
@@ -484,8 +485,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         let Some(result) = result else {
             return Ok(None);
         };
-        if result
-            .policy_violation
+        if result.policy_violation
             .as_ref()
             .is_some_and(|violation| violation.code == MINIMUM_RELEASE_AGE_VIOLATION_CODE)
         {

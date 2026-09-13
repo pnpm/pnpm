@@ -410,8 +410,10 @@ fn peer_cycle_fixture(entries: &[(&str, usize, &str)], shape: &PeerCycleShape) -
         let edges = ring_member_edges(index, shape, &mut packages, &mut children_by_id);
         children_by_id.insert(Arc::from(ring_id(index)), Arc::new(edges));
     }
-    packages
-        .insert(Arc::from("wc@1.0.0"), package("wc", "1.0.0", &[("w", shape.wc_w_range)], false));
+    packages.insert(
+        Arc::from("wc@1.0.0"),
+        package("wc", "1.0.0", &[("w", shape.wc_w_range)], false),
+    );
     packages.insert(Arc::from("p@1.0.0"), package("p", "1.0.0", &[], true));
 
     let mut dependencies_tree = HashMap::default();
@@ -437,14 +439,18 @@ fn peer_cycle_fixture(entries: &[(&str, usize, &str)], shape: &PeerCycleShape) -
     add_direct("p@1.0.0", "p", &mut dependencies_tree, &mut direct);
     if let Some(w_version) = shape.importer_w_version {
         let w_pkg = format!("w@{w_version}");
-        packages.entry(Arc::from(&*w_pkg)).or_insert_with(|| package("w", w_version, &[], true));
+        packages
+            .entry(Arc::from(&*w_pkg))
+            .or_insert_with(|| package("w", w_version, &[], true));
         children_by_id.insert(Arc::from(&*w_pkg), Arc::new(Vec::new()));
         add_direct(&w_pkg, "w", &mut dependencies_tree, &mut direct);
     }
     for (alias, ring_index, w_version) in entries {
         let entry_pkg = format!("{alias}@1.0.0");
         let w_pkg = format!("w@{w_version}");
-        packages.entry(Arc::from(&*w_pkg)).or_insert_with(|| package("w", w_version, &[], true));
+        packages
+            .entry(Arc::from(&*w_pkg))
+            .or_insert_with(|| package("w", w_version, &[], true));
         packages.insert(Arc::from(&*entry_pkg), package(alias, "1.0.0", &[], false));
         children_by_id.insert(
             Arc::from(&*entry_pkg),
@@ -532,7 +538,10 @@ fn push_ring_fanout_edges(
 fn peer_cycle_graph_keys(entries: &[(&str, usize, &str)], shape: &PeerCycleShape) -> Vec<String> {
     let mut tree = peer_cycle_fixture(entries, shape);
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
-    let mut keys: Vec<String> = result.graph.keys().map(|path| path.as_str().to_string()).collect();
+    let mut keys: Vec<String> = result.graph
+        .keys()
+        .map(|path| path.as_str().to_string())
+        .collect();
     keys.sort_unstable();
     keys
 }

@@ -446,7 +446,12 @@ fn regenerates_missing_wanted_lockfile_when_touched_manifest_satisfies_current()
     let decision =
         content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
     assert_eq!(decision, Decision::UpToDate);
-    assert!(dir.path().join(Lockfile::FILE_NAME).exists(), "pnpm-lock.yaml must be regenerated");
+    assert!(
+        dir.path()
+            .join(Lockfile::FILE_NAME)
+            .exists(),
+        "pnpm-lock.yaml must be regenerated",
+    );
 }
 /// A manifest that no longer matches the current lockfile cannot ride
 /// the current-as-wanted fallback — the full install must resolve.
@@ -468,7 +473,9 @@ fn returns_skipped_when_missing_wanted_lockfile_and_manifest_adds_a_dependency()
         "expected Skipped(no longer satisfied), got {decision:?}",
     );
     assert!(
-        !dir.path().join(Lockfile::FILE_NAME).exists(),
+        !dir.path()
+            .join(Lockfile::FILE_NAME)
+            .exists(),
         "must not regenerate on a failed check",
     );
 }
@@ -489,7 +496,12 @@ fn workspace_regenerates_missing_wanted_lockfile_and_bumps_state() {
     let decision =
         content_check_decision(&dir, config, true, &[(dir.path().to_path_buf(), &manifest)]);
     assert_eq!(decision, Decision::UpToDate);
-    assert!(dir.path().join(Lockfile::FILE_NAME).exists(), "pnpm-lock.yaml must be regenerated");
+    assert!(
+        dir.path()
+            .join(Lockfile::FILE_NAME)
+            .exists(),
+        "pnpm-lock.yaml must be regenerated",
+    );
     let after = pnpm_workspace_state::load_workspace_state(dir.path())
         .unwrap()
         .unwrap()
@@ -518,7 +530,12 @@ fn does_not_regenerate_wanted_lockfile_when_lockfile_writing_disabled() {
         &[(dir.path().to_path_buf(), &manifest)],
     );
     assert_eq!(decision, Decision::UpToDate);
-    assert!(!dir.path().join(Lockfile::FILE_NAME).exists(), "lockfile: false must skip the write");
+    assert!(
+        !dir.path()
+            .join(Lockfile::FILE_NAME)
+            .exists(),
+        "lockfile: false must skip the write",
+    );
 }
 /// On a sub-second filesystem the lockfile freshness check uses
 /// whole-millisecond precision so the unchanged lockfile is never flagged

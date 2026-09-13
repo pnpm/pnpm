@@ -93,8 +93,7 @@ fn pack_options(options: PackOptions) -> pnpm_pack::PackOptions {
             ignore: options.ignore_scripts.unwrap_or(false),
             unsafe_perm: false,
             user_agent: format!("pnpm/{PNPM_VERSION} napi"),
-            extra_bin_paths: options
-                .extra_bin_paths
+            extra_bin_paths: options.extra_bin_paths
                 .unwrap_or_default()
                 .into_iter()
                 .map(PathBuf::from)

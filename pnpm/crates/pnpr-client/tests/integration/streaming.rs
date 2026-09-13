@@ -21,9 +21,14 @@ async fn an_upstream_resolves_a_private_package() {
     let outcome = client.resolve(opts).await.expect("the upstream should resolve it");
     let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
     assert!(
-        packages.keys().any(|key| key.to_string().starts_with("@pnpm.e2e/needs-auth@1.0.0")),
+        packages
+            .keys()
+            .any(|key| key.to_string().starts_with("@pnpm.e2e/needs-auth@1.0.0")),
         "lockfile should contain the authed package, got: {:?}",
-        packages.keys().map(ToString::to_string).collect::<Vec<_>>(),
+        packages
+            .keys()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>(),
     );
 }
 

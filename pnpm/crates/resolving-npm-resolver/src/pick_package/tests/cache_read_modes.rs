@@ -54,7 +54,12 @@ async fn filtered_full_metadata_reads_pnpm_jsonl_mirror_for_lowest_pick() {
 #[tokio::test]
 async fn warm_in_memory_cache_skips_network() {
     let mut server = mockito::Server::new_async().await;
-    let mock = server.mock("GET", "/acme").with_status(500).expect(0).create_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(500)
+        .expect(0)
+        .create_async()
+        .await;
 
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
@@ -155,7 +160,12 @@ async fn normal_range_fetches_when_cached_meta_is_missing_lockfile_version() {
 #[tokio::test]
 async fn offline_with_mirror_picks_from_disk() {
     let mut server = mockito::Server::new_async().await;
-    let mock = server.mock("GET", "/acme").with_status(500).expect(0).create_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(500)
+        .expect(0)
+        .create_async()
+        .await;
 
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
@@ -302,7 +312,12 @@ async fn offline_promotes_disk_loaded_packument_into_memory_cache() {
 #[tokio::test]
 async fn prefer_offline_promotes_disk_loaded_packument_into_memory_cache() {
     let mut server = mockito::Server::new_async().await;
-    let mock = server.mock("GET", "/acme").with_status(500).expect(0).create_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(500)
+        .expect(0)
+        .create_async()
+        .await;
 
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
@@ -421,7 +436,12 @@ async fn stale_disk_promoted_entry_falls_back_to_registry_under_prefer_offline()
 #[tokio::test]
 async fn version_spec_with_mirror_takes_fast_path() {
     let mut server = mockito::Server::new_async().await;
-    let mock = server.mock("GET", "/acme").with_status(500).expect(0).create_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(500)
+        .expect(0)
+        .create_async()
+        .await;
 
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());

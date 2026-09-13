@@ -61,17 +61,25 @@ fn crate_archive(name: &str, version: &str) -> Vec<u8> {
         header.set_size(contents.len() as u64);
         header.set_mode(0o644);
         header.set_cksum();
-        builder.append_data(&mut header, format!("{root}/{path}"), contents.as_bytes()).unwrap();
+        builder
+            .append_data(&mut header, format!("{root}/{path}"), contents.as_bytes())
+            .unwrap();
     }
-    builder.into_inner().unwrap().finish().unwrap()
+    builder
+        .into_inner()
+        .unwrap()
+        .finish()
+        .unwrap()
 }
 
 fn publish_body(metadata: &Value, archive: &[u8]) -> Vec<u8> {
     let metadata = serde_json::to_vec(metadata).unwrap();
     let mut body = Vec::new();
-    body.write_all(&(metadata.len() as u32).to_le_bytes()).unwrap();
+    body.write_all(&(metadata.len() as u32).to_le_bytes())
+        .unwrap();
     body.write_all(&metadata).unwrap();
-    body.write_all(&(archive.len() as u32).to_le_bytes()).unwrap();
+    body.write_all(&(archive.len() as u32).to_le_bytes())
+        .unwrap();
     body.write_all(archive).unwrap();
     body
 }

@@ -224,7 +224,11 @@ fn init_logging(logs: &LogConfig) {
         // `method`/`uri` fields attached to the single access event;
         // `with_span_list(false)` drops the redundant entered-span
         // array so each JSON line stays one flat access record.
-        LogFormat::Json => builder.json().with_current_span(true).with_span_list(false).init(),
+        LogFormat::Json => builder
+            .json()
+            .with_current_span(true)
+            .with_span_list(false)
+            .init(),
         LogFormat::Pretty => builder.compact().init(),
     }
     if !logs.sink_is_supported() {

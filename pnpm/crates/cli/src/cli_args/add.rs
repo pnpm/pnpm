@@ -179,8 +179,9 @@ impl AddDependencyOptions {
             save_peer,
             no_save_peer: _,
         } = self;
-        (save_prod || save_dev || save_optional || save_build || save_peer)
-            .then(|| self.dependency_groups().collect())
+        (save_prod || save_dev || save_optional || save_build || save_peer).then(|| {
+            self.dependency_groups().collect()
+        })
     }
 }
 
@@ -221,7 +222,10 @@ impl AddArgs {
         let patterns = pnpm_workspace::read_workspace_manifest(dir)
             .into_diagnostic()?
             .map(|manifest| pnpm_workspace::workspace_package_patterns(&manifest));
-        if patterns.as_ref().is_some_and(|patterns| patterns.len() > 1) {
+        if patterns
+            .as_ref()
+            .is_some_and(|patterns| patterns.len() > 1)
+        {
             return Err(AddError::AddingToRoot.into());
         }
         Ok(())
@@ -286,11 +290,10 @@ impl AddArgs {
     ) -> miette::Result<Option<WorkspacePackages>> {
         workspace_link_root(self.target.workspace, config.workspace_dir.as_deref())?
             .map(|workspace_root| {
-                recursive::discover_workspace_projects(workspace_root, config).map(
-                    |(projects, _)| {
+                recursive::discover_workspace_projects(workspace_root, config)
+                    .map(|(projects, _)| {
                         build_workspace_packages_map(Some(&projects)).unwrap_or_default()
-                    },
-                )
+                    })
             })
             .transpose()
     }

@@ -310,9 +310,10 @@ where
     }
 
     let web_auth_urls = match &challenge.body {
-        Some(OtpErrorBody { auth_url: Some(auth_url), done_url: Some(done_url) }) => {
-            canonical_http_url(auth_url).zip(canonical_http_url(done_url))
-        }
+        Some(OtpErrorBody {
+            auth_url: Some(auth_url),
+            done_url: Some(done_url),
+        }) => canonical_http_url(auth_url).zip(canonical_http_url(done_url)),
         _ => None,
     };
 
@@ -324,8 +325,7 @@ where
                 fetch_options,
                 timeout_ms: None,
             });
-            prompt_browser_open::<Sys, Reporter, _, _>(&auth_url, poll)
-                .await
+            prompt_browser_open::<Sys, Reporter, _, _>(&auth_url, poll).await
                 .map(Some)
                 .map_err(WithOtpError::Timeout)
         }
@@ -376,8 +376,7 @@ where
     Operation: FnMut(Option<String>) -> Fut,
     Fut: Future<Output = Result<Token, Error>>,
 {
-    OtpSession::new(fetch_options)
-        .run::<Sys, Reporter, Token, Error, Operation, Fut>(operation)
+    OtpSession::new(fetch_options).run::<Sys, Reporter, Token, Error, Operation, Fut>(operation)
         .await
 }
 

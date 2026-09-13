@@ -24,7 +24,10 @@ fn name(repository: &str) -> CanonicalPackageName {
 
 async fn blob(storage: &Storage, repository: &CanonicalPackageName, bytes: &[u8]) -> Digest {
     let digest = Digest::of(bytes);
-    let slot = storage.reserve_hosted_blob(repository, &digest.blob_filename()).await.unwrap();
+    let slot = storage
+        .reserve_hosted_blob(repository, &digest.blob_filename())
+        .await
+        .unwrap();
     tokio::fs::write(&slot.tmp_path, bytes).await.unwrap();
     storage.finalize_blob_slot(slot).await.unwrap();
     digest
@@ -45,7 +48,10 @@ async fn retained_image(storage: &Storage, repository: &CanonicalPackageName) ->
         size: bytes.len() as u64,
         media_type: media_type::OCI_IMAGE_MANIFEST.into(),
     });
-    storage.write_hosted_document_if_current(repository, &document.to_bytes(), None).await.unwrap();
+    storage
+        .write_hosted_document_if_current(repository, &document.to_bytes(), None)
+        .await
+        .unwrap();
     (manifest, layer)
 }
 
@@ -64,22 +70,44 @@ async fn collection_keeps_untagged_manifests_and_layers_and_finds_nested_orphans
         (0, 0),
     );
     assert_eq!(
-        collect(&storage, Duration::ZERO, true, &HashSet::new(), MANIFEST_LIMIT).await.unwrap(),
+        collect(&storage, Duration::ZERO, true, &HashSet::new(), MANIFEST_LIMIT)
+            .await
+            .unwrap(),
         (2, 19),
     );
     assert!(
-        storage.open_hosted_blob(&nested, &nested_orphan.blob_filename()).await.unwrap().is_some(),
+        storage
+            .open_hosted_blob(&nested, &nested_orphan.blob_filename())
+            .await
+            .unwrap()
+            .is_some(),
     );
     assert_eq!(
-        collect(&storage, Duration::ZERO, false, &HashSet::new(), MANIFEST_LIMIT).await.unwrap(),
+        collect(&storage, Duration::ZERO, false, &HashSet::new(), MANIFEST_LIMIT)
+            .await
+            .unwrap(),
         (2, 19),
     );
     assert!(
-        storage.open_hosted_blob(&repository, &manifest.blob_filename()).await.unwrap().is_some(),
+        storage
+            .open_hosted_blob(&repository, &manifest.blob_filename())
+            .await
+            .unwrap()
+            .is_some(),
     );
-    assert!(storage.open_hosted_blob(&repository, &layer.blob_filename()).await.unwrap().is_some());
     assert!(
-        storage.open_hosted_blob(&nested, &nested_orphan.blob_filename()).await.unwrap().is_none(),
+        storage
+            .open_hosted_blob(&repository, &layer.blob_filename())
+            .await
+            .unwrap()
+            .is_some(),
+    );
+    assert!(
+        storage
+            .open_hosted_blob(&nested, &nested_orphan.blob_filename())
+            .await
+            .unwrap()
+            .is_none(),
     );
 }
 
@@ -89,7 +117,10 @@ async fn corrupt_or_missing_manifests_prevent_deletion() {
     let repository = name("acme/app");
     let (manifest, _) = retained_image(&storage, &repository).await;
     let orphan = blob(&storage, &name("aaa"), b"orphan").await;
-    let path = temp.path().join("store/acme/app").join(manifest.blob_filename());
+    let path = temp
+        .path()
+        .join("store/acme/app")
+        .join(manifest.blob_filename());
     tokio::fs::write(&path, b"corrupt").await.unwrap();
     let error = collect(&storage, Duration::ZERO, false, &HashSet::new(), MANIFEST_LIMIT)
         .await
@@ -98,7 +129,11 @@ async fn corrupt_or_missing_manifests_prevent_deletion() {
         matches!(error, RegistryError::BadRequest { reason } if reason.contains("manifest digest mismatch")),
     );
     assert!(
-        storage.open_hosted_blob(&name("aaa"), &orphan.blob_filename()).await.unwrap().is_some(),
+        storage
+            .open_hosted_blob(&name("aaa"), &orphan.blob_filename())
+            .await
+            .unwrap()
+            .is_some(),
     );
     tokio::fs::remove_file(path).await.unwrap();
     let error = collect(&storage, Duration::ZERO, false, &HashSet::new(), MANIFEST_LIMIT)
@@ -136,7 +171,9 @@ async fn index_keeps_children_removed_from_the_document_and_their_layers() {
         HashSet::from([index.blob_filename(), child.blob_filename(), layer.blob_filename()]),
     );
     assert_eq!(
-        collect(&storage, Duration::ZERO, false, &HashSet::new(), MANIFEST_LIMIT).await.unwrap(),
+        collect(&storage, Duration::ZERO, false, &HashSet::new(), MANIFEST_LIMIT)
+            .await
+            .unwrap(),
         (0, 0),
     );
 }
@@ -204,7 +241,11 @@ async fn a_document_without_any_blob_files_still_blocks_collection_when_corrupt(
         matches!(error, RegistryError::BadRequest { reason } if reason.contains("retained manifest is missing")),
     );
     assert!(
-        storage.open_hosted_blob(&name("aaa"), &orphan.blob_filename()).await.unwrap().is_some(),
+        storage
+            .open_hosted_blob(&name("aaa"), &orphan.blob_filename())
+            .await
+            .unwrap()
+            .is_some(),
     );
 }
 
@@ -221,15 +262,21 @@ async fn collection_streams_an_object_store_inventory() {
     retained_image(&storage, &repository).await;
     blob(&storage, &name("acme/app/nested"), b"orphan").await;
     assert_eq!(
-        collect(&storage, Duration::ZERO, true, &HashSet::new(), MANIFEST_LIMIT).await.unwrap(),
+        collect(&storage, Duration::ZERO, true, &HashSet::new(), MANIFEST_LIMIT)
+            .await
+            .unwrap(),
         (1, 6),
     );
     assert_eq!(
-        collect(&storage, Duration::ZERO, false, &HashSet::new(), MANIFEST_LIMIT).await.unwrap(),
+        collect(&storage, Duration::ZERO, false, &HashSet::new(), MANIFEST_LIMIT)
+            .await
+            .unwrap(),
         (1, 6),
     );
     assert_eq!(
-        collect(&storage, Duration::ZERO, false, &HashSet::new(), MANIFEST_LIMIT).await.unwrap(),
+        collect(&storage, Duration::ZERO, false, &HashSet::new(), MANIFEST_LIMIT)
+            .await
+            .unwrap(),
         (0, 0),
     );
 }
@@ -240,11 +287,16 @@ async fn collection_does_not_remove_a_matching_blob_from_the_shared_cache() {
     let hosted = storage.for_hosted("images");
     let repository = name("acme/app");
     let digest = blob(&hosted, &repository, b"orphan").await;
-    let cache = temp.path().join("cache/acme/app").join(digest.blob_filename());
+    let cache = temp
+        .path()
+        .join("cache/acme/app")
+        .join(digest.blob_filename());
     tokio::fs::create_dir_all(cache.parent().unwrap()).await.unwrap();
     tokio::fs::write(&cache, b"cached").await.unwrap();
     assert_eq!(
-        collect(&hosted, Duration::ZERO, false, &HashSet::new(), MANIFEST_LIMIT).await.unwrap(),
+        collect(&hosted, Duration::ZERO, false, &HashSet::new(), MANIFEST_LIMIT)
+            .await
+            .unwrap(),
         (1, 6),
     );
     assert_eq!(tokio::fs::read(cache).await.unwrap(), b"cached");
@@ -269,7 +321,11 @@ async fn offline_collection_finishes_interrupted_explicit_deletion() {
         (0, 0),
     );
     assert!(
-        storage.open_hosted_blob(&repository, &digest.blob_filename()).await.unwrap().is_some(),
+        storage
+            .open_hosted_blob(&repository, &digest.blob_filename())
+            .await
+            .unwrap()
+            .is_some(),
     );
     assert_eq!(
         collect(&storage, Duration::from_hours(24), false, &HashSet::new(), MANIFEST_LIMIT)
@@ -278,11 +334,20 @@ async fn offline_collection_finishes_interrupted_explicit_deletion() {
         (1, 16),
     );
     assert!(
-        storage.open_hosted_blob(&repository, &digest.blob_filename()).await.unwrap().is_none(),
+        storage
+            .open_hosted_blob(&repository, &digest.blob_filename())
+            .await
+            .unwrap()
+            .is_none(),
     );
-    let document =
-        ImageDocument::parse(&storage.read_hosted_document(&repository).await.unwrap().unwrap())
-            .unwrap();
+    let document = ImageDocument::parse(
+        &storage
+            .read_hosted_document(&repository)
+            .await
+            .unwrap()
+            .unwrap(),
+    )
+    .unwrap();
     assert_eq!(document.generation, 1);
     assert!(document.deleting_blob.is_none());
 }

@@ -39,11 +39,17 @@ fn press(prompt: &mut CheckboxPrompt<&'static str>, keys: &[Key]) -> KeyOutcome 
 }
 
 fn selected(prompt: &CheckboxPrompt<&'static str>) -> Vec<&'static str> {
-    prompt.selected_choices().map(|choice| choice.value).collect()
+    prompt
+        .selected_choices()
+        .map(|choice| choice.value)
+        .collect()
 }
 
 fn frame_lines(prompt: &CheckboxPrompt<&'static str>) -> Vec<String> {
-    strip_ansi_codes(&prompt.render_frame()).lines().map(str::to_string).collect()
+    strip_ansi_codes(&prompt.render_frame())
+        .lines()
+        .map(str::to_string)
+        .collect()
 }
 
 #[test]
@@ -164,11 +170,12 @@ fn the_answer_names_the_selection_by_its_short_form() {
 
 #[test]
 fn the_theme_picks_the_icons() {
-    let mut prompt = grouped_prompt().theme(CheckboxTheme {
-        checked: "●".to_string(),
-        unchecked: "○".to_string(),
-        highlight_active: false,
-    });
+    let mut prompt = grouped_prompt()
+        .theme(CheckboxTheme {
+            checked: "●".to_string(),
+            unchecked: "○".to_string(),
+            highlight_active: false,
+        });
 
     press(&mut prompt, &[Key::Char(' ')]);
 

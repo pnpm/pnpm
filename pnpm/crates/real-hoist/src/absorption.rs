@@ -127,7 +127,9 @@ fn refuse_shadowed(
     // version must not take the root's slot (and a same-version
     // dedup stays allowed — it resolves identically).
     if matches!(decision, AbsorbDecision::Free | AbsorbDecision::SameNode)
-        && used.get(&child.name).is_some_and(|provider| !same_ident(provider, child))
+        && used
+            .get(&child.name)
+            .is_some_and(|provider| !same_ident(provider, child))
     {
         decision = AbsorbDecision::UsedShadow;
     }
@@ -268,20 +270,22 @@ fn would_shadow_peer(
         return true;
     }
 
-    candidate.peer_names.iter().any(|peer_name| {
-        // No ancestor (excluding root) providing the peer means the candidate
-        // either resolves it at root or leaves it unsatisfied. Either case is
-        // "no shadow".
-        let Some(provider) = nearest_peer_provider(peer_name, ancestor_path) else {
-            return false;
-        };
-        // Compare the provider's locator (identity is too strict — decoupled
-        // copies of one package are distinct allocations) against root's
-        // current slot for the same name. Root carrying this exact provider
-        // means promoting the candidate doesn't change resolution; a
-        // different ident, or no entry at all, means hoisting would shadow.
-        !root_index.get(peer_name).is_some_and(|at_root| same_locator(&at_root.0, &provider))
-    })
+    candidate.peer_names
+        .iter()
+        .any(|peer_name| {
+            // No ancestor (excluding root) providing the peer means the candidate
+            // either resolves it at root or leaves it unsatisfied. Either case is
+            // "no shadow".
+            let Some(provider) = nearest_peer_provider(peer_name, ancestor_path) else {
+                return false;
+            };
+            // Compare the provider's locator (identity is too strict — decoupled
+            // copies of one package are distinct allocations) against root's
+            // current slot for the same name. Root carrying this exact provider
+            // means promoting the candidate doesn't change resolution; a
+            // different ident, or no entry at all, means hoisting would shadow.
+            !root_index.get(peer_name).is_some_and(|at_root| same_locator(&at_root.0, &provider))
+        })
 }
 
 /// The deepest ancestor in `ancestor_path` that carries `peer_name` as a
@@ -295,12 +299,14 @@ fn nearest_peer_provider(
     peer_name: &str,
     ancestor_path: &[Rc<HoisterResult>],
 ) -> Option<Rc<HoisterResult>> {
-    ancestor_path.iter().rev().find_map(|ancestor| {
-        ancestor
-            .dependencies
-            .borrow()
-            .iter()
-            .find(|dep| dep.0.name == *peer_name)
-            .map(|dep| Rc::clone(&dep.0))
-    })
+    ancestor_path
+        .iter()
+        .rev()
+        .find_map(|ancestor| {
+            ancestor.dependencies
+                .borrow()
+                .iter()
+                .find(|dep| dep.0.name == *peer_name)
+                .map(|dep| Rc::clone(&dep.0))
+        })
 }

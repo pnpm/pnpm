@@ -80,7 +80,10 @@ fn render_tree_for_project(
     opts: &RenderTreeOptions,
     multi_peer_pkgs: &HashMap<String, usize>,
 ) -> Option<String> {
-    let has_deps = project.groups().iter().any(|(_, nodes)| !nodes.is_empty())
+    let has_deps = project
+        .groups()
+        .iter()
+        .any(|(_, nodes)| !nodes.is_empty())
         || (opts.show_extraneous && !project.hierarchy.unsaved_dependencies.is_empty());
     if !opts.always_print_root_package && !has_deps {
         return None;
@@ -264,11 +267,20 @@ fn find_multi_peer_packages(projects: &[ProjectHierarchy]) -> HashMap<String, us
 
 fn list_summary(projects: &[ProjectHierarchy]) -> String {
     fn count(nodes: &[DependencyNode]) -> u64 {
-        nodes.iter().map(|node| 1 + count(&node.dependencies)).sum()
+        nodes
+            .iter()
+            .map(|node| 1 + count(&node.dependencies))
+            .sum()
     }
     let total: u64 = projects
         .iter()
-        .map(|project| project.groups().iter().map(|(_, nodes)| count(nodes)).sum::<u64>())
+        .map(|project| {
+            project
+                .groups()
+                .iter()
+                .map(|(_, nodes)| count(nodes))
+                .sum::<u64>()
+        })
         .sum();
     let mut parts = vec![format!("{total} package{}", if total == 1 { "" } else { "s" })];
     if projects.len() > 1 {

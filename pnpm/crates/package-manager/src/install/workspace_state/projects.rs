@@ -4,7 +4,10 @@ pub(in super::super) fn build_project_manifests_list<'a>(
     root_manifest: &'a PackageManifest,
     workspace_projects: Option<&'a [pnpm_workspace::Project]>,
 ) -> Vec<(std::path::PathBuf, &'a PackageManifest)> {
-    let active_dir = root_manifest.path().parent().expect("manifest path always has a parent dir");
+    let active_dir = root_manifest
+        .path()
+        .parent()
+        .expect("manifest path always has a parent dir");
     let Some(projects) = workspace_projects else {
         return vec![(active_dir.to_path_buf(), root_manifest)];
     };
@@ -63,11 +66,14 @@ pub(in super::super) fn build_selected_project_manifests_list<'a>(
         .iter()
         .map(|project| (project.root_dir.clone(), &project.manifest))
         .collect::<Vec<_>>();
-    let active_dir =
-        active_manifest.path().parent().expect("manifest path always has a parent dir");
+    let active_dir = active_manifest
+        .path()
+        .parent()
+        .expect("manifest path always has a parent dir");
     let active_dir_matcher = ProjectDirMatcher::new(active_dir);
-    let active_project_was_discovered =
-        projects.iter().any(|project| active_dir_matcher.matches(&project.root_dir));
+    let active_project_was_discovered = projects
+        .iter()
+        .any(|project| active_dir_matcher.matches(&project.root_dir));
     if !active_manifest_is_standin && !active_project_was_discovered {
         manifests.push((active_dir.to_path_buf(), active_manifest));
     }
@@ -125,14 +131,17 @@ pub(in super::super) fn projects_running_own_scripts<'manifest>(
 ) -> Vec<(PathBuf, &'manifest PackageManifest)> {
     let full_install = match inputs.mutation {
         ProjectMutation::NoInstall | ProjectMutation::UninstallSome => return Vec::new(),
-        ProjectMutation::InstallWorkspace => return inputs.materialized_project_manifests.to_vec(),
+        ProjectMutation::InstallWorkspace => {
+            return inputs.materialized_project_manifests.to_vec();
+        }
         ProjectMutation::InstallSelected => true,
         ProjectMutation::InstallSome => false,
     };
     let mutated_dirs = match inputs.selected_dirs {
-        Some(selected_dirs) => {
-            selected_dirs.iter().map(|dir| pnpm_fs::lexical_normalize(dir)).collect()
-        }
+        Some(selected_dirs) => selected_dirs
+            .iter()
+            .map(|dir| pnpm_fs::lexical_normalize(dir))
+            .collect(),
         None => HashSet::from([pnpm_fs::lexical_normalize(inputs.active_project_dir)]),
     };
     // pnpm's recursive dispatch pushes the workspace root into the
@@ -146,12 +155,13 @@ pub(in super::super) fn projects_running_own_scripts<'manifest>(
     // from the lockfile alone; pnpm runs the scripts of everything it did
     // mutate, whatever the inputs.mutation. Only when the mutated set covers the
     // whole workspace does the `inputs.mutation === 'install'` filter decide.
-    let covers_workspace = inputs.project_manifests.iter().all(|(project_dir, _)| {
-        let project_dir = pnpm_fs::lexical_normalize(project_dir);
-        mutated_dirs.contains(&project_dir) || is_pushed_root(&project_dir)
-    });
-    inputs
-        .materialized_project_manifests
+    let covers_workspace = inputs.project_manifests
+        .iter()
+        .all(|(project_dir, _)| {
+            let project_dir = pnpm_fs::lexical_normalize(project_dir);
+            mutated_dirs.contains(&project_dir) || is_pushed_root(&project_dir)
+        });
+    inputs.materialized_project_manifests
         .iter()
         .filter(|(project_dir, _)| {
             let project_dir = pnpm_fs::lexical_normalize(project_dir);
@@ -169,8 +179,10 @@ pub(in super::super) fn selected_manifest_freshness_inputs<'a>(
     project_manifests: &[(PathBuf, &'a PackageManifest)],
     selected_dirs: &HashSet<PathBuf>,
 ) -> Vec<(String, &'a PackageManifest)> {
-    let selected_dirs =
-        selected_dirs.iter().map(|dir| pnpm_fs::lexical_normalize(dir)).collect::<HashSet<_>>();
+    let selected_dirs = selected_dirs
+        .iter()
+        .map(|dir| pnpm_fs::lexical_normalize(dir))
+        .collect::<HashSet<_>>();
     let mut inputs = project_manifests
         .iter()
         .filter(|(project_dir, _)| selected_dirs.contains(&pnpm_fs::lexical_normalize(project_dir)))

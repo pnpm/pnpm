@@ -25,7 +25,9 @@ fn exclude_linked_dependencies_drops_link_deps_from_every_group() {
         std::collections::BTreeMap::from([("direct", "1.0.0")]),
     );
     assert_eq!(
-        manifest.dependencies([DependencyGroup::Dev]).collect::<Vec<_>>(),
+        manifest
+            .dependencies([DependencyGroup::Dev])
+            .collect::<Vec<_>>(),
         vec![("declared-peer", "2.0.0")],
     );
 }

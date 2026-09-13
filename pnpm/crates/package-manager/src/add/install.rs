@@ -24,7 +24,10 @@ pub(super) fn project_seed_policy(
     if dropped_pins.is_empty() {
         return BTreeMap::new();
     }
-    let manifest_dir = manifest.path().parent().expect("manifest path always has a parent dir");
+    let manifest_dir = manifest
+        .path()
+        .parent()
+        .expect("manifest path always has a parent dir");
     BTreeMap::from([(
         pnpm_workspace::importer_id_from_root_dir(
             config.lockfile_dir_for(manifest_dir),
@@ -56,7 +59,10 @@ pub(super) fn selected_add_seed(
     catalogs: &Catalogs,
 ) -> AddSeed {
     let (projects, selected_indices) = selected;
-    let manifest_dir = manifest.path().parent().expect("manifest path always has a parent dir");
+    let manifest_dir = manifest
+        .path()
+        .parent()
+        .expect("manifest path always has a parent dir");
     let importer_root = add.config.lockfile_dir_for(manifest_dir);
     let mut seed_policies = BTreeMap::new();
     let mut preferred_versions_override = PreferredVersions::new();
@@ -77,7 +83,10 @@ pub(super) fn selected_add_seed(
             ImporterUpdateSeedPolicy::DropOnly(unversioned_targets(names)),
         );
         for (name, selectors) in preferred {
-            preferred_versions_override.entry(name).or_default().extend(selectors);
+            preferred_versions_override
+                .entry(name)
+                .or_default()
+                .extend(selectors);
         }
     }
     AddSeed { seed_policies, preferred_versions_override, catalogs_override }
@@ -152,5 +161,8 @@ pub(super) fn add_install<'i>(
 /// Update targets that no selector scoped to a version line: a `catalog:`
 /// re-resolution moves whatever version the catalog entry now names.
 pub(super) fn unversioned_targets(names: HashSet<String>) -> UpdateTargets {
-    names.into_iter().map(|name| (name, None)).collect()
+    names
+        .into_iter()
+        .map(|name| (name, None))
+        .collect()
 }

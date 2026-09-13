@@ -66,8 +66,12 @@ pub(in super::super) fn dedupe<'a>(
             ReporterType::Default | ReporterType::AppendOnly => {
                 Box::pin(dedupe.run::<DefaultReporter>()).await?;
             }
-            ReporterType::Ndjson => Box::pin(dedupe.run::<NdjsonReporter>()).await?,
-            ReporterType::Silent => Box::pin(dedupe.run::<SilentReporter>()).await?,
+            ReporterType::Ndjson => {
+                Box::pin(dedupe.run::<NdjsonReporter>()).await?;
+            }
+            ReporterType::Silent => {
+                Box::pin(dedupe.run::<SilentReporter>()).await?;
+            }
         }
         Ok(())
     }))
@@ -195,8 +199,12 @@ pub(in super::super) fn unlink<'a>(
             ReporterType::Default | ReporterType::AppendOnly => {
                 Box::pin(pipeline.run::<DefaultReporter>()).await?;
             }
-            ReporterType::Ndjson => Box::pin(pipeline.run::<NdjsonReporter>()).await?,
-            ReporterType::Silent => Box::pin(pipeline.run::<SilentReporter>()).await?,
+            ReporterType::Ndjson => {
+                Box::pin(pipeline.run::<NdjsonReporter>()).await?;
+            }
+            ReporterType::Silent => {
+                Box::pin(pipeline.run::<SilentReporter>()).await?;
+            }
         }
         Ok(())
     }))

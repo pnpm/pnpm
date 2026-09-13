@@ -125,20 +125,28 @@ impl PackageExtender {
         let Some(map) = manifest.as_object() else { return false };
         let Some(name) = map.get("name").and_then(Value::as_str) else { return false };
         let Some(entries) = self.by_pkg_name.get(name) else { return false };
-        let version =
-            map.get("version").and_then(Value::as_str).and_then(|raw| raw.parse::<Version>().ok());
+        let version = map
+            .get("version")
+            .and_then(Value::as_str)
+            .and_then(|raw| raw.parse::<Version>().ok());
         entries.iter().any(|entry| entry_matches(&entry.range, version.as_ref()))
     }
 
     /// Apply extensions in place to a single manifest.
     pub fn apply(&self, manifest: &mut Value) {
         let Some(map) = manifest.as_object_mut() else { return };
-        let Some(name) = map.get("name").and_then(Value::as_str).map(str::to_string) else {
+        let Some(name) = map
+            .get("name")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+        else {
             return;
         };
         let Some(entries) = self.by_pkg_name.get(&name) else { return };
-        let version =
-            map.get("version").and_then(Value::as_str).and_then(|raw| raw.parse::<Version>().ok());
+        let version = map
+            .get("version")
+            .and_then(Value::as_str)
+            .and_then(|raw| raw.parse::<Version>().ok());
         for entry in entries {
             if !entry_matches(&entry.range, version.as_ref()) {
                 continue;

@@ -194,7 +194,10 @@ pub fn parse_allow_build_selector(selector: &str) -> (&str, bool) {
 /// `None` when there is no `@` version separator past position 0 or the
 /// version is empty — the cases that yield a name-less result.
 pub(crate) fn parse_dep_path_name_version(pkg_id: &str) -> Option<(&str, &str)> {
-    let sep = pkg_id.get(1..)?.find('@').map(|off| off + 1)?;
+    let sep = pkg_id
+        .get(1..)?
+        .find('@')
+        .map(|off| off + 1)?;
     let name = &pkg_id[..sep];
     let mut version = &pkg_id[sep + 1..];
     if version.is_empty() {
@@ -316,12 +319,13 @@ fn gitlab_tarball_repo_url(tarball_url: &str) -> Option<String> {
 /// `[^/]+/` ref anchor of the TypeScript matcher.
 fn gitlab_archive_project(path: &str) -> Option<&str> {
     const ARCHIVE_MARKER: &str = "/-/archive/";
-    path.match_indices(ARCHIVE_MARKER).find_map(|(marker_index, _)| {
-        let project = &path[..marker_index];
-        let after_marker = &path[marker_index + ARCHIVE_MARKER.len()..];
-        let (git_ref, _) = after_marker.split_once('/')?;
-        (!project.is_empty() && !git_ref.is_empty()).then_some(project)
-    })
+    path.match_indices(ARCHIVE_MARKER)
+        .find_map(|(marker_index, _)| {
+            let project = &path[..marker_index];
+            let after_marker = &path[marker_index + ARCHIVE_MARKER.len()..];
+            let (git_ref, _) = after_marker.split_once('/')?;
+            (!project.is_empty() && !git_ref.is_empty()).then_some(project)
+        })
 }
 
 pub(crate) fn is_dep_path_allow_build_key(spec: &str) -> bool {

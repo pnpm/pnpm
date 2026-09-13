@@ -55,7 +55,9 @@ fn render_archy_node(node: &TreeNode, connector: &str, prefix: &str, out: &mut S
             push_group_header(group, prefix, out);
         }
         let last = index + 1 == items.len();
-        let parent = child.groups.iter().any(|group| !group.nodes.is_empty());
+        let parent = child.groups
+            .iter()
+            .any(|group| !group.nodes.is_empty());
         let (child_connector, child_prefix) = child_frames(prefix, last, parent);
         render_archy_node(child, &child_connector, &child_prefix, out);
     }
@@ -66,7 +68,11 @@ fn render_archy_node(node: &TreeNode, connector: &str, prefix: &str, out: &mut S
 fn flatten_groups(node: &TreeNode) -> Vec<(&TreeNode, &str)> {
     node.groups
         .iter()
-        .flat_map(|group| group.nodes.iter().map(|node| (node, group.group.as_str())))
+        .flat_map(|group| {
+            group.nodes
+                .iter()
+                .map(|node| (node, group.group.as_str()))
+        })
         .collect()
 }
 
@@ -205,12 +211,16 @@ pub fn read_long_pkg_info(pkg_dir: &Path) -> LongPkgInfo {
             .map(str::to_string),
         license: manifest.get("license").cloned(),
         author: manifest.get("author").cloned(),
-        homepage: manifest.get("homepage").and_then(serde_json::Value::as_str).map(str::to_string),
+        homepage: manifest
+            .get("homepage")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string),
         repository: match manifest.get("repository") {
             Some(serde_json::Value::String(url)) => Some(url.clone()),
-            Some(serde_json::Value::Object(map)) => {
-                map.get("url").and_then(serde_json::Value::as_str).map(str::to_string)
-            }
+            Some(serde_json::Value::Object(map)) => map
+                .get("url")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string),
             _ => None,
         },
     }
@@ -280,5 +290,7 @@ pub fn green(text: &str) -> String {
 #[must_use]
 pub fn blue_bright_underline(text: &str) -> String {
     let style = owo_colors::Style::new().bright_blue().underline();
-    sanitize(text).if_supports_color(Stream::Stdout, |t| t.style(style)).to_string()
+    sanitize(text)
+        .if_supports_color(Stream::Stdout, |t| t.style(style))
+        .to_string()
 }

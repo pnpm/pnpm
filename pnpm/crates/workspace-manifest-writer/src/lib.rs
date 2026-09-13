@@ -216,12 +216,15 @@ fn unsupported_edit_target(
     manifest: &Manifest,
     opts: &UpdateWorkspaceManifestOptions<'_>,
 ) -> Option<String> {
-    if let Some(updated_catalogs) = opts
-        .updated_catalogs
-        .filter(|catalogs| catalogs.values().any(|entries| !entries.is_empty()))
-    {
-        let named: Vec<Vec<&str>> =
-            updated_catalogs.keys().map(|name| vec!["catalogs", name.as_str()]).collect();
+    if let Some(updated_catalogs) = opts.updated_catalogs.filter(|catalogs| {
+        catalogs
+            .values()
+            .any(|entries| !entries.is_empty())
+    }) {
+        let named: Vec<Vec<&str>> = updated_catalogs
+            .keys()
+            .map(|name| vec!["catalogs", name.as_str()])
+            .collect();
         let mut paths: Vec<&[&str]> = vec![&["catalog"], &["catalogs"]];
         paths.extend(named.iter().map(Vec::as_slice));
         if let Some(key) = unsupported_inline_key(manifest.document.text(), &paths) {
@@ -278,9 +281,7 @@ fn add_minimum_release_age_excludes(
     path: &Path,
 ) -> Result<bool, UpdateWorkspaceManifestError> {
     let merged = pnpm_config::version_policy::merge_package_version_specs(
-        manifest
-            .exceptions
-            .release_age
+        manifest.exceptions.release_age
             .iter()
             .flatten()
             .chain(opts.added_minimum_release_age_excludes),
@@ -328,7 +329,10 @@ fn collect_catalog_references(
     let mut references = edit::CatalogReferences::new();
     for project in all_projects {
         for (name, specifier) in project.dependencies(GROUPS) {
-            references.entry(name.to_string()).or_default().insert(specifier.to_string());
+            references
+                .entry(name.to_string())
+                .or_default()
+                .insert(specifier.to_string());
         }
     }
     for (selector, specifier) in manifest.overrides.iter().flatten() {
@@ -338,7 +342,10 @@ fn collect_catalog_references(
         let Ok((_, target_pkg)) = parse_pkg_and_parent_selector(selector) else {
             continue;
         };
-        references.entry(target_pkg.name).or_default().insert(specifier.clone());
+        references
+            .entry(target_pkg.name)
+            .or_default()
+            .insert(specifier.clone());
     }
     references
 }
@@ -363,8 +370,8 @@ pub fn update_manifest_field(
         }
     };
 
-    let edit =
-        edit_manifest_field(original.as_deref(), key, value).map_err(|error| match error {
+    let edit = edit_manifest_field(original.as_deref(), key, value)
+        .map_err(|error| match error {
             EditManifestFieldError::Parse { source } => {
                 UpdateWorkspaceManifestError::Parse { path: path.to_path_buf(), source }
             }
@@ -387,12 +394,15 @@ pub fn update_manifest_field(
     // the write; a `delete` never needs it (the file, hence its parent,
     // already exists).
     if !value.is_null()
-        && let Some(parent) = path.parent().filter(|parent| !parent.as_os_str().is_empty())
+        && let Some(parent) = path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
     {
-        fs::create_dir_all(parent).map_err(|source| UpdateWorkspaceManifestError::Write {
-            path: path.to_path_buf(),
-            source,
-        })?;
+        fs::create_dir_all(parent)
+            .map_err(|source| UpdateWorkspaceManifestError::Write {
+                path: path.to_path_buf(),
+                source,
+            })?;
     }
 
     write_atomic(path, &text)
@@ -481,9 +491,11 @@ fn write_or_remove_manifest(
     if manifest.document.keys.is_empty() {
         remove_manifest(path)
     } else {
-        write_atomic(path, &manifest.document.into_text()).map_err(|source| {
-            UpdateWorkspaceManifestError::Write { path: path.to_path_buf(), source }
-        })
+        write_atomic(path, &manifest.document.into_text())
+            .map_err(|source| UpdateWorkspaceManifestError::Write {
+                path: path.to_path_buf(),
+                source,
+            })
     }
 }
 

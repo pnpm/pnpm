@@ -26,10 +26,16 @@ fn collect_rels(
             // Use `dunce::canonicalize` semantics indirectly: strip
             // the tmp root prefix off the absolute path and report
             // the remainder. That keeps assertions deterministic.
-            let stripped = abs.strip_prefix(root).map_or_else(
-                |_| abs.display().to_string(),
-                |path| path.display().to_string().replace('\\', "/"),
-            );
+            let stripped = abs
+                .strip_prefix(root)
+                .map_or_else(
+                    |_| abs.display().to_string(),
+                    |path| {
+                        path.display()
+                            .to_string()
+                            .replace('\\', "/")
+                    },
+                );
             (rel, stripped)
         })
         .collect()
@@ -94,7 +100,8 @@ fn walk_all_files_terminates_on_symlink_cycle() {
 
     assert!(rels.contains_key("real.txt"), "direct children must still be walked: {rels:?}");
     assert!(
-        rels.keys().all(|key| !key.starts_with("loop/")),
+        rels.keys()
+            .all(|key| !key.starts_with("loop/")),
         "cycle guard must short-circuit before any `loop/` descendant is recorded: {rels:?}",
     );
 }

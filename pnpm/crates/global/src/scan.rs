@@ -33,13 +33,18 @@ impl GlobalPackageInfo {
     /// Whether `alias` is one of this group's direct dependencies.
     #[must_use]
     pub fn has_alias(&self, alias: &str) -> bool {
-        self.dependencies.iter().any(|(name, _)| name == alias)
+        self.dependencies
+            .iter()
+            .any(|(name, _)| name == alias)
     }
 
     /// The direct-dependency aliases of this group.
     #[must_use]
     pub fn aliases(&self) -> Vec<String> {
-        self.dependencies.iter().map(|(name, _)| name.clone()).collect()
+        self.dependencies
+            .iter()
+            .map(|(name, _)| name.clone())
+            .collect()
     }
 }
 
@@ -77,7 +82,10 @@ pub fn scan_global_packages(global_dir: &Path) -> io::Result<Vec<GlobalPackageIn
             continue;
         }
         result.push(GlobalPackageInfo {
-            hash: entry.file_name().to_string_lossy().into_owned(),
+            hash: entry
+                .file_name()
+                .to_string_lossy()
+                .into_owned(),
             install_dir,
             dependencies,
         });
@@ -90,7 +98,9 @@ pub fn find_global_package(
     global_dir: &Path,
     alias: &str,
 ) -> io::Result<Option<GlobalPackageInfo>> {
-    Ok(scan_global_packages(global_dir)?.into_iter().find(|pkg| pkg.has_alias(alias)))
+    Ok(scan_global_packages(global_dir)?
+        .into_iter()
+        .find(|pkg| pkg.has_alias(alias)))
 }
 
 /// Read the installed details (alias, version, manifest) for every direct
@@ -119,8 +129,11 @@ fn installed_packages(
         .iter()
         .filter_map(|(alias, _)| {
             let manifest = read_package_json(&modules_dir.join(alias))?;
-            let version =
-                manifest.get("version").and_then(Value::as_str).unwrap_or_default().to_string();
+            let version = manifest
+                .get("version")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
             Some(InstalledGlobalPackage { alias: alias.clone(), version, manifest })
         })
         .collect()
@@ -181,7 +194,10 @@ pub fn read_installed_packages(install_dir: &Path) -> Vec<PackageBinSource> {
 /// is read, so it is included alongside regular dependencies.
 #[must_use]
 pub fn read_direct_dependency_aliases(install_dir: &Path) -> Vec<String> {
-    read_direct_dependencies(install_dir).into_iter().map(|(alias, _)| alias).collect()
+    read_direct_dependencies(install_dir)
+        .into_iter()
+        .map(|(alias, _)| alias)
+        .collect()
 }
 
 /// The validated `(alias, spec)` pairs of an install directory's direct
@@ -247,9 +263,14 @@ fn recently_created(dir_path: &Path, now: SystemTime, window: Duration) -> bool 
     // proxies std exposes for birthtime / ctime.
     let created = metadata.created().ok();
     let modified = metadata.modified().ok();
-    let newest = [created, modified].into_iter().flatten().max();
+    let newest = [created, modified]
+        .into_iter()
+        .flatten()
+        .max();
     match newest {
-        Some(time) => now.duration_since(time).map_or(true, |age| age < window),
+        Some(time) => now
+            .duration_since(time)
+            .map_or(true, |age| age < window),
         None => true,
     }
 }
@@ -271,7 +292,14 @@ fn dependencies_of(manifest: &Value) -> Vec<(String, String)> {
         .map(|deps| {
             deps.iter()
                 .filter(|(alias, _)| is_valid_dependency_alias(alias))
-                .map(|(alias, spec)| (alias.clone(), spec.as_str().unwrap_or_default().to_string()))
+                .map(|(alias, spec)| {
+                    (
+                        alias.clone(),
+                        spec.as_str()
+                            .unwrap_or_default()
+                            .to_string(),
+                    )
+                })
                 .collect()
         })
         .unwrap_or_default()

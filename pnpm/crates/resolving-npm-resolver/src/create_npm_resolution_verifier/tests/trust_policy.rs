@@ -12,9 +12,11 @@ async fn trust_off_keeps_trust_check_inactive() {
     let mut opts = default_opts("http://nonexistent.example.invalid/");
     opts.trust.policy = Some(TrustPolicy::Off);
     let verifier = create_npm_resolution_verifier(opts);
-    let result = verifier
-        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.0.0"))
-        .await;
+    let result = verifier.verify(
+        &registry_resolution(),
+        ctx(&"acme".parse::<PkgName>().expect("parse"), "1.0.0"),
+    )
+    .await;
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
@@ -33,9 +35,11 @@ async fn trust_downgrade_publisher_to_provenance_fails() {
     opts.trust.policy = Some(TrustPolicy::NoDowngrade);
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let verifier = create_npm_resolution_verifier(opts);
-    let result = verifier
-        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.1.0"))
-        .await;
+    let result = verifier.verify(
+        &registry_resolution(),
+        ctx(&"acme".parse::<PkgName>().expect("parse"), "1.1.0"),
+    )
+    .await;
     let ResolutionVerification::Err { code, reason } = result else {
         panic!("expected Err, got {result:?}");
     };
@@ -58,9 +62,11 @@ async fn trust_downgrade_pass_when_no_weaker_evidence() {
     opts.trust.policy = Some(TrustPolicy::NoDowngrade);
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let verifier = create_npm_resolution_verifier(opts);
-    let result = verifier
-        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.1.0"))
-        .await;
+    let result = verifier.verify(
+        &registry_resolution(),
+        ctx(&"acme".parse::<PkgName>().expect("parse"), "1.1.0"),
+    )
+    .await;
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
@@ -79,9 +85,11 @@ async fn trust_time_free_packument_fails_closed_by_default() {
     opts.trust.policy = Some(TrustPolicy::NoDowngrade);
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let verifier = create_npm_resolution_verifier(opts);
-    let result = verifier
-        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.1.0"))
-        .await;
+    let result = verifier.verify(
+        &registry_resolution(),
+        ctx(&"acme".parse::<PkgName>().expect("parse"), "1.1.0"),
+    )
+    .await;
     let ResolutionVerification::Err { code, reason } = result else {
         panic!("expected Err, got {result:?}");
     };
@@ -109,9 +117,11 @@ async fn trust_time_free_packument_passes_when_ignored() {
     opts.metadata.ignore_missing_time_field = true;
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let verifier = create_npm_resolution_verifier(opts);
-    let result = verifier
-        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.1.0"))
-        .await;
+    let result = verifier.verify(
+        &registry_resolution(),
+        ctx(&"acme".parse::<PkgName>().expect("parse"), "1.1.0"),
+    )
+    .await;
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
@@ -131,9 +141,11 @@ async fn trust_downgrade_still_reported_when_ignored_and_time_is_complete() {
     opts.metadata.ignore_missing_time_field = true;
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let verifier = create_npm_resolution_verifier(opts);
-    let result = verifier
-        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.1.0"))
-        .await;
+    let result = verifier.verify(
+        &registry_resolution(),
+        ctx(&"acme".parse::<PkgName>().expect("parse"), "1.1.0"),
+    )
+    .await;
     let ResolutionVerification::Err { code, reason } = result else {
         panic!("expected Err, got {result:?}");
     };
@@ -180,14 +192,17 @@ fn can_trust_past_check_reads_a_missing_tolerance_field_as_intolerant() {
 #[test]
 fn can_trust_past_check_rejects_changed_named_registry_mapping() {
     let mut opts = default_opts("https://registry.example/");
-    opts.registries_by_prefix
-        .insert("work".to_string(), "https://registry.work.example/".to_string());
+    opts.registries_by_prefix.insert(
+        "work".to_string(),
+        "https://registry.work.example/".to_string(),
+    );
     let verifier = create_npm_resolution_verifier(opts);
     let cached = verifier.policy().clone();
     let mut changed_opts = default_opts("https://registry.example/");
-    changed_opts
-        .registries_by_prefix
-        .insert("work".to_string(), "https://other.example/".to_string());
+    changed_opts.registries_by_prefix.insert(
+        "work".to_string(),
+        "https://other.example/".to_string(),
+    );
     let changed = create_npm_resolution_verifier(changed_opts);
 
     // Pins that the rejection below comes from the URL change and not from

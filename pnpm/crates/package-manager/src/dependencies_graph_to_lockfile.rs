@@ -202,14 +202,12 @@ pub fn dependencies_graph_to_lockfile(
         overrides: opts.manifest_settings.overrides.filter(|map| !map.is_empty()),
         package_extensions_checksum: opts.manifest_settings.package_extensions_checksum,
         pnpmfile_checksum: opts.manifest_settings.pnpmfile_checksum,
-        ignored_optional_dependencies: opts
-            .manifest_settings
+        ignored_optional_dependencies: opts.manifest_settings
             .ignored_optional_dependencies
             .filter(|list| !list.is_empty()),
-        patched_dependencies: opts
-            .manifest_settings
-            .patched_dependencies
-            .filter(|map| !map.is_empty()),
+        patched_dependencies: opts.manifest_settings.patched_dependencies.filter(|map| {
+            !map.is_empty()
+        }),
         importers,
         packages: (!packages.is_empty()).then_some(packages),
         snapshots: (!snapshots.is_empty()).then_some(snapshots),
@@ -238,16 +236,20 @@ fn build_catalog_snapshots(
         let Some(specifiers) = importer.specifiers.as_ref() else { continue };
         for (alias, specifier) in specifiers {
             let Some(catalog_name) = parse_catalog_protocol(specifier) else { continue };
-            let Some(entry_specifier) =
-                catalogs.get(catalog_name).and_then(|catalog| catalog.get(alias))
+            let Some(entry_specifier) = catalogs
+                .get(catalog_name)
+                .and_then(|catalog| catalog.get(alias))
             else {
                 continue;
             };
             let Some(version) = importer_resolved_version(importer, alias) else { continue };
-            snapshots.entry(catalog_name.to_string()).or_default().insert(
-                alias.clone(),
-                ResolvedCatalogEntry { specifier: entry_specifier.clone(), version },
-            );
+            snapshots
+                .entry(catalog_name.to_string())
+                .or_default()
+                .insert(
+                    alias.clone(),
+                    ResolvedCatalogEntry { specifier: entry_specifier.clone(), version },
+                );
         }
     }
     (!snapshots.is_empty()).then_some(snapshots)
@@ -331,7 +333,10 @@ fn walk_subgraph<'g>(
     seeds: Vec<&'g DepPath>,
     optional: bool,
 ) {
-    let mut stack: Vec<(&'g DepPath, bool)> = seeds.into_iter().map(|dp| (dp, optional)).collect();
+    let mut stack: Vec<(&'g DepPath, bool)> = seeds
+        .into_iter()
+        .map(|dp| (dp, optional))
+        .collect();
     while let Some((dep_path, optional)) = stack.pop() {
         if !walked.insert((dep_path, optional)) {
             continue;

@@ -51,7 +51,10 @@ pub(super) struct SnapshotPlan<'a> {
 
 impl SnapshotPlan<'_> {
     pub(super) fn materialized_keys(&self) -> Vec<PackageKey> {
-        self.survivors.iter().map(|(snapshot_key, _, _)| (*snapshot_key).clone()).collect()
+        self.survivors
+            .iter()
+            .map(|(snapshot_key, _, _)| (*snapshot_key).clone())
+            .collect()
     }
 }
 
@@ -148,7 +151,10 @@ fn skipped_entries<'a>(
     // A parallel `Vec` rather than a filter later: the partition's
     // manifest and side-effects loop has to see the full snapshot set,
     // not just survivors.
-    let survivor_keys: HashSet<&PackageKey> = survivors.iter().map(|(key, _, _)| *key).collect();
+    let survivor_keys: HashSet<&PackageKey> = survivors
+        .iter()
+        .map(|(key, _, _)| *key)
+        .collect();
     snapshots
         .iter()
         .filter(|(snapshot_key, _)| !survivor_keys.contains(snapshot_key))
@@ -249,7 +255,9 @@ fn warm_slot_is_current<Reporter: self::Reporter>(
 fn slot_probe_applies(probe: &WarmSlotProbe<'_, '_>, snapshot_key: &PackageKey) -> bool {
     !probe.policy.is_hoisted
         && !matches!(
-            probe.packages.get(&snapshot_key.without_peer()).map(|meta| &meta.resolution),
+            probe.packages
+                .get(&snapshot_key.without_peer())
+                .map(|meta| &meta.resolution),
             Some(LockfileResolution::Directory(_)),
         )
 }
@@ -262,17 +270,14 @@ fn current_entry_unchanged(
     snapshot: &SnapshotEntry,
 ) -> bool {
     !probe.policy.force
-        && probe
-            .current_entries
-            .snapshots
+        && probe.current_entries.snapshots
             .and_then(|current_snapshots| current_snapshots.get(snapshot_key))
             .is_some_and(|current_snapshot| {
                 snapshot_deps_equal(current_snapshot, snapshot)
                     && integrity_equal(
-                        probe
-                            .current_entries
-                            .packages
-                            .and_then(|packages| packages.get(&snapshot_key.without_peer())),
+                        probe.current_entries.packages.and_then(|packages| {
+                            packages.get(&snapshot_key.without_peer())
+                        }),
                         probe.packages.get(&snapshot_key.without_peer()),
                     )
             })
@@ -293,8 +298,7 @@ fn slot_contents_complete<Reporter: self::Reporter>(
     current_entry_unchanged: bool,
     markers: &mut MarkerProbes,
 ) -> Result<bool, CreateVirtualStoreError> {
-    let dir = probe
-        .layout
+    let dir = probe.layout
         .slot_dir(snapshot_key)
         .join("node_modules")
         .join(snapshot_key.name.to_string());

@@ -59,7 +59,10 @@ impl ProjectSnapshot {
         &self,
         groups: impl IntoIterator<Item = DependencyGroup>,
     ) -> impl Iterator<Item = (&'_ PkgName, &'_ ResolvedDependencySpec)> {
-        groups.into_iter().filter_map(|group| self.get_map_by_group(group)).flatten()
+        groups
+            .into_iter()
+            .filter_map(|group| self.get_map_by_group(group))
+            .flatten()
     }
 }
 

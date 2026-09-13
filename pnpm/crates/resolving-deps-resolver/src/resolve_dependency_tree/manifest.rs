@@ -51,8 +51,9 @@ pub(super) async fn build_pkg_id_with_patch_hash(
     // the downstream depPath, which `PkgNameVerPeer`'s `@`-split parser
     // can't recover from (it finds the `@` inside the peer suffix first).
     let manifest = result.package.manifest.as_deref();
-    let manifest_name =
-        manifest.and_then(|manifest| manifest.get("name")).and_then(serde_json::Value::as_str);
+    let manifest_name = manifest
+        .and_then(|manifest| manifest.get("name"))
+        .and_then(serde_json::Value::as_str);
     let manifest_version =
         (!matches!(result.resolution, pnpm_lockfile::LockfileResolution::Directory(_)))
             .then(|| {
@@ -90,9 +91,7 @@ pub(super) async fn build_pkg_id_with_patch_hash(
 /// A `link:` id re-anchored on the lockfile directory, so the same external
 /// target renders the same way from every importer.
 fn link_pkg_id(ctx: &TreeCtx, target: &str) -> String {
-    let relative_target = ctx
-        .importer
-        .link_anchor
+    let relative_target = ctx.importer.link_anchor
         .target_relative_to_lockfile_root(target)
         .unwrap_or_else(|| lockfile_relative_target(ctx, target));
     let relative_target = if relative_target.is_empty() { "." } else { &relative_target };
@@ -153,8 +152,11 @@ pub(super) fn extract_children(
     let mut optional = Vec::new();
     collect_deps(manifest, "optionalDependencies", true, &parent, &bundled, &mut optional)?;
     if !optional.is_empty() {
-        let dependency_positions: HashMap<String, usize> =
-            out.iter().enumerate().map(|(index, (name, ..))| (name.clone(), index)).collect();
+        let dependency_positions: HashMap<String, usize> = out
+            .iter()
+            .enumerate()
+            .map(|(index, (name, ..))| (name.clone(), index))
+            .collect();
         for spec in optional {
             match dependency_positions.get(&spec.0) {
                 Some(&index) => out[index].2 = true,
@@ -175,14 +177,21 @@ pub(super) fn extract_children(
 fn bundled_dependency_names(manifest: &Value) -> HashSet<&str> {
     let bundled = ["bundledDependencies", "bundleDependencies"]
         .into_iter()
-        .find_map(|key| manifest.get(key).filter(|value| !value.is_null()));
+        .find_map(|key| {
+            manifest
+                .get(key)
+                .filter(|value| !value.is_null())
+        });
     match bundled {
         Some(Value::Bool(true)) => manifest
             .get("dependencies")
             .and_then(Value::as_object)
             .map(|map| map.keys().map(String::as_str).collect())
             .unwrap_or_default(),
-        Some(Value::Array(names)) => names.iter().filter_map(Value::as_str).collect(),
+        Some(Value::Array(names)) => names
+            .iter()
+            .filter_map(Value::as_str)
+            .collect(),
         _ => HashSet::default(),
     }
 }
@@ -252,7 +261,11 @@ pub(super) fn extract_peer_dependencies(
     let mut peers: BTreeMap<String, PeerDep> = BTreeMap::new();
 
     let dep_names = |key| {
-        manifest.get(key).and_then(Value::as_object).into_iter().flat_map(|map| map.keys().cloned())
+        manifest
+            .get(key)
+            .and_then(Value::as_object)
+            .into_iter()
+            .flat_map(|map| map.keys().cloned())
     };
     // Only `dependencies` are shadowed, so an entry that is *also* an
     // optional dependency still supplies the name itself.
@@ -375,7 +388,10 @@ pub(super) fn emit_deprecation_if_needed(
 /// A missing manifest, an absent `deprecated` field, and a non-string
 /// one all count as not deprecated.
 fn extract_deprecated_from_manifest(manifest: Option<&Value>) -> Option<String> {
-    manifest?.get("deprecated")?.as_str().map(str::to_string)
+    manifest?
+        .get("deprecated")?
+        .as_str()
+        .map(str::to_string)
 }
 
 /// The name/version a `pnpm:deprecation` payload reports:

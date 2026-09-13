@@ -32,7 +32,12 @@ pub fn prefer_symlinked_executables_exports_the_virtual_store_node_path() {
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert_eq!(
         config.extra_env.get("NODE_PATH"),
-        Some(&tmp.path().join("node_modules/.pnpm/node_modules").display().to_string()),
+        Some(
+            &tmp.path()
+                .join("node_modules/.pnpm/node_modules")
+                .display()
+                .to_string()
+        ),
     );
 }
 
@@ -52,6 +57,11 @@ pub fn prefer_symlinked_executables_respects_an_explicit_virtual_store_dir() {
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert_eq!(
         config.extra_env.get("NODE_PATH"),
-        Some(&virtual_store_dir.join("node_modules").display().to_string()),
+        Some(
+            &virtual_store_dir
+                .join("node_modules")
+                .display()
+                .to_string()
+        ),
     );
 }

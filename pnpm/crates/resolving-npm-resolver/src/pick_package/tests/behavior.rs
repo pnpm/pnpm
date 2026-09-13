@@ -65,7 +65,11 @@ async fn private_scope_fails_closed_on_401_without_disk_fallback() {
     let preloaded: pnpm_registry::Package =
         serde_json::from_str(PACKAGE_BODY).expect("parse packument");
     let mut server = mockito::Server::new_async().await;
-    let mock = server.mock("GET", "/acme").with_status(401).create_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(401)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let cache_dir = TempDir::new().expect("tempdir");
     // Warm the descriptor-scoped mirror that the fail-closed path must NOT
@@ -79,9 +83,10 @@ async fn private_scope_fails_closed_on_401_without_disk_fallback() {
     .expect("warm scoped mirror");
 
     let http_client = ThrottledClient::default();
-    let auth_headers = AuthHeaders::default().with_route_hook(Arc::new(ScopeHook {
-        scope: MetadataCacheScope::Private { descriptor_id: "deadbeef".to_string() },
-    }) as Arc<dyn UpstreamRouteHook>);
+    let auth_headers = AuthHeaders::default()
+        .with_route_hook(Arc::new(ScopeHook {
+            scope: MetadataCacheScope::Private { descriptor_id: "deadbeef".to_string() },
+        }) as Arc<dyn UpstreamRouteHook>);
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {

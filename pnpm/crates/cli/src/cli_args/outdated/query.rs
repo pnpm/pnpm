@@ -132,9 +132,7 @@ pub struct OutdatedQuery<'a> {
 /// The matcher for `updateConfig.ignoreDependencies`, or [`None`] when
 /// nothing is ignored.
 pub(crate) fn ignored_dependencies_matcher(config: &Config) -> Option<Matcher> {
-    config
-        .update_config
-        .ignore_dependencies
+    config.update_config.ignore_dependencies
         .as_deref()
         .filter(|patterns| !patterns.is_empty())
         .map(create_matcher)
@@ -213,24 +211,24 @@ pub(crate) async fn collect_outdated_for_importer_in_run(
     // `Promise.all` fan-out. Concurrency is bounded by the HTTP client's
     // per-registry limit (`network_concurrency`), so this does not flood
     // the registry. Dependencies without a lockfile pin are dropped here.
-    let fetches = query
-        .include_direct
+    let fetches = query.include_direct
         .iter()
         .flat_map(move |&group| {
-            manifest.dependencies([group]).filter_map(move |(alias, bare_specifier)| {
-                if query.match_names.is_some_and(|matcher| !matcher.matches(alias))
-                    || query.ignore_names.is_some_and(|matcher| matcher.matches(alias))
-                {
-                    return None;
-                }
-                let current = current_versions.get(alias).cloned()?;
-                Some(OutdatedCandidate { alias, group, bare_specifier, current })
-            })
+            manifest
+                .dependencies([group])
+                .filter_map(move |(alias, bare_specifier)| {
+                    if query.match_names.is_some_and(|matcher| !matcher.matches(alias))
+                        || query.ignore_names.is_some_and(|matcher| matcher.matches(alias))
+                    {
+                        return None;
+                    }
+                    let current = current_versions.get(alias).cloned()?;
+                    Some(OutdatedCandidate { alias, group, bare_specifier, current })
+                })
         })
         .map(|candidate| outdated_dependency(run, query, workspace, candidate));
 
-    let fetched = futures_util::future::join_all(fetches)
-        .await
+    let fetched = futures_util::future::join_all(fetches).await
         .into_iter()
         .collect::<miette::Result<Vec<_>>>()?;
     Ok(fetched.into_iter().flatten().collect())
@@ -358,8 +356,10 @@ fn outdated_target(
         .get("version")
         .and_then(serde_json::Value::as_str)
         .and_then(|version| version.parse::<Version>().ok())?;
-    let deprecated =
-        target_manifest.get("deprecated").and_then(serde_json::Value::as_str).map(str::to_string);
+    let deprecated = target_manifest
+        .get("deprecated")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string);
     let is_newer = target > candidate.current;
     if !(is_newer || (query.include_deprecated && deprecated.is_some())) {
         return None;

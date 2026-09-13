@@ -183,8 +183,7 @@ pub(super) fn edge_cache_key(
     prior_key: Option<&PkgNameVerPeer>,
 ) -> WantedKey {
     let project_scope = project_relative_cache_scope(wanted, opts);
-    let overlay_versions = edge
-        .pick_overlay
+    let overlay_versions = edge.pick_overlay
         .as_ref()
         .map(|overlay| overlay_version_view(overlay, wanted))
         .unwrap_or_default();
@@ -255,8 +254,7 @@ pub(super) fn seed_pending(
         emit_deprecation_if_needed(ctx, &result, &resolved.id, edge.depth);
     }
 
-    let next_ancestors: Vec<String> =
-        edge.ancestor_ids.iter().cloned().chain(std::iter::once(resolved.id.clone())).collect();
+    let ancestry = edge.pending_ancestry(&resolved.id, resolved.current_is_optional);
 
     Ok(NodeSeed::Pending(Box::new(PendingNode {
         result,
@@ -266,12 +264,7 @@ pub(super) fn seed_pending(
         claim: None,
         prior_key: resolved.prior_key,
         identity: super::PendingNodeIdentity { id: resolved.id, alias, node_id: identity.node_id },
-        ancestry: super::PendingNodeAncestry {
-            parent_ancestors: Arc::clone(edge.ancestor_ids),
-            next_ancestors: Arc::new(next_ancestors),
-            depth: edge.depth,
-            current_is_optional: resolved.current_is_optional,
-        },
+        ancestry,
     })))
 }
 
@@ -396,9 +389,11 @@ pub(super) fn record_workspace_manifest_identity(
     if result.package.name_ver.is_some() {
         return;
     }
-    let names_a_workspace_project = wanted.bare_specifier.as_deref().is_some_and(|specifier| {
-        specifier.starts_with("workspace:") && !specifier.starts_with("workspace:.")
-    });
+    let names_a_workspace_project = wanted.bare_specifier
+        .as_deref()
+        .is_some_and(|specifier| {
+            specifier.starts_with("workspace:") && !specifier.starts_with("workspace:.")
+        });
     if !names_a_workspace_project {
         return;
     }
@@ -427,8 +422,7 @@ pub(super) fn reject_exotic_subdep(
         return Ok(());
     }
     Err(ResolveDependencyTreeError::ExoticSubdep {
-        specifier: wanted
-            .alias
+        specifier: wanted.alias
             .clone()
             .or_else(|| wanted.bare_specifier.clone())
             .unwrap_or_default(),
@@ -458,7 +452,10 @@ pub(super) fn drop_failed_optional_edge(
         log(SkippedOptionalDependency {
             details: err.to_string(),
             name: wanted.alias.clone(),
-            version: wanted.alias.is_some().then(|| wanted.bare_specifier.clone()).flatten(),
+            version: wanted.alias
+                .is_some()
+                .then(|| wanted.bare_specifier.clone())
+                .flatten(),
             bare_specifier: wanted.bare_specifier.clone().unwrap_or_default(),
             parents: pkgs_info_from_ids(ctx, ancestor_ids),
             prefix: opts.project.project_dir.display().to_string(),
@@ -477,4 +474,20 @@ pub(super) fn is_droppable_resolve_error(err: &ResolveDependencyTreeError) -> bo
             | ResolveDependencyTreeError::GitResolve(_)
             | ResolveDependencyTreeError::SpecNotSupported { .. },
     )
+}
+
+impl ChildEdge<'_> {
+    fn pending_ancestry(&self, id: &str, current_is_optional: bool) -> super::PendingNodeAncestry {
+        let next_ancestors = self.ancestor_ids
+            .iter()
+            .cloned()
+            .chain(std::iter::once(id.to_owned()))
+            .collect();
+        super::PendingNodeAncestry {
+            parent_ancestors: Arc::clone(self.ancestor_ids),
+            next_ancestors: Arc::new(next_ancestors),
+            depth: self.depth,
+            current_is_optional,
+        }
+    }
 }

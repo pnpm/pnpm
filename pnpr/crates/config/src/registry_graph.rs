@@ -116,11 +116,12 @@ pub(super) fn build_registries(
     for (name, file) in registry_files {
         builder.add(name, file, upstreams, resolve_upstreams)?;
     }
-    let registries =
-        builder.ecosystems.iter().filter(|(_, ecosystem)| **ecosystem != Ecosystem::Npm).fold(
-            Registries::new(builder.graph, default_registry),
-            |registries, (name, ecosystem)| registries.with_ecosystem(name, *ecosystem),
-        );
+    let registries = builder.ecosystems
+        .iter()
+        .filter(|(_, ecosystem)| **ecosystem != Ecosystem::Npm)
+        .fold(Registries::new(builder.graph, default_registry), |registries, (name, ecosystem)| {
+            registries.with_ecosystem(name, *ecosystem)
+        });
     let defaults = addressed_defaults(defaults, &registries);
     let registries = registries.with_defaults(defaults);
     registries.validate().map_err(|err| registry_err(&err))?;
@@ -207,7 +208,10 @@ pub(super) fn addressed_defaults(
         .into_iter()
         .map(|(ecosystem, target)| {
             let local = Registries::local_name(&target);
-            let key = registries.addressed(local, ecosystem).unwrap_or(&target).to_string();
+            let key = registries
+                .addressed(local, ecosystem)
+                .unwrap_or(&target)
+                .to_string();
             (ecosystem, key)
         })
         .collect()
@@ -221,8 +225,9 @@ pub(super) fn build_hosted_entry(
 ) -> Result<(HostedConfig, Ecosystem, Vec<PackagePattern>), RegistryError> {
     let org = registry.org.unwrap_or_default();
     validate_org_namespace(name, &org)?;
-    if let Some((other, _)) =
-        hosted.iter().find(|(_, existing): &(_, &HostedConfig)| existing.org == org)
+    if let Some((other, _)) = hosted
+        .iter()
+        .find(|(_, existing): &(_, &HostedConfig)| existing.org == org)
     {
         return Err(org_collision_error(name, &org, other));
     }
@@ -277,11 +282,11 @@ pub(super) fn registry_access_list(
     spec: Option<&AccessSpec>,
     teams: &Teams,
 ) -> Result<Option<AccessList>, RegistryError> {
-    spec.map(|spec| spec.to_access_list(teams)).transpose().map_err(|reason| {
-        RegistryError::InvalidConfig {
+    spec.map(|spec| spec.to_access_list(teams))
+        .transpose()
+        .map_err(|reason| RegistryError::InvalidConfig {
             reason: format!("registry {name:?} has an invalid `access` list: {reason}"),
-        }
-    })
+        })
 }
 
 /// Compile a concrete registry's `packages:` map into its [`PackageRules`]:

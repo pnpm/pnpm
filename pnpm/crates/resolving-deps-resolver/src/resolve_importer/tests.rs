@@ -86,7 +86,10 @@ fn peer_declaring_metadata<const PEERS: usize>(
         prepare: None,
         bundled_dependencies: None,
         peer_dependencies: Some(
-            peer_names.into_iter().map(|name| (name.to_string(), "*".to_string())).collect(),
+            peer_names
+                .into_iter()
+                .map(|name| (name.to_string(), "*".to_string()))
+                .collect(),
         ),
         peer_dependencies_meta: None,
     }
@@ -149,7 +152,10 @@ impl Resolver for StubResolver {
             wanted.alias.clone().unwrap_or_default(),
             wanted.bare_specifier.clone().unwrap_or_default(),
         );
-        self.calls.lock().unwrap().push(key.clone());
+        self.calls
+            .lock()
+            .unwrap()
+            .push(key.clone());
         let result = self.table.get(&key).cloned();
         Box::pin(async move { Ok::<_, ResolveError>(result) })
     }
@@ -303,7 +309,11 @@ mod resolution_mode {
         }
 
         fn opts_for(&self, alias: &str) -> RecordedOpts {
-            *self.seen.lock().unwrap().get(alias).expect("alias was resolved")
+            *self.seen
+                .lock()
+                .unwrap()
+                .get(alias)
+                .expect("alias was resolved")
         }
     }
 
@@ -365,7 +375,9 @@ mod resolution_mode {
         opts.resolution.pick_lowest_direct = false;
         opts.resolution.subdep_published_by = Some(maximum);
 
-        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts)
+            .await
+            .unwrap();
 
         assert_eq!(resolver.opts_for("direct"), (false, Some(maximum)));
         assert_eq!(resolver.opts_for("sub"), (false, Some(maximum)));
@@ -382,7 +394,9 @@ mod resolution_mode {
         opts.resolution.pick_lowest_direct = true;
         opts.resolution.subdep_published_by = None;
 
-        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts)
+            .await
+            .unwrap();
 
         assert_eq!(resolver.opts_for("direct"), (true, None));
         assert_eq!(resolver.opts_for("sub"), (false, None));
@@ -404,7 +418,9 @@ mod resolution_mode {
         opts.resolution.pick_lowest_direct = true;
         opts.resolution.subdep_published_by = Some(cutoff);
 
-        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts)
+            .await
+            .unwrap();
 
         assert_eq!(resolver.opts_for("direct"), (true, Some(maximum)));
         assert_eq!(resolver.opts_for("sub"), (false, Some(cutoff)));

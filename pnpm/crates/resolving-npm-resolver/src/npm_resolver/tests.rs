@@ -152,7 +152,10 @@ fn guard_rejecting(
     exhaustion_policy: GuardExhaustionPolicy,
 ) -> Arc<dyn PackageVersionGuard> {
     Arc::new(RejectVersions {
-        versions: versions.iter().map(|version| (*version).to_string()).collect(),
+        versions: versions
+            .iter()
+            .map(|version| (*version).to_string())
+            .collect(),
         exhaustion_policy,
     })
 }
@@ -306,7 +309,9 @@ const MISMATCHED_KEY_BODY: &str = r#"{
 fn trust_downgrade_body_without_time() -> String {
     let mut body: serde_json::Value =
         serde_json::from_str(TRUST_DOWNGRADE_PACKAGE_BODY).expect("parse fixture packument");
-    body.as_object_mut().expect("packument is an object").remove("time");
+    body.as_object_mut()
+        .expect("packument is an object")
+        .remove("time");
     body.to_string()
 }
 

@@ -34,7 +34,10 @@ async fn cancelled_waiter_keeps_capacity_until_running_extraction_exits() {
 
 #[test]
 fn cancelled_waiter_keeps_capacity_for_queued_extraction() {
-    let runtime = Builder::new_current_thread().max_blocking_threads(1).build().unwrap();
+    let runtime = Builder::new_current_thread()
+        .max_blocking_threads(1)
+        .build()
+        .unwrap();
     runtime.block_on(async {
         let semaphore = Box::leak(Box::new(Semaphore::new(1)));
         let (started_tx, started_rx) = oneshot::channel();
@@ -66,7 +69,9 @@ fn cancelled_waiter_keeps_capacity_for_queued_extraction() {
 async fn extraction_returns_result_and_releases_capacity_on_error() {
     let semaphore = Box::leak(Box::new(Semaphore::new(1)));
     let permit = semaphore.acquire().await.unwrap();
-    let result = spawn_extraction(permit, || Err::<(), _>("invalid archive")).await.unwrap();
+    let result = spawn_extraction(permit, || Err::<(), _>("invalid archive"))
+        .await
+        .unwrap();
 
     assert_eq!(result, Err("invalid archive"));
     assert_eq!(semaphore.available_permits(), 1);

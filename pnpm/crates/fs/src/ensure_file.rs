@@ -182,10 +182,12 @@ pub fn ensure_file(
     }
 
     match retry_on_fd_pressure(|| options.open(file_path)) {
-        Ok(mut file) => file.write_all(content).map_err(|error| EnsureFileError::WriteFile {
-            file_path: file_path.to_path_buf(),
-            error,
-        }),
+        Ok(mut file) => file
+            .write_all(content)
+            .map_err(|error| EnsureFileError::WriteFile {
+                file_path: file_path.to_path_buf(),
+                error,
+            }),
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
             verify_or_rewrite(file_path, content, mode)
         }

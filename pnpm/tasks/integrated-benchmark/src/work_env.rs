@@ -154,9 +154,6 @@ impl fmt::Display for BenchId<'_> {
     }
 }
 
-#[cfg(test)]
-mod tests;
-
 impl WorkEnv {
     const INIT_PROXY_CACHE: BenchId<'static> = BenchId::Static(INIT_PROXY_CACHE_ID);
     const SYSTEM_PNPM: BenchId<'static> = BenchId::Static("pnpm");
@@ -172,7 +169,8 @@ impl WorkEnv {
     /// Every bench dir the run will touch — every target plus, when
     /// requested, the system-pnpm sibling.
     fn benchmarked_ids(&self) -> impl Iterator<Item = BenchId<'_>> + '_ {
-        self.target_ids().chain(self.options.selection.with_pnpm.then_some(WorkEnv::SYSTEM_PNPM))
+        self.target_ids()
+            .chain(self.options.selection.with_pnpm.then_some(WorkEnv::SYSTEM_PNPM))
     }
 
     fn repository(&self) -> &'_ Path {
@@ -248,8 +246,9 @@ impl WorkEnv {
                 // so the existence check sees the bundle produced by
                 // `pnpm run compile-only`, not the empty tree visible
                 // during `init()`.
-                let candidates =
-                    PNPM_BUNDLE_PATHS.map(|path| format!("./pnpm-source/{path}")).join(" ");
+                let candidates = PNPM_BUNDLE_PATHS
+                    .map(|path| format!("./pnpm-source/{path}"))
+                    .join(" ");
                 format!(
                     r#"node "$(for f in {candidates}; do if [ -f "$f" ]; then echo "$f"; break; fi; done)""#,
                 )
@@ -329,7 +328,10 @@ impl WorkEnv {
         // long-running server even while the client is cold. `cold-mock-storage`
         // (only the cold-pnpr scenario) is wiped here too so the warmup run
         // starts cold even on a reused work-env, not just the timed iterations.
-        for dir in self.benchmarked_ids().map(|id| self.bench_dir(id)) {
+        for dir in self
+            .benchmarked_ids()
+            .map(|id| self.bench_dir(id))
+        {
             wipe_bench_dir(&dir);
         }
 
@@ -386,13 +388,27 @@ impl WorkEnv {
             self.prewarm_caches(&cleanup_command);
         }
 
+        self.run_hyperfine(&cleanup_command);
+        if scenario.uses_peer_heavy_fixture() {
+            self.install_for_lockfile_comparison(&cleanup_command);
+        }
+        self.write_benchmark_diagnostics();
+    }
+
+    fn run_hyperfine(&self, cleanup_command: &str) {
         let mut command = Command::new("hyperfine");
-        command.current_dir(self.root()).arg("--prepare").arg(&cleanup_command);
+        command
+            .current_dir(self.root())
+            .arg("--prepare")
+            .arg(cleanup_command);
 
         self.options.hyperfine_options.append_to(&mut command);
 
         for id in self.benchmarked_ids() {
-            command.arg("--command-name").arg(id.to_string()).arg(self.bash_command(id));
+            command
+                .arg("--command-name")
+                .arg(id.to_string())
+                .arg(self.bash_command(id));
         }
 
         command
@@ -402,10 +418,6 @@ impl WorkEnv {
             .arg(self.root().join("BENCHMARK_REPORT.md"));
 
         executor("hyperfine")(&mut command);
-        if scenario.uses_peer_heavy_fixture() {
-            self.install_for_lockfile_comparison(&cleanup_command);
-        }
-        self.write_benchmark_diagnostics();
     }
 
     /// Prime the install state for the scenarios whose contract is "GVS
@@ -415,7 +427,9 @@ impl WorkEnv {
     fn prewarm_install_state(&self) {
         for id in self.benchmarked_ids() {
             eprintln!("Pre-warming the install state for {id}...");
-            Command::new("bash").arg(self.script_path(id)).pipe_mut(executor("install.bash"));
+            Command::new("bash")
+                .arg(self.script_path(id))
+                .pipe_mut(executor("install.bash"));
         }
     }
 
@@ -468,15 +482,19 @@ impl WorkEnv {
         // separate resolve-registry URL so server-side metadata access can
         // be measured independently.
         let registry_proxy = self.start_client_registry_proxy();
-        let client_registry = registry_proxy.as_ref().map_or_else(
-            || self.registry.client.clone(),
-            |proxy| format!("http://{}/", proxy.addr),
-        );
+        let client_registry = registry_proxy
+            .as_ref()
+            .map_or_else(
+                || self.registry.client.clone(),
+                |proxy| format!("http://{}/", proxy.addr),
+            );
         let pnpr_server_registry_proxy = self.start_pnpr_server_registry_proxy();
-        let pnpr_server_registry = pnpr_server_registry_proxy.as_ref().map_or_else(
-            || self.registry.cache_populator.clone(),
-            |proxy| format!("http://{}/", proxy.addr),
-        );
+        let pnpr_server_registry = pnpr_server_registry_proxy
+            .as_ref()
+            .map_or_else(
+                || self.registry.cache_populator.clone(),
+                |proxy| format!("http://{}/", proxy.addr),
+            );
 
         let revision_mocks = self.plan_revision_mocks();
         self.init(&client_registry, &revision_mocks);
@@ -488,3 +506,6 @@ impl WorkEnv {
         self.verify_benchmark_diagnostics();
     }
 }
+
+#[cfg(test)]
+mod tests;

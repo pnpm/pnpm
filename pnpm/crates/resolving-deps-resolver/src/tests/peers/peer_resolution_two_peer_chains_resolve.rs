@@ -264,8 +264,7 @@ async fn revisit_with_peer_only_child_keeps_per_occurrence_node_id() {
     // `realize_children` misclassified the package and collapsed
     // distinct occurrences, breaking per-call-site state for any
     // future visitor that descends through it.
-    let peer_only_node_ids: Vec<&NodeId> = tree
-        .dependencies_tree
+    let peer_only_node_ids: Vec<&NodeId> = tree.dependencies_tree
         .iter()
         .filter(|(_, node)| node.resolved_package_id == "peer-only@1.0.0".into())
         .map(|(id, _)| id)
@@ -364,8 +363,10 @@ async fn external_link_peer_remaps_to_node_modules_when_exclude_links_on() {
         },
     );
 
-    let abc_dep_path =
-        result.direct_dependencies_by_alias.get("abc").cloned().expect("abc is a direct dep");
+    let abc_dep_path = result.direct_dependencies_by_alias
+        .get("abc")
+        .cloned()
+        .expect("abc is a direct dep");
     assert_eq!(
         abc_dep_path,
         DepPath::from("abc@1.0.0(peer-a@node_modules+peer-a)".to_string()),

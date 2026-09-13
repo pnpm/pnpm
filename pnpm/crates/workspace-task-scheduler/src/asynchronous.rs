@@ -37,7 +37,11 @@ pub async fn schedule_graph_async<Node, Run, Skip, Fut>(
 
     while state.unsettled > 0 {
         while let Some(index) = state.next_dispatch(in_flight.len(), concurrency) {
-            let node = graph.get_index(index).expect("graph index exists").0.clone();
+            let node = graph
+                .get_index(index)
+                .expect("graph index exists")
+                .0
+                .clone();
             let future = (options.run_node)(node);
             in_flight.push(async move { (index, future.await) });
         }
@@ -92,7 +96,9 @@ impl AsyncState {
         match completion {
             TaskCompletion::Passed => self.release_dependents(index, dependents),
             TaskCompletion::Failed if policy.bail => self.stop_dispatch = true,
-            TaskCompletion::Aborted | TaskCompletion::Cancelled => self.stop_dispatch = true,
+            TaskCompletion::Aborted | TaskCompletion::Cancelled => {
+                self.stop_dispatch = true;
+            }
             TaskCompletion::Failed if policy.continue_on => {
                 self.release_dependents(index, dependents);
             }

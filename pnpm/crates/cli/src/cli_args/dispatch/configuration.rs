@@ -33,9 +33,11 @@ impl RunAnchors {
     /// becomes `config.dir` (used as the install `lockfileDir`, threaded
     /// into every event's `prefix`).
     pub(super) fn resolve(args: &CliArgs) -> miette::Result<Self> {
-        let dir = dunce::canonicalize(&args.paths.dir).into_diagnostic().wrap_err_with(|| {
-            format!("canonicalizing the `--dir` argument: {}", args.paths.dir.display())
-        })?;
+        let dir = dunce::canonicalize(&args.paths.dir)
+            .into_diagnostic()
+            .wrap_err_with(|| {
+                format!("canonicalizing the `--dir` argument: {}", args.paths.dir.display())
+            })?;
         let cli_dir = if args.paths.dir_from_command_line {
             dir.clone()
         } else {
@@ -201,7 +203,9 @@ pub(super) fn apply_output_overrides(cfg: &mut Config, overrides: &OutputOverrid
         cfg.test_pattern = overrides.test_pattern.to_vec();
     }
     if !overrides.changed_files_ignore_pattern.is_empty() {
-        cfg.changed_files_ignore_pattern = overrides.changed_files_ignore_pattern.to_vec();
+        cfg.changed_files_ignore_pattern = overrides
+            .changed_files_ignore_pattern
+            .to_vec();
     }
     if let Some(workspace_concurrency) = overrides.workspace_concurrency {
         cfg.workspace_concurrency =

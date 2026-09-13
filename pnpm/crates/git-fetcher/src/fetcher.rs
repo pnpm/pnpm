@@ -125,13 +125,15 @@ impl GitFetcher<'_> {
         Ok(GitFetchOutput { cas_paths, built: should_be_built })
     }
     fn copy_source(&self, temp_location: &Path) -> Result<(), GitFetcherError> {
-        let source = self.source.cache.get(&self.source).map_err(|err| {
-            name_fetch_failure(
-                self.source.repo,
-                self.package_name,
-                GitFetcherError::SharedSource(err),
-            )
-        })?;
+        let source = self.source.cache
+            .get(&self.source)
+            .map_err(|err| {
+                name_fetch_failure(
+                    self.source.repo,
+                    self.package_name,
+                    GitFetcherError::SharedSource(err),
+                )
+            })?;
         pnpm_fs::copy_dir_contents(source.path(), temp_location).map_err(GitFetcherError::Io)?;
 
         Ok(())
@@ -202,7 +204,9 @@ fn name_fetch_failure(repo: &str, package: &str, err: GitFetcherError) -> GitFet
         other => other,
     };
     let GitFetcherError::GitExec {
-        operation: "init" | "remote" | "clone" | "fetch", stderr, ..
+        operation: "init" | "remote" | "clone" | "fetch",
+        stderr,
+        ..
     } = cause
     else {
         return err;
@@ -233,7 +237,10 @@ fn name_fetch_failure(repo: &str, package: &str, err: GitFetcherError) -> GitFet
 /// An IPv6 literal keeps its brackets, matching what `URL.hostname` hands
 /// the TypeScript CLI for the same reference.
 fn ssh_repo_host(repo: &str) -> Option<&str> {
-    if let Some(rest) = repo.strip_prefix("ssh://").or_else(|| repo.strip_prefix("git+ssh://")) {
+    if let Some(rest) = repo
+        .strip_prefix("ssh://")
+        .or_else(|| repo.strip_prefix("git+ssh://"))
+    {
         let authority = rest.split('/').next().unwrap_or(rest);
         let host = authority.rsplit_once('@').map_or(authority, |(_user, host)| host);
         // A bracketed IPv6 literal is full of colons, so the port has to be
@@ -289,7 +296,13 @@ pub struct CheckoutOptions<'a> {
 /// [`read_git_manifest`], which need the same working tree for
 /// different reasons.
 pub fn checkout_commit(opts: &CheckoutOptions<'_>) -> Result<(), GitFetcherError> {
-    let &CheckoutOptions { repo, commit, git_shallow_hosts, git_bin, dest } = opts;
+    let &CheckoutOptions {
+        repo,
+        commit,
+        git_shallow_hosts,
+        git_bin,
+        dest,
+    } = opts;
     if !is_valid_commit_hash(commit) {
         return Err(GitFetcherError::InvalidCommit {
             commit: commit.to_string(),
@@ -354,8 +367,7 @@ pub async fn read_git_manifest(
     query: GitManifestQuery<'_>,
 ) -> Result<Option<Value>, GitFetcherError> {
     tokio::task::block_in_place(|| {
-        let source = query
-            .source_cache
+        let source = query.source_cache
             .get(&GitSource {
                 cache: query.source_cache,
                 path: query.path,
@@ -370,8 +382,7 @@ pub async fn read_git_manifest(
         // must not reach `safe_read_package_json_from_dir`, which would
         // happily read an arbitrary `package.json` off the host and
         // stamp its name onto this dep.
-        let pkg_dir =
-            safe_join_path(source.path(), query.path).map_err(GitFetcherError::Prepare)?;
+        let pkg_dir = safe_join_path(source.path(), query.path).map_err(GitFetcherError::Prepare)?;
         safe_read_package_json_from_dir(&pkg_dir).map_err(GitFetcherError::ReadManifest)
     })
 }
@@ -397,7 +408,9 @@ pub(crate) fn should_use_shallow(repo: &str, allowed_hosts: &[String]) -> bool {
         return false;
     }
     let Some(host) = extract_host(repo) else { return false };
-    allowed_hosts.iter().any(|allowed| allowed == host)
+    allowed_hosts
+        .iter()
+        .any(|allowed| allowed == host)
 }
 
 /// Pluck the host portion out of a git URL. Handles the three forms
@@ -415,7 +428,10 @@ fn extract_host(url: &str) -> Option<&str> {
         .or_else(|| url.strip_prefix("git+https://"))?;
     let authority_end = rest.find('/').unwrap_or(rest.len());
     let authority = &rest[..authority_end];
-    let host = authority.rsplit('@').next().unwrap_or(authority);
+    let host = authority
+        .rsplit('@')
+        .next()
+        .unwrap_or(authority);
     let host = host.split(':').next().unwrap_or(host);
     if host.is_empty() { None } else { Some(host) }
 }
@@ -448,13 +464,15 @@ fn exec_git_with(bin: &Path, args: &[&str], cwd: Option<&Path>) -> Result<String
     if let Some(dir) = cwd {
         cmd.current_dir(dir);
     }
-    let output = cmd.output().map_err(|err| {
-        if err.kind() == std::io::ErrorKind::NotFound {
-            GitFetcherError::GitNotFound
-        } else {
-            GitFetcherError::Io(err)
-        }
-    })?;
+    let output = cmd
+        .output()
+        .map_err(|err| {
+            if err.kind() == std::io::ErrorKind::NotFound {
+                GitFetcherError::GitNotFound
+            } else {
+                GitFetcherError::Io(err)
+            }
+        })?;
     if !output.status.success() {
         let operation = static_operation_label(args);
         let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
@@ -467,7 +485,11 @@ fn exec_git_with(bin: &Path, args: &[&str], cwd: Option<&Path>) -> Result<String
 /// messages. `init` / `clone` / `fetch` / `checkout` / `rev-parse` /
 /// `remote` are the only ones the fetcher invokes.
 fn static_operation_label(args: &[&str]) -> &'static str {
-    let first = args.iter().find(|arg| !arg.starts_with('-')).copied().unwrap_or("git");
+    let first = args
+        .iter()
+        .find(|arg| !arg.starts_with('-'))
+        .copied()
+        .unwrap_or("git");
     match first {
         "init" => "init",
         "clone" => "clone",

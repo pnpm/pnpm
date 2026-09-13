@@ -126,12 +126,13 @@ fn nearest_manifest_name(start_dir: &Path) -> Result<String, ViewError> {
 /// object, or carries no usable name, is as invalid as one that fails to
 /// parse.
 fn manifest_name(dir: &Path) -> Result<String, ViewError> {
-    let manifest = try_read_project_manifest(dir).map_err(|err| ViewError::InvalidPackageJson {
-        message: format!(
-            r#"Failed to read or parse project manifest in "{dir}": {err}"#,
-            dir = dir.display(),
-        ),
-    })?;
+    let manifest = try_read_project_manifest(dir)
+        .map_err(|err| ViewError::InvalidPackageJson {
+            message: format!(
+                r#"Failed to read or parse project manifest in "{dir}": {err}"#,
+                dir = dir.display(),
+            ),
+        })?;
     let value = manifest.map_or(Value::Null, |(_, manifest)| manifest.value().clone());
     value
         .get("name")
@@ -165,8 +166,10 @@ pub(super) async fn fetch_package_metadata(
     let bare = parsed.bare_specifier.as_deref().unwrap_or("latest");
     let name_hint = alias.unwrap_or(package_spec);
 
-    let mut registries: std::collections::HashMap<String, String> =
-        config.resolved_registries().into_iter().collect();
+    let mut registries: std::collections::HashMap<String, String> = config
+        .resolved_registries()
+        .into_iter()
+        .collect();
     if let Some(registry) = registry_override {
         registries.insert("default".to_string(), normalize_registry_url(registry));
     }

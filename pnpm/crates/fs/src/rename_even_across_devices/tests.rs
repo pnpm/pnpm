@@ -300,7 +300,13 @@ fn the_fallback_leaves_no_staging_dirent_behind() {
 
     let mut remaining: Vec<_> = fs::read_dir(&parent)
         .unwrap()
-        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .collect();
     remaining.sort();
     assert_eq!(remaining, ["free", "occupied"]);

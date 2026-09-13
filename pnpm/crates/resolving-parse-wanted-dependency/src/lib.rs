@@ -58,7 +58,11 @@ pub fn parse_wanted_dependency(raw_wanted_dependency: &str) -> ParsedWantedDepen
 /// Index 0 is skipped so the scope-prefix `@` of `@scope/foo` does not
 /// split the input.
 fn find_version_delimiter(input: &str) -> Option<usize> {
-    input.bytes().enumerate().skip(1).find_map(|(i, b)| (b == b'@').then_some(i))
+    input
+        .bytes()
+        .enumerate()
+        .skip(1)
+        .find_map(|(i, b)| (b == b'@').then_some(i))
 }
 
 #[cfg(test)]

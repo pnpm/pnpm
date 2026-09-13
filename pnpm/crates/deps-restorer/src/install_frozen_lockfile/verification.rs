@@ -35,27 +35,7 @@ pub(super) async fn fetch_verified<Reporter: self::Reporter>(
     create_virtual_store: CreateVirtualStore<'_>,
     verification: ConcurrentVerification<'_>,
 ) -> Result<CreateVirtualStoreOutput, InstallFrozenLockfileError> {
-    let ConcurrentVerification { lockfile, verifiers, precomputed, lockfile_path, cache_dir } =
-        verification;
-    let verify = async {
-        if let Some(precomputed) = precomputed {
-            return precomputed.await;
-        }
-        if verifiers.is_empty() {
-            return Ok(());
-        }
-        verify_lockfile_resolutions::<Reporter>(
-            lockfile,
-            verifiers,
-            &VerifyLockfileResolutionsOptions {
-                concurrency: None,
-                lockfile_path,
-                cache_dir: Some(cache_dir),
-            },
-        )
-        .await
-        .map_err(InstallFrozenLockfileError::LockfileVerification)
-    };
+    let verify = verification.run::<Reporter>();
     let fetch = async {
         create_virtual_store
             .run::<Reporter>()
@@ -85,15 +65,47 @@ pub(super) async fn load_custom_fetcher_session(
     hook: Option<&Arc<dyn pnpm_hooks::PnpmfileHooks>>,
 ) -> Result<Option<Arc<crate::CustomFetcherSession>>, InstallFrozenLockfileError> {
     let Some(hook) = hook else { return Ok(None) };
-    let fetchers = hook.get_custom_fetchers().await.map_err(|err| {
-        tracing::error!(
-            target: "pacquet::install",
-            "Failed to get custom fetchers from pnpmfile: {err}",
-        );
-        InstallFrozenLockfileError::CustomFetcherHook(err)
-    })?;
+    let fetchers = hook
+        .get_custom_fetchers()
+        .await
+        .map_err(|err| {
+            tracing::error!(
+                target: "pacquet::install",
+                "Failed to get custom fetchers from pnpmfile: {err}",
+            );
+            InstallFrozenLockfileError::CustomFetcherHook(err)
+        })?;
     if fetchers.is_empty() {
         return Ok(None);
     }
     Ok(Some(Arc::new(crate::CustomFetcherSession::new(fetchers))))
+}
+
+impl ConcurrentVerification<'_> {
+    async fn run<Reporter: self::Reporter>(self) -> Result<(), InstallFrozenLockfileError> {
+        let ConcurrentVerification {
+            lockfile,
+            verifiers,
+            precomputed,
+            lockfile_path,
+            cache_dir,
+        } = self;
+        if let Some(precomputed) = precomputed {
+            return precomputed.await;
+        }
+        if verifiers.is_empty() {
+            return Ok(());
+        }
+        verify_lockfile_resolutions::<Reporter>(
+            lockfile,
+            verifiers,
+            &VerifyLockfileResolutionsOptions {
+                concurrency: None,
+                lockfile_path,
+                cache_dir: Some(cache_dir),
+            },
+        )
+        .await
+        .map_err(InstallFrozenLockfileError::LockfileVerification)
+    }
 }

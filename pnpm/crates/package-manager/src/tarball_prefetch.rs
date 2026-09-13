@@ -54,7 +54,10 @@ async fn without_store_hits(
     let Some(index) = index else {
         return pending;
     };
-    let keys: Vec<String> = pending.iter().map(|entry| entry.store_key.clone()).collect();
+    let keys: Vec<String> = pending
+        .iter()
+        .map(|entry| entry.store_key.clone())
+        .collect();
     let hits = tokio::task::spawn_blocking(move || {
         let Ok(guard) = index.lock() else {
             return HashSet::new();
@@ -63,7 +66,10 @@ async fn without_store_hits(
     })
     .await
     .unwrap_or_default();
-    pending.into_iter().filter(|entry| !hits.contains(&entry.store_key)).collect()
+    pending
+        .into_iter()
+        .filter(|entry| !hits.contains(&entry.store_key))
+        .collect()
 }
 
 /// One background tarball download. Every field is owned (an `Arc`
@@ -305,8 +311,13 @@ impl TarballPrefetcher {
             });
         }
         for entry in without_store_hits(self.store.index.clone(), pending).await {
-            let PendingPrefetch { package_id, package_url, integrity, revision_addressed, .. } =
-                entry;
+            let PendingPrefetch {
+                package_id,
+                package_url,
+                integrity,
+                revision_addressed,
+                ..
+            } = entry;
             // The lockfile records no dist size hints, so the downloads
             // queue without a work estimate.
             self.prefetch(package_id, package_url, &integrity, None, None, revision_addressed);
@@ -337,8 +348,10 @@ impl PrefetchHttpClient {
     ) -> Self {
         Self {
             http_client: Arc::clone(http_client),
-            auth_headers: auth_override
-                .map_or_else(|| Arc::clone(&config.auth_headers), Arc::clone),
+            auth_headers: auth_override.map_or_else(
+                || Arc::clone(&config.auth_headers),
+                Arc::clone,
+            ),
             retry_opts: retry_opts_from_config(config),
             offline: config.offline,
         }

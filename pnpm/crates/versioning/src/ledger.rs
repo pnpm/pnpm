@@ -44,8 +44,9 @@ impl<'de> Deserialize<'de> for LedgerEntry {
             type Value = LedgerEntry;
 
             fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter
-                    .write_str(r#"a list of intent ids, or a mapping with "dir" and "intents""#)
+                formatter.write_str(
+                    r#"a list of intent ids, or a mapping with "dir" and "intents""#,
+                )
             }
 
             fn visit_unit<DeError>(self) -> Result<Self::Value, DeError> {
@@ -122,8 +123,10 @@ pub fn append_to_ledger(
         return Ok(ledger);
     }
     for (key, (dir, ids)) in new_entries {
-        let mut merged: Vec<String> =
-            ledger.get(key).map(|entry| entry.intent_ids().to_vec()).unwrap_or_default();
+        let mut merged: Vec<String> = ledger
+            .get(key)
+            .map(|entry| entry.intent_ids().to_vec())
+            .unwrap_or_default();
         for id in ids {
             if !merged.contains(id) {
                 merged.push(id.clone());
@@ -280,28 +283,46 @@ pub fn build_consumption_index(
         } else {
             &mut stable_ids_by_dir
         };
-        by_dir.entry(dir).or_default().extend(entry.intent_ids().iter().cloned());
+        by_dir
+            .entry(dir)
+            .or_default()
+            .extend(entry.intent_ids().iter().cloned());
     }
 
-    let names: HashSet<String> =
-        stable_ids_by_dir.keys().chain(prerelease_ids_by_dir.keys()).cloned().collect();
+    let names: HashSet<String> = stable_ids_by_dir
+        .keys()
+        .chain(prerelease_ids_by_dir.keys())
+        .cloned()
+        .collect();
     Ok(names
         .into_iter()
         .map(|dir| {
             let stable = stable_ids_by_dir.remove(&dir).unwrap_or_default();
             let prerelease = prerelease_ids_by_dir.remove(&dir).unwrap_or_default();
-            let consumption = PackageConsumption {
-                prerelease_only_ids: prerelease.difference(&stable).cloned().collect(),
-                all_ids: stable.into_iter().chain(prerelease).collect(),
-            };
+            let consumption = package_consumption(stable, prerelease);
             (dir, consumption)
         })
         .collect())
 }
 
+fn package_consumption(stable: HashSet<String>, prerelease: HashSet<String>) -> PackageConsumption {
+    PackageConsumption {
+        prerelease_only_ids: prerelease
+            .difference(&stable)
+            .cloned()
+            .collect(),
+        all_ids: stable
+            .into_iter()
+            .chain(prerelease)
+            .collect(),
+    }
+}
+
 /// The `name@version` halves of a ledger key.
 fn split_ledger_key(key: &str) -> Option<(&str, &str)> {
-    let at_index = key.rfind('@').filter(|&index| index > 0)?;
+    let at_index = key
+        .rfind('@')
+        .filter(|&index| index > 0)?;
     Some((&key[..at_index], &key[at_index + 1..]))
 }
 
@@ -320,7 +341,10 @@ fn entry_project_dir(
             let dirs = resolve_name_dirs(pkg_name);
             match dirs.len() {
                 0 => return Ok(None),
-                1 => dirs.into_iter().next().expect("one element"),
+                1 => dirs
+                    .into_iter()
+                    .next()
+                    .expect("one element"),
                 _ => {
                     return Err(VersioningError::AmbiguousLedgerEntry {
                         key: key.to_string(),
@@ -337,7 +361,10 @@ fn entry_project_dir(
 /// Build metadata (after "+") may itself contain hyphens and never
 /// makes a version a prerelease.
 fn is_prerelease_version(version: &str) -> bool {
-    version.split('+').next().is_some_and(|core| core.contains('-'))
+    version
+        .split('+')
+        .next()
+        .is_some_and(|core| core.contains('-'))
 }
 
 /// The canonical spelling of a workspace-relative project directory:

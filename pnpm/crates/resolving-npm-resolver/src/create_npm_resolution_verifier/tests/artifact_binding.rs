@@ -257,9 +257,9 @@ async fn verify_flags_tarball_url_mismatch() {
         git_hosted: None,
         path: None,
     });
-    let result = verifier
-        .verify(&resolution, ctx(&"aged-pkg".parse::<PkgName>().expect("parse"), "1.0.0"))
-        .await;
+    let result =
+        verifier.verify(&resolution, ctx(&"aged-pkg".parse::<PkgName>().expect("parse"), "1.0.0"))
+            .await;
     let ResolutionVerification::Err { code, reason } = result else {
         panic!("expected Err, got {result:?}");
     };
@@ -315,9 +315,9 @@ async fn tarball_url_default_port_and_scheme_difference_is_a_match() {
         git_hosted: None,
         path: None,
     });
-    let result = verifier
-        .verify(&resolution, ctx(&"aged-pkg".parse::<PkgName>().expect("parse"), "1.0.0"))
-        .await;
+    let result =
+        verifier.verify(&resolution, ctx(&"aged-pkg".parse::<PkgName>().expect("parse"), "1.0.0"))
+            .await;
     assert_eq!(result, ResolutionVerification::Ok);
 }
 

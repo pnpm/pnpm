@@ -99,7 +99,11 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
     ];
 
     for case in cases {
-        let argv = case.argv.iter().copied().map(OsString::from).collect::<Vec<_>>();
+        let argv = case.argv
+            .iter()
+            .copied()
+            .map(OsString::from)
+            .collect::<Vec<_>>();
         let input = SwitchInput::from_version_argv(&argv);
 
         if let Some(dir) = case.dir {
@@ -557,8 +561,11 @@ fn pin_flags_cover_every_command_declaring_them() {
         if super::should_skip_command_name(name) {
             continue;
         }
-        let declares =
-            |long: &str| subcommand.get_arguments().any(|arg| arg.get_long() == Some(long));
+        let declares = |long: &str| {
+            subcommand
+                .get_arguments()
+                .any(|arg| arg.get_long() == Some(long))
+        };
         if declares("lockfile-dir") {
             let flags = PinFlags::of(&parse_with_positional(name, &["--lockfile-dir", "lf"]));
             assert_eq!(
@@ -620,10 +627,11 @@ fn parse_with_positional(name: &str, args: &[&str]) -> CliCommand {
             .and_then(|matches| CliArgs::from_arg_matches(&matches))
             .map(|args| args.command)
     };
-    parse(&argv).unwrap_or_else(|_| {
-        argv.push("placeholder");
-        parse(&argv).unwrap_or_else(|error| panic!("parse `pnpm {name}`: {error}"))
-    })
+    parse(&argv)
+        .unwrap_or_else(|_| {
+            argv.push("placeholder");
+            parse(&argv).unwrap_or_else(|error| panic!("parse `pnpm {name}`: {error}"))
+        })
 }
 
 fn parse_command(argv: &[&str]) -> CliCommand {

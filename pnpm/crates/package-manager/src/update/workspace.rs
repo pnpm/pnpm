@@ -19,9 +19,7 @@ pub(super) fn workspace_targets(
     selectors: &[ParsedSelector],
     direct: &[(String, DependencyGroup, String)],
 ) -> Result<Vec<WorkspaceLinkTarget>, UpdateError> {
-    Ok(update
-        .selection
-        .workspace_packages
+    Ok(update.selection.workspace_packages
         .map(|packages| workspace_link_targets(selectors, direct, packages, update.config))
         .transpose()?
         .unwrap_or_default())
@@ -55,7 +53,10 @@ pub(super) fn workspace_link_targets(
         return Ok(all_workspace_link_targets(direct, workspace_packages, config));
     }
     let mut targets = Vec::new();
-    let patterns = selectors.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>();
+    let patterns = selectors
+        .iter()
+        .map(|selector| selector.pattern.clone())
+        .collect::<Vec<_>>();
     let matcher = create_matcher(&patterns);
     // Per-selector matchers, compiled once, map a matched dependency back
     // to the selector that claimed it — and so to the version it asked for.
@@ -79,7 +80,10 @@ pub(super) fn workspace_link_targets(
             name: name.clone(),
             group: *group,
             declared: declared.clone(),
-            wanted_range: wanted.strip_prefix("workspace:").unwrap_or(wanted).to_string(),
+            wanted_range: wanted
+                .strip_prefix("workspace:")
+                .unwrap_or(wanted)
+                .to_string(),
         });
     }
     Ok(targets)
@@ -96,7 +100,9 @@ pub(super) fn all_workspace_link_targets(
     direct
         .iter()
         .filter(|(name, _, _)| {
-            !ignore_matcher.as_ref().is_some_and(|matcher| matcher.matches(name.as_str()))
+            !ignore_matcher
+                .as_ref()
+                .is_some_and(|matcher| matcher.matches(name.as_str()))
                 && workspace_packages.contains_key(name)
         })
         .map(|(name, group, declared)| WorkspaceLinkTarget {
@@ -142,5 +148,11 @@ pub(super) fn pick_workspace_version(
     range: &str,
 ) -> Option<String> {
     let range = if node_semver::Range::parse(range).is_ok() { range } else { "*" };
-    resolve_workspace_range(range, &versions.keys().cloned().collect::<Vec<_>>())
+    resolve_workspace_range(
+        range,
+        &versions
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
+    )
 }

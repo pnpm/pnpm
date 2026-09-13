@@ -27,7 +27,10 @@ fn sample_resolution() -> LockfileResolution {
 /// this through `lockfile_to_hoisted_dep_graph`; tests build it
 /// directly so the linker can be exercised without a lockfile.
 fn make_node(alias: &str, dep_path: &str, pkg_id: &str, dir: PathBuf) -> DependenciesGraphNode {
-    let modules = dir.parent().expect("dir has parent").to_path_buf();
+    let modules = dir
+        .parent()
+        .expect("dir has parent")
+        .to_path_buf();
     DependenciesGraphNode {
         package: crate::HoistedPackageMetadata {
             dep_path: DepPath::from(dep_path.to_string()),
@@ -142,7 +145,11 @@ fn import_pass_creates_package_directory() {
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
 
-    let installed = lockfile_dir.join("node_modules").join("a").join("package").join("index.js");
+    let installed = lockfile_dir
+        .join("node_modules")
+        .join("a")
+        .join("package")
+        .join("index.js");
     assert!(installed.exists(), "imported file at {installed:?}");
     assert_eq!(fs::read(&installed).unwrap(), b"module.exports = 1;");
 }
@@ -190,7 +197,14 @@ fn orphan_directory_is_removed() {
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
 
     assert!(!orphan_dir.exists(), "orphan rimraf'd: {orphan_dir:?}");
-    assert!(modules.join("a").join("package").join("index.js").exists(), "a is imported");
+    assert!(
+        modules
+            .join("a")
+            .join("package")
+            .join("index.js")
+            .exists(),
+        "a is imported",
+    );
 }
 
 #[test]
@@ -247,8 +261,20 @@ fn nested_hierarchy_materializes_inner_node_modules() {
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
 
-    assert!(outer_dir.join("package").join("outer.js").exists(), "outer imported");
-    assert!(inner_dir.join("package").join("inner.js").exists(), "nested inner imported");
+    assert!(
+        outer_dir
+            .join("package")
+            .join("outer.js")
+            .exists(),
+        "outer imported",
+    );
+    assert!(
+        inner_dir
+            .join("package")
+            .join("inner.js")
+            .exists(),
+        "nested inner imported",
+    );
 }
 
 #[test]
@@ -360,7 +386,14 @@ fn no_prev_graph_skips_orphan_pass() {
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds without prev_graph");
 
-    assert!(lockfile_dir.join("node_modules").join("a").join("package").join("index.js").exists());
+    assert!(
+        lockfile_dir
+            .join("node_modules")
+            .join("a")
+            .join("package")
+            .join("index.js")
+            .exists(),
+    );
 }
 
 /// Orphan removal tolerates errors silently — matches upstream's
@@ -457,7 +490,10 @@ fn import_pass_emits_one_imported_event_per_node() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -507,19 +543,28 @@ fn import_pass_emits_one_imported_event_per_node() {
     imported.sort_by(|left, right| left.2.cmp(&right.2));
 
     let modules = lockfile_dir.join("node_modules");
-    let requester = lockfile_dir.to_str().expect("requester").to_string();
+    let requester = lockfile_dir
+        .to_str()
+        .expect("requester")
+        .to_string();
     assert_eq!(
         imported,
         vec![
             (
                 WireImportMethod::Hardlink,
                 requester.clone(),
-                modules.join("a").to_string_lossy().into_owned(),
+                modules
+                    .join("a")
+                    .to_string_lossy()
+                    .into_owned(),
             ),
             (
                 WireImportMethod::Hardlink,
                 requester,
-                modules.join("b").to_string_lossy().into_owned(),
+                modules
+                    .join("b")
+                    .to_string_lossy()
+                    .into_owned(),
             ),
         ],
     );

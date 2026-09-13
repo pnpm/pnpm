@@ -5,7 +5,10 @@ use pretty_assertions::assert_eq;
 use std::ffi::OsString;
 
 fn argv(parts: &[&str]) -> Vec<OsString> {
-    parts.iter().map(OsString::from).collect()
+    parts
+        .iter()
+        .map(OsString::from)
+        .collect()
 }
 
 fn resolve(parts: &[&str]) -> Vec<String> {
@@ -148,8 +151,11 @@ fn a_value_taking_option_keeps_its_value() {
 fn every_opposite_names_a_real_flag() {
     let command = with_boolean_negations(CliArgs::command());
     let known = |long: &str| {
-        let declares =
-            |cmd: &clap::Command| cmd.get_arguments().flat_map(spellings).any(|name| name == long);
+        let declares = |cmd: &clap::Command| {
+            cmd.get_arguments()
+                .flat_map(spellings)
+                .any(|name| name == long)
+        };
         declares(&command) || command.get_subcommands().any(declares)
     };
     for (name, opposite) in &boolean_flags().opposites {

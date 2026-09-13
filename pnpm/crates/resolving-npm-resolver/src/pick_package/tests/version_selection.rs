@@ -61,7 +61,12 @@ async fn cold_pick_fetches_and_picks_max_in_range() {
 #[tokio::test]
 async fn normal_range_reuses_dominant_lockfile_version_from_disk() {
     let mut server = mockito::Server::new_async().await;
-    let mock = server.mock("GET", "/acme").with_status(500).expect(0).create_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(500)
+        .expect(0)
+        .create_async()
+        .await;
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
     let preloaded: pnpm_registry::Package =

@@ -121,7 +121,10 @@ fn default_sort_orders_by_change_then_name() {
         pkg("feature-a", "1.0.0", "1.1.0", DependencyGroup::Prod),
     ];
     sort_outdated(&mut outdated, None);
-    let order: Vec<&str> = outdated.iter().map(|item| item.package_name.as_str()).collect();
+    let order: Vec<&str> = outdated
+        .iter()
+        .map(|item| item.package_name.as_str())
+        .collect();
     assert_eq!(order, vec!["fix-a", "fix-b", "feature-a", "breaking-z"]);
 }
 
@@ -193,7 +196,10 @@ fn skip_sgr_escape(chars: &mut std::str::Chars<'_>) {
 
 fn assert_borders_aligned(table: &str) {
     let mut rows = table.lines();
-    let expected = rows.next().map(border_columns).unwrap_or_default();
+    let expected = rows
+        .next()
+        .map(border_columns)
+        .unwrap_or_default();
     assert!(!expected.is_empty(), "expected box-drawing borders in:\n{table}");
     for row in table.lines() {
         assert_eq!(
@@ -315,14 +321,23 @@ fn recursive_table_wraps_the_dependents_column() {
 }
 
 fn last_column_cells(table: &str) -> Vec<&str> {
-    table.lines().filter_map(|line| line.rsplit('│').nth(1)).map(str::trim).collect()
+    table
+        .lines()
+        .filter_map(|line| line.rsplit('│').nth(1))
+        .map(str::trim)
+        .collect()
 }
 
 /// Content width of the table's rightmost column, excluding its border and
 /// padding.
 fn last_column_width(table: &str) -> usize {
     const PADDING: usize = 2;
-    let borders = border_columns(table.lines().next().expect("top border"));
+    let borders = border_columns(
+        table
+            .lines()
+            .next()
+            .expect("top border"),
+    );
     let [.., left, right] = borders[..] else {
         panic!("expected at least two column boundaries in:\n{table}");
     };

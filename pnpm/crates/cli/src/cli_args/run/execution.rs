@@ -84,8 +84,10 @@ pub(super) fn run_selected_scripts(
     args: &[String],
     concurrency: usize,
 ) -> miette::Result<()> {
-    let tasks: IndexMap<String, Vec<String>> =
-        outcome.scripts.iter().map(|name| (name.clone(), Vec::new())).collect();
+    let tasks: IndexMap<String, Vec<String>> = outcome.scripts
+        .iter()
+        .map(|name| (name.clone(), Vec::new()))
+        .collect();
     let run_script = |name: String| run_one_script(ctx, outcome, &name, args);
     if concurrency == 1 || tasks.len() == 1 {
         for name in tasks.keys() {
@@ -173,8 +175,10 @@ pub(super) fn script_extra_env(config: &Config, dir: &Path) -> HashMap<String, S
     let mut extra_env = config.extra_env_with_node_options();
     if let Some(pnp_path) = pnp_path_for_execution(config, dir) {
         let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
-        extra_env
-            .insert("NODE_OPTIONS".to_string(), make_node_require_option(&pnp_path, node_options));
+        extra_env.insert(
+            "NODE_OPTIONS".to_string(),
+            make_node_require_option(&pnp_path, node_options),
+        );
     }
     if let Some(package_map_path) = package_map_path_for_execution(config, dir) {
         let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
@@ -235,9 +239,15 @@ impl ScriptOutcome<'_> {
         if failures.is_empty() {
             return Ok(());
         }
-        failures.sort_by_key(|(name, _)| self.scripts.iter().position(|script| script == name));
-        let hint =
-            failures.iter().map(|(name, exit)| format!("{name}: {exit}")).collect::<Vec<_>>();
+        failures.sort_by_key(|(name, _)| {
+            self.scripts
+                .iter()
+                .position(|script| script == name)
+        });
+        let hint = failures
+            .iter()
+            .map(|(name, exit)| format!("{name}: {exit}"))
+            .collect::<Vec<_>>();
         Err(RunError::SomeScriptsFailed {
             failed: failures.len(),
             total: self.scripts.len(),
@@ -299,9 +309,15 @@ pub(in super::super) fn run_stages(
         "caller validated main_body is neither empty nor the args-less `npx only-allow pnpm` no-op",
     );
 
-    if ctx.config.sync_injected_deps_after_scripts.iter().any(|script| script == name) {
+    if ctx.config.sync_injected_deps_after_scripts
+        .iter()
+        .any(|script| script == name)
+    {
         sync_injected_deps(&SyncInjectedDeps {
-            pkg_name: ctx.manifest.value().get("name").and_then(Value::as_str),
+            pkg_name: ctx.manifest
+                .value()
+                .get("name")
+                .and_then(Value::as_str),
             pkg_root_dir: ctx.dir,
             workspace_dir: ctx.config.workspace_dir.as_deref(),
             // Read before the script ran, so a bin it drops can still be named.
@@ -330,7 +346,10 @@ fn get_run_script_stages(
     main_body: &str,
     enable_pre_post_scripts: bool,
 ) -> Vec<(String, String)> {
-    let scripts = manifest.value().get("scripts").and_then(Value::as_object);
+    let scripts = manifest
+        .value()
+        .get("scripts")
+        .and_then(Value::as_object);
     let mut stages = vec![(name.to_string(), main_body.to_string())];
     if !enable_pre_post_scripts {
         return stages;

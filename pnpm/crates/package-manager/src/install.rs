@@ -194,9 +194,9 @@ impl LockfileVerificationGate {
 
     /// Block on the verdict.
     pub(crate) async fn wait(mut self) -> Result<(), pnpm_lockfile_verification::VerifyError> {
-        (&mut self.0)
-            .await
-            .expect("the lockfile verification task is only aborted by dropping the gate unawaited")
+        (&mut self.0).await.expect(
+            "the lockfile verification task is only aborted by dropping the gate unawaited",
+        )
     }
 }
 

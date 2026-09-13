@@ -18,10 +18,7 @@ pub(super) async fn read(
 ) -> Response {
     let result = async {
         let key = CompilerCacheKey::try_from(key)?;
-        state
-            .inner
-            .builds
-            .artifacts
+        state.inner.builds.artifacts
             .as_ref()
             .expect("compiler cache routes require an artifact store")
             .read_compiler_cache(&cache, &key)
@@ -44,10 +41,7 @@ pub(super) async fn write(
 ) -> Response {
     let result = async {
         let key = CompilerCacheKey::try_from(key)?;
-        state
-            .inner
-            .builds
-            .artifacts
+        state.inner.builds.artifacts
             .as_ref()
             .expect("compiler cache routes require an artifact store")
             .publish_compiler_cache(&cache, &key, bytes)
@@ -67,10 +61,7 @@ pub(super) async fn head(
 ) -> Response {
     let result = async {
         let key = CompilerCacheKey::try_from(key)?;
-        state
-            .inner
-            .builds
-            .artifacts
+        state.inner.builds.artifacts
             .as_ref()
             .expect("compiler cache routes require an artifact store")
             .compiler_cache_size(&cache, &key)

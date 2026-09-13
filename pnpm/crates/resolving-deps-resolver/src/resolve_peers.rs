@@ -203,19 +203,22 @@ impl HoistMissingScope {
         if self.locked_peer_names.contains(peer_name) {
             return false;
         }
-        ancestor_pkg_ids.into_iter().any(|pkg_id| self.covers(pkg_id, peer_name))
+        ancestor_pkg_ids
+            .into_iter()
+            .any(|pkg_id| self.covers(pkg_id, peer_name))
     }
 
     /// Whether another importer's shared walk of `pkg_id` already
     /// reported on `peer_name` — and found it satisfied.
     fn covers(&self, pkg_id: &str, peer_name: &str) -> bool {
-        self.first_importer_by_pkg.get(pkg_id).is_some_and(|owner| {
-            *owner != self.importer_id
-                && self
-                    .first_walk_missing_by_pkg
-                    .get(pkg_id)
-                    .is_some_and(|missing| !missing.contains(peer_name))
-        })
+        self.first_importer_by_pkg
+            .get(pkg_id)
+            .is_some_and(|owner| {
+                *owner != self.importer_id
+                    && self.first_walk_missing_by_pkg
+                        .get(pkg_id)
+                        .is_some_and(|missing| !missing.contains(peer_name))
+            })
     }
 }
 
@@ -287,14 +290,12 @@ pub struct WorkspaceResolvePeersResult {
 pub fn resolve_peers(tree: &mut ResolvedTree, opts: ResolvePeersOptions) -> ResolvePeersResult {
     let node_ids_by_previous_dep_path = build_node_ids_by_previous_dep_path(tree, &opts);
     let current_provider_sources = vec![CurrentProviderSource {
-        direct_node_ids_by_alias: tree
-            .direct
+        direct_node_ids_by_alias: tree.direct
             .iter()
             .map(|dep| (dep.alias.clone(), dep.node_id.clone()))
             .collect(),
         declared_direct_dependencies: opts.scope.declared_direct_dependencies.clone(),
-        explicitly_requested_direct_dependencies: opts
-            .scope
+        explicitly_requested_direct_dependencies: opts.scope
             .explicitly_requested_direct_dependencies
             .clone(),
     }];
@@ -381,7 +382,12 @@ fn walk_importers(
     resolve_peers_from_workspace_root: bool,
 ) -> BTreeMap<String, PeerDependencyIssues> {
     let root_importer = resolve_peers_from_workspace_root
-        .then(|| importers.iter().copied().find(|importer| importer.id == "."))
+        .then(|| {
+            importers
+                .iter()
+                .copied()
+                .find(|importer| importer.id == ".")
+        })
         .flatten();
     let root_parents = root_importer.map(|importer| {
         let previous_dirs =
@@ -421,8 +427,7 @@ fn finish_workspace_graph(
         .iter()
         .map(|importer| {
             let anchor = crate::link_target::ImporterAnchor::new(&importer.root_dir, lockfile_dir);
-            let direct_by_alias = importer
-                .direct
+            let direct_by_alias = importer.direct
                 .iter()
                 .map(|dep| {
                     let dep_path = importer_relative_link_dep_path(
@@ -518,8 +523,7 @@ fn importer_provider_sources(
     root_importer: Option<&ImporterPeerInput>,
 ) -> Vec<CurrentProviderSource> {
     let source_of = |importer: &ImporterPeerInput| CurrentProviderSource {
-        direct_node_ids_by_alias: importer
-            .direct
+        direct_node_ids_by_alias: importer.direct
             .iter()
             .map(|dep| (dep.alias.clone(), dep.node_id.clone()))
             .collect(),

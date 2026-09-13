@@ -104,7 +104,10 @@ pub fn store_index_key_for_resolution(
     match resolution {
         pnpm_lockfile::LockfileResolution::Tarball(tarball) => {
             Some(pnpm_store_dir::pick_store_index_key(
-                tarball.integrity.as_ref().map(ToString::to_string).as_deref(),
+                tarball.integrity
+                    .as_ref()
+                    .map(ToString::to_string)
+                    .as_deref(),
                 tarball.is_git_hosted(),
                 pkg_id,
                 built,
@@ -121,7 +124,9 @@ pub fn store_index_key_for_resolution(
 
 #[must_use]
 pub fn snapshot_has_patch(snapshot_key: &pnpm_lockfile::PackageKey) -> bool {
-    pnpm_deps_path::index_of_dep_path_suffix(&snapshot_key.to_string()).patch_hash_index.is_some()
+    pnpm_deps_path::index_of_dep_path_suffix(&snapshot_key.to_string())
+        .patch_hash_index
+        .is_some()
 }
 
 /// Returns the package identity used to match a lockfile snapshot against

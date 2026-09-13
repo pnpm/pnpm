@@ -247,23 +247,29 @@ pub fn update_workspace_state(
 ) -> Result<(), UpdateWorkspaceStateError> {
     let file_path = get_file_path(workspace_dir);
     let parent = file_path.parent().expect("workspace-state path always has a parent");
-    fs::create_dir_all(parent).map_err(|source| UpdateWorkspaceStateError::CreateDir {
-        path: parent.to_path_buf(),
-        source,
-    })?;
+    fs::create_dir_all(parent)
+        .map_err(|source| UpdateWorkspaceStateError::CreateDir {
+            path: parent.to_path_buf(),
+            source,
+        })?;
     let mut serialized =
         serde_json::to_string_pretty(state).map_err(UpdateWorkspaceStateError::SerializeJson)?;
     serialized.push('\n');
-    let mut temp = NamedTempFile::new_in(parent).map_err(|source| {
-        UpdateWorkspaceStateError::WriteFile { path: file_path.clone(), source }
-    })?;
-    temp.write_all(serialized.as_bytes()).map_err(|source| {
-        UpdateWorkspaceStateError::WriteFile { path: file_path.clone(), source }
-    })?;
-    temp.persist(&file_path).map_err(|error| UpdateWorkspaceStateError::WriteFile {
-        path: file_path,
-        source: error.error,
-    })?;
+    let mut temp = NamedTempFile::new_in(parent)
+        .map_err(|source| UpdateWorkspaceStateError::WriteFile {
+            path: file_path.clone(),
+            source,
+        })?;
+    temp.write_all(serialized.as_bytes())
+        .map_err(|source| UpdateWorkspaceStateError::WriteFile {
+            path: file_path.clone(),
+            source,
+        })?;
+    temp.persist(&file_path)
+        .map_err(|error| UpdateWorkspaceStateError::WriteFile {
+            path: file_path,
+            source: error.error,
+        })?;
     Ok(())
 }
 
@@ -314,7 +320,8 @@ pub fn now_millis() -> i64 {
 /// dependency-injection seam produce the value the state file records.
 #[must_use]
 pub fn millis_since_epoch(time: SystemTime) -> i64 {
-    time.duration_since(UNIX_EPOCH).map_or(0, |duration| duration.as_millis() as i64)
+    time.duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_millis() as i64)
 }
 
 #[cfg(test)]

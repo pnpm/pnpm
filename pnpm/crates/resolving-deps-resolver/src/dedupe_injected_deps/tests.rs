@@ -60,7 +60,11 @@ fn rewrites_childless_injected_dep_to_link() {
 
     dedupe_injected_deps(&mut graph, &mut direct, &roots, &lockfile_dir);
 
-    let after = direct.get("project-2").unwrap().get("project-1").unwrap();
+    let after = direct
+        .get("project-2")
+        .unwrap()
+        .get("project-1")
+        .unwrap();
     assert_eq!(after.as_str(), "link:../project-1");
     assert!(graph.is_empty(), "unreachable file: snapshot should be pruned");
 }
@@ -80,8 +84,10 @@ fn rewrites_scoped_injected_dep_to_link() {
     graph.insert(injected.clone(), make_node("@test/pkg@file:fixtures/host/pkg", BTreeMap::new()));
 
     let mut direct: DirectByImporter = BTreeMap::new();
-    direct
-        .insert("fixtures/host".to_string(), BTreeMap::from([("@test/pkg".to_string(), injected)]));
+    direct.insert(
+        "fixtures/host".to_string(),
+        BTreeMap::from([("@test/pkg".to_string(), injected)]),
+    );
     direct.insert("fixtures/host/pkg".to_string(), BTreeMap::new());
 
     let mut roots = BTreeMap::new();
@@ -90,7 +96,11 @@ fn rewrites_scoped_injected_dep_to_link() {
 
     dedupe_injected_deps(&mut graph, &mut direct, &roots, &lockfile_dir);
 
-    let after = direct.get("fixtures/host").unwrap().get("@test/pkg").unwrap();
+    let after = direct
+        .get("fixtures/host")
+        .unwrap()
+        .get("@test/pkg")
+        .unwrap();
     assert_eq!(after.as_str(), "link:pkg");
     assert!(graph.is_empty(), "unreachable file: snapshot should be pruned");
 }
@@ -123,7 +133,11 @@ fn leaves_injected_dep_when_children_differ() {
 
     dedupe_injected_deps(&mut graph, &mut direct, &roots, &lockfile_dir);
 
-    let after = direct.get("project-2").unwrap().get("project-1").unwrap();
+    let after = direct
+        .get("project-2")
+        .unwrap()
+        .get("project-1")
+        .unwrap();
     assert_eq!(after.as_str(), "file:project-1");
 }
 
@@ -156,7 +170,11 @@ fn rewrites_when_children_subset_of_target_direct_deps() {
 
     dedupe_injected_deps(&mut graph, &mut direct, &roots, &lockfile_dir);
 
-    let after = direct.get("project-2").unwrap().get("project-1").unwrap();
+    let after = direct
+        .get("project-2")
+        .unwrap()
+        .get("project-1")
+        .unwrap();
     assert_eq!(after.as_str(), "link:../project-1");
     assert!(graph.contains_key(&lib));
     assert!(!graph.contains_key(&injected));
@@ -193,8 +211,10 @@ fn rewrites_when_shared_dep_differs_only_by_peer_suffix() {
     );
 
     let mut direct: DirectByImporter = BTreeMap::new();
-    direct
-        .insert("project-1".to_string(), BTreeMap::from([("debug".to_string(), debug_with_peer)]));
+    direct.insert(
+        "project-1".to_string(),
+        BTreeMap::from([("debug".to_string(), debug_with_peer)]),
+    );
     direct.insert(
         "project-2".to_string(),
         BTreeMap::from([("project-1".to_string(), injected.clone())]),
@@ -206,7 +226,11 @@ fn rewrites_when_shared_dep_differs_only_by_peer_suffix() {
 
     dedupe_injected_deps(&mut graph, &mut direct, &roots, &lockfile_dir);
 
-    let after = direct.get("project-2").unwrap().get("project-1").unwrap();
+    let after = direct
+        .get("project-2")
+        .unwrap()
+        .get("project-1")
+        .unwrap();
     assert_eq!(after.as_str(), "link:../project-1");
     assert!(!graph.contains_key(&injected), "deduped file: snapshot should be pruned");
 }
@@ -226,6 +250,10 @@ fn ignores_non_workspace_file_deps() {
 
     dedupe_injected_deps(&mut graph, &mut direct, &roots, &lockfile_dir);
 
-    let after = direct.get(".").unwrap().get("some-tarball").unwrap();
+    let after = direct
+        .get(".")
+        .unwrap()
+        .get("some-tarball")
+        .unwrap();
     assert_eq!(after.as_str(), "file:vendor/some-tarball.tgz");
 }

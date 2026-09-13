@@ -47,7 +47,12 @@ fn rank_tag(index: usize, supported: &str, artifact: &str) -> Option<u64> {
 }
 
 pub fn linux_glibc_tag(platform: LinuxGlibcPlatform<'_>) -> Result<String, ArtifactProtocolError> {
-    let LinuxGlibcPlatform { architecture, node_major, glibc_major, glibc_minor } = platform;
+    let LinuxGlibcPlatform {
+        architecture,
+        node_major,
+        glibc_major,
+        glibc_minor,
+    } = platform;
     let tag = format!(
         "{COMPATIBILITY_TAG_SCHEMA}:linux-{architecture}-node{node_major}-glibc{glibc_major}.{glibc_minor}",
     );
@@ -58,7 +63,12 @@ pub fn linux_glibc_tag(platform: LinuxGlibcPlatform<'_>) -> Result<String, Artif
 pub fn linux_glibc_supported_tags(
     platform: LinuxGlibcPlatform<'_>,
 ) -> Result<Vec<String>, ArtifactProtocolError> {
-    let LinuxGlibcPlatform { architecture, node_major, glibc_major, glibc_minor } = platform;
+    let LinuxGlibcPlatform {
+        architecture,
+        node_major,
+        glibc_major,
+        glibc_minor,
+    } = platform;
     let count = usize::try_from(glibc_minor)
         .ok()
         .and_then(|minor| minor.checked_add(1))
@@ -80,7 +90,12 @@ pub fn linux_glibc_supported_tags(
 }
 
 pub fn macos_tag(platform: MacOsPlatform<'_>) -> Result<String, ArtifactProtocolError> {
-    let MacOsPlatform { architecture, node_major, macos_major, macos_minor } = platform;
+    let MacOsPlatform {
+        architecture,
+        node_major,
+        macos_major,
+        macos_minor,
+    } = platform;
     let tag = format!(
         "{COMPATIBILITY_TAG_SCHEMA}:darwin-{architecture}-node{node_major}-macos{macos_major}.{macos_minor}",
     );
@@ -95,8 +110,13 @@ pub fn macos_supported_tags(
 }
 
 pub fn windows_tag(platform: WindowsPlatform<'_>) -> Result<String, ArtifactProtocolError> {
-    let WindowsPlatform { architecture, node_major, windows_major, windows_minor, windows_build } =
-        platform;
+    let WindowsPlatform {
+        architecture,
+        node_major,
+        windows_major,
+        windows_minor,
+        windows_build,
+    } = platform;
     let tag = format!(
         "{COMPATIBILITY_TAG_SCHEMA}:win32-{architecture}-node{node_major}-windows{windows_major}.{windows_minor}.{windows_build}",
     );
@@ -252,7 +272,12 @@ fn parse_compatibility_tag(tag: &str) -> Result<ParsedCompatibilityTag<'_>, Arti
 fn parse_tag_floor(
     parts: CompatibilityTagParts<'_>,
 ) -> Result<ParsedCompatibilityTag<'_>, ArtifactProtocolError> {
-    let CompatibilityTagParts { os, architecture, node_major, runtime } = parts;
+    let CompatibilityTagParts {
+        os,
+        architecture,
+        node_major,
+        runtime,
+    } = parts;
     match os {
         "linux" => parse_linux_floor(runtime),
         "darwin" => parse_macos_floor(runtime, architecture, node_major),
@@ -384,7 +409,9 @@ fn parse_canonical_number(
     label: &str,
     allow_zero: bool,
 ) -> Result<u32, ArtifactProtocolError> {
-    let number = value.parse::<u32>().map_err(|_| invalid_tag(&format!("invalid {label}")))?;
+    let number = value
+        .parse::<u32>()
+        .map_err(|_| invalid_tag(&format!("invalid {label}")))?;
     if number.to_string() != value || (!allow_zero && number == 0) {
         return Err(invalid_tag(&format!("non-canonical {label}")));
     }

@@ -166,7 +166,10 @@ pub(crate) fn gzip_isize_hint(gz_data: &[u8]) -> Option<usize> {
     {
         return None;
     }
-    let trailer: [u8; 4] = gz_data.get(gz_data.len().checked_sub(4)?..)?.try_into().ok()?;
+    let trailer: [u8; 4] = gz_data
+        .get(gz_data.len().checked_sub(4)?..)?
+        .try_into()
+        .ok()?;
     usize::try_from(u32::from_le_bytes(trailer)).ok()
 }
 
@@ -257,8 +260,10 @@ pub(crate) fn cafs_file_info(file_hash: &FileHash, mode: u32, size: u64) -> Cafs
     // index schema (see `CafsFileInfo::checked_at`). Drop the timestamp
     // if the clock reports something unrepresentable — `checkedAt` is
     // optional and pnpm tolerates `None`.
-    let checked_at =
-        UNIX_EPOCH.elapsed().ok().and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok());
+    let checked_at = UNIX_EPOCH
+        .elapsed()
+        .ok()
+        .and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok());
     CafsFileInfo { digest: format!("{file_hash:x}"), mode, size, checked_at }
 }
 
@@ -353,14 +358,20 @@ fn write_pending_files(
     const PARALLEL_EXTRACT_THRESHOLD: usize = 32;
     if pending.len() >= PARALLEL_EXTRACT_THRESHOLD {
         let write_all = || -> Result<Vec<(String, PathBuf, CafsFileInfo)>, TarballError> {
-            pending.par_iter().map(|file| write_cas_entry(store_dir, file)).collect()
+            pending
+                .par_iter()
+                .map(|file| write_cas_entry(store_dir, file))
+                .collect()
         };
         match cas_write_pool() {
             Some(pool) => pool.install(write_all),
             None => write_all(),
         }
     } else {
-        pending.iter().map(|file| write_cas_entry(store_dir, file)).collect()
+        pending
+            .iter()
+            .map(|file| write_cas_entry(store_dir, file))
+            .collect()
     }
 }
 
@@ -529,8 +540,7 @@ impl<'a> StreamingExtract<'a> {
         // `Some(size)` makes the store writer reject a short stream
         // before anything is committed to a content-addressed path, so a
         // truncated archive leaves no orphan blob behind.
-        let (file_path, file_hash, streamed_size) = self
-            .store_dir
+        let (file_path, file_hash, streamed_size) = self.store_dir
             .write_cas_file_from_reader(entry, meta.executable, Some(meta.size))
             .map_err(|error| match error {
                 WriteCasFileFromReaderError::Read(error) => TarballError::ReadTarballEntries(error),

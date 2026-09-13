@@ -109,7 +109,9 @@ pub(crate) fn shared_side_effects_publisher(
     }
     let snapshots = snapshots?;
     let platform = artifact_platform(snapshots)?;
-    let private_key = BASE64.decode(settings.private_key.as_ref()?).ok()?;
+    let private_key = BASE64
+        .decode(settings.private_key.as_ref()?)
+        .ok()?;
     let key_id = settings.key_id.clone()?;
     let builder_id = settings.builder_id.clone()?;
     let organization = non_empty(&settings.org)?.to_string();
@@ -120,8 +122,7 @@ pub(crate) fn shared_side_effects_publisher(
 
         builder_profile: BuilderProfile {
             image_digest: settings.image_digest.clone(),
-            architecture_baseline: settings
-                .architecture_baseline
+            architecture_baseline: settings.architecture_baseline
                 .clone()
                 .unwrap_or_else(|| pnpm_graph_hasher::host_arch().to_string()),
             environment,
@@ -129,7 +130,10 @@ pub(crate) fn shared_side_effects_publisher(
         client: PnprClient::new(server),
 
         organization,
-        packages: settings.packages.iter().cloned().collect(),
+        packages: settings.packages
+            .iter()
+            .cloned()
+            .collect(),
         platform,
 
         runtime: tokio::runtime::Handle::current(),

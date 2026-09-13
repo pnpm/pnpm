@@ -36,13 +36,21 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
     struct RecordingReporter;
     impl pnpm_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
     let mut server = mockito::Server::new_async().await;
-    let fail = server.mock("GET", "/pkg.tgz").with_status(503).expect(1).create_async().await;
+    let fail = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(503)
+        .expect(1)
+        .create_async()
+        .await;
     let ok = server
         .mock("GET", "/pkg.tgz")
         .with_status(200)
@@ -93,7 +101,10 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
             _ => None,
         })
         .collect();
-    let attempts: Vec<u32> = started.iter().map(|(result_a, _)| *result_a).collect();
+    let attempts: Vec<u32> = started
+        .iter()
+        .map(|(result_a, _)| *result_a)
+        .collect();
     assert_eq!(attempts, vec![1, 2], "started must fire once per attempt; got {captured:?}");
     // Both attempts have a response head (mockito sends Content-Length
     // for `with_body(...)` and `with_status(503)` likewise), so both
@@ -145,7 +156,9 @@ fn extract_zip_strips_prefix_from_entry_paths() {
     assert!(cas_paths.contains_key("bin/node"), "prefix should be stripped");
     assert!(cas_paths.contains_key("LICENSE"), "prefix should be stripped");
     assert!(
-        !cas_paths.keys().any(|k| k.starts_with("node-v22")),
+        !cas_paths
+            .keys()
+            .any(|k| k.starts_with("node-v22")),
         "no entry should retain the prefix",
     );
     assert_eq!(pkg_files_idx.files.len(), 2);
@@ -316,7 +329,12 @@ fn extract_zip_normalizes_dot_segments_in_entry_paths() {
     dbg!(&cas_paths);
     assert!(cas_paths.contains_key("bin/node"), "`.` segment must be collapsed");
     assert!(cas_paths.contains_key("lib/README"), "`.` segment must be collapsed");
-    assert!(!cas_paths.keys().any(|k| k.contains("/./")), "no entry should retain a `.` segment");
+    assert!(
+        !cas_paths
+            .keys()
+            .any(|k| k.contains("/./")),
+        "no entry should retain a `.` segment",
+    );
 
     drop(tempdir);
 }
@@ -381,7 +399,9 @@ fn extract_joins_nested_entry_paths_with_forward_slashes() {
         header.set_entry_type(tar::EntryType::Regular);
         header.set_path("package/bin/nested/tool.js").expect("set entry path");
         header.set_cksum();
-        builder.append(&header, &b"hi\n"[..]).expect("append entry");
+        builder
+            .append(&header, &b"hi\n"[..])
+            .expect("append entry");
         builder.finish().expect("finalize tar");
     }
 
@@ -394,7 +414,9 @@ fn extract_joins_nested_entry_paths_with_forward_slashes() {
         cas_paths.keys().collect::<Vec<_>>(),
     );
     assert!(
-        !cas_paths.keys().any(|key| key.contains('\\')),
+        !cas_paths
+            .keys()
+            .any(|key| key.contains('\\')),
         "no key may carry a platform separator, got {:?}",
         cas_paths.keys().collect::<Vec<_>>(),
     );
@@ -417,7 +439,10 @@ async fn in_progress_events_fire_only_for_big_tarballs() {
     struct RecordingReporter;
     impl pnpm_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -437,13 +462,18 @@ async fn in_progress_events_fire_only_for_big_tarballs() {
     }
 
     fn last_in_progress_bytes() -> Option<u64> {
-        EVENTS.lock().unwrap().iter().rev().find_map(|event| match event {
-            LogEvent::FetchingProgress(log) => match log.message {
-                FetchingProgressMessage::InProgress { downloaded, .. } => Some(downloaded),
-                FetchingProgressMessage::Started { .. } => None,
-            },
-            _ => None,
-        })
+        EVENTS
+            .lock()
+            .unwrap()
+            .iter()
+            .rev()
+            .find_map(|event| match event {
+                LogEvent::FetchingProgress(log) => match log.message {
+                    FetchingProgressMessage::InProgress { downloaded, .. } => Some(downloaded),
+                    FetchingProgressMessage::Started { .. } => None,
+                },
+                _ => None,
+            })
     }
 
     async fn download_body<Reporter: pnpm_reporter::Reporter>(
@@ -679,7 +709,9 @@ fn extract_keeps_only_regular_file_entries() {
         file.set_entry_type(tar::EntryType::Regular);
         file.set_path("package/real.txt").expect("set file path");
         file.set_cksum();
-        builder.append(&file, &b"hi\n"[..]).expect("append file");
+        builder
+            .append(&file, &b"hi\n"[..])
+            .expect("append file");
 
         let mut dir = tar::Header::new_gnu();
         dir.set_size(0);
@@ -687,7 +719,9 @@ fn extract_keeps_only_regular_file_entries() {
         dir.set_entry_type(tar::EntryType::Directory);
         dir.set_path("package/sub/").expect("set dir path");
         dir.set_cksum();
-        builder.append(&dir, std::io::empty()).expect("append dir");
+        builder
+            .append(&dir, std::io::empty())
+            .expect("append dir");
 
         let mut link = tar::Header::new_gnu();
         link.set_size(0);
@@ -696,7 +730,9 @@ fn extract_keeps_only_regular_file_entries() {
         link.set_path("package/link.txt").expect("set link path");
         link.set_link_name("real.txt").expect("set link target");
         link.set_cksum();
-        builder.append(&link, std::io::empty()).expect("append symlink");
+        builder
+            .append(&link, std::io::empty())
+            .expect("append symlink");
 
         builder.finish().expect("finalize tar");
     }
@@ -745,7 +781,9 @@ fn extract_keys_a_root_level_entry_by_its_own_name() {
     keys.sort();
     assert_eq!(keys, vec!["._package", "README", "index.js", "package.json"]);
     assert_eq!(
-        pkg_files_idx.manifest.as_ref().and_then(|manifest| manifest["name"].as_str()),
+        pkg_files_idx.manifest
+            .as_ref()
+            .and_then(|manifest| manifest["name"].as_str()),
         Some("pkg-root-entry"),
         "the manifest under `package/` is still the one captured",
     );

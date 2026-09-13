@@ -129,13 +129,13 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
             &self.resolved,
             LockfileViews {
                 importer_manifests: &self.resolved.importer_manifests,
-                wanted_lockfile: self
-                    .resolved
-                    .fixed_wanted_lockfile
+                wanted_lockfile: self.resolved.fixed_wanted_lockfile
                     .as_ref()
                     .or(self.install.lockfiles.wanted),
                 catalogs: &self.resources.catalogs,
-                lockfile_specifier_manifests: self.resources.lockfile_specifier_manifests.as_ref(),
+                lockfile_specifier_manifests: self.resources
+                    .lockfile_specifier_manifests
+                    .as_ref(),
             },
             self.shape.verify_filtered_repair,
         )
@@ -165,10 +165,9 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
 
             requester: self.install.projects.requester,
 
-            store_index_writer: self
-                .stores
-                .writer
-                .expect("store writer is available before materialization"),
+            store_index_writer: self.stores.writer.expect(
+                "store writer is available before materialization",
+            ),
             writer_task: self.stores.writer_task,
         })
         .await
@@ -191,8 +190,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
             &allow_build_policy,
             PlanScope {
                 included: self.install.included(),
-                include_transitive_optional_dependencies: self
-                    .shape
+                include_transitive_optional_dependencies: self.shape
                     .include_transitive_optional_dependencies,
             },
         )
@@ -258,10 +256,11 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
                     &plan.layout,
                     allow_build_policy,
                 ),
-                include_transitive_optional_dependencies: self
-                    .shape
+                include_transitive_optional_dependencies: self.shape
                     .include_transitive_optional_dependencies,
-                deps_requiring_build_sink: self.resources.deps_requiring_build_sink.take(),
+                deps_requiring_build_sink: self.resources
+                    .deps_requiring_build_sink
+                    .take(),
                 patched_dependencies: self.resolved.patches.record.as_deref(),
                 store: crate::install_with_fresh_lockfile::on_disk::OnDiskStore {
                     tarball_mem_cache: &self.resources.tarball_mem_cache,

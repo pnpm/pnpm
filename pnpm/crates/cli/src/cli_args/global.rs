@@ -140,10 +140,11 @@ fn global_dirs(config: &Config) -> Result<(PathBuf, PathBuf), GlobalError> {
 /// created first, so a fresh `PNPM_HOME` whose `bin` is already on `PATH`
 /// but not yet on disk works on the first global command.
 fn check_bin_dir(global_bin_dir: &Path) -> miette::Result<()> {
-    fs::create_dir_all(global_bin_dir).map_err(|error| {
-        let bin_dir = global_bin_dir.display();
-        miette::miette!("failed to create the global bin directory {bin_dir}: {error}")
-    })?;
+    fs::create_dir_all(global_bin_dir)
+        .map_err(|error| {
+            let bin_dir = global_bin_dir.display();
+            miette::miette!("failed to create the global bin directory {bin_dir}: {error}")
+        })?;
     check_global_bin_dir(global_bin_dir, std::env::var("PATH").ok().as_deref(), true)
         .map_err(miette::Report::new)
 }
@@ -182,14 +183,13 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
         global_bin_dir: &global_bin_dir,
     };
     for group in groups {
-        target
-            .add_group::<Reporter>(
-                &group,
-                range_spec_style,
-                supported_architectures.clone(),
-                allow_build,
-            )
-            .await?;
+        target.add_group::<Reporter>(
+            &group,
+            range_spec_style,
+            supported_architectures.clone(),
+            allow_build,
+        )
+        .await?;
     }
     Ok(())
 }
@@ -218,8 +218,10 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
     // the pnpm home's bins at a release. Reinstalling that group here would
     // resolve pnpm from the `latest` dist-tag and relink the bins, silently
     // rolling the running pnpm back to whatever `latest` points at.
-    let all: Vec<GlobalPackageInfo> =
-        scanned.into_iter().filter(|pkg| !has_pnpm_cli_dependency(pkg)).collect();
+    let all: Vec<GlobalPackageInfo> = scanned
+        .into_iter()
+        .filter(|pkg| !has_pnpm_cli_dependency(pkg))
+        .collect();
     if all.is_empty() {
         println!(r#"No global packages to update. Run "pnpm self-update" to update pnpm itself."#);
         return Ok(());
@@ -237,14 +239,13 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
         global_bin_dir: &global_bin_dir,
     };
     for pkg in &to_update {
-        target
-            .update_group::<Reporter>(
-                pkg,
-                latest,
-                range_spec_style,
-                supported_architectures.clone(),
-            )
-            .await?;
+        target.update_group::<Reporter>(
+            pkg,
+            latest,
+            range_spec_style,
+            supported_architectures.clone(),
+        )
+        .await?;
     }
     Ok(())
 }
@@ -262,8 +263,11 @@ fn warn_global<Reporter: self::Reporter>(message: &str) {
 /// global cache key.
 fn registries_with_default(config: &Config) -> Vec<(String, String)> {
     let mut registries = vec![("default".to_string(), config.registry.clone())];
-    registries
-        .extend(config.registries_by_scope.iter().map(|(key, value)| (key.clone(), value.clone())));
+    registries.extend(
+        config.registries_by_scope
+            .iter()
+            .map(|(key, value)| (key.clone(), value.clone())),
+    );
     registries
 }
 

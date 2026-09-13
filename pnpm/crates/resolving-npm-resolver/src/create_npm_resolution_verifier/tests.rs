@@ -233,7 +233,9 @@ fn revision_integrity(digest: &str) -> Integrity {
 /// walk.
 fn time_free_trust_packument(name: &str) -> serde_json::Value {
     let mut body = trust_downgrade_packument(name);
-    body.as_object_mut().expect("packument is an object").remove("time");
+    body.as_object_mut()
+        .expect("packument is an object")
+        .remove("time");
     body
 }
 

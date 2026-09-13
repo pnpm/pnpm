@@ -23,11 +23,19 @@ fn drops_a_dependency_the_manifest_no_longer_declares() {
     assert!(!dependencies.contains_key(&"foo".parse::<PkgName>().expect("alias")));
     assert!(dependencies.contains_key(&"bar".parse::<PkgName>().expect("alias")));
     assert_eq!(
-        importer.specifiers.as_ref().expect("specifiers").keys().collect::<Vec<_>>(),
+        importer.specifiers
+            .as_ref()
+            .expect("specifiers")
+            .keys()
+            .collect::<Vec<_>>(),
         vec!["bar"],
     );
-    let mut packages: Vec<_> =
-        updated.packages.as_ref().expect("packages").keys().map(ToString::to_string).collect();
+    let mut packages: Vec<_> = updated.packages
+        .as_ref()
+        .expect("packages")
+        .keys()
+        .map(ToString::to_string)
+        .collect();
     packages.sort();
     assert_eq!(
         packages,
@@ -63,7 +71,11 @@ fn moves_a_dependency_between_prod_and_dev_without_touching_snapshots() {
 
     let importer = &updated.importers["."];
     let alias: PkgName = "bar".parse().expect("alias");
-    assert!(importer.dependencies.as_ref().is_some_and(|deps| !deps.contains_key(&alias)));
+    assert!(
+        importer.dependencies
+            .as_ref()
+            .is_some_and(|deps| !deps.contains_key(&alias)),
+    );
     let moved = &importer.dev_dependencies.as_ref().expect("devDependencies")[&alias];
     assert_eq!((moved.specifier.as_str(), moved.version.to_string().as_str()), ("^2.0.0", "2.0.0"));
     assert_eq!(updated.snapshots, parsed_lockfile(WITH_REMOVABLE_DEP).snapshots);
@@ -83,8 +95,7 @@ fn marks_the_subtree_optional_on_a_move_into_optional_dependencies() {
 
     let alias: PkgName = "bar".parse().expect("alias");
     assert!(
-        updated.importers["."]
-            .optional_dependencies
+        updated.importers["."].optional_dependencies
             .as_ref()
             .is_some_and(|deps| deps.contains_key(&alias)),
     );
@@ -101,23 +112,31 @@ fn clears_the_subtree_flags_on_a_move_out_of_optional_dependencies() {
     let mut subject = parsed_lockfile(WITH_SHARED_OPTIONAL_CHILD);
     let importer = subject.importers.get_mut(".").expect("importer");
     let alias: PkgName = "bar".parse().expect("alias");
-    let moved = importer.dependencies.as_mut().expect("dependencies").remove(&alias).expect("bar");
+    let moved = importer.dependencies
+        .as_mut()
+        .expect("dependencies")
+        .remove(&alias)
+        .expect("bar");
     importer.dependencies = None;
-    importer
-        .optional_dependencies
+    importer.optional_dependencies
         .as_mut()
         .expect("optionalDependencies")
         .insert(alias.clone(), moved);
     let snapshots = subject.snapshots.as_mut().expect("snapshots");
     for key in ["bar@2.0.0", "child@3.0.0"] {
-        snapshots.get_mut(&key.parse().expect("snapshot key")).expect("snapshot").optional = true;
+        snapshots
+            .get_mut(&key.parse().expect("snapshot key"))
+            .expect("snapshot")
+            .optional = true;
     }
 
     let updated = try_fast_update_importers(&subject, &[(".".to_string(), &manifest)])
         .expect("a group move needs no resolution");
 
     assert!(
-        updated.importers["."].dependencies.as_ref().is_some_and(|deps| deps.contains_key(&alias)),
+        updated.importers["."].dependencies
+            .as_ref()
+            .is_some_and(|deps| deps.contains_key(&alias)),
     );
     assert!(!snapshot_optional(&updated, "bar@2.0.0"));
     assert!(!snapshot_optional(&updated, "child@3.0.0"), "bar reaches child non-optionally again");
@@ -141,10 +160,13 @@ fn stands_aside_when_every_dependency_is_in_its_recorded_group() {
 fn keeps_a_child_another_prod_dependency_reaches_non_optional() {
     let mut subject = parsed_lockfile(WITH_SHARED_OPTIONAL_CHILD);
     let importer = subject.importers.get_mut(".").expect("importer");
-    importer.dependencies.as_mut().expect("dependencies").insert(
-        "keeper".parse().expect("alias"),
-        serde_saphyr::from_str("{specifier: ^6.0.0, version: 6.0.0}").expect("dependency"),
-    );
+    importer.dependencies
+        .as_mut()
+        .expect("dependencies")
+        .insert(
+            "keeper".parse().expect("alias"),
+            serde_saphyr::from_str("{specifier: ^6.0.0, version: 6.0.0}").expect("dependency"),
+        );
     let snapshots = subject.snapshots.as_mut().expect("snapshots");
     snapshots.insert(
         "keeper@6.0.0".parse().expect("snapshot key"),
@@ -194,8 +216,7 @@ fn records_an_alias_declared_in_both_prod_and_optional_as_optional() {
 
     let alias: PkgName = "bar".parse().expect("alias");
     assert!(
-        updated.importers["."]
-            .optional_dependencies
+        updated.importers["."].optional_dependencies
             .as_ref()
             .is_some_and(|deps| deps.contains_key(&alias)),
         "optional wins when the manifest declares both",
@@ -220,7 +241,10 @@ fn moves_several_dependencies_between_groups_in_one_pass() {
         group
             .as_ref()
             .map(|dependencies| {
-                let mut aliases: Vec<_> = dependencies.keys().map(ToString::to_string).collect();
+                let mut aliases: Vec<_> = dependencies
+                    .keys()
+                    .map(ToString::to_string)
+                    .collect();
                 aliases.sort();
                 aliases
             })
@@ -257,10 +281,14 @@ fn moves_to_a_higher_locked_version_even_when_the_locked_one_still_satisfies() {
 fn rejects_a_higher_version_that_exists_only_under_a_named_registry() {
     let mut subject = parsed_lockfile(WITH_TWO_LOCKED_VERSIONS);
     let packages = subject.packages.as_mut().expect("packages");
-    let higher = packages.remove(&"foo@1.2.0".parse().expect("package key")).expect("foo@1.2.0");
+    let higher = packages
+        .remove(&"foo@1.2.0".parse().expect("package key"))
+        .expect("foo@1.2.0");
     packages.insert("foo@work:1.2.0".parse().expect("package key"), higher);
     let snapshots = subject.snapshots.as_mut().expect("snapshots");
-    let higher = snapshots.remove(&"foo@1.2.0".parse().expect("snapshot key")).expect("foo@1.2.0");
+    let higher = snapshots
+        .remove(&"foo@1.2.0".parse().expect("snapshot key"))
+        .expect("foo@1.2.0");
     snapshots.insert("foo@work:1.2.0".parse().expect("snapshot key"), higher);
     let manifest = manifest_from(json!({ "dependencies": { "foo": "^1.1.0" } }));
 
@@ -319,7 +347,10 @@ fn adding_a_dependency_clears_the_optional_flag_of_what_it_reaches() {
     importer.dependencies = None;
     let snapshots = subject.snapshots.as_mut().expect("snapshots");
     for key in ["bar@2.0.0", "child@3.0.0"] {
-        snapshots.get_mut(&key.parse().expect("snapshot key")).expect("snapshot").optional = true;
+        snapshots
+            .get_mut(&key.parse().expect("snapshot key"))
+            .expect("snapshot")
+            .optional = true;
     }
     let manifest = manifest_from(json!({
         "dependencies": { "child": "^3.0.0" },
@@ -338,7 +369,10 @@ fn adding_an_optional_dependency_leaves_the_flags_alone() {
     importer.dependencies = None;
     let snapshots = subject.snapshots.as_mut().expect("snapshots");
     for key in ["bar@2.0.0", "child@3.0.0"] {
-        snapshots.get_mut(&key.parse().expect("snapshot key")).expect("snapshot").optional = true;
+        snapshots
+            .get_mut(&key.parse().expect("snapshot key"))
+            .expect("snapshot")
+            .optional = true;
     }
     let manifest =
         manifest_from(json!({ "optionalDependencies": { "opt": "^5.0.0", "child": "^3.0.0" } }));

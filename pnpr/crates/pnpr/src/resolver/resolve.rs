@@ -252,7 +252,10 @@ pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) ->
         return None;
     }
     let importer = lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY)?;
-    let temp = tempfile::Builder::new().prefix("pnpr-frozen-").tempdir().ok()?;
+    let temp = tempfile::Builder::new()
+        .prefix("pnpr-frozen-")
+        .tempdir()
+        .ok()?;
     let manifest_path = temp.path().join("package.json");
     let manifest_json = serde_json::json!({
         "name": project.name.as_deref().unwrap_or("pnpr-resolve"),
@@ -271,23 +274,30 @@ pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) ->
 }
 
 fn request_has_overrides(request: &ResolveRequest) -> bool {
-    request.overrides.as_ref().is_some_and(|value| match value {
-        serde_json::Value::Object(map) => !map.is_empty(),
-        serde_json::Value::Null => false,
-        _ => true,
-    })
+    request.overrides
+        .as_ref()
+        .is_some_and(|value| match value {
+            serde_json::Value::Object(map) => !map.is_empty(),
+            serde_json::Value::Null => false,
+            _ => true,
+        })
 }
 
 /// Whether the config rewrites the dependency graph in a way a lockfile
 /// cannot be checked against without a resolve.
 fn config_transforms_lockfile(config: &Config) -> bool {
-    config.package_extensions.as_ref().is_some_and(|extensions| !extensions.is_empty())
-        || config
-            .ignored_optional_dependencies
+    config.package_extensions
+        .as_ref()
+        .is_some_and(|extensions| !extensions.is_empty())
+        || config.ignored_optional_dependencies
             .as_ref()
             .is_some_and(|patterns| !patterns.is_empty())
-        || config.patched_dependencies.as_ref().is_some_and(|map| !map.is_empty())
-        || config.patched_dependency_hashes_override.as_ref().is_some_and(|map| !map.is_empty())
+        || config.patched_dependencies
+            .as_ref()
+            .is_some_and(|map| !map.is_empty())
+        || config.patched_dependency_hashes_override
+            .as_ref()
+            .is_some_and(|map| !map.is_empty())
         || config.inject_workspace_packages
 }
 

@@ -94,6 +94,9 @@ export const fetchers = [{
     assert_eq!(fetchers.len(), 1);
     let resolution = serde_json::json!({ "type": "@custom/esm" });
     assert!(fetchers[0].can_fetch("x@1.0.0", resolution.clone()).await.unwrap());
-    let result = fetchers[0].fetch("x@1.0.0", resolution, serde_json::json!({})).await.unwrap();
+    let result = fetchers[0]
+        .fetch("x@1.0.0", resolution, serde_json::json!({}))
+        .await
+        .unwrap();
     assert_eq!(result["filesIndex"]["main.js"]["integrity"], "sha512-esm");
 }

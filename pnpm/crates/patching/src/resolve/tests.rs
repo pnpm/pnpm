@@ -7,7 +7,10 @@ use tempfile::tempdir;
 const HELLO_SHA256_HEX: &str = "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03";
 
 fn raw(entries: &[(&str, &str)]) -> IndexMap<String, String> {
-    entries.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+    entries
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect()
 }
 
 #[test]
@@ -119,6 +122,9 @@ fn range_preserves_user_specified_order() {
 
     let groups = resolve_and_group(workspace.path(), &input).unwrap().unwrap();
     let foo = groups.get("foo").expect("foo group");
-    let versions: Vec<&str> = foo.range.iter().map(|range| range.version.as_str()).collect();
+    let versions: Vec<&str> = foo.range
+        .iter()
+        .map(|range| range.version.as_str())
+        .collect();
     assert_eq!(versions, vec!["~1.2.0", "4", ">=5 <6"]);
 }

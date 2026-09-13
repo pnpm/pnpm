@@ -24,7 +24,12 @@ fn discovers_multiple_manifest_kinds_in_one_inventory() {
 
     assert_eq!(inventory.manifests("package.json").unwrap(), [node.join("package.json")]);
     assert_eq!(inventory.manifests("Cargo.toml").unwrap(), [rust.join("Cargo.toml")]);
-    assert!(inventory.manifests("pyproject.toml").unwrap().is_empty());
+    assert!(
+        inventory
+            .manifests("pyproject.toml")
+            .unwrap()
+            .is_empty(),
+    );
     assert!(inventory.manifests("unknown").is_none());
 }
 
@@ -111,7 +116,12 @@ fn does_not_follow_directory_symlinks() {
     let inventory =
         find_workspace_inventory(workspace.path(), &["Cargo.toml"], &[], &[], &[]).unwrap();
 
-    assert!(inventory.manifests("Cargo.toml").unwrap().is_empty());
+    assert!(
+        inventory
+            .manifests("Cargo.toml")
+            .unwrap()
+            .is_empty(),
+    );
 }
 
 #[test]
@@ -139,7 +149,12 @@ fn does_not_follow_a_directory_swapped_for_a_symlink_before_descent() {
     )
     .unwrap();
 
-    assert!(inventory.manifests("Cargo.toml").unwrap().is_empty());
+    assert!(
+        inventory
+            .manifests("Cargo.toml")
+            .unwrap()
+            .is_empty(),
+    );
 }
 
 #[test]
@@ -178,7 +193,9 @@ fn prunes_managed_paths_before_opening_without_excluding_matching_project_names(
 fn reads_children_without_accumulating_unvisited_sibling_handles() {
     let workspace = tempfile::tempdir().unwrap();
     for index in 0..128 {
-        let project = workspace.path().join(format!("member-{index}"));
+        let project = workspace
+            .path()
+            .join(format!("member-{index}"));
         fs::create_dir(&project).unwrap();
         fs::write(project.join("Cargo.toml"), "[workspace]\n").unwrap();
     }
@@ -204,7 +221,13 @@ fn reads_children_without_accumulating_unvisited_sibling_handles() {
     )
     .unwrap();
 
-    assert_eq!(inventory.manifests("Cargo.toml").unwrap().len(), 128);
+    assert_eq!(
+        inventory
+            .manifests("Cargo.toml")
+            .unwrap()
+            .len(),
+        128,
+    );
     assert_eq!(peak.get(), 1);
     assert_eq!(unread.get(), 0);
 }
@@ -217,7 +240,13 @@ fn discovers_deep_trees_with_a_small_handle_limit() {
         let inventory =
             find_workspace_inventory(std::path::Path::new(&root), &["Cargo.toml"], &[], &[], &[])
                 .unwrap();
-        assert_eq!(inventory.manifests("Cargo.toml").unwrap().len(), 129);
+        assert_eq!(
+            inventory
+                .manifests("Cargo.toml")
+                .unwrap()
+                .len(),
+            129,
+        );
         let root = std::path::Path::new(&root);
         let ignored = super::IgnoredDirectories {
             patterns: wax::any(std::iter::empty::<&str>()).unwrap(),
@@ -298,7 +327,13 @@ fn does_not_follow_an_ancestor_swapped_before_a_queued_child_is_opened() {
         },
     )
     .unwrap();
-    assert_eq!(inventory.manifests("Cargo.toml").unwrap().len(), 0);
+    assert_eq!(
+        inventory
+            .manifests("Cargo.toml")
+            .unwrap()
+            .len(),
+        0,
+    );
 }
 
 #[test]
@@ -349,7 +384,13 @@ fn continues_after_a_nested_directory_disappears() {
         |_| Ok(()),
     )
     .unwrap();
-    assert_eq!(inventory.manifests("Cargo.toml").unwrap().len(), 0);
+    assert_eq!(
+        inventory
+            .manifests("Cargo.toml")
+            .unwrap()
+            .len(),
+        0,
+    );
 }
 
 #[test]
@@ -366,7 +407,13 @@ fn skips_candidates_that_become_unreadable_before_opening() {
         |_| Err(std::io::ErrorKind::PermissionDenied.into()),
     )
     .unwrap();
-    assert_eq!(inventory.manifests("Cargo.toml").unwrap().len(), 0);
+    assert_eq!(
+        inventory
+            .manifests("Cargo.toml")
+            .unwrap()
+            .len(),
+        0,
+    );
 }
 
 #[test]
@@ -470,5 +517,11 @@ fn recursive_exclusion_also_prunes_its_base_directory() {
         },
     )
     .unwrap();
-    assert_eq!(inventory.manifests("Cargo.toml").unwrap().len(), 0);
+    assert_eq!(
+        inventory
+            .manifests("Cargo.toml")
+            .unwrap()
+            .len(),
+        0,
+    );
 }

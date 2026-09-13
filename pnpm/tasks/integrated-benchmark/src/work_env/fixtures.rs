@@ -34,8 +34,10 @@ pub(super) fn create_package_json(
 }
 pub(super) fn peer_heavy_root_manifest() -> String {
     let mut dependencies = serde_json::Map::new();
-    dependencies
-        .insert(PEER_HEAVY_PROVIDER.to_string(), Value::String(PEER_HEAVY_VERSION.to_string()));
+    dependencies.insert(
+        PEER_HEAVY_PROVIDER.to_string(),
+        Value::String(PEER_HEAVY_VERSION.to_string()),
+    );
     for index in 0..PEER_HEAVY_WIDTH {
         dependencies.insert(
             peer_heavy_package_name(0, index),

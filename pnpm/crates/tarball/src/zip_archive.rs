@@ -45,14 +45,17 @@ pub(crate) fn extract_zip_entries(
     // keeping entry paths verbatim when there is no prefix. The
     // trailing slash anchors the strip so a prefix of `foo` doesn't
     // accidentally consume `foobar/...`.
-    let basename_prefix: Option<String> =
-        archive_prefix.filter(|prefix| !prefix.is_empty()).map(|prefix| format!("{prefix}/"));
+    let basename_prefix: Option<String> = archive_prefix
+        .filter(|prefix| !prefix.is_empty())
+        .map(|prefix| format!("{prefix}/"));
 
     for index in 0..entry_count {
-        let mut entry = archive.by_index(index).map_err(|source| TarballError::ReadZipArchive {
-            url: package_url.to_string(),
-            source,
-        })?;
+        let mut entry = archive
+            .by_index(index)
+            .map_err(|source| TarballError::ReadZipArchive {
+                url: package_url.to_string(),
+                source,
+            })?;
         let Some(cleaned) =
             zip_entry_path(&entry, package_url, basename_prefix.as_deref(), ignore_file_pattern)?
         else {
@@ -121,8 +124,10 @@ fn store_zip_entry(
         store_dir,
         file_mode::is_executable(file_mode),
     )?;
-    let checked_at =
-        UNIX_EPOCH.elapsed().ok().and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok());
+    let checked_at = UNIX_EPOCH
+        .elapsed()
+        .ok()
+        .and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok());
     Ok((
         file_path,
         CafsFileInfo {
@@ -198,7 +203,10 @@ fn zip_entry_path(
     // doesn't start with `{prefix}/` we use the normalized form
     // (a no-op when the entry already lives at the archive root).
     let cleaned = match basename_prefix {
-        Some(prefix) => normalized.strip_prefix(prefix).unwrap_or(&normalized).to_string(),
+        Some(prefix) => normalized
+            .strip_prefix(prefix)
+            .unwrap_or(&normalized)
+            .to_string(),
         None => normalized,
     };
     // An entry whose name was exactly the prefix directory leaves no
@@ -258,12 +266,14 @@ pub(crate) fn write_zip_entry_to_cas(
 
     let prealloc = declared_size as usize;
     let mut buffer = Vec::new();
-    buffer.try_reserve(prealloc).map_err(|err| {
-        read_error(std::io::Error::new(
-            std::io::ErrorKind::OutOfMemory,
-            format!("failed to reserve {prealloc} bytes for zip entry: {err}"),
-        ))
-    })?;
+    buffer
+        .try_reserve(prealloc)
+        .map_err(|err| {
+            read_error(std::io::Error::new(
+                std::io::ErrorKind::OutOfMemory,
+                format!("failed to reserve {prealloc} bytes for zip entry: {err}"),
+            ))
+        })?;
     bounded.read_to_end(&mut buffer).map_err(read_error)?;
     if buffer.len() as u64 != declared_size {
         return Err(read_error(std::io::Error::new(
@@ -357,8 +367,9 @@ async fn download_zip_body<Reporter: self::Reporter>(
     let mut stream = response_head.bytes_stream();
     let mut progress = crate::download::BodyProgress::new(expected_size, package_id);
     while let Some(chunk) = stream.next().await {
-        let chunk = chunk
-            .map_err(|error| TarballError::FetchTarball(NetworkError::new(package_url, error)))?;
+        let chunk = chunk.map_err(|error| {
+            TarballError::FetchTarball(NetworkError::new(package_url, error))
+        })?;
         buf.extend_from_slice(&chunk);
         progress.on_chunk::<Reporter>(chunk.len());
     }
@@ -388,9 +399,11 @@ impl ZipExtraction {
         // The buffer + ZipArchive are released on return — large runtime
         // archives (Node.js for Windows is ~30 MB) would otherwise keep
         // the buffer alive through the whole read.
-        let mut archive = zip::ZipArchive::new(Cursor::new(self.buffer)).map_err(|source| {
-            TarballError::ReadZipArchive { url: self.package_url.clone(), source }
-        })?;
+        let mut archive = zip::ZipArchive::new(Cursor::new(self.buffer))
+            .map_err(|source| TarballError::ReadZipArchive {
+                url: self.package_url.clone(),
+                source,
+            })?;
         extract_zip_entries(
             &mut archive,
             &self.package_url,

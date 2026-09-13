@@ -102,11 +102,15 @@ fn shortcut_render() {
 fn https_render_with_commit() {
     let hosted = HostedGit::from_url("zkochan/is-negative").expect("ok");
     assert_eq!(
-        hosted.https(HostedOpts::default()).unwrap(),
+        hosted
+            .https(HostedOpts::default())
+            .unwrap(),
         "git+https://github.com/zkochan/is-negative.git",
     );
     assert_eq!(
-        hosted.https(HostedGit::no_committish_no_git_plus()).unwrap(),
+        hosted
+            .https(HostedGit::no_committish_no_git_plus())
+            .unwrap(),
         "https://github.com/zkochan/is-negative.git",
     );
 }
@@ -134,13 +138,22 @@ fn docs_render() {
 #[test]
 fn ssh_render() {
     let hosted = HostedGit::from_url("foo/bar").expect("ok");
-    assert_eq!(hosted.ssh(HostedOpts::default()).unwrap(), "git@github.com:foo/bar.git");
     assert_eq!(
-        hosted.sshurl(HostedOpts::default()).unwrap(),
+        hosted
+            .ssh(HostedOpts::default())
+            .unwrap(),
+        "git@github.com:foo/bar.git",
+    );
+    assert_eq!(
+        hosted
+            .sshurl(HostedOpts::default())
+            .unwrap(),
         "git+ssh://git@github.com/foo/bar.git",
     );
     assert_eq!(
-        hosted.sshurl(HostedGit::no_committish()).unwrap(),
+        hosted
+            .sshurl(HostedGit::no_committish())
+            .unwrap(),
         "git+ssh://git@github.com/foo/bar.git",
     );
 }
@@ -150,7 +163,9 @@ fn tarball_github() {
     let mut hosted = HostedGit::from_url("zkochan/is-negative").expect("ok");
     hosted.committish = Some("163360a8d3ae6bee9524541043197ff356f8ed99".to_string());
     assert_eq!(
-        hosted.tarball(HostedOpts::default()).unwrap(),
+        hosted
+            .tarball(HostedOpts::default())
+            .unwrap(),
         "https://codeload.github.com/zkochan/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99",
     );
 }
@@ -160,7 +175,9 @@ fn tarball_bitbucket() {
     let mut hosted = HostedGit::from_url("bitbucket:foo/bar").expect("ok");
     hosted.committish = Some("abc123".to_string());
     assert_eq!(
-        hosted.tarball(HostedOpts::default()).unwrap(),
+        hosted
+            .tarball(HostedOpts::default())
+            .unwrap(),
         "https://bitbucket.org/foo/bar/get/abc123.tar.gz",
     );
 }
@@ -172,7 +189,9 @@ fn tarball_gitlab_uses_archive_path() {
     // doesn't.
     let mut hosted = HostedGit::from_url("gitlab:pnpmjs/git-resolver").expect("ok");
     hosted.committish = Some("988c61e11dc8d9ca0b5580cb15291951812549dc".to_string());
-    let tarball = hosted.tarball(HostedOpts::default()).unwrap();
+    let tarball = hosted
+        .tarball(HostedOpts::default())
+        .unwrap();
     assert!(!tarball.contains("%2F"), "tarball must not contain `%2F`: {tarball}");
     assert_eq!(
         tarball,
@@ -183,7 +202,11 @@ fn tarball_gitlab_uses_archive_path() {
 #[test]
 fn tarball_returns_none_when_no_committish() {
     let hosted = HostedGit::from_url("zkochan/is-negative").expect("ok");
-    assert!(hosted.tarball(HostedOpts::default()).is_none());
+    assert!(
+        hosted
+            .tarball(HostedOpts::default())
+            .is_none(),
+    );
 }
 
 #[test]
@@ -193,7 +216,9 @@ fn https_with_auth() {
     )
     .expect("ok");
     assert_eq!(
-        hosted.https(HostedGit::no_committish_no_git_plus()).unwrap(),
+        hosted
+            .https(HostedGit::no_committish_no_git_plus())
+            .unwrap(),
         "https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git",
     );
     assert!(hosted.auth.is_some());

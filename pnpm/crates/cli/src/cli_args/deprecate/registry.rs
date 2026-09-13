@@ -74,11 +74,13 @@ async fn fetch_package_meta_once<Meta: serde::de::DeserializeOwned>(
     if !response.status().is_success() {
         return Err(FetchError::Status { status: response.status() });
     }
-    if response.content_length().is_some_and(|length| length > DEPRECATION_BODY_LIMIT as u64) {
+    if response
+        .content_length()
+        .is_some_and(|length| length > DEPRECATION_BODY_LIMIT as u64)
+    {
         return Err(FetchError::BodyTooLarge);
     }
-    let body =
-        read_limited_body(response, DEPRECATION_BODY_LIMIT).await.map_err(FetchError::Body)?;
+    let body = read_limited_body(response, DEPRECATION_BODY_LIMIT).await.map_err(FetchError::Body)?;
     if body.truncated {
         return Err(FetchError::BodyTooLarge);
     }
@@ -102,7 +104,10 @@ fn map_fetch_error(error: FetchError, package_name: &str) -> miette::Report {
         }
         FetchError::Status { status } => DeprecateError::RegistryFetchFailed {
             status: status.as_u16(),
-            status_text: status.canonical_reason().unwrap_or_default().to_string(),
+            status_text: status
+                .canonical_reason()
+                .unwrap_or_default()
+                .to_string(),
         }
         .into(),
     }
@@ -119,8 +124,10 @@ pub(super) async fn put_package_meta(
     let body = serde_json::to_string(package_meta).expect("a struct serializes");
     let (_guard, response) =
         send_with_retry(&context.http_client, url, context.retry_opts, |client| {
-            let mut builder =
-                client.put(url).header("content-type", "application/json").body(body.clone());
+            let mut builder = client
+                .put(url)
+                .header("content-type", "application/json")
+                .body(body.clone());
             if let Some(auth_header) = auth_header {
                 builder = builder.header("authorization", auth_header);
             }
@@ -156,7 +163,10 @@ pub(crate) fn write_error_for_status(
     body: &LimitedBody,
     action: String,
 ) -> DeprecateError {
-    let status_text = status.canonical_reason().unwrap_or_default().to_string();
+    let status_text = status
+        .canonical_reason()
+        .unwrap_or_default()
+        .to_string();
     let body = sanitize::body_display_string(body);
     if status == StatusCode::UNAUTHORIZED {
         return DeprecateError::Unauthorized { action, body };
@@ -219,8 +229,7 @@ pub(crate) fn package_url(package_name: &str, registry_url: &str) -> miette::Res
 }
 
 pub(crate) fn package_name_for_url(package_name: &str) -> Result<String, DeprecateError> {
-    parse_wanted_dependency(package_name)
-        .alias
+    parse_wanted_dependency(package_name).alias
         .ok_or_else(|| DeprecateError::InvalidPackageSpec { spec: package_name.to_string() })
 }
 

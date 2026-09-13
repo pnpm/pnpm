@@ -118,15 +118,17 @@ fn clean_builtin(ctx: &RunCtx<'_>, config: &Config, remove_lockfile: bool) -> mi
     // would send every project back to that one directory. Take the
     // configured leaf instead; an absolute setting survives `join`, as it
     // does pnpm's `pathAbsolute`.
-    let modules_leaf = config
-        .explicit_settings
+    let modules_leaf = config.explicit_settings
         .get("modulesDir")
         .and_then(Value::as_str)
         .map_or_else(|| Path::new("node_modules"), Path::new);
     let root_dir = config.workspace_dir.as_deref().unwrap_or(ctx.locations.dir);
     let dirs: Vec<PathBuf> = if let Some(workspace_dir) = config.workspace_dir.as_deref() {
         let (projects, _patterns) = discover_workspace_projects(workspace_dir, config)?;
-        projects.into_iter().map(|project| project.root_dir).collect()
+        projects
+            .into_iter()
+            .map(|project| project.root_dir)
+            .collect()
     } else {
         vec![ctx.locations.dir.to_path_buf()]
     };
@@ -193,7 +195,9 @@ fn has_contents_to_remove(modules_dir: &Path) -> bool {
     let Ok(entries) = std::fs::read_dir(modules_dir) else {
         return false;
     };
-    entries.filter_map(Result::ok).any(|entry| is_pnpm_entry(&entry.file_name().to_string_lossy()))
+    entries
+        .filter_map(Result::ok)
+        .any(|entry| is_pnpm_entry(&entry.file_name().to_string_lossy()))
 }
 
 fn remove_modules_dir_contents(modules_dir: &Path) -> miette::Result<()> {

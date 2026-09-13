@@ -80,7 +80,10 @@ async fn store_row_holding_another_package_only_warns_when_not_strict() {
     struct RecordingReporter;
     impl pnpm_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -143,8 +146,9 @@ async fn store_row_holding_another_package_only_warns_when_not_strict() {
         .collect();
     assert_eq!(warnings.len(), 1, "{warnings:?}");
     assert!(
-        warnings[0]
-            .starts_with("Package name or version mismatch found while reading from the store."),
+        warnings[0].starts_with(
+            "Package name or version mismatch found while reading from the store."
+        ),
         "{warnings:?}",
     );
 
@@ -174,7 +178,10 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
     struct RecordingReporter;
     impl pnpm_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -296,10 +303,12 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         unreachable!("captured event filtered above");
     }
     assert!(
-        !captured.iter().any(|e| matches!(
-            e,
-            LogEvent::Progress(log) if matches!(&log.message, ProgressMessage::Fetched { .. })
-        )),
+        !captured
+            .iter()
+            .any(|e| matches!(
+                e,
+                LogEvent::Progress(log) if matches!(&log.message, ProgressMessage::Fetched { .. })
+            )),
         "fetched must NOT fire on a mem-cache hit; got {captured:?}",
     );
 
@@ -321,7 +330,10 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
     struct RecordingReporter;
     impl pnpm_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -385,10 +397,12 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
     // explicit `drop`), even though the data is only read here.
     let first = EVENTS.lock().unwrap().clone();
     assert!(
-        first.iter().any(|e| matches!(
-            e,
-            LogEvent::Progress(log) if matches!(&log.message, ProgressMessage::Fetched { .. })
-        )),
+        first
+            .iter()
+            .any(|e| matches!(
+                e,
+                LogEvent::Progress(log) if matches!(&log.message, ProgressMessage::Fetched { .. })
+            )),
         "first call must report fetched; got {first:?}",
     );
 
@@ -430,14 +444,16 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
 
     let second = EVENTS.lock().unwrap().clone();
     assert!(
-        !second.iter().any(|e| matches!(
-            e,
-            LogEvent::Progress(log)
-                if matches!(
-                    &log.message,
-                    ProgressMessage::Fetched { .. } | ProgressMessage::FoundInStore { .. }
-                )
-        )),
+        !second
+            .iter()
+            .any(|e| matches!(
+                e,
+                LogEvent::Progress(log)
+                    if matches!(
+                        &log.message,
+                        ProgressMessage::Fetched { .. } | ProgressMessage::FoundInStore { .. }
+                    )
+            )),
         "second call must not duplicate package status; got {second:?}",
     );
 

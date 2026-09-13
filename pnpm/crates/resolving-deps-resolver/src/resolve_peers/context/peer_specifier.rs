@@ -34,23 +34,25 @@ pub(in super::super) fn importer_relative_link_dep_path(
     let (Some(lockfile_dir), Some(project_dir)) = (lockfile_dir, project_dir) else {
         return dep_path.clone();
     };
-    let relative_target = anchor.target_relative_to_importer(target).unwrap_or_else(|| {
-        let target = Path::new(target);
-        let absolute_target = if target.is_absolute() {
-            pnpm_fs::lexical_normalize(target)
-        } else {
-            pnpm_fs::lexical_normalize(&lockfile_dir.join(target))
-        };
-        // `diff_paths` walks both paths component-wise, so a base still
-        // carrying `.` / `..` segments would consume them as real directories
-        // and count the wrong number of `..` hops back out.
-        let project_dir = pnpm_fs::lexical_normalize(project_dir);
-        pathdiff::diff_paths(&absolute_target, project_dir)
-            .unwrap_or(absolute_target)
-            .display()
-            .to_string()
-            .replace('\\', "/")
-    });
+    let relative_target = anchor
+        .target_relative_to_importer(target)
+        .unwrap_or_else(|| {
+            let target = Path::new(target);
+            let absolute_target = if target.is_absolute() {
+                pnpm_fs::lexical_normalize(target)
+            } else {
+                pnpm_fs::lexical_normalize(&lockfile_dir.join(target))
+            };
+            // `diff_paths` walks both paths component-wise, so a base still
+            // carrying `.` / `..` segments would consume them as real directories
+            // and count the wrong number of `..` hops back out.
+            let project_dir = pnpm_fs::lexical_normalize(project_dir);
+            pathdiff::diff_paths(&absolute_target, project_dir)
+                .unwrap_or(absolute_target)
+                .display()
+                .to_string()
+                .replace('\\', "/")
+        });
     DepPath::from(format!("link:{relative_target}"))
 }
 
@@ -98,7 +100,10 @@ pub(in super::super) fn remap_link_node_id(
     }
     let target = modules_dir.join(alias);
     let rel = pathdiff::diff_paths(&target, lockfile_dir)?;
-    let rel = rel.display().to_string().replace('\\', "/");
+    let rel = rel
+        .display()
+        .to_string()
+        .replace('\\', "/");
     Some(NodeId::leaf(&format!("link:{rel}")))
 }
 
@@ -117,9 +122,7 @@ pub(in super::super) fn remap_link_node_id(
 /// peer propagation for non-npm packages without panicking on
 /// `name_ver = None`.
 pub(in super::super) fn pkg_name_version(result: &ResolveResult) -> (String, String) {
-    let version = result
-        .package
-        .name_ver
+    let version = result.package.name_ver
         .as_ref()
         .map_or_else(|| result.id.as_str().to_string(), |name_ver| name_ver.suffix.to_string());
     (pkg_name(result), version)
@@ -132,7 +135,9 @@ pub(in super::super) fn pkg_name(result: &ResolveResult) -> String {
     if let Some(name_ver) = result.package.name_ver.as_ref() {
         return name_ver.name.to_string();
     }
-    result.alias.clone().unwrap_or_else(|| result.id.as_str().to_string())
+    result.alias
+        .clone()
+        .unwrap_or_else(|| result.id.as_str().to_string())
 }
 
 /// The `name@version` identity a peer contributes to a depPath's peer suffix.
@@ -166,7 +171,10 @@ pub(in super::super) fn peer_segment_names(dep_path: &DepPath) -> Option<Vec<Str
     let suffix = index_of_dep_path_suffix(raw);
     let peers_index = suffix.peers_index?;
     let segments = split_peer_suffix_segments(&raw[peers_index..])?;
-    segments.iter().map(|segment| peer_segment_name(segment).map(str::to_string)).collect()
+    segments
+        .iter()
+        .map(|segment| peer_segment_name(segment).map(str::to_string))
+        .collect()
 }
 
 /// Splits a peer suffix into its segment bodies. `None` when the suffix is

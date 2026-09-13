@@ -110,8 +110,7 @@ pub(crate) fn record_package_manager_shims<'a>(
 }
 
 pub(super) fn global_config_dir(config: &Config) -> miette::Result<PathBuf> {
-    config
-        .config_dir
+    config.config_dir
         .clone()
         .or_else(default_config_dir::<Host>)
         .ok_or_else(|| ShimError::NoGlobalDir.into())

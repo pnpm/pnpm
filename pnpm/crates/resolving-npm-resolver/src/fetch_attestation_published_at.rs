@@ -44,8 +44,7 @@ pub async fn fetch_attestation_published_at(
     }
     // Verification-only lookup: queue in the background class so it
     // never outranks resolution-gating fetches.
-    let mut request = opts
-        .http_client
+    let mut request = opts.http_client
         .acquire_for_url_with_priority(&url, pnpm_network::BACKGROUND)
         .await
         .get(&url);
@@ -110,7 +109,10 @@ fn read_earliest_integrated_time(attestation: &serde_json::Value) -> Option<i64>
 
 fn parse_integrated_time_seconds(value: &serde_json::Value) -> Option<i64> {
     if let Some(text) = value.as_str() {
-        return text.parse::<i64>().ok().filter(|&seconds| seconds > 0);
+        return text
+            .parse::<i64>()
+            .ok()
+            .filter(|&seconds| seconds > 0);
     }
     if let Some(seconds) = value.as_i64() {
         return Some(seconds).filter(|&s| s > 0);

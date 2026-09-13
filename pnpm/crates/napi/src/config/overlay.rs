@@ -193,8 +193,10 @@ pub(super) fn apply_build_policy(config: &mut Config, overlay: &ConfigOverlay) {
         config.strict_dep_builds = value;
     }
     if let Some(allow_builds) = &overlay.allow_builds {
-        config.allow_builds =
-            allow_builds.iter().map(|(name, allowed)| (name.clone(), *allowed)).collect();
+        config.allow_builds = allow_builds
+            .iter()
+            .map(|(name, allowed)| (name.clone(), *allowed))
+            .collect();
     }
     if let Some(value) = overlay.dangerously_allow_all_builds {
         config.dangerously_allow_all_builds = value;
@@ -268,8 +270,7 @@ pub(super) fn pin_unkeyed_header(
 }
 
 pub(super) fn overlay_default_registry(overlay: &ConfigOverlay) -> String {
-    overlay
-        .registries
+    overlay.registries
         .as_ref()
         .and_then(|registries| registries.get("default"))
         .or(overlay.registry.as_ref())

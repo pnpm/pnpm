@@ -24,8 +24,9 @@ pub(super) fn stream_resolve_response(
     runtime: &Resolver,
     inputs: StreamedResolveInputs,
 ) -> Response {
-    let package_version_guard =
-        runtime.osv_index.as_ref().map(|index| Arc::clone(index) as Arc<dyn PackageVersionGuard>);
+    let package_version_guard = runtime.osv_index
+        .as_ref()
+        .map(|index| Arc::clone(index) as Arc<dyn PackageVersionGuard>);
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
     let observer: Arc<dyn pnpm_package_manager::ResolutionObserver> = Arc::new(StreamObserver {
         tx: tx.clone(),

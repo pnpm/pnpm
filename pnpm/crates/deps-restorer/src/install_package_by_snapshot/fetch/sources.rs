@@ -145,8 +145,7 @@ impl InstallPackageBySnapshot<'_> {
         };
         let raw_cas_paths = download_tarball::<Reporter>(
             download,
-            self.fetching
-                .tarball_mem_cache
+            self.fetching.tarball_mem_cache
                 .filter(|_| matches!(fetch.resolution, LockfileResolution::Registry(_)))
                 .map(std::convert::AsRef::as_ref),
             revision_addressed,

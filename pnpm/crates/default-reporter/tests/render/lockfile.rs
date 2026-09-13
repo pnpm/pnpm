@@ -101,7 +101,11 @@ fn append_only_waits_for_a_terminal_lockfile_policy_verdict() {
     }));
     match stats {
         Output::Lines(lines) => {
-            assert!(!lines.iter().any(|line| line.contains("Lockfile is up to date")));
+            assert!(
+                !lines
+                    .iter()
+                    .any(|line| line.contains("Lockfile is up to date")),
+            );
         }
         Output::None => {}
         Output::Frame(_) => {

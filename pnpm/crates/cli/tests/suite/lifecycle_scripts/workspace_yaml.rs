@@ -23,7 +23,9 @@ pub fn append_workspace_yaml_key(workspace: &Path, key: &str, value: impl std::f
     let mut yaml = fs::read_to_string(&yaml_path).unwrap_or_default();
     let key_prefix = format!("{key}:");
     assert!(
-        !yaml.lines().any(|line| line.starts_with(&key_prefix)),
+        !yaml
+            .lines()
+            .any(|line| line.starts_with(&key_prefix)),
         "pnpm-workspace.yaml already has a `{key}:` key",
     );
     if !yaml.is_empty() && !yaml.ends_with('\n') {

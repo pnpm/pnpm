@@ -53,10 +53,11 @@ pub(super) fn sort_outdated(outdated: &mut [OutdatedPackage], sort_by: Option<So
 
 pub(super) fn sort_workspace_outdated(outdated: &mut [OutdatedInWorkspace]) {
     outdated.sort_by(|left, right| {
-        compare_outdated(&left.package, &right.package, None).then_with(|| {
-            dependency_group_priority(left.package.belongs_to)
-                .cmp(&dependency_group_priority(right.package.belongs_to))
-        })
+        compare_outdated(&left.package, &right.package, None)
+            .then_with(|| {
+                dependency_group_priority(left.package.belongs_to)
+                    .cmp(&dependency_group_priority(right.package.belongs_to))
+            })
     });
 }
 
@@ -81,7 +82,11 @@ fn compare_outdated(
         .cmp(&change_priority(classify(&right.current, &right.target)));
     by_change
         .then_with(|| left.package_name.cmp(&right.package_name))
-        .then_with(|| left.current.to_string().cmp(&right.current.to_string()))
+        .then_with(|| {
+            left.current
+                .to_string()
+                .cmp(&right.current.to_string())
+        })
 }
 
 pub(super) fn render_table(outdated: &[OutdatedPackage], long: bool) -> String {
@@ -91,8 +96,10 @@ pub(super) fn render_table(outdated: &[OutdatedPackage], long: bool) -> String {
     use tabled::builder::Builder;
     use tabled::settings::Style;
 
-    let mut header: Vec<String> =
-        ["Package", "Current", "Latest"].iter().map(|h| bright_blue(h)).collect();
+    let mut header: Vec<String> = ["Package", "Current", "Latest"]
+        .iter()
+        .map(|h| bright_blue(h))
+        .collect();
     if long {
         header.push(bright_blue("Details"));
     }
@@ -266,8 +273,7 @@ pub(super) fn render_recursive_json(outdated: &[OutdatedInWorkspace], long: bool
 }
 
 pub(super) fn render_dependents(entry: &OutdatedInWorkspace) -> String {
-    let mut names: Vec<String> = entry
-        .dependents
+    let mut names: Vec<String> = entry.dependents
         .iter()
         .map(|dependent| sanitize_inline(&dependent.name).into_owned())
         .collect();
@@ -322,9 +328,14 @@ fn colorize_version(version: &Version, change: Change) -> String {
     let split = match change {
         Change::Breaking => 0,
         Change::Feature => text.find('.').map_or(0, |i| i + 1),
-        Change::Fix => {
-            text.find('.').and_then(|i| text[i + 1..].find('.').map(|j| i + 1 + j + 1)).unwrap_or(0)
-        }
+        Change::Fix => text
+            .find('.')
+            .and_then(|i| {
+                text[i + 1..]
+                    .find('.')
+                    .map(|j| i + 1 + j + 1)
+            })
+            .unwrap_or(0),
         // Nothing is highlighted for an `unknown` (or no) change, so the
         // version renders plain.
         Change::None | Change::Unknown => return text,
@@ -365,7 +376,8 @@ pub(super) fn red(text: &str) -> String {
 
 fn red_bold(text: &str) -> String {
     let style = owo_colors::Style::new().red().bold();
-    text.if_supports_color(Stream::Stdout, |t| t.style(style)).to_string()
+    text.if_supports_color(Stream::Stdout, |t| t.style(style))
+        .to_string()
 }
 
 pub(super) fn green(text: &str) -> String {

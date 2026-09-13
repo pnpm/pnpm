@@ -25,8 +25,15 @@ const MOCK_INTEGRITY: &str = "sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoI
 /// every package gets version `1.0.0`, and every dependency name that is
 /// mentioned but not declared gets its own empty entry.
 fn mock_packages_yaml(packages: &[(&str, &[&str])]) -> String {
-    let mut names: BTreeSet<&str> = packages.iter().map(|(name, _)| *name).collect();
-    names.extend(packages.iter().flat_map(|(_, deps)| deps.iter().copied()));
+    let mut names: BTreeSet<&str> = packages
+        .iter()
+        .map(|(name, _)| *name)
+        .collect();
+    names.extend(
+        packages
+            .iter()
+            .flat_map(|(_, deps)| deps.iter().copied()),
+    );
     let deps_of: HashMap<&str, &[&str]> = packages.iter().copied().collect();
 
     let mut yaml = String::from("packages:\n");
@@ -35,7 +42,11 @@ fn mock_packages_yaml(packages: &[(&str, &[&str])]) -> String {
     }
     yaml.push_str("\nsnapshots:\n");
     for name in &names {
-        match deps_of.get(name).copied().unwrap_or_default() {
+        match deps_of
+            .get(name)
+            .copied()
+            .unwrap_or_default()
+        {
             [] => writeln!(yaml, "  {name}@1.0.0: {{}}").unwrap(),
             deps => {
                 writeln!(yaml, "  {name}@1.0.0:\n    dependencies:").unwrap();
@@ -742,7 +753,9 @@ snapshots:
 #[test]
 fn absurdly_deep_chain_is_capped_instead_of_overflowing_the_stack() {
     let chain_len = crate::MAX_WALK_DEPTH * 3;
-    let names: Vec<String> = (0..chain_len).map(|i| format!("chain-{i}")).collect();
+    let names: Vec<String> = (0..chain_len)
+        .map(|i| format!("chain-{i}"))
+        .collect();
 
     let mut yaml = String::from("lockfileVersion: '9.0'\n\nimporters:\n  .: {}\n\npackages:\n");
     for name in &names {

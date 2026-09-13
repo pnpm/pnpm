@@ -66,7 +66,12 @@ fn workspace_without_packages_field_enumerates_root_only() {
         .expect("workspace projects");
     let names: Vec<&str> = projects
         .iter()
-        .filter_map(|project| project.manifest.value().get("name").and_then(|name| name.as_str()))
+        .filter_map(|project| {
+            project.manifest
+                .value()
+                .get("name")
+                .and_then(|name| name.as_str())
+        })
         .collect();
 
     assert_eq!(names, vec!["root"]);
@@ -144,7 +149,11 @@ async fn fresh_install_persists_loose_minimum_release_age_picks_to_workspace_man
     .await
     .expect("loose mode lets the immature pick through");
 
-    assert!(dir.path().join("pnpm-lock.yaml").exists());
+    assert!(
+        dir.path()
+            .join("pnpm-lock.yaml")
+            .exists(),
+    );
     let workspace = std::fs::read_to_string(dir.path().join("pnpm-workspace.yaml"))
         .expect("install must create pnpm-workspace.yaml with the persisted excludes");
     assert!(
@@ -266,9 +275,11 @@ async fn install_writes_workspace_state() {
     // check passes. Single-project install → exactly one entry, keyed
     // on the workspace dirs.dir.
     assert_eq!(state.projects.len(), 1);
-    let project_key = dirs.path().to_string_lossy().into_owned();
-    let project = state
-        .projects
+    let project_key = dirs
+        .path()
+        .to_string_lossy()
+        .into_owned();
+    let project = state.projects
         .get(&project_key)
         .unwrap_or_else(|| panic!("project entry for {project_key:?} should exist"));
     assert_eq!(
@@ -583,7 +594,10 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -645,10 +659,12 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
 
     let captured = EVENTS.lock().unwrap();
     assert!(
-        captured.iter().any(|event| matches!(
-            event,
-            LogEvent::Pnpm(log) if log.message == "Already up to date"
-        )),
+        captured
+            .iter()
+            .any(|event| matches!(
+                event,
+                LogEvent::Pnpm(log) if log.message == "Already up to date"
+            )),
         "second install must emit `Already up to date`; got events: {captured:#?}",
     );
 
@@ -786,7 +802,10 @@ fn workspace_packages_map_prefers_the_dependency_manifest() {
     }];
 
     let map = crate::build_workspace_packages_map(Some(&projects)).expect("map for projects");
-    let package = map.get("component").and_then(|by_version| by_version.get("1.2.3")).unwrap();
+    let package = map
+        .get("component")
+        .and_then(|by_version| by_version.get("1.2.3"))
+        .unwrap();
     assert_eq!(
         package.manifest.get("dependencies"),
         Some(&serde_json::json!({ "sibling": "workspace:*" })),

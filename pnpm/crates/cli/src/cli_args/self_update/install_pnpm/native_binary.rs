@@ -167,7 +167,10 @@ fn native_source_trust_root(install_real_dir: &Path, wrapper_pkg_name: &str) -> 
 // placeholder scope segment unscoped packages sit under).
 fn global_virtual_store_root_from_slot(slot_dir: &Path, package_name: &str) -> Option<PathBuf> {
     let hash = slot_dir.file_name()?.to_str()?;
-    let version = slot_dir.parent()?.file_name()?.to_str()?;
+    let version = slot_dir
+        .parent()?
+        .file_name()?
+        .to_str()?;
     node_semver::Version::parse(version).ok()?;
 
     let mut cursor = slot_dir;

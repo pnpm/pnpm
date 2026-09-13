@@ -98,7 +98,10 @@ fn a_symlinked_state_file_is_replaced_rather_than_followed() {
 #[test]
 fn the_state_directory_is_created_on_demand() {
     let dir = tempdir().unwrap();
-    let state_file = dir.path().join("nested").join("pnpm-state.json");
+    let state_file = dir
+        .path()
+        .join("nested")
+        .join("pnpm-state.json");
     let now = Utc.with_ymd_and_hms(2026, 8, 23, 12, 0, 0).unwrap();
 
     write_state(&state_file, Map::new(), now);

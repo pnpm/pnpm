@@ -132,7 +132,9 @@ pub(super) fn fill_children(
                 return Err(HoistedDepGraphError::BadReference { reference, source });
             }
         };
-        let snapshot = lockfile.snapshots.as_ref().and_then(|m| m.get(&pkg_key));
+        let snapshot = lockfile.snapshots
+            .as_ref()
+            .and_then(|m| m.get(&pkg_key));
         let children = compute_children(snapshot, pkg_locations);
         if let Some(node) = graph.get_mut(&dir) {
             node.children = children;
@@ -209,7 +211,12 @@ pub(super) fn walk_dep(
     // The hoister keeps every absorbed reference; the first
     // (alphabetically smallest) is the canonical depPath for this
     // node's location.
-    let Some(reference) = dep.0.references.borrow().iter().next().cloned() else {
+    let Some(reference) = dep.0.references
+        .borrow()
+        .iter()
+        .next()
+        .cloned()
+    else {
         return Ok(None);
     };
 
@@ -244,11 +251,7 @@ pub(super) fn walk_dep(
         dir.clone(),
         graph_node(dep, &reference, &resolved, optional, present, &dir, modules),
     );
-    state
-        .pkg_locations_by_pkg_id
-        .entry(pnpm_real_hoist::pkg_id(&resolved.pkg_key))
-        .or_default()
-        .push(dir.clone());
+    record_package_location(state, &resolved.pkg_key, &dir);
 
     record_injected_location(&mut state.result, &resolved, &reference, &dir);
 
@@ -258,7 +261,10 @@ pub(super) fn walk_dep(
     // pre-recursion sites that mutate state are for graph/index
     // identity; this one is the user-visible location list that the
     // linker consumes.
-    state.result.hoisted_locations.entry(reference).or_default().push(dep_location);
+    state.result.hoisted_locations
+        .entry(reference)
+        .or_default()
+        .push(dep_location);
     Ok(Some((dir, hierarchy)))
 }
 fn record_injected_location(
@@ -271,8 +277,7 @@ fn record_injected_location(
     // every dir an injected dep lands in for the post-install re-mirror
     // step, so a future re-mirror pass has the input it needs.
     if let LockfileResolution::Directory(_) = &resolved.metadata.resolution {
-        result
-            .injection_targets_by_dep_path
+        result.injection_targets_by_dep_path
             .entry(reference.to_owned())
             .or_default()
             .push(dir.to_path_buf());
@@ -288,16 +293,19 @@ pub(super) fn package_is_reusable(
     modules: &Path,
     dir: &Path,
 ) -> bool {
-    let expected_version = resolved
-        .metadata
-        .version
+    let expected_version = resolved.metadata.version
         .clone()
         .unwrap_or_else(|| resolved.pkg_key.suffix.version().to_string());
     !state.opts.force
         && !matches!(resolved.metadata.resolution, LockfileResolution::Directory(_))
         && !reference.contains("(patch_hash=")
         && state.opts.current_hoisted_locations.is_some_and(|locations| {
-            locations.get(reference).is_some_and(|dirs| dirs.iter().any(|dir| dir == dep_location))
+            locations
+                .get(reference)
+                .is_some_and(|dirs| {
+                    dirs.iter()
+                        .any(|dir| dir == dep_location)
+                })
         })
         && !resolution_changed_at(state.prev_graph, dir, &resolved.metadata.resolution)
         && package_present_at(modules, dir, &expected_version)
@@ -351,7 +359,9 @@ pub(super) fn resolve_reference<'l>(
     let Some(metadata) = lookup_package_metadata(state.lockfile, &pkg_key) else {
         return Ok(None);
     };
-    let snapshot = state.lockfile.snapshots.as_ref().and_then(|snapshots| snapshots.get(&pkg_key));
+    let snapshot = state.lockfile.snapshots
+        .as_ref()
+        .and_then(|snapshots| snapshots.get(&pkg_key));
     Ok(Some(ResolvedReference { pkg_key, metadata, snapshot }))
 }
 pub(super) fn graph_node(
@@ -382,10 +392,13 @@ pub(super) fn graph_node(
         dir: dir.to_path_buf(),
         modules: modules.to_path_buf(),
         optional,
-        optional_dependencies: resolved
-            .snapshot
+        optional_dependencies: resolved.snapshot
             .and_then(|snap| snap.optional_dependencies.as_ref())
-            .map(|map| map.keys().map(std::string::ToString::to_string).collect())
+            .map(|map| {
+                map.keys()
+                    .map(std::string::ToString::to_string)
+                    .collect()
+            })
             .unwrap_or_default(),
         present,
         children: BTreeMap::new(),
@@ -403,8 +416,7 @@ pub(super) fn compute_children(
     let mut children: BTreeMap<String, PathBuf> = BTreeMap::new();
     let Some(snapshot) = snapshot else { return children };
 
-    let dep_iter = snapshot
-        .dependencies
+    let dep_iter = snapshot.dependencies
         .iter()
         .flatten()
         .chain(snapshot.optional_dependencies.iter().flatten());
@@ -421,4 +433,11 @@ pub(super) fn compute_children(
         }
     }
     children
+}
+
+fn record_package_location(state: &mut WalkState<'_>, pkg_key: &PackageKey, dir: &Path) {
+    state.pkg_locations_by_pkg_id
+        .entry(pnpm_real_hoist::pkg_id(pkg_key))
+        .or_default()
+        .push(dir.to_path_buf());
 }

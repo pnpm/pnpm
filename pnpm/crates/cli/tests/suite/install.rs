@@ -22,8 +22,13 @@ use std::{
 
 #[test]
 fn package_lock_false_disables_the_pnpm_lockfile() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(
         workspace.join("package.json"),
@@ -41,7 +46,10 @@ fn package_lock_false_disables_the_pnpm_lockfile() {
     workspace_yaml.push_str("packageLock: false\n");
     fs::write(workspace_yaml_path, workspace_yaml).expect("write workspace settings");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     assert!(workspace.join("node_modules/is-positive/package.json").exists());
     assert!(!workspace.join("pnpm-lock.yaml").exists());
@@ -51,8 +59,13 @@ fn package_lock_false_disables_the_pnpm_lockfile() {
 
 #[test]
 fn should_install_dependencies() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
     eprintln!("Creating package.json...");
@@ -65,7 +78,10 @@ fn should_install_dependencies() {
     fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
 
     eprintln!("Executing command...");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     eprintln!("Make sure the package is installed");
     let symlink_path = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent");
@@ -93,7 +109,10 @@ fn should_install_dependencies() {
 /// under a platform-shared snapshot, and their files carry package
 /// modes rather than the CAFS `-exec` convention.
 fn store_files_outside_links(store_dir: &Path) -> Vec<String> {
-    get_all_files(store_dir).into_iter().filter(|path| !path.starts_with("v11/links/")).collect()
+    get_all_files(store_dir)
+        .into_iter()
+        .filter(|path| !path.starts_with("v11/links/"))
+        .collect()
 }
 
 /// A project manifest that declares a dependency under a path-traversal
@@ -104,8 +123,13 @@ fn store_files_outside_links(store_dir: &Path) -> Vec<String> {
 /// `ERR_PNPM_INVALID_DEPENDENCY_NAME`.
 #[test]
 fn install_rejects_a_traversal_dependency_name_in_the_manifest() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let manifest_path = workspace.join("package.json");
@@ -116,7 +140,10 @@ fn install_rejects_a_traversal_dependency_name_in_the_manifest() {
     });
     fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
 
-    let output = pacquet.with_arg("install").output().expect("spawn pacquet install");
+    let output = pacquet
+        .with_arg("install")
+        .output()
+        .expect("spawn pacquet install");
     assert!(
         !output.status.success(),
         "the resolver must reject a traversal dependency name (stderr: {})",
@@ -135,7 +162,9 @@ fn install_rejects_a_traversal_dependency_name_in_the_manifest() {
         "stderr must report the invalid-dependency-name code; got:\n{stderr}",
     );
     assert!(
-        !workspace.parent().is_some_and(|parent| parent.join("escaped-link").exists()),
+        !workspace
+            .parent()
+            .is_some_and(|parent| parent.join("escaped-link").exists()),
         "no link may be created outside the project",
     );
 
@@ -144,8 +173,13 @@ fn install_rejects_a_traversal_dependency_name_in_the_manifest() {
 
 #[test]
 fn should_install_exec_files() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
     eprintln!("Creating package.json...");
@@ -158,7 +192,10 @@ fn should_install_exec_files() {
     fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
 
     eprintln!("Executing command...");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     eprintln!("Listing all files in the store...");
     let store_files = store_files_outside_links(&store_dir);
@@ -170,11 +207,17 @@ fn should_install_exec_files() {
         use std::{fs::File, iter::repeat, os::unix::fs::MetadataExt};
 
         eprintln!("All files that end with '-exec' are executable, others not");
-        let (suffix_exec, suffix_other) =
-            store_files.iter().partition::<Vec<_>, _>(|path| path.ends_with("-exec"));
+        let (suffix_exec, suffix_other) = store_files
+            .iter()
+            .partition::<Vec<_>, _>(|path| path.ends_with("-exec"));
         let (mode_exec, mode_other) = store_files
             .iter()
-            .partition::<Vec<_>, _>(|name| store_dir.join(name).as_path().pipe(is_path_executable));
+            .partition::<Vec<_>, _>(|name| {
+                store_dir
+                    .join(name)
+                    .as_path()
+                    .pipe(is_path_executable)
+            });
         assert_eq!((&suffix_exec, &suffix_other), (&mode_exec, &mode_other));
 
         eprintln!("All executable files have mode 755");
@@ -191,8 +234,11 @@ fn should_install_exec_files() {
                 (name.as_str(), mode & 0o777)
             })
             .collect();
-        let expected_modes: Vec<_> =
-            mode_exec.iter().map(|name| name.as_str()).zip(repeat(0o755)).collect();
+        let expected_modes: Vec<_> = mode_exec
+            .iter()
+            .map(|name| name.as_str())
+            .zip(repeat(0o755))
+            .collect();
         assert_eq!(&actual_modes, &expected_modes);
     }
 
@@ -204,8 +250,13 @@ fn should_install_exec_files() {
 
 #[test]
 fn should_install_index_files() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
     eprintln!("Creating package.json...");
@@ -218,7 +269,10 @@ fn should_install_index_files() {
     fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
 
     eprintln!("Executing command...");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     eprintln!("Snapshot");
     let index_file_contents = index_file_contents(&store_dir);
@@ -237,8 +291,13 @@ fn should_install_index_files() {
 /// prefix made every progress / stats line render with `.   |   `.
 #[test]
 fn install_emits_canonical_prefix_in_ndjson_events() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     eprintln!("Creating package.json...");
@@ -251,8 +310,10 @@ fn install_emits_canonical_prefix_in_ndjson_events() {
     fs::write(&manifest_path, package_json.to_string()).expect("write to package.json");
 
     eprintln!("Executing command with --reporter=ndjson...");
-    let output =
-        pacquet.with_args(["--reporter=ndjson", "install"]).output().expect("run pacquet install");
+    let output = pacquet
+        .with_args(["--reporter=ndjson", "install"])
+        .output()
+        .expect("run pacquet install");
     assert!(
         output.status.success(),
         "pacquet install exited non-zero: stderr={}",
@@ -264,7 +325,11 @@ fn install_emits_canonical_prefix_in_ndjson_events() {
     let prefixes: Vec<String> = stderr
         .lines()
         .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
-        .filter_map(|val| val.get("prefix").and_then(|p| p.as_str()).map(str::to_owned))
+        .filter_map(|val| {
+            val.get("prefix")
+                .and_then(|p| p.as_str())
+                .map(str::to_owned)
+        })
         .collect();
     assert!(
         !prefixes.is_empty(),
@@ -285,8 +350,13 @@ fn install_emits_canonical_prefix_in_ndjson_events() {
 
 #[test]
 fn should_install_circular_dependencies() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     eprintln!("Creating package.json...");
@@ -299,7 +369,10 @@ fn should_install_circular_dependencies() {
     fs::write(manifest_path, package_json_content.to_string()).expect("write to package.json");
 
     eprintln!("Executing command...");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     assert!(workspace.join("./node_modules/@pnpm.e2e/circular-deps-1-of-2").exists());
     assert!(workspace.join("./node_modules/.pnpm/@pnpm.e2e+circular-deps-1-of-2@1.0.2").exists());
@@ -310,8 +383,13 @@ fn should_install_circular_dependencies() {
 
 #[test]
 fn install_preserves_deprecated_lockfile_metadata_when_reusing_resolution() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let manifest_path = workspace.join("package.json");
@@ -326,7 +404,10 @@ fn install_preserves_deprecated_lockfile_metadata_when_reusing_resolution() {
     )
     .expect("write package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let first = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
     assert!(
@@ -346,7 +427,10 @@ fn install_preserves_deprecated_lockfile_metadata_when_reusing_resolution() {
     )
     .expect("extend package.json");
 
-    new_pacquet_command(&workspace).with_arg("install").assert().success();
+    new_pacquet_command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     let second = fs::read_to_string(&lockfile_path).expect("re-read pnpm-lock.yaml");
     assert!(
         second.contains("deprecated: This package is deprecated."),
@@ -362,8 +446,13 @@ fn install_preserves_deprecated_lockfile_metadata_when_reusing_resolution() {
 /// version, not the literal `catalog:` string.
 #[test]
 fn install_resolves_catalog_protocol() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     eprintln!("Appending catalog to pnpm-workspace.yaml...");
@@ -382,7 +471,10 @@ fn install_resolves_catalog_protocol() {
     fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
 
     eprintln!("Executing command...");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     eprintln!("Make sure the package is installed at the catalog's version");
     let symlink_path = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent");
@@ -399,8 +491,13 @@ fn install_resolves_catalog_protocol() {
 /// rather than the chain's `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`.
 #[test]
 fn install_surfaces_catalog_misconfiguration() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     eprintln!("Creating package.json with a catalog: dep but no matching catalog entry...");
@@ -413,7 +510,10 @@ fn install_surfaces_catalog_misconfiguration() {
     fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
 
     eprintln!("Executing command...");
-    let output = pacquet.with_arg("install").assert().failure();
+    let output = pacquet
+        .with_arg("install")
+        .assert()
+        .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     eprintln!("stderr={stderr}");
     let flattened = flatten_report(&stderr);
@@ -439,8 +539,13 @@ fn install_surfaces_catalog_misconfiguration() {
 /// rest, the way the TypeScript CLI does.
 #[test]
 fn install_reports_a_missing_version_as_no_matching_version() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     eprintln!("Creating package.json that asks for a version nobody published...");
@@ -453,7 +558,10 @@ fn install_reports_a_missing_version_as_no_matching_version() {
     fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
 
     eprintln!("Executing command...");
-    let output = pacquet.with_arg("install").assert().failure();
+    let output = pacquet
+        .with_arg("install")
+        .assert()
+        .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     eprintln!("stderr={stderr}");
     let flattened = flatten_report(&stderr);
@@ -478,8 +586,13 @@ fn install_reports_a_missing_version_as_no_matching_version() {
 /// hint — not a bare HTTP-client message (pnpm/pnpm#13319).
 #[test]
 fn install_reports_an_unknown_package_as_fetch_404() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     eprintln!("Creating package.json that depends on a package nobody published...");
@@ -492,7 +605,10 @@ fn install_reports_an_unknown_package_as_fetch_404() {
     fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
 
     eprintln!("Executing command...");
-    let output = pacquet.with_arg("install").assert().failure();
+    let output = pacquet
+        .with_arg("install")
+        .assert()
+        .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     eprintln!("stderr={stderr}");
     let flattened = flatten_report(&stderr);
@@ -519,8 +635,13 @@ fn install_reports_an_unknown_package_as_fetch_404() {
     reason = "test fixture; the value is embedded whole into a serde_json::json! object"
 )]
 fn install_with_peer_alias_deps(dependencies: serde_json::Value) -> String {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
@@ -540,7 +661,10 @@ fn install_with_peer_alias_deps(dependencies: serde_json::Value) -> String {
     )
     .expect("write package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     let lockfile =
         fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
 
@@ -603,7 +727,11 @@ fn set_dir_modes(path: &std::path::Path, mode: u32) {
     use std::os::unix::fs::PermissionsExt;
     for entry in fs::read_dir(path).expect("read directory while setting modes") {
         let entry = entry.expect("read directory entry");
-        if entry.file_type().expect("stat directory entry").is_dir() {
+        if entry
+            .file_type()
+            .expect("stat directory entry")
+            .is_dir()
+        {
             set_dir_modes(&entry.path(), mode);
         }
     }
@@ -614,8 +742,13 @@ fn set_dir_modes(path: &std::path::Path, mode: u32) {
 /// why pnpm records `trustPolicy*` in the workspace state.
 #[test]
 fn trust_policy_change_defeats_the_up_to_date_fast_path() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(
         workspace.join("package.json"),
@@ -666,13 +799,13 @@ fn remove_workspace_setting(workspace: &Path, key: &str) {
     let path = workspace.join("pnpm-workspace.yaml");
     let yaml = fs::read_to_string(&path).expect("read pnpm-workspace.yaml");
     let prefix = format!("{key}:");
-    let kept: String = yaml.lines().filter(|line| !line.trim_start().starts_with(&prefix)).fold(
-        String::new(),
-        |mut kept, line| {
+    let kept: String = yaml
+        .lines()
+        .filter(|line| !line.trim_start().starts_with(&prefix))
+        .fold(String::new(), |mut kept, line| {
             let _ = writeln!(kept, "{line}");
             kept
-        },
-    );
+        });
     fs::write(&path, kept).expect("write pnpm-workspace.yaml");
 }
 

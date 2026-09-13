@@ -25,7 +25,9 @@ fn manifest(value: serde_json::Value) -> (PackageManifest, TempDir) {
 }
 
 fn strings(list: &[&str]) -> Vec<String> {
-    list.iter().map(std::string::ToString::to_string).collect()
+    list.iter()
+        .map(std::string::ToString::to_string)
+        .collect()
 }
 
 fn expect_missing(
@@ -131,7 +133,10 @@ fn selected_remove_prepares_and_persists_only_selected_projects() {
         .map(|name| project_with_dependencies(dir.path(), name, &["foo", "keep"]))
         .collect::<Vec<_>>();
     let ordered_dirs = [projects[1].root_dir.clone(), projects[0].root_dir.clone()];
-    let selected_dirs = ordered_dirs.iter().cloned().collect::<HashSet<_>>();
+    let selected_dirs = ordered_dirs
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>();
     let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
 
     validate_selected_remove(&strings(&["foo"])).expect("every selected manifest contains foo");
@@ -154,8 +159,14 @@ fn selected_remove_ignores_projects_without_the_requested_dependency() {
         project_with_dependencies(dir.path(), "a", &["foo"]),
         project_with_dependencies(dir.path(), "b", &["bar"]),
     ];
-    let ordered_dirs = projects.iter().map(|project| project.root_dir.clone()).collect::<Vec<_>>();
-    let selected_dirs = ordered_dirs.iter().cloned().collect::<HashSet<_>>();
+    let ordered_dirs = projects
+        .iter()
+        .map(|project| project.root_dir.clone())
+        .collect::<Vec<_>>();
+    let selected_dirs = ordered_dirs
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>();
     let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
 
     validate_selected_remove(&strings(&["foo"]))

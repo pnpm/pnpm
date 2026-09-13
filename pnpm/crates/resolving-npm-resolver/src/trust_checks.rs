@@ -137,12 +137,14 @@ pub fn fail_if_trust_downgraded(
         }
     }
 
-    let manifest = meta.versions.get(version).ok_or_else(|| TrustViolation::TrustCheckFailed {
-        reason: format!(
-            "missing version object for version {version} of {name} in metadata",
-            name = meta.name,
-        ),
-    })?;
+    let manifest = meta.versions
+        .get(version)
+        .ok_or_else(|| TrustViolation::TrustCheckFailed {
+            reason: format!(
+                "missing version object for version {version} of {name} in metadata",
+                name = meta.name,
+            ),
+        })?;
 
     let exclude_prerelease = !is_prerelease(version);
     let Some(strongest_prior) =
@@ -173,7 +175,9 @@ fn is_trust_excluded(
 ) -> bool {
     match exclude.map(|exclude| exclude.matches(&meta.name)) {
         Some(PolicyMatch::AnyVersion) => true,
-        Some(PolicyMatch::ExactVersions(versions)) => versions.iter().any(|exact| exact == version),
+        Some(PolicyMatch::ExactVersions(versions)) => versions
+            .iter()
+            .any(|exact| exact == version),
         Some(PolicyMatch::No) | None => false,
     }
 }
@@ -217,13 +221,15 @@ fn detect_strongest_trust_evidence_before(
     // `time` entry would otherwise mask every earlier version's evidence and
     // allow a downgrade to slip through. Each timestamp is checked in
     // isolation.
-    let earlier = meta.versions.keys().filter(|version| {
-        !(exclude_prerelease && is_prerelease(version))
-            && meta
-                .published_at(version)
-                .and_then(parse_packument_timestamp)
-                .is_some_and(|parsed| parsed < before_date)
-    });
+    let earlier = meta.versions
+        .keys()
+        .filter(|version| {
+            !(exclude_prerelease && is_prerelease(version))
+                && meta
+                    .published_at(version)
+                    .and_then(parse_packument_timestamp)
+                    .is_some_and(|parsed| parsed < before_date)
+        });
     for version in earlier {
         let Some(manifest) = meta.versions.get(version) else {
             return Err(TrustViolation::TrustCheckFailed {
@@ -255,14 +261,21 @@ fn detect_strongest_trust_evidence_before(
 /// exposes.
 #[must_use]
 pub fn get_trust_evidence(version: &PackageVersion) -> Option<TrustEvidence> {
-    let has_approver = version.npm_user.as_ref().and_then(|user| user.approver.as_ref()).is_some();
+    let has_approver = version.npm_user
+        .as_ref()
+        .and_then(|user| user.approver.as_ref())
+        .is_some();
     if has_approver {
         return Some(TrustEvidence::StagedPublish);
     }
-    let has_provenance =
-        version.dist.attestations.as_ref().and_then(|att| att.provenance.as_ref()).is_some();
-    let has_trusted_publisher =
-        version.npm_user.as_ref().and_then(|user| user.trusted_publisher.as_ref()).is_some();
+    let has_provenance = version.dist.attestations
+        .as_ref()
+        .and_then(|att| att.provenance.as_ref())
+        .is_some();
+    let has_trusted_publisher = version.npm_user
+        .as_ref()
+        .and_then(|user| user.trusted_publisher.as_ref())
+        .is_some();
     if has_trusted_publisher && has_provenance {
         return Some(TrustEvidence::TrustedPublisher);
     }
@@ -280,18 +293,18 @@ fn is_prerelease(version: &str) -> bool {
 mod tests;
 
 fn trust_version_date(meta: &Package, version: &str) -> Result<DateTime<Utc>, TrustViolation> {
-    let published_at =
-        meta.published_at(version).ok_or_else(|| TrustViolation::TrustCheckFailed {
+    let published_at = meta
+        .published_at(version)
+        .ok_or_else(|| TrustViolation::TrustCheckFailed {
             reason: format!(
                 "missing time for version {version} of {name} in metadata",
                 name = meta.name,
             ),
         })?;
-    let version_date = parse_packument_timestamp(published_at).ok_or_else(|| {
-        TrustViolation::TrustCheckFailed {
+    let version_date = parse_packument_timestamp(published_at)
+        .ok_or_else(|| TrustViolation::TrustCheckFailed {
             reason: "publish timestamp is not a valid date".to_string(),
-        }
-    })?;
+        })?;
 
     Ok(version_date)
 }

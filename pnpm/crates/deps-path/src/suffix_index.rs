@@ -39,7 +39,9 @@ pub fn index_of_dep_path_suffix(dep_path: &str) -> DepPathSuffixIndex {
 
 fn suffix_index_from_start(dep_path: &str, start: usize) -> DepPathSuffixIndex {
     if dep_path[start..].starts_with("(patch_hash=") {
-        let peers_index = dep_path[start + 2..].find('(').map(|off| start + 2 + off);
+        let peers_index = dep_path[start + 2..]
+            .find('(')
+            .map(|off| start + 2 + off);
         return DepPathSuffixIndex { peers_index, patch_hash_index: Some(start) };
     }
     DepPathSuffixIndex { peers_index: Some(start), patch_hash_index: None }

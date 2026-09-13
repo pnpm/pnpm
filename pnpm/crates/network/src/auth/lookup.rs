@@ -139,8 +139,7 @@ impl TokenHelpers {
                 // `OnceLock` still serializes concurrent first-lookups of the
                 // *same* key, so the command runs at most once.
                 let cell = {
-                    let mut cache = self
-                        .resolved_token_helpers
+                    let mut cache = self.resolved_token_helpers
                         .lock()
                         .unwrap_or_else(std::sync::PoisonError::into_inner);
                     Arc::clone(cache.entry(cache_key).or_default())

@@ -256,7 +256,10 @@ fn parse_access_action(
 }
 
 fn access_args(lead: Option<String>, second: Option<String>, params: Vec<String>) -> Vec<String> {
-    lead.into_iter().chain(second).chain(params).collect()
+    lead.into_iter()
+        .chain(second)
+        .chain(params)
+        .collect()
 }
 
 async fn list_packages(context: &AccessContext<'_>, params: &[String]) -> miette::Result<String> {
@@ -295,7 +298,11 @@ fn list_packages_url(registry: &str, params: &[String]) -> String {
     format!(
         "{}-/team/{}/{}package?format=cli",
         normalize_registry_url(registry),
-        encode_uri_component(parts[0].strip_prefix('@').unwrap_or(parts[0])),
+        encode_uri_component(
+            parts[0]
+                .strip_prefix('@')
+                .unwrap_or(parts[0])
+        ),
         team_path,
     )
 }
@@ -305,8 +312,7 @@ async fn fetch_list_response(
     url: &str,
     auth_header: Option<&str>,
 ) -> miette::Result<String> {
-    let (_guard, response) = send_get(context, url, auth_header)
-        .await
+    let (_guard, response) = send_get(context, url, auth_header).await
         .map_err(reqwest::Error::without_url)
         .into_diagnostic()
         .wrap_err("requesting the registry access list endpoint")?;
@@ -315,8 +321,11 @@ async fn fetch_list_response(
         return Err(fetch_error_from_response(response, "list packages from").await);
     }
 
-    let data: HashMap<String, serde_json::Value> =
-        response.json().await.into_diagnostic().wrap_err("parsing the access list response")?;
+    let data: HashMap<String, serde_json::Value> = response
+        .json()
+        .await
+        .into_diagnostic()
+        .wrap_err("parsing the access list response")?;
 
     if context.json {
         let output = serde_json::to_string_pretty(&data)
@@ -385,8 +394,11 @@ async fn list_collaborators(
         return Err(fetch_error_from_response(response, "list collaborators for").await);
     }
 
-    let entries: Vec<CollaboratorEntry> =
-        response.json().await.into_diagnostic().wrap_err("parsing the collaborators response")?;
+    let entries: Vec<CollaboratorEntry> = response
+        .json()
+        .await
+        .into_diagnostic()
+        .wrap_err("parsing the collaborators response")?;
 
     if context.json {
         let output = serde_json::to_string_pretty(&entries)

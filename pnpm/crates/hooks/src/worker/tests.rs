@@ -24,7 +24,10 @@ async fn cancelled_request_removes_its_pending_entry() {
     assert!(cancelled.is_err(), "the never-resolving hook must outlive the local timeout");
 
     assert!(
-        worker.pending.lock().unwrap().is_empty(),
+        worker.pending
+            .lock()
+            .unwrap()
+            .is_empty(),
         "a cancelled request must not leak its pending entry",
     );
 }

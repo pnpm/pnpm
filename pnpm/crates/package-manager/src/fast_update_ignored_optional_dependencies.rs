@@ -16,20 +16,26 @@ pub(crate) fn detect_ignored_optional_drift(
     lockfile: &Lockfile,
     ignored_optional_dependencies: &[String],
 ) -> Drift<()> {
-    let previous: BTreeSet<_> = lockfile
-        .ignored_optional_dependencies
+    let previous: BTreeSet<_> = lockfile.ignored_optional_dependencies
         .as_deref()
         .unwrap_or_default()
         .iter()
         .cloned()
         .collect();
-    let current: BTreeSet<_> = ignored_optional_dependencies.iter().cloned().collect();
+    let current: BTreeSet<_> = ignored_optional_dependencies
+        .iter()
+        .cloned()
+        .collect();
     if previous == current {
         return Drift::Clean;
     }
-    let added_exclusion = current.difference(&previous).any(|pattern| pattern.starts_with('!'));
-    let previous_ignores_by_default =
-        !previous.is_empty() && previous.iter().all(|pattern| pattern.starts_with('!'));
+    let added_exclusion = current
+        .difference(&previous)
+        .any(|pattern| pattern.starts_with('!'));
+    let previous_ignores_by_default = !previous.is_empty()
+        && previous
+            .iter()
+            .all(|pattern| pattern.starts_with('!'));
     if !previous.is_subset(&current) || added_exclusion || previous_ignores_by_default {
         return Drift::Resolve;
     }
@@ -53,8 +59,10 @@ pub(crate) fn apply_ignored_optional_update(
             edits,
         );
         if let Some(specifiers) = importer.specifiers.as_mut() {
-            let removed_specifiers: HashSet<_> =
-                removed.iter().map(std::string::ToString::to_string).collect();
+            let removed_specifiers: HashSet<_> = removed
+                .iter()
+                .map(std::string::ToString::to_string)
+                .collect();
             specifiers.retain(|name, _| !removed_specifiers.contains(name));
         }
     }
@@ -93,7 +101,11 @@ fn remove_ignored_optional_dependencies<
             name.clone()
         })
         .collect();
-    for (name, dependency) in dependencies.as_ref().into_iter().flatten() {
+    for (name, dependency) in dependencies
+        .as_ref()
+        .into_iter()
+        .flatten()
+    {
         if removed.contains(name) {
             edits.dropped.record(name, dependency);
         }

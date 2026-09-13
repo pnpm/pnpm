@@ -50,24 +50,15 @@ impl<'a> InstallFrozenLockfile<'a> {
             // `CreateVirtualStore`) so the git fetcher could consult it.
             run_build_phase::<Reporter>(&BuildPhaseInputs {
                 cache: phase.fetched.build_cache(engine_name.as_deref(), phase.store_index_writer),
-                directories: crate::BuildPhaseDirectories {
-                    workspace_root: install.projects.workspace_root,
-                    top_level_bin_root: install.projects.workspace_root,
-                    layout: ctx.linker.layout,
-                    hoisted_pkg_roots_by_key: phase.linked.hoisted_pkg_roots_by_key.as_ref(),
-                    is_hoisted: ctx.is_hoisted(),
-                    publicly_hoisted_for_post_build: &phase.linked.publicly_hoisted_for_post_build,
-                    logged_methods: ctx.logged_methods,
-                    link_options: ctx.linker.bin_options,
-                },
+                directories: build_directories(install, ctx, phase.linked),
                 graph: crate::BuildPhaseGraph {
                     snapshots,
                     packages,
                     importers: &install.lockfiles.wanted.importers,
                     dependency_groups: install.projects.dependency_groups,
-                    materialized_snapshots: phase
-                        .linked
-                        .build_snapshots(&phase.fetched.materialized_snapshots),
+                    materialized_snapshots: phase.linked.build_snapshots(
+                        &phase.fetched.materialized_snapshots,
+                    ),
                 },
                 policy: install.build_policy(ctx.allow_build_policy),
 
@@ -101,9 +92,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                 graph: crate::LinkLockfiles {
                     lockfile: install.lockfiles.wanted,
                     current_lockfile: install.lockfiles.current,
-                    materialized_snapshots: install
-                        .prior
-                        .rebuild
+                    materialized_snapshots: install.prior.rebuild
                         .is_none()
                         .then_some(phase.fetched.materialized_snapshots.as_slice()),
                     sidecar_lockfile: &sidecar_lockfile,
@@ -193,14 +182,7 @@ impl<'a> InstallFrozenLockfile<'a> {
         async move {
             let phase_start = std::time::Instant::now();
             let installability_host = host.host_detection.resolve().await;
-            if host.needs_installability_check {
-                tracing::info!(
-                    target: "pacquet::install::phase",
-                    phase = "await_installability_host",
-                    elapsed_ms = phase_start.elapsed().as_millis() as u64,
-                    "phase complete",
-                );
-            }
+            report_host_detection_wait(phase_start, host.needs_installability_check);
             let host_node =
                 installability_host.as_ref().map(crate::materialization_plan::HostNode::from);
             // Deliver the host-derived engine name to the directory-clone
@@ -218,7 +200,10 @@ impl<'a> InstallFrozenLockfile<'a> {
                     closure: crate::SkipSetClosure {
                         lockfile: inputs.lockfiles.wanted,
                         root: inputs.projects.workspace_root,
-                        importer_ids: &inputs.lockfiles.wanted.importers.keys().cloned().collect(),
+                        importer_ids: &inputs.lockfiles.wanted.importers
+                            .keys()
+                            .cloned()
+                            .collect(),
                         included,
                     },
                     entries: inputs.entries(),
@@ -360,5 +345,33 @@ impl<'a> InstallFrozenLockfile<'a> {
                 git_source_cache: pnpm_git_fetcher::GitSourceCache::default(),
             })
         }
+    }
+}
+
+fn build_directories<'a>(
+    install: super::FrozenInputs<'a>,
+    ctx: &'a crate::InstallContext<'a>,
+    linked: &'a crate::linking::LinkPhaseOutput,
+) -> crate::BuildPhaseDirectories<'a> {
+    crate::BuildPhaseDirectories {
+        workspace_root: install.projects.workspace_root,
+        top_level_bin_root: install.projects.workspace_root,
+        layout: ctx.linker.layout,
+        hoisted_pkg_roots_by_key: linked.hoisted_pkg_roots_by_key.as_ref(),
+        is_hoisted: ctx.is_hoisted(),
+        publicly_hoisted_for_post_build: &linked.publicly_hoisted_for_post_build,
+        logged_methods: ctx.logged_methods,
+        link_options: ctx.linker.bin_options,
+    }
+}
+
+fn report_host_detection_wait(phase_start: std::time::Instant, needs_installability_check: bool) {
+    if needs_installability_check {
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "await_installability_host",
+            elapsed_ms = phase_start.elapsed().as_millis() as u64,
+            "phase complete",
+        );
     }
 }

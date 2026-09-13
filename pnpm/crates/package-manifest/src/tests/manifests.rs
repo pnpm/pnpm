@@ -20,7 +20,11 @@ fn save_preserves_the_existing_package_json_permissions() {
 
     // The atomic temp-file-then-rename must keep the original mode, not leave
     // the NamedTempFile's default 0o600 behind.
-    let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+    let mode = std::fs::metadata(&path)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
     assert_eq!(mode, 0o640);
 }
 
@@ -67,7 +71,10 @@ fn bundle_dependencies() {
         List: IntoIterator,
         List::Item: Into<String>,
     {
-        list.into_iter().map(Into::into).collect::<Vec<_>>().pipe(BundleDependencies::List)
+        list.into_iter()
+            .map(Into::into)
+            .collect::<Vec<_>>()
+            .pipe(BundleDependencies::List)
     }
 
     macro_rules! case {
@@ -233,7 +240,10 @@ fn a_bom_after_the_start_of_the_manifest_is_still_a_parse_error() {
         matches!(&err, PackageManifestError::Parse { path: reported, .. } if reported == &path),
         "the offending manifest path must be reported, got {err:?}",
     );
-    assert!(err.to_string().contains(&path.display().to_string()));
+    assert!(
+        err.to_string()
+            .contains(&path.display().to_string()),
+    );
 }
 
 #[test]

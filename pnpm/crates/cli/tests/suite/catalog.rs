@@ -57,8 +57,7 @@ fn read(workspace: &Path, file: &str) -> String {
 fn catalog_snapshot(workspace: &Path, name: &str) -> (String, String) {
     let lockfile: Lockfile =
         serde_saphyr::from_str(&read(workspace, "pnpm-lock.yaml")).expect("parse pnpm-lock.yaml");
-    let entry = lockfile
-        .catalogs
+    let entry = lockfile.catalogs
         .as_ref()
         .and_then(|catalogs| catalogs.get("default"))
         .and_then(|catalog| catalog.get(name))
@@ -69,7 +68,9 @@ fn catalog_snapshot(workspace: &Path, name: &str) -> (String, String) {
 fn lockfile_override(workspace: &Path, selector: &str) -> Option<String> {
     let lockfile: Lockfile =
         serde_saphyr::from_str(&read(workspace, "pnpm-lock.yaml")).expect("parse pnpm-lock.yaml");
-    lockfile.overrides.as_ref().and_then(|overrides| overrides.get(selector).cloned())
+    lockfile.overrides
+        .as_ref()
+        .and_then(|overrides| overrides.get(selector).cloned())
 }
 
 fn run_ok(workspace: &Path, args: &[&str]) {
@@ -266,7 +267,9 @@ fn save_catalog_name_preserves_the_dependency_group() {
 
     let manifest = PackageManifest::from_path(workspace.join("package.json")).unwrap();
     assert_eq!(
-        manifest.dependencies([DependencyGroup::Dev]).collect::<Vec<_>>(),
+        manifest
+            .dependencies([DependencyGroup::Dev])
+            .collect::<Vec<_>>(),
         vec![(FOO, "catalog:tools")],
     );
     let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
@@ -756,8 +759,7 @@ fn add_moving_a_catalog_leaves_an_untargeted_project_alone() {
 fn importer_dep_version(workspace: &Path, importer: &str, name: &str) -> String {
     let lockfile: Lockfile =
         serde_saphyr::from_str(&read(workspace, "pnpm-lock.yaml")).expect("parse pnpm-lock.yaml");
-    lockfile
-        .importers
+    lockfile.importers
         .get(importer)
         .and_then(|snapshot| snapshot.dependencies.as_ref())
         .and_then(|dependencies| {

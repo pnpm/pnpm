@@ -214,7 +214,10 @@ impl DownloadState {
         requester: &str,
         done: bool,
     ) -> String {
-        let stats = self.progress.get(requester).map(|entry| entry.stats).unwrap_or_default();
+        let stats = self.progress
+            .get(requester)
+            .map(|entry| entry.stats)
+            .unwrap_or_default();
         let hl = |count: u64| rendering.colors.cyan_bright(&count.to_string());
         let mut msg = format!(
             "Progress: resolved {}, reused {}, downloaded {}",

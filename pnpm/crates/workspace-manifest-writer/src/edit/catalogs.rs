@@ -43,7 +43,13 @@ pub(crate) fn remove_unused_catalogs(
 }
 
 fn is_referenced(references: &CatalogReferences, pkg: &str, specs: &[&str]) -> bool {
-    references.get(pkg).is_some_and(|refs| specs.iter().any(|spec| refs.contains(*spec)))
+    references
+        .get(pkg)
+        .is_some_and(|refs| {
+            specs
+                .iter()
+                .any(|spec| refs.contains(*spec))
+        })
 }
 
 fn remove_unused_default_catalog(manifest: &mut Manifest, references: &CatalogReferences) -> bool {
@@ -146,9 +152,7 @@ fn remove_catalog_entries(
         &[block, name],
         to_remove,
     ));
-    let entries = manifest
-        .catalogs
-        .named
+    let entries = manifest.catalogs.named
         .as_mut()
         .and_then(|catalogs| catalogs.get_mut(name))
         .expect("named catalog presence checked above");

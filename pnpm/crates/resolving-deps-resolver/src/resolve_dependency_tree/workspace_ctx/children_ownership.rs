@@ -187,10 +187,12 @@ pub(in super::super) fn recorded_children_match(
     pkg_id: &str,
     context: &RecordedChildrenContext,
 ) -> bool {
-    lock_recoverable(&ctx.workspace.children.by_id).get(pkg_id).is_some_and(|recorded| {
-        recorded.context.produces_same_children_as(context)
-            || recorded.context.pins_children_over(context)
-    })
+    lock_recoverable(&ctx.workspace.children.by_id)
+        .get(pkg_id)
+        .is_some_and(|recorded| {
+            recorded.context.produces_same_children_as(context)
+                || recorded.context.pins_children_over(context)
+        })
 }
 
 /// What [`fn@record_children`] did with a walk's child edges.
@@ -256,7 +258,10 @@ pub(in super::super) fn record_children(
 ) -> ChildrenRecording {
     let recording = {
         let owners = lock_recoverable(&ctx.workspace.children.owner_by_id);
-        if owners.get(pkg_id).is_none_or(|entry| entry.owner != *owner) {
+        if owners
+            .get(pkg_id)
+            .is_none_or(|entry| entry.owner != *owner)
+        {
             return ChildrenRecording::Declined;
         }
         let mut children = lock_recoverable(&ctx.workspace.children.by_id);
@@ -310,7 +315,10 @@ pub(super) fn update_parent_index(
     if previous.is_some_and(|previous| previous == next) {
         return;
     }
-    let kept: HashSet<&str> = next.iter().map(|edge| edge.pkg_id.as_ref()).collect();
+    let kept: HashSet<&str> = next
+        .iter()
+        .map(|edge| edge.pkg_id.as_ref())
+        .collect();
     for edge in previous.into_iter().flatten() {
         if kept.contains(edge.pkg_id.as_ref()) {
             continue;
@@ -323,7 +331,10 @@ pub(super) fn update_parent_index(
         }
     }
     for edge in next {
-        parents_by_id.entry(Arc::clone(&edge.pkg_id)).or_default().insert(Arc::from(pkg_id));
+        parents_by_id
+            .entry(Arc::clone(&edge.pkg_id))
+            .or_default()
+            .insert(Arc::from(pkg_id));
     }
 }
 

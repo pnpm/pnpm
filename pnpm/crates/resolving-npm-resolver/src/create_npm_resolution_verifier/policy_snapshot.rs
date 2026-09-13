@@ -102,11 +102,19 @@ pub(super) fn cached_policy_patterns(
         .get(key)
         .and_then(JsonValue::as_array)
         .map(|values| {
-            values.iter().filter_map(|value| value.as_str().map(str::to_string)).collect()
+            values
+                .iter()
+                .filter_map(|value| value.as_str().map(str::to_string))
+                .collect()
         })
         .unwrap_or_default()
 }
 
 pub(super) fn policy_patterns_json(patterns: &[String]) -> JsonValue {
-    JsonValue::Array(patterns.iter().map(|spec| JsonValue::String(spec.clone())).collect())
+    JsonValue::Array(
+        patterns
+            .iter()
+            .map(|spec| JsonValue::String(spec.clone()))
+            .collect(),
+    )
 }

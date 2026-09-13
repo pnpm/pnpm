@@ -250,19 +250,28 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
     let virtual_store_slots: Vec<String> = std::fs::read_dir(&dirs.virtual_store_dir)
         .expect("read virtual store dirs.dir")
         .filter_map(Result::ok)
-        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .collect();
 
     assert!(
-        virtual_store_slots.iter().any(|name| name.starts_with("@pnpm.e2e+peer-a@")),
+        virtual_store_slots
+            .iter()
+            .any(|name| name.starts_with("@pnpm.e2e+peer-a@")),
         "required peer `peer-a` must be auto-installed under \
          `autoInstallPeers: true`; virtual-store slots: {virtual_store_slots:?}",
     );
 
     for optional_peer in ["peer-b", "peer-c"] {
         let slot_prefix = format!("@pnpm.e2e+{optional_peer}@");
-        let cascaded: Vec<&String> =
-            virtual_store_slots.iter().filter(|name| name.starts_with(&slot_prefix)).collect();
+        let cascaded: Vec<&String> = virtual_store_slots
+            .iter()
+            .filter(|name| name.starts_with(&slot_prefix))
+            .collect();
         assert!(
             cascaded.is_empty(),
             "optional peer `{optional_peer}` must NOT reach the virtual store; \
@@ -278,9 +287,9 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
          virtual-store slots: {virtual_store_slots:?}",
     );
     assert!(
-        is_symlink_or_junction(
-            &dirs.project_root.join("node_modules/@pnpm.e2e/abc-optional-peers")
-        )
+        is_symlink_or_junction(&dirs.project_root.join(
+            "node_modules/@pnpm.e2e/abc-optional-peers"
+        ))
         .unwrap(),
         "abc-optional-peers must be symlinked at the importer level",
     );
@@ -370,7 +379,12 @@ async fn meta_only_optional_peers_absent_from_the_graph_are_not_installed() {
     let virtual_store_slots: Vec<String> = std::fs::read_dir(&dirs.virtual_store_dir)
         .expect("read virtual store dirs.dir")
         .filter_map(Result::ok)
-        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .collect();
 
     // peer-a is declared in `peerDependencies` so it stays required and
@@ -379,14 +393,18 @@ async fn meta_only_optional_peers_absent_from_the_graph_are_not_installed() {
     // never fetched, only deduped onto a version already in the graph,
     // and no version of either is in this graph.
     assert!(
-        virtual_store_slots.iter().any(|name| name.starts_with("@pnpm.e2e+peer-a@")),
+        virtual_store_slots
+            .iter()
+            .any(|name| name.starts_with("@pnpm.e2e+peer-a@")),
         "required peer `peer-a` must be auto-installed; \
          virtual-store slots: {virtual_store_slots:?}",
     );
     for optional_peer in ["peer-b", "peer-c"] {
         let slot_prefix = format!("@pnpm.e2e+{optional_peer}@");
-        let cascaded: Vec<&String> =
-            virtual_store_slots.iter().filter(|name| name.starts_with(&slot_prefix)).collect();
+        let cascaded: Vec<&String> = virtual_store_slots
+            .iter()
+            .filter(|name| name.starts_with(&slot_prefix))
+            .collect();
         assert!(
             cascaded.is_empty(),
             "meta-only optional peer `{optional_peer}` must NOT reach the virtual store; \

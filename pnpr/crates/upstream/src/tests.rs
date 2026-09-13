@@ -9,8 +9,8 @@ mod circuit_breaker;
 mod metadata_requests;
 
 use super::{
-    CacheValidators, CircuitBreaker, FetchOutcome, PackumentFetch, UPSTREAM_ERROR_BODY_LIMIT,
-    Upstream, abbreviate_packument, extract_version_manifest, rewrite_tarball_urls,
+    CacheValidators, CircuitBreaker, FetchOutcome, PackumentFetch, Upstream, abbreviate_packument,
+    extract_version_manifest, http::UPSTREAM_ERROR_BODY_LIMIT, rewrite_tarball_urls,
     rewrite_upstream_tarball_urls, tarball_basename,
 };
 use chrono::{DateTime, TimeZone, Utc};
@@ -99,7 +99,13 @@ async fn assert_redirect_timeout(delay_body: bool) {
         let FetchOutcome::Ok(response) = result.unwrap() else {
             panic!("expected artifact response")
         };
-        assert!(response.bytes().await.unwrap_err().is_timeout());
+        assert!(
+            response
+                .bytes()
+                .await
+                .unwrap_err()
+                .is_timeout(),
+        );
     } else {
         assert!(
             matches!(result, Err(RegistryError::Upstream { source, .. }) if source.is_timeout()),

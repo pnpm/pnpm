@@ -92,11 +92,10 @@ async fn start_pnpr_inner(
         config.routing.upstreams.insert(name, upstream);
     }
     for registry in public_registries {
-        config
-            .routing
-            .route_policy
-            .public
-            .push(pnpr::PublicRoute { registry: Some(registry), package: None });
+        config.routing.route_policy.public.push(pnpr::PublicRoute {
+            registry: Some(registry),
+            package: None,
+        });
     }
 
     tokio::spawn(async move {
@@ -157,7 +156,10 @@ async fn capture_one_request_with_response(listener: TcpListener, response: Stri
         // boundary is located in the raw bytes so the index stays aligned
         // with `buffer.len()` below: decoding first would rewrite any
         // non-UTF-8 byte as a longer replacement character and shift it.
-        let Some(headers_end) = buffer.windows(4).position(|window| window == b"\r\n\r\n") else {
+        let Some(headers_end) = buffer
+            .windows(4)
+            .position(|window| window == b"\r\n\r\n")
+        else {
             continue;
         };
         let headers = String::from_utf8_lossy(&buffer[..headers_end]);
@@ -190,7 +192,10 @@ async fn capture_one_request(listener: TcpListener) -> String {
 }
 
 fn deps<const COUNT: usize>(entries: [(&str, &str); COUNT]) -> BTreeMap<String, String> {
-    entries.into_iter().map(|(name, range)| (name.to_string(), range.to_string())).collect()
+    entries
+        .into_iter()
+        .map(|(name, range)| (name.to_string(), range.to_string()))
+        .collect()
 }
 
 /// Register a user with an npm-compatible registry and return its bearer
@@ -206,7 +211,10 @@ async fn register_token(registry_url: &str, username: &str) -> String {
         .expect("adduser request");
     assert!(response.status().is_success(), "adduser returned {}", response.status());
     let json: serde_json::Value = response.json().await.expect("adduser response json");
-    json["token"].as_str().expect("token in adduser response").to_string()
+    json["token"]
+        .as_str()
+        .expect("token in adduser response")
+        .to_string()
 }
 
 fn options(

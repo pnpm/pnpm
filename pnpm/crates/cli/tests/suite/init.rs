@@ -31,8 +31,17 @@ fn pinning_fixture(served_pnpm_version: &str) -> CommandTempCwd<AddMockedRegistr
 
 #[test]
 fn should_create_package_json() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } = pinning_fixture(LATEST_PNPM);
-    pacquet.with_arg("init").assert().success();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = pinning_fixture(LATEST_PNPM);
+    pacquet
+        .with_arg("init")
+        .assert()
+        .success();
 
     let manifest_path = workspace.join("package.json");
     dbg!(&manifest_path);
@@ -56,8 +65,17 @@ fn should_create_package_json() {
 
 #[test]
 fn the_pin_follows_the_registry_latest_rather_than_the_running_pnpm() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } = pinning_fixture(LATEST_PNPM);
-    pacquet.with_arg("init").assert().success();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = pinning_fixture(LATEST_PNPM);
+    pacquet
+        .with_arg("init")
+        .assert()
+        .success();
 
     let manifest: serde_json::Value = fs::read_to_string(workspace.join("package.json"))
         .expect("read from package.json")
@@ -76,8 +94,17 @@ fn the_pin_follows_the_registry_latest_rather_than_the_running_pnpm() {
 /// being tagged; the pin must not move a fresh project backwards onto it.
 #[test]
 fn a_latest_older_than_the_running_pnpm_is_not_pinned() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } = pinning_fixture("1.0.0");
-    pacquet.with_arg("init").assert().success();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = pinning_fixture("1.0.0");
+    pacquet
+        .with_arg("init")
+        .assert()
+        .success();
 
     assert_pinned_to_the_running_pnpm(&workspace);
 
@@ -92,7 +119,10 @@ fn an_unreachable_registry_pins_the_running_pnpm() {
     // Port 1 is reserved and unbound, so the connection is refused at once
     // rather than waiting out the lookup's timeout.
     pacquet.env("PNPM_CONFIG_REGISTRY", "http://127.0.0.1:1/");
-    pacquet.with_arg("init").assert().success();
+    pacquet
+        .with_arg("init")
+        .assert()
+        .success();
 
     assert_pinned_to_the_running_pnpm(&workspace);
 
@@ -104,10 +134,18 @@ fn an_unreachable_registry_pins_the_running_pnpm() {
 /// version is only possible if the lookup never happened.
 #[test]
 fn offline_pins_the_running_pnpm_without_a_lookup() {
-    let CommandTempCwd { mut pacquet, root, workspace, npmrc_info, .. } =
-        pinning_fixture(LATEST_PNPM);
+    let CommandTempCwd {
+        mut pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = pinning_fixture(LATEST_PNPM);
     pacquet.env("PNPM_CONFIG_OFFLINE", "true");
-    pacquet.with_arg("init").assert().success();
+    pacquet
+        .with_arg("init")
+        .assert()
+        .success();
 
     assert_pinned_to_the_running_pnpm(&workspace);
 
@@ -131,7 +169,10 @@ fn should_throw_on_existing_file() {
     fs::write(&manifest_path, "{}").expect("write to package.json");
 
     eprintln!("Executing pacquet init...");
-    let output = pacquet.with_arg("init").output().expect("execute pacquet init");
+    let output = pacquet
+        .with_arg("init")
+        .output()
+        .expect("execute pacquet init");
     dbg!(&output);
 
     eprintln!("Exit status code");
@@ -146,7 +187,11 @@ fn should_throw_on_existing_file() {
 #[test]
 fn no_init_package_manager_leaves_the_manifest_unpinned() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    pacquet.with_arg("init").with_arg("--no-init-package-manager").assert().success();
+    pacquet
+        .with_arg("init")
+        .with_arg("--no-init-package-manager")
+        .assert()
+        .success();
 
     assert_unpinned(&workspace);
 
@@ -158,7 +203,10 @@ fn init_package_manager_off_in_the_workspace_manifest_leaves_the_manifest_unpinn
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("pnpm-workspace.yaml"), "initPackageManager: false\n")
         .expect("write to pnpm-workspace.yaml");
-    pacquet.with_arg("init").assert().success();
+    pacquet
+        .with_arg("init")
+        .assert()
+        .success();
 
     assert_unpinned(&workspace);
 
@@ -167,10 +215,19 @@ fn init_package_manager_off_in_the_workspace_manifest_leaves_the_manifest_unpinn
 
 #[test]
 fn a_workspace_root_is_pinned() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } = pinning_fixture(LATEST_PNPM);
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = pinning_fixture(LATEST_PNPM);
     fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
         .expect("write to pnpm-workspace.yaml");
-    pacquet.with_arg("init").assert().success();
+    pacquet
+        .with_arg("init")
+        .assert()
+        .success();
 
     let manifest =
         fs::read_to_string(workspace.join("package.json")).expect("read from package.json");
@@ -188,7 +245,11 @@ fn a_new_workspace_member_is_not_pinned() {
         .expect("write to pnpm-workspace.yaml");
     let member = workspace.join("packages/foo");
     fs::create_dir_all(&member).expect("create the workspace member directory");
-    pacquet.with_current_dir(&member).with_arg("init").assert().success();
+    pacquet
+        .with_current_dir(&member)
+        .with_arg("init")
+        .assert()
+        .success();
 
     assert_unpinned(&member);
 
@@ -226,8 +287,19 @@ fn assert_unpinned(dir: &Path) {
 
 #[test]
 fn init_type_commonjs_leaves_the_type_field_out() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } = pinning_fixture(LATEST_PNPM);
-    pacquet.with_arg("init").with_arg("--init-type").with_arg("commonjs").assert().success();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = pinning_fixture(LATEST_PNPM);
+    pacquet
+        .with_arg("init")
+        .with_arg("--init-type")
+        .with_arg("commonjs")
+        .assert()
+        .success();
 
     let manifest =
         fs::read_to_string(workspace.join("package.json")).expect("read from package.json");
@@ -238,10 +310,19 @@ fn init_type_commonjs_leaves_the_type_field_out() {
 
 #[test]
 fn init_type_from_the_workspace_manifest_is_honored() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } = pinning_fixture(LATEST_PNPM);
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = pinning_fixture(LATEST_PNPM);
     fs::write(workspace.join("pnpm-workspace.yaml"), "initType: commonjs\n")
         .expect("write to pnpm-workspace.yaml");
-    pacquet.with_arg("init").assert().success();
+    pacquet
+        .with_arg("init")
+        .assert()
+        .success();
 
     let manifest =
         fs::read_to_string(workspace.join("package.json")).expect("read from package.json");
@@ -252,7 +333,13 @@ fn init_type_from_the_workspace_manifest_is_honored() {
 
 #[test]
 fn the_author_license_and_version_settings_replace_the_scaffold_placeholders() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } = pinning_fixture(LATEST_PNPM);
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = pinning_fixture(LATEST_PNPM);
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         "initAuthorName: pnpm\n\
@@ -262,7 +349,10 @@ fn the_author_license_and_version_settings_replace_the_scaffold_placeholders() {
          initVersion: 2.0.0\n",
     )
     .expect("write to pnpm-workspace.yaml");
-    pacquet.with_arg("init").assert().success();
+    pacquet
+        .with_arg("init")
+        .assert()
+        .success();
 
     let manifest: serde_json::Value = fs::read_to_string(workspace.join("package.json"))
         .expect("read from package.json")
@@ -279,8 +369,17 @@ fn the_author_license_and_version_settings_replace_the_scaffold_placeholders() {
 /// the empty `author` field npm's scaffold carries.
 #[test]
 fn the_scaffold_placeholders_stand_without_the_init_settings() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } = pinning_fixture(LATEST_PNPM);
-    pacquet.with_arg("init").assert().success();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = pinning_fixture(LATEST_PNPM);
+    pacquet
+        .with_arg("init")
+        .assert()
+        .success();
 
     let manifest: serde_json::Value = fs::read_to_string(workspace.join("package.json"))
         .expect("read from package.json")

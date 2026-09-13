@@ -494,9 +494,10 @@ fn build_cors_config(file: CorsFile) -> Result<CorsConfig, RegistryError> {
 }
 
 fn normalize_cors_origin(raw: &str) -> Result<String, RegistryError> {
-    let parsed = url::Url::parse(raw).map_err(|_| RegistryError::InvalidConfig {
-        reason: format!("CORS allowed origin {raw:?} is not an absolute URL"),
-    })?;
+    let parsed = url::Url::parse(raw)
+        .map_err(|_| RegistryError::InvalidConfig {
+            reason: format!("CORS allowed origin {raw:?} is not an absolute URL"),
+        })?;
     if !matches!(parsed.scheme(), "http" | "https")
         || !parsed.username().is_empty()
         || parsed.password().is_some()
@@ -517,8 +518,7 @@ fn build_route_policy(file: Option<RoutesFile>) -> RoutePolicy {
     match file {
         None => RoutePolicy::default(),
         Some(file) => RoutePolicy {
-            public: file
-                .public
+            public: file.public
                 .into_iter()
                 .map(|route| PublicRoute { registry: route.registry, package: route.package })
                 .collect(),
@@ -580,7 +580,10 @@ fn config_file_in(dir: Option<PathBuf>) -> Option<PathBuf> {
 /// stops the tokens file from leaking into a `storage` directory
 /// that may be served over HTTP through an unrelated misconfig.
 fn default_tokens_path_sibling_of(htpasswd: &Path) -> PathBuf {
-    htpasswd.parent().unwrap_or_else(|| Path::new(".")).join("tokens.db")
+    htpasswd
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .join("tokens.db")
 }
 
 /// Resolve a (possibly relative) storage path against `base_dir`.
@@ -620,11 +623,10 @@ fn parse_storage_access(
         .map(|(name, policy)| {
             validate_registry_name(&name)?;
             let parse = |spec: &AccessSpec| {
-                spec.to_access_list(&Teams::default()).map_err(|reason| {
-                    RegistryError::InvalidConfig {
+                spec.to_access_list(&Teams::default())
+                    .map_err(|reason| RegistryError::InvalidConfig {
                         reason: format!("storage namespace {name:?}: {reason}"),
-                    }
-                })
+                    })
             };
             let access =
                 StorageAccess { access: parse(&policy.access)?, publish: parse(&policy.publish)? };
@@ -635,8 +637,7 @@ fn parse_storage_access(
 
 fn resolve_storage_paths(file: &ConfigFile, base_dir: &Path) -> (PathBuf, PathBuf) {
     let storage = resolve_relative(&file.storage, base_dir);
-    let cache = file
-        .cache
+    let cache = file.cache
         .as_deref()
         .map_or_else(|| default_cache_dir(&storage), |raw| resolve_relative(raw, base_dir));
     (storage, cache)

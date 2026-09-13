@@ -22,7 +22,10 @@ pub(crate) fn overlay_merged_selectors(
     if versions.is_empty() {
         return None;
     }
-    let mut selectors = opts.version.preferred_versions.get(name).cloned().unwrap_or_default();
+    let mut selectors = opts.version.preferred_versions
+        .get(name)
+        .cloned()
+        .unwrap_or_default();
     for version in versions {
         selectors
             .entry(version.to_string())

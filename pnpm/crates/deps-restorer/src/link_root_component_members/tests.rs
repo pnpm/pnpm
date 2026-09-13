@@ -48,7 +48,10 @@ fn injected_member_key_matches_file_and_file_alias() {
     // A registry version and a real npm alias are not members.
     let registry = ResolvedDependencySpec {
         specifier: "^16".to_string(),
-        version: "16.14.0".parse::<pnpm_lockfile::PkgVerPeer>().unwrap().into(),
+        version: "16.14.0"
+            .parse::<pnpm_lockfile::PkgVerPeer>()
+            .unwrap()
+            .into(),
     };
     assert!(injected_member_key(&name, &registry).is_none());
     let npm_alias = ResolvedDependencySpec {
@@ -136,7 +139,10 @@ fn injected_members_link_declared_siblings() {
         "react".parse().unwrap(),
         ResolvedDependencySpec {
             specifier: "16".to_string(),
-            version: "16.14.0".parse::<pnpm_lockfile::PkgVerPeer>().unwrap().into(),
+            version: "16.14.0"
+                .parse::<pnpm_lockfile::PkgVerPeer>()
+                .unwrap()
+                .into(),
         },
     );
 
@@ -558,5 +564,7 @@ fn empty_root_component_set_is_a_no_op() {
 /// Build the flagged-importer set the linker gates on, from a slice of
 /// importer ids.
 fn id_set(ids: &[&str]) -> std::collections::HashSet<String> {
-    ids.iter().map(|id| (*id).to_string()).collect()
+    ids.iter()
+        .map(|id| (*id).to_string())
+        .collect()
 }

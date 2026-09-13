@@ -171,8 +171,11 @@ impl Config {
     pub(super) fn load_global_settings<Sys: EnvVar>(
         &self,
     ) -> Result<Option<WorkspaceSettings>, LoadWorkspaceYamlError> {
-        let mut global_settings =
-            self.config_dir.as_deref().map(WorkspaceSettings::load_global).transpose()?.flatten();
+        let mut global_settings = self.config_dir
+            .as_deref()
+            .map(WorkspaceSettings::load_global)
+            .transpose()?
+            .flatten();
         if let Some(global_settings) = global_settings.as_mut() {
             global_settings.substitute_env_trusted::<Sys>();
         }
@@ -216,8 +219,9 @@ impl Config {
         env_settings.apply_to(self, start_dir);
         self.workspace_dir = saved_workspace_dir;
         self.apply_remote_side_effects_cache_env::<Sys>();
-        if let Some(configured_state_dir) =
-            configured_state_dir.as_deref().filter(|value| !value.is_empty())
+        if let Some(configured_state_dir) = configured_state_dir
+            .as_deref()
+            .filter(|value| !value.is_empty())
         {
             self.state_dir = resolve_configured_state_dir(default_state_dir, configured_state_dir);
         }

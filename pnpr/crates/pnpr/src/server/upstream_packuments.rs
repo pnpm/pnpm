@@ -81,11 +81,9 @@ pub(super) async fn cache_upstream_packument(
     match fetched {
         PackumentFetch::Modified(fetched) => {
             if upstream.caches()
-                && let Err(err) = state
-                    .inner
-                    .storage
-                    .write_upstream_document(namespace, name, &fetched.bytes)
-                    .await
+                && let Err(err) =
+                    state.inner.storage.write_upstream_document(namespace, name, &fetched.bytes)
+                        .await
             {
                 tracing::warn!(?err, package = %name.as_str(), "upstream packument cache write failed");
             }

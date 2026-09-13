@@ -182,8 +182,7 @@ async fn read_local_tarball_metadata_reads_integrity_and_bundled_manifest() {
     let tarball_path = local_dir.path().join("pkg.tgz");
     std::fs::write(&tarball_path, FASTIFY_ERROR_TARBALL).unwrap();
 
-    let metadata = read_local_tarball_metadata(&tarball_path)
-        .await
+    let metadata = read_local_tarball_metadata(&tarball_path).await
         .expect("read the local tarball's metadata");
 
     assert_eq!(metadata.integrity.to_string(), FASTIFY_ERROR_INTEGRITY);
@@ -256,7 +255,10 @@ async fn fetch_and_extract_records_expected_or_computed_integrity() {
         let index = StoreIndex::open_in(store_path).expect("open store index");
         let key = store_index_key(&expected.to_string(), package_id);
         assert_eq!(index.keys().expect("read index keys"), vec![key.clone()]);
-        let entry = index.get(&key).expect("read index entry").expect("archive is indexed");
+        let entry = index
+            .get(&key)
+            .expect("read index entry")
+            .expect("archive is indexed");
         assert_eq!(entry.manifest, Some(manifest));
         assert_eq!(entry.requires_build, Some(false));
         drop((index, store_dir));

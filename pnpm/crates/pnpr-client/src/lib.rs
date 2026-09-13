@@ -475,7 +475,9 @@ impl PnprClient {
                 "pipeline report credentials require HTTPS or a loopback server".to_string(),
             ));
         }
-        let http = Client::builder().redirect(reqwest::redirect::Policy::none()).build()?;
+        let http = Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()?;
         let mut put = http
             .put(format!("{}-/pnpr/v0/pipeline/runs", self.base_url))
             .timeout(self.artifact_request_timeout)
@@ -503,7 +505,9 @@ impl PnprClient {
     pub async fn supports_ecosystem(&self, ecosystem: &str) -> Result<bool, PnprClientError> {
         let capability = self.fetch_handshake(None).await?;
         Self::require_resolver_protocol(&capability)?;
-        Ok(capability.ecosystems.iter().any(|supported| supported == ecosystem))
+        Ok(capability.ecosystems
+            .iter()
+            .any(|supported| supported == ecosystem))
     }
 }
 
@@ -511,7 +515,10 @@ async fn response_body_bounded(
     response: reqwest::Response,
     limit: usize,
 ) -> Result<Vec<u8>, PnprClientError> {
-    if response.content_length().is_some_and(|length| length > limit as u64) {
+    if response
+        .content_length()
+        .is_some_and(|length| length > limit as u64)
+    {
         return Err(PnprClientError::Protocol(format!(
             "pnpr response exceeds the {limit}-byte limit",
         )));

@@ -69,7 +69,14 @@ fn upstream_custom_headers_are_forwarded() {
     let headers = IndexMap::from_iter([("x-custom".to_string(), "value".to_string())]);
     let upstream = resolve_upstream("npmjs", upstream_config_file(None, headers))
         .expect("custom headers resolve");
-    assert_eq!(upstream.headers.get("x-custom").unwrap().to_str().unwrap(), "value");
+    assert_eq!(
+        upstream.headers
+            .get("x-custom")
+            .unwrap()
+            .to_str()
+            .unwrap(),
+        "value",
+    );
     assert!(auth_header(&upstream).is_none());
 }
 
@@ -180,10 +187,21 @@ registries:
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     let upstream = &config.routing.upstreams["npmjs"];
     assert_eq!(
-        upstream.headers.get(AUTHORIZATION).unwrap().to_str().unwrap(),
+        upstream.headers
+            .get(AUTHORIZATION)
+            .unwrap()
+            .to_str()
+            .unwrap(),
         "Bearer secret-token",
     );
-    assert_eq!(upstream.headers.get("x-org").unwrap().to_str().unwrap(), "acme");
+    assert_eq!(
+        upstream.headers
+            .get("x-org")
+            .unwrap()
+            .to_str()
+            .unwrap(),
+        "acme",
+    );
 }
 
 #[test]
@@ -386,7 +404,12 @@ registries:
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     let rules = &config.routing.upstreams["npmjs"].rules;
     assert!(!rules.for_package("@internal/x").access.allows(&Identity::Anonymous));
-    assert!(rules.for_package("@internal/x").access.allows(&user("alice")));
+    assert!(
+        rules
+            .for_package("@internal/x")
+            .access
+            .allows(&user("alice")),
+    );
     assert!(rules.for_package("lodash").access.allows(&Identity::Anonymous));
 }
 

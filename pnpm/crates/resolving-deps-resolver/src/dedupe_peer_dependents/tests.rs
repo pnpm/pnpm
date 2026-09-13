@@ -112,10 +112,14 @@ fn rewrites_importer_direct_dep_and_prunes_orphan() {
     let mut graph = build_graph();
     let mut direct: DirectByImporter = BTreeMap::new();
     direct.insert("project-subset".to_string(), BTreeMap::from([("foo".to_string(), dp(SUBSET))]));
-    direct
-        .insert("project-baz".to_string(), BTreeMap::from([("foo".to_string(), dp(BAZ_VARIANT))]));
-    direct
-        .insert("project-qux".to_string(), BTreeMap::from([("foo".to_string(), dp(QUX_VARIANT))]));
+    direct.insert(
+        "project-baz".to_string(),
+        BTreeMap::from([("foo".to_string(), dp(BAZ_VARIANT))]),
+    );
+    direct.insert(
+        "project-qux".to_string(),
+        BTreeMap::from([("foo".to_string(), dp(QUX_VARIANT))]),
+    );
 
     dedupe_peer_dependents(&mut graph, &mut direct);
 
@@ -232,10 +236,14 @@ fn incompatible_variants_do_not_collapse() {
     graph.remove(&dp(SUBSET));
 
     let mut direct: DirectByImporter = BTreeMap::new();
-    direct
-        .insert("project-baz".to_string(), BTreeMap::from([("foo".to_string(), dp(BAZ_VARIANT))]));
-    direct
-        .insert("project-qux".to_string(), BTreeMap::from([("foo".to_string(), dp(QUX_VARIANT))]));
+    direct.insert(
+        "project-baz".to_string(),
+        BTreeMap::from([("foo".to_string(), dp(BAZ_VARIANT))]),
+    );
+    direct.insert(
+        "project-qux".to_string(),
+        BTreeMap::from([("foo".to_string(), dp(QUX_VARIANT))]),
+    );
 
     dedupe_peer_dependents(&mut graph, &mut direct);
 

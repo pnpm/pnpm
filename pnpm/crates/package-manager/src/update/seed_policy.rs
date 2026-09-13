@@ -118,8 +118,11 @@ pub(super) async fn all_direct_seed_policy<Reporter: self::Reporter>(
     let ignore_patterns =
         scope.config.update_config.ignore_dependencies.as_deref().unwrap_or_default();
     let ignore_matcher = (!ignore_patterns.is_empty()).then(|| create_matcher(ignore_patterns));
-    let is_ignored =
-        |name: &str| ignore_matcher.as_ref().is_some_and(|matcher| matcher.matches(name));
+    let is_ignored = |name: &str| {
+        ignore_matcher
+            .as_ref()
+            .is_some_and(|matcher| matcher.matches(name))
+    };
     if scope.version.latest && !scope.version.save {
         emit_latest_ignored::<Reporter>(rewrite_ctx.manifest);
     }
@@ -163,7 +166,9 @@ pub(super) async fn record_direct_update(
         plan.rewrites.push((name.clone(), group, specifier));
     }
     if scope.version.save && !scope.version.latest {
-        plan.bump_targets.entry(name.clone()).or_insert_with(|| (group, previous.clone()));
+        plan.bump_targets
+            .entry(name.clone())
+            .or_insert_with(|| (group, previous.clone()));
     }
     plan.drop_targets.insert(name.clone(), None);
     Ok(())
@@ -195,15 +200,19 @@ pub(super) fn name_matched_seed_policy(
     scope: &UpdateScope<'_>,
     plan: &mut UpdatePlan,
 ) -> UpdateSeedPolicy {
-    let patterns =
-        scope.selectors.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>();
+    let patterns = scope.selectors
+        .iter()
+        .map(|selector| selector.pattern.clone())
+        .collect::<Vec<_>>();
     let matcher = create_matcher(&patterns);
     for (name, group, previous) in scope.direct {
         if !matcher.matches(name) {
             continue;
         }
         if scope.version.save {
-            plan.bump_targets.entry(name.clone()).or_insert_with(|| (*group, previous.clone()));
+            plan.bump_targets
+                .entry(name.clone())
+                .or_insert_with(|| (*group, previous.clone()));
         }
         plan.drop_targets.insert(name.clone(), None);
     }
@@ -234,12 +243,13 @@ pub(super) async fn selector_seed_policy<Reporter: self::Reporter>(
     latest_chain: &mut Option<LatestResolverChain>,
     catalog_ctx: &mut Option<CatalogCtx>,
 ) -> Result<Option<UpdateSeedPolicy>, UpdateError> {
-    let patterns =
-        scope.selectors.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>();
+    let patterns = scope.selectors
+        .iter()
+        .map(|selector| selector.pattern.clone())
+        .collect::<Vec<_>>();
     let matcher = create_matcher(&patterns);
     let expanded = expand_update_selectors(scope.selectors);
-    let matched_direct = scope
-        .direct
+    let matched_direct = scope.direct
         .iter()
         .filter(|(name, _, _)| matcher.matches(name))
         .cloned()
@@ -277,7 +287,10 @@ pub(super) fn widen_drop_targets_by_selectors(
         return;
     };
     let target_matcher = create_matcher(
-        &expanded.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>(),
+        &expanded
+            .iter()
+            .map(|selector| selector.pattern.clone())
+            .collect::<Vec<_>>(),
     );
     for key in snapshots.keys() {
         let name = key.name.to_string();

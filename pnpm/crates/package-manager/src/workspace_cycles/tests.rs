@@ -4,7 +4,10 @@ use pretty_assertions::assert_eq;
 use std::path::PathBuf;
 
 fn dirs(names: &[&str]) -> Vec<PathBuf> {
-    names.iter().map(PathBuf::from).collect()
+    names
+        .iter()
+        .map(PathBuf::from)
+        .collect()
 }
 
 fn make_graph(adjacency: &[(&str, &[&str])]) -> ProjectGraph<()> {

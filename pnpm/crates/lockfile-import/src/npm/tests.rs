@@ -8,7 +8,10 @@ use super::collect_npm_lockfile_versions;
 fn collect(lockfile: &serde_json::Value) -> Vec<(String, Vec<String>)> {
     let mut versions = VersionsByPackageName::new();
     collect_npm_lockfile_versions(lockfile, &mut versions);
-    versions.into_iter().map(|(name, versions)| (name, versions.into_iter().collect())).collect()
+    versions
+        .into_iter()
+        .map(|(name, versions)| (name, versions.into_iter().collect()))
+        .collect()
 }
 
 #[test]

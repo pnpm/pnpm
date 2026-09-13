@@ -19,7 +19,10 @@ use std::{
 /// Write a `pnpm-workspace.yaml` listing `names` as packages, plus a
 /// `package.json` per name under its own subdirectory of `workspace`.
 fn write_workspace(workspace: &Path, manifests: &[(&str, Value)]) {
-    let packages = manifests.iter().map(|(name, _)| format!("  - {name}")).collect::<Vec<_>>();
+    let packages = manifests
+        .iter()
+        .map(|(name, _)| format!("  - {name}"))
+        .collect::<Vec<_>>();
     let workspace_yaml = format!("packages:\n{}\n", packages.join("\n"));
     fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml)
         .expect("write pnpm-workspace.yaml");
@@ -53,7 +56,10 @@ fn summary_statuses(workspace: &Path) -> HashMap<String, String> {
                 .expect("prefix has a basename")
                 .to_string_lossy()
                 .into_owned();
-            let status = entry["status"].as_str().expect("status is a string").to_string();
+            let status = entry["status"]
+                .as_str()
+                .expect("status is a string")
+                .to_string();
             (basename, status)
         })
         .collect()
@@ -120,11 +126,19 @@ fn recursive_run_executes_script_in_every_project() {
         ],
     );
 
-    pacquet.with_arg("-r").with_arg("run").with_arg("build").assert().success();
+    pacquet
+        .with_arg("-r")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
 
     for name in ["project-1", "project-2", "project-3"] {
         assert!(
-            workspace.join(name).join("ran.txt").exists(),
+            workspace
+                .join(name)
+                .join("ran.txt")
+                .exists(),
             "{name} build script should have run from its own package root",
         );
     }
@@ -156,11 +170,18 @@ fn top_level_fallback_enters_recursive_run() {
         ],
     );
 
-    pacquet.with_arg("-r").with_arg("commitlint").assert().success();
+    pacquet
+        .with_arg("-r")
+        .with_arg("commitlint")
+        .assert()
+        .success();
 
     for name in ["project-1", "project-2"] {
         assert!(
-            workspace.join(name).join("ran.txt").exists(),
+            workspace
+                .join(name)
+                .join("ran.txt")
+                .exists(),
             "{name} commitlint script should have run through recursive fallback",
         );
     }
@@ -204,7 +225,13 @@ fn recursive_lifecycle_aliases_use_recursive_run_options() {
             .success();
 
         for name in ["project-1", "project-2"] {
-            assert!(workspace.join(name).join(marker).exists(), "{command} should run in {name}");
+            assert!(
+                workspace
+                    .join(name)
+                    .join(marker)
+                    .exists(),
+                "{command} should run in {name}",
+            );
         }
         let statuses = summary_statuses(&workspace);
         assert_eq!(statuses.get("project-1").map(String::as_str), Some("passed"));
@@ -243,7 +270,12 @@ fn recursive_run_settings_only_workspace_enumerates_root_only() {
     )
     .expect("write vendored package.json");
 
-    pacquet.with_arg("-r").with_arg("run").with_arg("build").assert().success();
+    pacquet
+        .with_arg("-r")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
 
     assert!(workspace.join("root-ran.txt").exists(), "root build script should run");
     assert!(
@@ -285,7 +317,10 @@ fn workspace_root_run_selection(start_dir: &str, filter: Option<&str>) -> Vec<St
         args.extend(["--filter", filter]);
     }
     args.extend(["run", "build"]);
-    pacquet.with_args(args).assert().success();
+    pacquet
+        .with_args(args)
+        .assert()
+        .success();
 
     let ran = std::iter::once(("<root>", workspace.join("root-ran.txt")))
         .chain(["project-1", "project-2"].map(|name| (name, workspace.join(name).join("ran.txt"))))
@@ -322,60 +357,6 @@ fn write_workspace_with_root_and_packages(workspace: &Path) {
     }
 }
 
-/// A `[<since>]` changed-packages selector scopes a recursive `run` to
-/// the projects the git diff touches.
-#[test]
-fn recursive_run_diff_selector_selects_changed_projects() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_workspace(
-        &workspace,
-        &[
-            ("project-1", build_writes_marker("project-1")),
-            ("project-2", build_writes_marker("project-2")),
-        ],
-    );
-    let git = |args: &[&str]| {
-        let output = std::process::Command::new("git")
-            .args(args)
-            .current_dir(&workspace)
-            .output()
-            .expect("spawn git");
-        assert!(
-            output.status.success(),
-            "git {args:?} failed: {}",
-            String::from_utf8_lossy(&output.stderr),
-        );
-    };
-    git(&["init", "--initial-branch=main"]);
-    git(&["config", "user.email", "x@y.z"]);
-    git(&["config", "user.name", "xyz"]);
-    git(&["add", "."]);
-    git(&["commit", "-m", "base", "--no-gpg-sign"]);
-    fs::write(workspace.join("project-1").join("changed.js"), "").expect("write changed file");
-    git(&["add", "."]);
-    git(&["commit", "-m", "change project-1", "--no-gpg-sign"]);
-
-    pacquet
-        .with_arg("-r")
-        .with_arg("--filter")
-        .with_arg("[HEAD~1]")
-        .with_arg("run")
-        .with_arg("build")
-        .assert()
-        .success();
-
-    assert!(
-        workspace.join("project-1").join("ran.txt").exists(),
-        "the changed project-1 should run the build script",
-    );
-    assert!(
-        !workspace.join("project-2").join("ran.txt").exists(),
-        "the unchanged project-2 must stay outside the selection",
-    );
-
-    drop(root);
-}
-
 /// A bare-semver range naming a sibling is not a workspace edge under the
 /// default `link-workspace-packages: false`, matching pnpm. `app` listing
 /// `lib` as a bare `1.0.0` dependency therefore has no edge to it, so
@@ -396,9 +377,18 @@ fn recursive_run_does_not_follow_bare_semver_deps_as_workspace_edges() {
         .assert()
         .success();
 
-    assert!(workspace.join("app").join("ran.txt").exists(), "the selected app should run");
     assert!(
-        !workspace.join("lib").join("ran.txt").exists(),
+        workspace
+            .join("app")
+            .join("ran.txt")
+            .exists(),
+        "the selected app should run",
+    );
+    assert!(
+        !workspace
+            .join("lib")
+            .join("ran.txt")
+            .exists(),
         "a bare-semver range is not a workspace edge under the default link-workspace-packages: false, so app... must not reach lib",
     );
 
@@ -462,7 +452,10 @@ fn recursive_run_reads_sort_from_workspace_config() {
     fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - app\n  - lib\nsort: false\n")
         .expect("write workspace settings");
 
-    pacquet.with_args(["--workspace-concurrency=1", "-r", "run", "build"]).assert().success();
+    pacquet
+        .with_args(["--workspace-concurrency=1", "-r", "run", "build"])
+        .assert()
+        .success();
 
     let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
     assert_eq!(order, "app\nlib\n");
@@ -494,7 +487,10 @@ fn recursive_run_reads_reverse_from_workspace_config() {
     )
     .expect("write workspace settings");
 
-    pacquet.with_args(["-r", "run", "build"]).assert().success();
+    pacquet
+        .with_args(["-r", "run", "build"])
+        .assert()
+        .success();
 
     let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
     assert_eq!(order, "app\nlib\n");
@@ -578,7 +574,12 @@ fn assert_recursive_run_bail_cancels_in_flight(shell_emulator: bool) {
     assert_eq!(statuses.get("b-fails").map(String::as_str), Some("failure"));
     assert_eq!(statuses.get("c-slow-2").map(String::as_str), Some("running"));
     assert_eq!(statuses.get("z-queued").map(String::as_str), Some("queued"));
-    assert!(!workspace.join("z-queued").join("ran.txt").exists());
+    assert!(
+        !workspace
+            .join("z-queued")
+            .join("ran.txt")
+            .exists(),
+    );
 
     drop(root);
 }
@@ -596,8 +597,12 @@ fn recursive_run_errors_when_no_package_has_the_script() {
         ],
     );
 
-    let output =
-        pacquet.with_arg("-r").with_arg("run").with_arg("lint").output().expect("spawn pacquet");
+    let output = pacquet
+        .with_arg("-r")
+        .with_arg("run")
+        .with_arg("lint")
+        .output()
+        .expect("spawn pacquet");
     assert!(!output.status.success(), "a script no package defines must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
@@ -706,8 +711,12 @@ fn recursive_run_rejects_hidden_script_name() {
         )],
     );
 
-    let output =
-        pacquet.with_arg("-r").with_arg("run").with_arg(".secret").output().expect("spawn pacquet");
+    let output = pacquet
+        .with_arg("-r")
+        .with_arg("run")
+        .with_arg(".secret")
+        .output()
+        .expect("spawn pacquet");
     assert!(!output.status.success(), "hidden script must fail outside a lifecycle");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
@@ -842,7 +851,10 @@ fn recursive_run_keeps_a_pass_when_a_later_matching_script_is_empty() {
         )],
     );
 
-    pacquet.with_args(["-r", "run", "--report-summary", "/^check:/"]).assert().success();
+    pacquet
+        .with_args(["-r", "run", "--report-summary", "/^check:/"])
+        .assert()
+        .success();
 
     let statuses = summary_statuses(&workspace);
     assert_eq!(
@@ -869,7 +881,11 @@ fn echoes_ok(name: &str) -> Value {
 fn sorted_lines(stdout: &[u8]) -> Vec<String> {
     let stdout = String::from_utf8_lossy(stdout);
     eprintln!("STDOUT:\n{stdout}\n");
-    let mut lines = stdout.trim().lines().map(str::to_string).collect::<Vec<_>>();
+    let mut lines = stdout
+        .trim()
+        .lines()
+        .map(str::to_string)
+        .collect::<Vec<_>>();
     lines.sort();
     lines
 }

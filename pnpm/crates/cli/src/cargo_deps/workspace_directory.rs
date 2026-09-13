@@ -27,9 +27,11 @@ pub(super) fn ensure_workspace_directory(
     }
     #[cfg(windows)]
     {
-        let root = fs::canonicalize(root_dir).into_diagnostic().wrap_err_with(|| {
-            format!("resolve Cargo workspace directory {}", root_dir.display())
-        })?;
+        let root = fs::canonicalize(root_dir)
+            .into_diagnostic()
+            .wrap_err_with(|| {
+                format!("resolve Cargo workspace directory {}", root_dir.display())
+            })?;
         ensure_workspace_directory_windows(root, components)
     }
 }
@@ -39,7 +41,9 @@ fn ensure_workspace_directory_unix(root: PathBuf, components: &[&str]) -> Result
     use std::os::unix::fs::OpenOptionsExt as _;
 
     let mut options = fs::OpenOptions::new();
-    options.read(true).custom_flags(libc::O_CLOEXEC | libc::O_DIRECTORY);
+    options
+        .read(true)
+        .custom_flags(libc::O_CLOEXEC | libc::O_DIRECTORY);
     let mut handle = options
         .open(&root)
         .into_diagnostic()

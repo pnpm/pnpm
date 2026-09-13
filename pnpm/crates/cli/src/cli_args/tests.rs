@@ -86,8 +86,8 @@ fn store_dir_accepts_an_explicit_empty_value() {
 #[test]
 fn repeated_state_dir_uses_the_last_value_on_either_side_of_the_subcommand() {
     for argv in [
-        ["pacquet", "--state-dir", "first-state", "--state-dir", "last-state", "install"]
-            .as_slice(),
+        ["pacquet", "--state-dir", "first-state", "--state-dir", "last-state", "install"].as_slice(
+        ),
         ["pacquet", "install", "--state-dir=first-state", "--state-dir=last-state"].as_slice(),
     ] {
         let parsed = CliArgs::try_parse_from(argv).expect("parses repeated global --state-dir");
@@ -298,14 +298,17 @@ fn trust_lockfile_pair_resolves_last_one_wins() {
             .no_trust_lockfile,
     );
     assert!(
-        install_args(&["pacquet", "install", "--trust-lockfile"]).lockfile_updates.trust_lockfile,
+        install_args(&["pacquet", "install", "--trust-lockfile"])
+            .lockfile_updates
+            .trust_lockfile,
     );
 
     // Both spellings in one argv must not error (pnpm forwards raw tokens);
     // mutual `overrides_with` collapses them to the last-specified.
     let last_off = install_args(&["pacquet", "install", "--trust-lockfile", "--no-trust-lockfile"]);
     assert!(
-        last_off.lockfile_updates.no_trust_lockfile && !last_off.lockfile_updates.trust_lockfile,
+        last_off.lockfile_updates.no_trust_lockfile
+            && !last_off.lockfile_updates.trust_lockfile,
         "--no wins when last",
     );
     let last_on = install_args(&["pacquet", "install", "--no-trust-lockfile", "--trust-lockfile"]);

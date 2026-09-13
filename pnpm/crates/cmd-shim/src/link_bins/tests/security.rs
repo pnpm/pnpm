@@ -116,7 +116,10 @@ fn prefer_symlinked_executables_links_bins_as_relative_symlinks() {
     if cfg!(windows) {
         // The setting is inert on Windows: bins keep their shims.
         assert!(
-            std::fs::symlink_metadata(&bin).unwrap().file_type().is_file(),
+            std::fs::symlink_metadata(&bin)
+                .unwrap()
+                .file_type()
+                .is_file(),
             "Windows must keep writing shims under preferSymlinkedExecutables",
         );
         return;
@@ -133,7 +136,11 @@ fn prefer_symlinked_executables_links_bins_as_relative_symlinks() {
     {
         use std::os::unix::fs::PermissionsExt;
         assert_eq!(
-            metadata(pkg_dir.join("cli.js")).unwrap().permissions().mode() & 0o777,
+            metadata(pkg_dir.join("cli.js"))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
             0o755,
             "the target file gets the executable bits, like pnpm's ensureExecutable",
         );
@@ -218,7 +225,10 @@ fn stale_shim_rewrite_replaces_a_symlink_instead_of_writing_through_it() {
 
     assert_eq!(read_to_string(&victim).unwrap(), "precious", "the symlink target is untouched");
     assert!(
-        !std::fs::symlink_metadata(bins_dir.join("foo")).unwrap().file_type().is_symlink(),
+        !std::fs::symlink_metadata(bins_dir.join("foo"))
+            .unwrap()
+            .file_type()
+            .is_symlink(),
         "the shim is a regular file",
     );
     let body = read_to_string(bins_dir.join("foo")).unwrap();

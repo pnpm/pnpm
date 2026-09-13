@@ -8,7 +8,9 @@ use pnpm_network_web_auth_testing::{InputResponse, ok_token, web_auth_fake};
 use serde_json::{Map, Value, json};
 
 fn versions(keys: &[&str]) -> Map<String, Value> {
-    keys.iter().map(|key| ((*key).to_string(), json!({}))).collect()
+    keys.iter()
+        .map(|key| ((*key).to_string(), json!({})))
+        .collect()
 }
 
 #[test]
@@ -123,7 +125,10 @@ fn unpublish_args(registry: &str, otp: Option<&str>, params: &[&str]) -> Unpubli
         registry: Some(registry.to_owned()),
         otp: otp.map(str::to_owned),
         force: true,
-        params: params.iter().map(|param| (*param).to_owned()).collect(),
+        params: params
+            .iter()
+            .map(|param| (*param).to_owned())
+            .collect(),
     }
 }
 

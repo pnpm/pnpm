@@ -61,7 +61,12 @@ fn install_options_for(
     options.dir = project_dir_string.clone();
     options.projects =
         vec![NodeApiProject { root_dir: project_dir_string, manifest, dependency_manifest: None }];
-    options.store_dir = Some(temp_dir.join("store").to_string_lossy().into_owned());
+    options.store_dir = Some(
+        temp_dir
+            .join("store")
+            .to_string_lossy()
+            .into_owned(),
+    );
     options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
     options.return_list_of_deps_requiring_build = Some(true);
     options

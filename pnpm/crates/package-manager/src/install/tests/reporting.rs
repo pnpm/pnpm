@@ -96,7 +96,11 @@ async fn fresh_install_reports_strict_minimum_release_age_violations_before_writ
             MinimumReleaseAgeError::NoMatureMatchingVersion { .. }
         ))
     ));
-    assert!(!dir.path().join("pnpm-lock.yaml").exists());
+    assert!(
+        !dir.path()
+            .join("pnpm-lock.yaml")
+            .exists(),
+    );
     assert!(!modules_dir.exists());
 }
 /// [`Install::run`] emits `pnpm:package-manifest initial`,
@@ -129,7 +133,10 @@ async fn install_emits_pnpm_event_sequence() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -143,9 +150,10 @@ async fn install_emits_pnpm_event_sequence() {
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
     config.virtual_store_dir = dirs.virtual_store_dir.clone();
-    config
-        .registries_by_scope
-        .insert("@private".to_string(), "https://private.example.com/npm/".to_string());
+    config.registries_by_scope.insert(
+        "@private".to_string(),
+        "https://private.example.com/npm/".to_string(),
+    );
     let config = config.leak();
 
     // Empty v9 lockfile: `--frozen-lockfile` walks an empty snapshot
@@ -252,7 +260,12 @@ async fn install_emits_pnpm_event_sequence() {
     };
     assert!(package_names.is_empty(), "no builds in empty lockfile: {package_names:?}");
 
-    let expected_prefix = manifest.path().parent().unwrap().to_string_lossy().into_owned();
+    let expected_prefix = manifest
+        .path()
+        .parent()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
 
     // Manifest event carries the on-disk JSON unchanged so consumers
     // can diff `initial` vs a later `updated` byte-for-byte.
@@ -281,7 +294,13 @@ async fn install_emits_pnpm_event_sequence() {
         unreachable!("context follows the manifest snapshot, asserted above");
     };
     assert!(!current_lockfile_exists);
-    assert_eq!(emitted_store_dir, &dirs.store_dir.join(STORE_VERSION).display().to_string());
+    assert_eq!(
+        emitted_store_dir,
+        &dirs.store_dir
+            .join(STORE_VERSION)
+            .display()
+            .to_string(),
+    );
     assert_eq!(emitted_virtual_store_dir, &dirs.virtual_store_dir.to_string_lossy().into_owned());
 
     // Summary's `prefix` must equal the manifest-parent value
@@ -306,7 +325,10 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -441,7 +463,10 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -535,9 +560,10 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
         .unwrap()
         .iter()
         .filter_map(|event| match event {
-            LogEvent::Stats(StatsLog { message: StatsMessage::Added { added, .. }, .. }) => {
-                Some(*added)
-            }
+            LogEvent::Stats(StatsLog {
+                message: StatsMessage::Added { added, .. },
+                ..
+            }) => Some(*added),
             _ => None,
         })
         .collect();

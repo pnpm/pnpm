@@ -3,11 +3,16 @@ use std::ffi::OsString;
 
 /// Build an argv (with a leading program name) from string slices.
 fn argv(tokens: &[&str]) -> Vec<OsString> {
-    std::iter::once("pnpm").chain(tokens.iter().copied()).map(OsString::from).collect()
+    std::iter::once("pnpm")
+        .chain(tokens.iter().copied())
+        .map(OsString::from)
+        .collect()
 }
 
 fn strings(argv: &[OsString]) -> Vec<String> {
-    argv.iter().map(|token| token.to_string_lossy().into_owned()).collect()
+    argv.iter()
+        .map(|token| token.to_string_lossy().into_owned())
+        .collect()
 }
 
 #[test]

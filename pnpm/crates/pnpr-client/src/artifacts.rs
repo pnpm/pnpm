@@ -153,8 +153,7 @@ fn verify_variant(
     };
     let envelope_digest =
         variant.envelope.digest().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-    let quarantined = opts
-        .quarantined_envelope_digests
+    let quarantined = opts.quarantined_envelope_digests
         .get(candidate.key.as_str())
         .is_some_and(|digests| digests.contains(&envelope_digest));
     if quarantined {
@@ -212,8 +211,7 @@ impl PnprClient {
         authorization: Option<&str>,
     ) -> Result<(), PnprClientError> {
         request.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-        let mut put = self
-            .http
+        let mut put = self.http
             .put(format!("{}-/pnpr/v0/artifacts", self.base_url))
             .timeout(self.artifact_request_timeout)
             .json(request);
@@ -279,8 +277,7 @@ impl PnprClient {
         opts: &ResolveArtifactsOptions,
     ) -> Result<ResolveArtifactsResponse, PnprClientError> {
         let request = ResolveArtifactsRequest { candidates: opts.candidates.clone() };
-        let mut post = self
-            .http
+        let mut post = self.http
             .post(format!("{}-/pnpr/v0/artifacts/resolve", self.base_url))
             .timeout(self.artifact_request_timeout)
             .json(&request);
@@ -308,8 +305,7 @@ impl PnprClient {
         authorization: Option<&str>,
     ) -> Result<Vec<u8>, PnprClientError> {
         request.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-        let mut post = self
-            .http
+        let mut post = self.http
             .post(format!("{}-/pnpr/v0/artifacts/blob", self.base_url))
             .timeout(self.artifact_request_timeout)
             .json(request);

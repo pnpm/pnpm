@@ -256,14 +256,18 @@ impl Resolver {
     /// name never share an entry; the caller's route scope adds the last
     /// namespace segment at fetch time.
     fn cargo_index_cache_dir(&self, registry: &str) -> PathBuf {
-        self.cache.dir.join("cargo-index").join(pnpm_crypto_hash::create_hex_hash(registry))
+        self.cache.dir
+            .join("cargo-index")
+            .join(pnpm_crypto_hash::create_hex_hash(registry))
     }
 
     /// Where `index`'s Python documents are cached. As with Cargo, the
     /// origin is hashed into the path so two indexes serving the same
     /// project never share an entry.
     fn python_index_cache_dir(&self, index: &str) -> PathBuf {
-        self.cache.dir.join("python-index").join(pnpm_crypto_hash::create_hex_hash(index))
+        self.cache.dir
+            .join("python-index")
+            .join(pnpm_crypto_hash::create_hex_hash(index))
     }
 
     /// Resolve (or build + intern) the `&'static Config` for a request's
@@ -537,7 +541,10 @@ struct StoreCandidate<'a> {
 /// Offer a finished resolution to the cache, logging what a private one was
 /// judged on.
 fn store_resolution_candidate(candidate: StoreCandidate<'_>) {
-    let footprint = candidate.footprint.lock().expect("footprint poisoned").clone();
+    let footprint = candidate.footprint
+        .lock()
+        .expect("footprint poisoned")
+        .clone();
     let descriptor = footprint.digest(candidate.cache_secret);
     let cached = store_resolution(
         candidate.cache,
@@ -561,7 +568,11 @@ fn store_resolution_candidate(candidate: StoreCandidate<'_>) {
 /// rides an NDJSON frame, where miette's rendered report would arrive as
 /// an unreadable block of escaped newlines.
 fn report_message(report: &miette::Report) -> String {
-    report.chain().map(ToString::to_string).collect::<Vec<_>>().join(": ")
+    report
+        .chain()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(": ")
 }
 
 fn json_error(status: StatusCode, message: &str) -> Response {
@@ -585,6 +596,9 @@ fn request_tarball_router(
         Arc::clone(&runtime.route_context),
         identity.clone(),
         runtime.public_url.clone(),
-        config.resolved_registries().into_iter().collect(),
+        config
+            .resolved_registries()
+            .into_iter()
+            .collect(),
     )
 }

@@ -14,7 +14,9 @@ pub(super) fn external_peers_to_report(
         .filter(|(peer_alias, _)| {
             !children_map.contains_key(peer_alias.as_str())
                 && discovery_children.is_none_or(|(children, _)| {
-                    !children.iter().any(|edge| edge.alias == **peer_alias)
+                    !children
+                        .iter()
+                        .any(|edge| edge.alias == **peer_alias)
                 })
         })
         .map(|(peer_alias, peer_node_id)| (peer_alias.clone(), peer_node_id.clone()))
@@ -55,7 +57,11 @@ pub(super) fn children_scc_ids(tree: &ResolvedTree) -> HashMap<Arc<str>, usize> 
     let (node_ids, adjacency) = children_graph_adjacency(tree);
     let mut pass = SccPass::new(adjacency);
     pass.run();
-    node_ids.into_iter().zip(pass.scc_of_index).filter(|(_, scc)| *scc != usize::MAX).collect()
+    node_ids
+        .into_iter()
+        .zip(pass.scc_of_index)
+        .filter(|(_, scc)| *scc != usize::MAX)
+        .collect()
 }
 
 /// The children graph as a dense adjacency list, alongside the package ids
@@ -78,8 +84,10 @@ pub(super) fn children_graph_adjacency(tree: &ResolvedTree) -> (Vec<Arc<str>>, V
         if adjacency.len() <= node {
             adjacency.resize_with(node + 1, Vec::new);
         }
-        let targets: Vec<usize> =
-            edges.iter().map(|edge| intern(&edge.pkg_id, &mut node_ids)).collect();
+        let targets: Vec<usize> = edges
+            .iter()
+            .map(|edge| intern(&edge.pkg_id, &mut node_ids))
+            .collect();
         adjacency[node] = targets;
     }
     adjacency.resize_with(node_ids.len(), Vec::new);

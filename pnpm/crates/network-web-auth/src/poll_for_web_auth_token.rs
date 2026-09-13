@@ -149,7 +149,11 @@ fn issued_token(response: &WebAuthFetchResponse) -> Option<String> {
     if !response.ok {
         return None;
     }
-    response.token().ok().flatten().filter(|token| !token.is_empty())
+    response
+        .token()
+        .ok()
+        .flatten()
+        .filter(|token| !token.is_empty())
 }
 
 /// Honor a 202 response's `Retry-After` header by sleeping the

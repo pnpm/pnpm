@@ -59,7 +59,11 @@ impl CustomFetcherPicker {
             .is_none_or(|kind| kind.is_null() || kind == "binary")
             .then(|| resolution.get("integrity"))
             .flatten()
-            .filter(|value| value.as_str().is_some_and(|value| !value.is_empty()))
+            .filter(|value| {
+                value
+                    .as_str()
+                    .is_some_and(|value| !value.is_empty())
+            })
             .cloned();
         let mut resolution = resolution.clone();
         for fetcher in &self.fetchers {

@@ -155,7 +155,10 @@ pub(super) fn pnpr_benchmark_config_yaml(
         secret: "pnpr-integrated-benchmark-secret",
         auth: PnprBenchmarkAuth {
             htpasswd: PnprBenchmarkHtpasswd {
-                file: pnpr_storage.join("htpasswd").display().to_string(),
+                file: pnpr_storage
+                    .join("htpasswd")
+                    .display()
+                    .to_string(),
                 max_users: -1,
             },
         },
@@ -214,10 +217,13 @@ pub(super) struct PnprBenchmarkLog {
 }
 pub(super) fn append_pnpr_auth_to_npmrc(dir: &Path, pnpr_server: &str, token: &str) {
     let path = dir.join(".npmrc");
-    let mut file =
-        OpenOptions::new().append(true).open(&path).expect("open benchmark .npmrc for pnpr auth");
-    writeln!(file, "{}:_authToken={token}", pnpr_auth_config_key(pnpr_server))
-        .expect("append pnpr auth to benchmark .npmrc");
+    let mut file = OpenOptions::new()
+        .append(true)
+        .open(&path)
+        .expect("open benchmark .npmrc for pnpr auth");
+    writeln!(file, "{}:_authToken={token}", pnpr_auth_config_key(pnpr_server)).expect(
+        "append pnpr auth to benchmark .npmrc",
+    );
 }
 /// Log in as the seeded benchmark user and return a bearer token. The login
 /// runs on a dedicated thread with its own runtime so it doesn't reach into the
@@ -249,15 +255,19 @@ pub(super) fn mint_pnpr_token(port: u16) -> String {
                 response.status(),
             );
             let payload: Value = response.json().await.expect("parse pnpr login response");
-            payload["token"].as_str().expect("token field in pnpr login response").to_string()
+            payload["token"]
+                .as_str()
+                .expect("token field in pnpr login response")
+                .to_string()
         })
     })
     .join()
     .expect("pnpr token mint thread panicked")
 }
 pub(super) fn pnpr_auth_config_key(pnpr_server: &str) -> String {
-    let Some(without_scheme) =
-        pnpr_server.strip_prefix("http://").or_else(|| pnpr_server.strip_prefix("https://"))
+    let Some(without_scheme) = pnpr_server
+        .strip_prefix("http://")
+        .or_else(|| pnpr_server.strip_prefix("https://"))
     else {
         panic!("pnpr server URL must include a scheme: {pnpr_server}");
     };

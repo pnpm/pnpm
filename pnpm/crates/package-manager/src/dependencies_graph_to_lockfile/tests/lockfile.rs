@@ -325,8 +325,7 @@ fn patched_dependencies_flow_into_lockfile_and_empty_is_omitted() {
         "68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1".to_string(),
     )])));
     assert_eq!(
-        with_patch
-            .patched_dependencies
+        with_patch.patched_dependencies
             .as_ref()
             .and_then(|map| map.get("graceful-fs@4.2.11"))
             .map(String::as_str),
@@ -427,7 +426,9 @@ fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
     let importer = lockfile.importers.get("apps/nested/app").expect("nested importer");
     let importer_dependencies = importer.dependencies.as_ref().expect("importer dependencies");
     for name in ["shared", "peer"] {
-        let dependency = importer_dependencies.get(&PkgName::parse(name).unwrap()).unwrap();
+        let dependency = importer_dependencies
+            .get(&PkgName::parse(name).unwrap())
+            .unwrap();
         match &dependency.version {
             ImporterDepVersion::Link(target) => {
                 assert_eq!(target, &format!("../../../packages/{name}"));
@@ -449,7 +450,10 @@ fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
         .map(|(_, snapshot)| snapshot)
         .expect("consumer peer snapshot");
     assert_eq!(
-        consumer_snapshot.dependencies.as_ref().unwrap().get(&PkgName::parse("peer").unwrap()),
+        consumer_snapshot.dependencies
+            .as_ref()
+            .unwrap()
+            .get(&PkgName::parse("peer").unwrap()),
         Some(&SnapshotDepRef::Link("packages/peer".to_string())),
     );
 }
@@ -528,8 +532,18 @@ fn multi_importer_workspace_writes_per_project_lockfile_entries() {
     let a_snap = lockfile.importers.get("packages/a").expect("importer a");
     let b_snap = lockfile.importers.get("packages/b").expect("importer b");
     let lodash_name = PkgName::parse("lodash").unwrap();
-    assert!(a_snap.dependencies.as_ref().unwrap().contains_key(&lodash_name));
-    assert!(b_snap.dependencies.as_ref().unwrap().contains_key(&lodash_name));
+    assert!(
+        a_snap.dependencies
+            .as_ref()
+            .unwrap()
+            .contains_key(&lodash_name),
+    );
+    assert!(
+        b_snap.dependencies
+            .as_ref()
+            .unwrap()
+            .contains_key(&lodash_name),
+    );
 
     let packages = lockfile.packages.as_ref().expect("packages");
     let lodash_key: PackageKey = "lodash@4.17.21".parse().unwrap();
@@ -611,7 +625,9 @@ fn workspace_link_direct_dep_kept_when_exclude_links_from_lockfile_true() {
 
     let importer = lockfile.root_project().expect("root importer");
     let deps = importer.dependencies.as_ref().expect("dependencies map");
-    let shared = deps.get(&PkgName::parse("shared").unwrap()).expect("shared entry");
+    let shared = deps
+        .get(&PkgName::parse("shared").unwrap())
+        .expect("shared entry");
     assert_eq!(shared.specifier, "workspace:*");
     match &shared.version {
         ImporterDepVersion::Link(target) => assert_eq!(target, "../shared"),

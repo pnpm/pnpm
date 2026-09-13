@@ -65,8 +65,7 @@ where
         // it borrows nothing from the closure — see `with_otp_handling`'s
         // `Operation` bound.
         move |otp: Option<String>| async move {
-            add_user(http_client, registry, credentials, otp.as_deref())
-                .await
+            add_user(http_client, registry, credentials, otp.as_deref()).await
                 .map_err(add_user_error_to_op::<Reporter>)
         },
     )
@@ -185,7 +184,9 @@ fn add_user_error_to_op<Reporter: self::Reporter>(error: AddUserError) -> Classi
         // Mirrors pnpm's `err.responseHeaders.get('www-authenticate')?.includes('otp')`.
         AddUserError::Http { status, text, www_authenticate }
             if status == 401
-                && www_authenticate.as_deref().is_some_and(|value| value.contains("otp")) =>
+                && www_authenticate
+                    .as_deref()
+                    .is_some_and(|value| value.contains("otp")) =>
         {
             let json = serde_json::from_str::<Value>(&text).ok();
             let challenge = SyntheticOtpError::from_unknown_body::<Reporter>(json.as_ref())

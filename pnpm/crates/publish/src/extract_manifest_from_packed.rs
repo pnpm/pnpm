@@ -15,7 +15,9 @@ const TARBALL_SUFFIXES: [&str; 2] = [".tar.gz", ".tgz"];
 /// `.tgz`).
 #[must_use]
 pub fn is_tarball_path(path: &str) -> bool {
-    TARBALL_SUFFIXES.iter().any(|suffix| path.ends_with(suffix))
+    TARBALL_SUFFIXES
+        .iter()
+        .any(|suffix| path.ends_with(suffix))
 }
 
 /// Read and parse `package/package.json` from the gzipped tarball at
@@ -37,10 +39,11 @@ pub fn extract_manifest_from_packed(tarball_path: &str) -> Result<Value, Extract
         }
         let mut text = String::new();
         entry.read_to_string(&mut text).map_err(read_err)?;
-        return parse_manifest(&text).map_err(|source| ExtractManifestError::Parse {
-            tarball_path: tarball_path.to_owned(),
-            source,
-        });
+        return parse_manifest(&text)
+            .map_err(|source| ExtractManifestError::Parse {
+                tarball_path: tarball_path.to_owned(),
+                source,
+            });
     }
 
     Err(ExtractManifestError::MissingManifest(PublishArchiveMissingManifestError {
@@ -84,9 +87,11 @@ pub fn extract_publish_manifest_from_packed(
             tarball_path: tarball_path.to_owned(),
         })
     })?;
-    let mut manifest: Value = parse_manifest(&manifest_text).map_err(|source| {
-        ExtractManifestError::Parse { tarball_path: tarball_path.to_owned(), source }
-    })?;
+    let mut manifest: Value = parse_manifest(&manifest_text)
+        .map_err(|source| ExtractManifestError::Parse {
+            tarball_path: tarball_path.to_owned(),
+            source,
+        })?;
     if let Some(readme) = readme {
         attach_readme(&mut manifest, readme);
     }
@@ -112,7 +117,9 @@ fn attach_readme(manifest: &mut Value, readme: String) {
 /// Whether a normalized tar entry path names the package's root README,
 /// matching pnpm's `/^package\/readme\.md$/i`.
 fn is_root_readme(normalized: &str) -> bool {
-    normalized.strip_prefix("package/").is_some_and(|name| name.eq_ignore_ascii_case("readme.md"))
+    normalized
+        .strip_prefix("package/")
+        .is_some_and(|name| name.eq_ignore_ascii_case("readme.md"))
 }
 
 /// Normalize a tar entry path to forward slashes and collapse `.` / `..`

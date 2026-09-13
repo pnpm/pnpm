@@ -41,17 +41,21 @@ pub(crate) fn try_compose_fast_updates(
         config.ignored_optional_dependencies.as_deref().unwrap_or_default();
     let settings = crate::fast_update_settings::lockfile_settings_from_config(config);
 
-    let FastUpdateDrift { importers, ignored, patched, settings: settings_drift } =
-        detect_fast_update_drift(&DriftInputs {
-            lockfile,
-            manifests,
-            project_manifests,
-            prune_stale_importers,
-            resolution_picks_lowest: config.resolution_mode.picks_lowest_direct(),
-            ignored_optional_dependencies,
-            patch_hashes,
-            settings: &settings,
-        })?;
+    let FastUpdateDrift {
+        importers,
+        ignored,
+        patched,
+        settings: settings_drift,
+    } = detect_fast_update_drift(&DriftInputs {
+        lockfile,
+        manifests,
+        project_manifests,
+        prune_stale_importers,
+        resolution_picks_lowest: config.resolution_mode.picks_lowest_direct(),
+        ignored_optional_dependencies,
+        patch_hashes,
+        settings: &settings,
+    })?;
 
     let mut candidate = lockfile.clone();
     apply_graph_drift(&mut candidate, &importers, &ignored, ignored_optional_dependencies)?;

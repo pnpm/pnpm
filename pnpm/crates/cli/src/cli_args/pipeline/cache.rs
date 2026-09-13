@@ -151,8 +151,7 @@ impl TaskCache {
         task_id: &str,
     ) -> Result<(), String> {
         let previous = self.read_output_record(task_id);
-        for relative in stored
-            .files
+        for relative in stored.files
             .iter()
             .map(String::as_str)
             .chain(previous.iter().map(|record| record.path.as_str()))
@@ -184,7 +183,10 @@ impl TaskCache {
         let record = stage_output_files(project_dir, staging_dir, &files)?;
         let meta = StoredTask {
             version: 2,
-            hashes: record.iter().map(|file| (file.path.clone(), file.hash.clone())).collect(),
+            hashes: record
+                .iter()
+                .map(|file| (file.path.clone(), file.hash.clone()))
+                .collect(),
             task: task_id.to_string(),
             files,
             scripts,

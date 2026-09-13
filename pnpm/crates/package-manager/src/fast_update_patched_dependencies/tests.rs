@@ -187,15 +187,23 @@ fn lockfile(source: &str) -> Lockfile {
 }
 
 fn snapshot_keys(lockfile: &Lockfile) -> Vec<String> {
-    let mut keys: Vec<_> =
-        lockfile.snapshots.as_ref().expect("snapshots").keys().map(ToString::to_string).collect();
+    let mut keys: Vec<_> = lockfile.snapshots
+        .as_ref()
+        .expect("snapshots")
+        .keys()
+        .map(ToString::to_string)
+        .collect();
     keys.sort();
     keys
 }
 
 fn package_keys(lockfile: &Lockfile) -> Vec<String> {
-    let mut keys: Vec<_> =
-        lockfile.packages.as_ref().expect("packages").keys().map(ToString::to_string).collect();
+    let mut keys: Vec<_> = lockfile.packages
+        .as_ref()
+        .expect("packages")
+        .keys()
+        .map(ToString::to_string)
+        .collect();
     keys.sort();
     keys
 }
@@ -227,7 +235,9 @@ fn workspace(patches: &[&str]) -> TempDir {
 }
 
 fn write_patch(workspace_dir: &Path, key: &str, contents: &str) {
-    let path = workspace_dir.join("patches").join(patch_file_name(key));
+    let path = workspace_dir
+        .join("patches")
+        .join(patch_file_name(key));
     fs::write(path, contents).expect("write patch file");
 }
 
@@ -378,7 +388,11 @@ fn rekeys_around_a_tarball_resolution_no_patch_reaches() {
     )
     .expect("an untouched tarball resolution does not block the rest");
 
-    assert!(snapshot_keys(&updated).iter().any(|key| key.starts_with("bar@2.0.0(patch_hash=")));
+    assert!(
+        snapshot_keys(&updated)
+            .iter()
+            .any(|key| key.starts_with("bar@2.0.0(patch_hash=")),
+    );
     assert!(snapshot_keys(&updated).contains(&"foo@https://example.test/foo.tgz".to_string()));
 }
 

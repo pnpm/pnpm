@@ -138,20 +138,17 @@ pub(super) fn registry_visible_to_caller(
     identity: &Identity,
     name: &str,
 ) -> bool {
-    let concrete_visible = |name: &str| match state.inner.config.routing.registries.get(name) {
-        // The name being probed is unclaimed, so there is no per-package
-        // entry to consult: the registry-level default `access:` decides
-        // whether the caller may learn the registry exists at all.
-        Some(Registry::Hosted { .. }) => state
-            .inner
-            .config
-            .routing
-            .hosted
-            .get(name)
-            .is_some_and(|hosted| hosted.rules.default_access().allows(identity)),
-        Some(Registry::Upstream { .. }) => true,
-        Some(Registry::Router { .. }) | None => false,
-    };
+    let concrete_visible =
+        |name: &str| match state.inner.config.routing.registries.get(name) {
+            // The name being probed is unclaimed, so there is no per-package
+            // entry to consult: the registry-level default `access:` decides
+            // whether the caller may learn the registry exists at all.
+            Some(Registry::Hosted { .. }) => state.inner.config.routing.hosted
+                .get(name)
+                .is_some_and(|hosted| hosted.rules.default_access().allows(identity)),
+            Some(Registry::Upstream { .. }) => true,
+            Some(Registry::Router { .. }) | None => false,
+        };
     match state.inner.config.routing.registries.get(name) {
         Some(Registry::Router { sources }) => sources.iter().any(|source| concrete_visible(source)),
         Some(_) => concrete_visible(name),
@@ -252,7 +249,10 @@ pub(super) async fn serve_batch_publish(
     // Hold every affected package's lock across the whole
     // stage-and-commit, so concurrent writers of any package in the
     // batch serialize with us just like with a single publish.
-    let names: Vec<&str> = validated.iter().map(|(doc, _)| doc.name.as_str()).collect();
+    let names: Vec<&str> = validated
+        .iter()
+        .map(|(doc, _)| doc.name.as_str())
+        .collect();
     let _guards = state.inner.locks.packages.lock_many(&names).await;
 
     let staged = match stage_batch(&state, validated).await {
@@ -363,9 +363,7 @@ pub(super) async fn commit_publishes(
             revision_refs: &stage.revision_refs,
         })
         .collect();
-    let outcome = state
-        .inner
-        .storage
+    let outcome = state.inner.storage
         .publish_journal()
         .commit(&state.inner.storage, &entries, &RegistryDocuments)
         .await?;
@@ -381,8 +379,7 @@ pub(super) async fn commit_publishes(
 /// is named with its ecosystem, since the same name in two of them is two
 /// packages.
 pub(super) fn report_unrecorded(outcome: CommitOutcome) -> Result<(), RegistryError> {
-    let mut missing: BTreeSet<String> = outcome
-        .unrecorded
+    let mut missing: BTreeSet<String> = outcome.unrecorded
         .into_iter()
         .chain(outcome.lost_blobs.into_iter().map(|lost| lost.package))
         .map(|package| format!("{} {}", package.ecosystem, package.name))
@@ -390,7 +387,10 @@ pub(super) fn report_unrecorded(outcome: CommitOutcome) -> Result<(), RegistryEr
     let Some(first) = missing.pop_first() else {
         return Ok(());
     };
-    let packages = std::iter::once(first).chain(missing).collect::<Vec<_>>().join(", ");
+    let packages = std::iter::once(first)
+        .chain(missing)
+        .collect::<Vec<_>>()
+        .join(", ");
     Err(RegistryError::PublishNotRecorded { packages })
 }
 

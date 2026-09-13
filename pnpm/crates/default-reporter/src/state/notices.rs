@@ -50,8 +50,7 @@ impl ReporterState {
         let msg = match log.status {
             InstallingConfigDepsStatus::Started => "Installing config dependencies...".to_string(),
             InstallingConfigDepsStatus::Done => {
-                let list = log
-                    .deps
+                let list = log.deps
                     .iter()
                     .map(|dep| format!("{}@{}", dep.name, dep.version))
                     .collect::<Vec<_>>()
@@ -247,9 +246,7 @@ impl ReporterState {
         if self.notices.deprecated_subdeps.is_empty() {
             return;
         }
-        let mut names: Vec<String> = self
-            .notices
-            .deprecated_subdeps
+        let mut names: Vec<String> = self.notices.deprecated_subdeps
             .iter()
             .map(|log| format!("{}@{}", log.pkg_name, log.pkg_version))
             .collect();

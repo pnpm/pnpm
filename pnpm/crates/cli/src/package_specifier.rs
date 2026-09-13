@@ -34,8 +34,9 @@ impl PackageSpecifierPlan {
                     parse_registry_specifier(specifier, CARGO_PROTOCOL)?,
                 ));
             } else if let Some(specifier) = package_name.strip_prefix("pypi:") {
-                ecosystem_packages
-                    .push(EcosystemPackageSpecifier::Python(parse_python_specifier(specifier)?));
+                ecosystem_packages.push(EcosystemPackageSpecifier::Python(parse_python_specifier(
+                    specifier,
+                )?));
             } else {
                 node_packages.push(package_name.clone());
             }
@@ -80,7 +81,9 @@ fn parse_registry_specifier(
         .rsplit_once('@')
         .map_or((specifier, None), |(name, version)| (name, Some(version)));
     if name.is_empty()
-        || !name.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+        || !name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
     {
         return Err(miette::miette!("invalid {protocol} package name in {protocol}{specifier}"));
     }
@@ -93,9 +96,10 @@ fn parse_registry_specifier(
                 "{protocol}{specifier} is not supported by the crates.io-only proof of concept"
             ));
         }
-        semver::VersionReq::parse(version).map_err(|_| {
-            miette::miette!("invalid Cargo version requirement in {protocol}{specifier}")
-        })?;
+        semver::VersionReq::parse(version)
+            .map_err(|_| {
+                miette::miette!("invalid Cargo version requirement in {protocol}{specifier}")
+            })?;
     }
     Ok(RegistryPackageSpecifier {
         name: name.to_string(),

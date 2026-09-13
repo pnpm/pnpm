@@ -194,7 +194,10 @@ async fn deprecated_manifests_notify_the_deprecation_sink_unless_allowed() {
         assert_eq!(deprecation.depth, 0);
         assert_eq!(
             deprecation.prefix,
-            std::path::PathBuf::from("/repo").join("root").display().to_string(),
+            std::path::PathBuf::from("/repo")
+                .join("root")
+                .display()
+                .to_string(),
         );
     }
 }
@@ -262,7 +265,10 @@ async fn deprecated_package_is_reported_only_on_its_first_occurrence() {
     assert_eq!(deprecation.depth, 1);
     assert_eq!(
         deprecation.prefix,
-        std::path::PathBuf::from("/repo").join("a-transitive").display().to_string(),
+        std::path::PathBuf::from("/repo")
+            .join("a-transitive")
+            .display()
+            .to_string(),
     );
 }
 

@@ -144,8 +144,14 @@ impl PreparePackageOptions<'_> {
 }
 
 fn manifest_dep_path(manifest: &Value) -> String {
-    let name = manifest.get("name").and_then(Value::as_str).unwrap_or("");
-    let version = manifest.get("version").and_then(Value::as_str).unwrap_or("");
+    let name = manifest
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    let version = manifest
+        .get("version")
+        .and_then(Value::as_str)
+        .unwrap_or("");
     format!("{name}@{version}")
 }
 
@@ -332,31 +338,33 @@ fn host_can_prepare(wanted: &WantedPm) -> bool {
 }
 
 fn probe_host(wanted: &WantedPm) -> bool {
-    let wanted_range =
-        wanted.version_spec.as_deref().and_then(|range| node_semver::Range::parse(range).ok());
+    let wanted_range = wanted.version_spec
+        .as_deref()
+        .and_then(|range| node_semver::Range::parse(range).ok());
     // A dependency's scripts reach for any of the package manager's names
     // — `yarnpkg` as readily as `yarn` — and nothing says two of them on
     // one host are the same install, so each has to answer for itself.
-    shim_names(wanted.pm).all(|name| {
-        let Ok(program) = which::which(name) else {
-            return false;
-        };
-        let Some(wanted_range) = wanted_range.as_ref() else {
-            return true;
-        };
-        let Ok(output) = Command::new(program).arg("--version").output() else {
-            return false;
-        };
-        // A version printed by a command that then failed says nothing
-        // about what that command can do.
-        output.status.success()
-            && String::from_utf8_lossy(&output.stdout)
-                .lines()
-                .next()
-                .map(str::trim)
-                .and_then(|version| node_semver::Version::parse(version).ok())
-                .is_some_and(|version| version.satisfies(wanted_range))
-    })
+    shim_names(wanted.pm)
+        .all(|name| {
+            let Ok(program) = which::which(name) else {
+                return false;
+            };
+            let Some(wanted_range) = wanted_range.as_ref() else {
+                return true;
+            };
+            let Ok(output) = Command::new(program).arg("--version").output() else {
+                return false;
+            };
+            // A version printed by a command that then failed says nothing
+            // about what that command can do.
+            output.status.success()
+                && String::from_utf8_lossy(&output.stdout)
+                    .lines()
+                    .next()
+                    .map(str::trim)
+                    .and_then(|version| node_semver::Version::parse(version).ok())
+                    .is_some_and(|version| version.satisfies(wanted_range))
+        })
 }
 
 pub fn assert_package_build_allowed(
@@ -364,8 +372,14 @@ pub fn assert_package_build_allowed(
     pkg_resolution_id: &str,
     manifest: &Value,
 ) -> Result<(), PreparePackageError> {
-    let name = manifest.get("name").and_then(Value::as_str).unwrap_or("");
-    let version = manifest.get("version").and_then(Value::as_str).unwrap_or("");
+    let name = manifest
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    let version = manifest
+        .get("version")
+        .and_then(Value::as_str)
+        .unwrap_or("");
     let allow_build_dep_path = format!("{name}@{pkg_resolution_id}");
     if allow_build(&allow_build_dep_path) {
         return Ok(());
@@ -382,16 +396,28 @@ fn package_should_be_built(manifest: &Value, pkg_dir: &Path) -> bool {
     let Some(scripts) = manifest.get("scripts").and_then(Value::as_object) else {
         return false;
     };
-    if scripts.get("prepare").and_then(Value::as_str).is_some_and(|script| !script.is_empty()) {
+    if scripts
+        .get("prepare")
+        .and_then(Value::as_str)
+        .is_some_and(|script| !script.is_empty())
+    {
         return true;
     }
-    let has_prepublish_script = PREPUBLISH_SCRIPTS.iter().any(|name| {
-        scripts.get(*name).and_then(Value::as_str).is_some_and(|script| !script.is_empty())
-    });
+    let has_prepublish_script = PREPUBLISH_SCRIPTS
+        .iter()
+        .any(|name| {
+            scripts
+                .get(*name)
+                .and_then(Value::as_str)
+                .is_some_and(|script| !script.is_empty())
+        });
     if !has_prepublish_script {
         return false;
     }
-    let main_file = manifest.get("main").and_then(Value::as_str).unwrap_or("index.js");
+    let main_file = manifest
+        .get("main")
+        .and_then(Value::as_str)
+        .unwrap_or("index.js");
     !pkg_dir.join(main_file).exists()
 }
 
@@ -406,7 +432,9 @@ pub(crate) fn safe_join_path(
     root: &Path,
     sub: Option<&str>,
 ) -> Result<PathBuf, PreparePackageError> {
-    let sub = sub.unwrap_or("").trim_start_matches(['/', '\\']);
+    let sub = sub
+        .unwrap_or("")
+        .trim_start_matches(['/', '\\']);
     let joined = if sub.is_empty() { root.to_path_buf() } else { root.join(sub) };
     let canonical_root = root.canonicalize().map_err(PreparePackageError::Io)?;
     let Ok(canonical_joined) = joined.canonicalize() else {

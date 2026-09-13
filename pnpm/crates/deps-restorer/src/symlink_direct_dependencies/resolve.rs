@@ -120,7 +120,10 @@ pub(super) fn resolve_target_path(
             // that from the importer's resolved version-with-peer
             // rather than from `name`+`version` separately.
             let dep_key = PkgNameVerPeer::new(PkgName::clone(name), ver_peer.clone());
-            layout.slot_dir(&dep_key).join("node_modules").join(name_str)
+            layout
+                .slot_dir(&dep_key)
+                .join("node_modules")
+                .join(name_str)
         }
         ImporterDepVersion::Alias(alias) => {
             // For an alias, the snapshot key carries the resolved
@@ -129,7 +132,10 @@ pub(super) fn resolve_target_path(
             // real name (not the importer-map key). The on-disk
             // symlink at `<modules_dir>/<importer-key>` still uses
             // `name_str` as the link name.
-            layout.slot_dir(alias).join("node_modules").join(alias.name.to_string())
+            layout
+                .slot_dir(alias)
+                .join("node_modules")
+                .join(alias.name.to_string())
         }
         ImporterDepVersion::Link(target) => {
             // `link:<path>` values are relative to the importer's
@@ -164,7 +170,10 @@ pub(super) fn resolve_target_path(
             // sees the same key the snapshot writer used.
             let dep_key =
                 spec.version.resolved_key(name).expect("File arm always produces a resolved_key");
-            layout.slot_dir(&dep_key).join("node_modules").join(name_str)
+            layout
+                .slot_dir(&dep_key)
+                .join("node_modules")
+                .join(name_str)
         }
     }
 }

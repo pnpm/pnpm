@@ -343,7 +343,10 @@ fn write_spec_bucket(
     }
     let (dep, verb) = noun_verb_for(specs.len());
     write!(f, "\n* {} {dep} {verb} {what}: ", specs.len())?;
-    let rendered: Vec<String> = specs.iter().map(|(key, value)| format!("{key}@{value}")).collect();
+    let rendered: Vec<String> = specs
+        .iter()
+        .map(|(key, value)| format!("{key}@{value}"))
+        .collect();
     write!(f, "{}", rendered.join(", "))
 }
 
@@ -413,7 +416,9 @@ fn check_recorded_config(
 
     let mut lockfile_set: Vec<String> =
         lockfile.ignored_optional_dependencies.clone().unwrap_or_default();
-    let mut config_set: Vec<String> = check.ignored_optional_dependencies.unwrap_or(&[]).to_vec();
+    let mut config_set: Vec<String> = check.ignored_optional_dependencies
+        .unwrap_or(&[])
+        .to_vec();
     lockfile_set.sort();
     config_set.sort();
     if lockfile_set != config_set {
@@ -442,10 +447,13 @@ fn check_overrides(
     lockfile: &Lockfile,
     config_overrides: Option<&HashMap<String, String>>,
 ) -> Result<(), StalenessReason> {
-    let lockfile_overrides: BTreeMap<String, String> = lockfile
-        .overrides
+    let lockfile_overrides: BTreeMap<String, String> = lockfile.overrides
         .as_ref()
-        .map(|map| map.iter().map(|(key, value)| (key.clone(), value.clone())).collect())
+        .map(|map| {
+            map.iter()
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect()
+        })
         .unwrap_or_default();
     let config_overrides: BTreeMap<String, String> = config_overrides
         .into_iter()
@@ -554,8 +562,9 @@ pub fn exclude_links_from_lockfile_changed(
     recorded: Option<&crate::LockfileSettings>,
     exclude_links_from_lockfile: bool,
 ) -> bool {
-    recorded
-        .is_some_and(|settings| settings.exclude_links_from_lockfile != exclude_links_from_lockfile)
+    recorded.is_some_and(|settings| {
+        settings.exclude_links_from_lockfile != exclude_links_from_lockfile
+    })
 }
 
 /// See [`auto_install_peers_changed`].
@@ -582,14 +591,21 @@ fn all_catalogs_are_up_to_date(
     catalogs_config: &Catalogs,
     snapshot: Option<&crate::CatalogSnapshots>,
 ) -> bool {
-    snapshot.iter().flat_map(|catalogs| catalogs.iter()).all(|(catalog_name, catalog)| {
-        catalog.iter().all(|(alias, entry)| {
-            catalogs_config
-                .get(catalog_name)
-                .and_then(|catalog| catalog.get(alias))
-                .is_some_and(|specifier| dependency_specifiers_equal(&entry.specifier, specifier))
+    snapshot
+        .iter()
+        .flat_map(|catalogs| catalogs.iter())
+        .all(|(catalog_name, catalog)| {
+            catalog
+                .iter()
+                .all(|(alias, entry)| {
+                    catalogs_config
+                        .get(catalog_name)
+                        .and_then(|catalog| catalog.get(alias))
+                        .is_some_and(|specifier| {
+                            dependency_specifiers_equal(&entry.specifier, specifier)
+                        })
+                })
         })
-    })
 }
 
 #[cfg(test)]

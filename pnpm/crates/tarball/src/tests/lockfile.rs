@@ -16,8 +16,12 @@ async fn fetch_for_resolution_writes_no_index_row_for_a_subdirectory_package() {
         ("package.json", r#"{"name":"the-monorepo","version":"0.0.0"}"#),
         ("packages/foo/package.json", r#"{"name":"foo","version":"1.2.3"}"#),
     ]);
-    let _mock =
-        server.mock("GET", "/repo.tgz").with_status(200).with_body(archive).create_async().await;
+    let _mock = server
+        .mock("GET", "/repo.tgz")
+        .with_status(200)
+        .with_body(archive)
+        .create_async()
+        .await;
 
     let url = format!("{}/repo.tgz", server.url());
     let client = ThrottledClient::default();
@@ -43,7 +47,9 @@ async fn fetch_for_resolution_writes_no_index_row_for_a_subdirectory_package() {
     // The key the row *would* have taken, had one been written.
     let key = store_index_key(&resolved.integrity.to_string(), "foo@1.2.3");
     let index = StoreIndex::open_in(store_path).expect("open store index");
-    let rows = index.get_many(std::slice::from_ref(&key)).expect("read index");
+    let rows = index
+        .get_many(std::slice::from_ref(&key))
+        .expect("read index");
     assert!(rows.is_empty(), "a subpackage key must not carry the whole repo's index: {rows:?}");
     drop(store_dir_keep);
 }

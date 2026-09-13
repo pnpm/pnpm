@@ -29,7 +29,10 @@ pub(crate) async fn request_archive<'client, Reporter: self::Reporter>(
     }
     let sent = request.send().await;
     // Failed connects are attempts too; the reporter's counter starts at one.
-    let size = sent.as_ref().ok().and_then(reqwest::Response::content_length);
+    let size = sent
+        .as_ref()
+        .ok()
+        .and_then(reqwest::Response::content_length);
     Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
         level: LogLevel::Debug,
         message: FetchingProgressMessage::Started {
@@ -40,11 +43,22 @@ pub(crate) async fn request_archive<'client, Reporter: self::Reporter>(
     }));
     let response =
         sent.map_err(|error| TarballError::FetchTarball(NetworkError::new(package_url, error)))?;
+    let response = check_archive_status(response, package_url).await?;
+    Ok((client, response))
+}
+
+async fn check_archive_status(
+    response: reqwest::Response,
+    package_url: &str,
+) -> Result<reqwest::Response, TarballError> {
     let status = response.status();
     if !status.is_success() {
         // Fully draining a small error body lets the connection be reused.
         const DRAIN_CAP: u64 = 64 * 1024;
-        if response.content_length().is_some_and(|len| len <= DRAIN_CAP) {
+        if response
+            .content_length()
+            .is_some_and(|len| len <= DRAIN_CAP)
+        {
             let _ = response.bytes().await;
         }
         return Err(TarballError::HttpStatus(HttpStatusError {
@@ -52,5 +66,5 @@ pub(crate) async fn request_archive<'client, Reporter: self::Reporter>(
             status: status.as_u16(),
         }));
     }
-    Ok((client, response))
+    Ok(response)
 }

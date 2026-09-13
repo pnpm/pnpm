@@ -151,7 +151,12 @@ fn create_accepts_shell_mode_flag() {
     let CommandTempCwd { pacquet, root, workspace, .. } =
         CommandTempCwd::init().add_mocked_registry();
 
-    pacquet.with_arg("create").with_arg("-c").with_arg("touch-file-one-bin").assert().success();
+    pacquet
+        .with_arg("create")
+        .with_arg("-c")
+        .with_arg("touch-file-one-bin")
+        .assert()
+        .success();
 
     let touch_txt = workspace.join("touch.txt");
     assert!(touch_txt.exists(), "the package should install and run with shell mode");

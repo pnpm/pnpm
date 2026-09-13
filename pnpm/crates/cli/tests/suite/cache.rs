@@ -14,8 +14,7 @@ fn should_list_registries() {
     fs::create_dir_all(cache_dir.join("registry.npmjs.org")).unwrap();
     fs::create_dir_all(cache_dir.join("registry.yarnpkg.com")).unwrap();
 
-    let output = cwd
-        .pacquet
+    let output = cwd.pacquet
         .with_arg("cache")
         .with_arg("list-registries")
         .assert()
@@ -40,8 +39,7 @@ fn should_list_packages() {
     fs::write(cache_dir.join(&registry_name).join("is-positive.jsonl"), "{}").unwrap();
     fs::write(cache_dir.join(&registry_name).join("is-negative.jsonl"), "{}").unwrap();
 
-    let output = cwd
-        .pacquet
+    let output = cwd.pacquet
         .with_arg("cache")
         .with_arg("list")
         .assert()
@@ -67,10 +65,16 @@ fn should_list_only_files_not_directories() {
     // A scoped package lives in its own directory, which the glob also matches.
     // Only the file underneath it, not the directory itself, should be listed.
     fs::create_dir_all(cache_dir.join(&registry_name).join("@scope")).unwrap();
-    fs::write(cache_dir.join(&registry_name).join("@scope").join("foo.jsonl"), "{}").unwrap();
+    fs::write(
+        cache_dir
+            .join(&registry_name)
+            .join("@scope")
+            .join("foo.jsonl"),
+        "{}",
+    )
+    .unwrap();
 
-    let output = cwd
-        .pacquet
+    let output = cwd.pacquet
         .with_arg("cache")
         .with_arg("list")
         .assert()
@@ -84,7 +88,9 @@ fn should_list_only_files_not_directories() {
     assert!(stdout.contains(&format!("{registry_name}/@scope/foo.jsonl")));
     let scope_dir = format!("{registry_name}/@scope");
     assert!(
-        !stdout.lines().any(|line| line == scope_dir),
+        !stdout
+            .lines()
+            .any(|line| line == scope_dir),
         "directory entry {scope_dir:?} should not be listed, got: {stdout}",
     );
 }
@@ -100,8 +106,7 @@ fn should_delete_packages() {
     fs::write(cache_dir.join(&registry_name).join("is-positive.jsonl"), "{}").unwrap();
     fs::write(cache_dir.join(&registry_name).join("is-negative.jsonl"), "{}").unwrap();
 
-    let output = cwd
-        .pacquet
+    let output = cwd.pacquet
         .with_arg("cache")
         .with_arg("delete")
         .with_arg("is-positive")
@@ -113,8 +118,18 @@ fn should_delete_packages() {
 
     let stdout = String::from_utf8_lossy(&output);
     assert!(stdout.contains(&format!("{registry_name}/is-positive.jsonl")));
-    assert!(!cache_dir.join(&registry_name).join("is-positive.jsonl").exists());
-    assert!(cache_dir.join(&registry_name).join("is-negative.jsonl").exists());
+    assert!(
+        !cache_dir
+            .join(&registry_name)
+            .join("is-positive.jsonl")
+            .exists(),
+    );
+    assert!(
+        cache_dir
+            .join(&registry_name)
+            .join("is-negative.jsonl")
+            .exists(),
+    );
 }
 
 #[test]
@@ -136,11 +151,18 @@ fn should_delete_packages_from_all_metadata_dirs() {
         fs::write(dir.join("is-positive.jsonl"), "{}").unwrap();
     }
 
-    cwd.pacquet.with_arg("cache").with_arg("delete").with_arg("is-positive").assert().success();
+    cwd.pacquet
+        .with_arg("cache")
+        .with_arg("delete")
+        .with_arg("is-positive")
+        .assert()
+        .success();
 
     for meta_dir in meta_dirs {
-        let file =
-            cwd.npmrc_info.cache_dir.join(meta_dir).join(&registry_name).join("is-positive.jsonl");
+        let file = cwd.npmrc_info.cache_dir
+            .join(meta_dir)
+            .join(&registry_name)
+            .join("is-positive.jsonl");
         assert!(!file.exists(), "expected {file:?} to be deleted");
     }
 }
@@ -168,8 +190,7 @@ fn should_view_package_cache() {
     }";
     fs::write(cache_dir.join(&registry_name).join("is-positive.jsonl"), package_jsonl).unwrap();
 
-    let output = cwd
-        .pacquet
+    let output = cwd.pacquet
         .with_args(["cache", "view", "is-positive"])
         .assert()
         .success()
@@ -190,8 +211,13 @@ fn should_view_package_cache() {
 
 #[test]
 fn import_populates_metadata_cache() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, cache_dir, .. } = npmrc_info;
 
     let manifest_path = workspace.join("package.json");
@@ -217,11 +243,17 @@ fn import_populates_metadata_cache() {
     )
     .expect("write package-lock.json");
 
-    pacquet.with_arg("import").assert().success();
+    pacquet
+        .with_arg("import")
+        .assert()
+        .success();
 
     let registry_name =
         pnpm_resolving_npm_resolver::mirror::get_registry_name(&mock_instance.url()).unwrap();
-    let cache_metadata_dir = cache_dir.join("v11").join("metadata").join(&registry_name);
+    let cache_metadata_dir = cache_dir
+        .join("v11")
+        .join("metadata")
+        .join(&registry_name);
 
     assert!(cache_metadata_dir.exists(), "metadata cache directory must exist");
     assert!(
@@ -241,8 +273,7 @@ fn should_print_cache_path() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
     let cache_dir = cwd.npmrc_info.cache_dir.clone();
 
-    let output = cwd
-        .pacquet
+    let output = cwd.pacquet
         .with_arg("cache")
         .with_arg("path")
         .assert()
@@ -259,7 +290,9 @@ fn should_print_cache_path() {
     // does for the TypeScript CLI.
     assert!(printed.is_absolute(), "expected an absolute path, got {}", printed.display());
     assert!(
-        !printed.components().any(|component| component == Component::ParentDir),
+        !printed
+            .components()
+            .any(|component| component == Component::ParentDir),
         "expected a cleaned path, got {}",
         printed.display(),
     );

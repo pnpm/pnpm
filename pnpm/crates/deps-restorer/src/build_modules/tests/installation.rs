@@ -77,8 +77,9 @@ fn explicit_allow_by_git_hosted_tarball_repo_url() {
     // Bitbucket and GitLab (with nested groups) tarball downloads too.
     assert_eq!(policy.check("bar@https://bitbucket.org/org/bar/get/abc123.tar.gz"), Some(true));
     assert_eq!(
-        policy
-            .check("baz@https://gitlab.com/group/subgroup/baz/-/archive/abc123/baz-abc123.tar.gz"),
+        policy.check(
+            "baz@https://gitlab.com/group/subgroup/baz/-/archive/abc123/baz-abc123.tar.gz"
+        ),
         Some(true),
     );
     // A different repository under the same package name is not approved.
@@ -212,7 +213,10 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS
+                .lock()
+                .expect("lock")
+                .push(event.clone());
         }
     }
 
@@ -499,7 +503,10 @@ async fn write_path_disabled_skips_upload() {
     writer_task.await.expect("await writer").expect("writer succeeds");
 
     let index = StoreIndex::open_readonly_in(&store_dir).expect("open index for read");
-    let row = index.get(&files_index_file).expect("get row").expect("row present");
+    let row = index
+        .get(&files_index_file)
+        .expect("get row")
+        .expect("row present");
     assert!(row.side_effects.is_none(), "write disabled must NOT populate side_effects");
 }
 /// Uploading errors do not interrupt the install: the install
@@ -645,7 +652,10 @@ async fn upload_error_does_not_interrupt_install() {
     // error fired before `queue_side_effects_upload` ran, so the
     // writer task never saw a `SideEffectsUpload` for this row.
     let index = StoreIndex::open_readonly_in(&store_dir).expect("open index for read");
-    let row = index.get(&files_index_file).expect("get row").expect("base row present");
+    let row = index
+        .get(&files_index_file)
+        .expect("get row")
+        .expect("base row present");
     assert!(
         row.side_effects.is_none(),
         "swallowed upload error must leave `side_effects` unmodified",

@@ -12,14 +12,22 @@ fn package_map_resolves_declared_hoisted_dependencies_at_runtime() {
         eprintln!("skipping package-map runtime smoke: Node.js major is below 27");
         return;
     }
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace, serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
     write_workspace_yaml(&workspace, "nodeLinker: hoisted\nnodeExperimentalPackageMap: true\n");
 
-    pacquet.with_args(["install"]).assert().success();
+    pacquet
+        .with_args(["install"])
+        .assert()
+        .success();
 
     let root_dependency_dir = root_dependency_dir(&workspace, "@pnpm.e2e/pkg-with-1-dep");
     let smoke = root_dependency_dir.join("package-map-smoke.cjs");
@@ -42,8 +50,13 @@ fn standard_package_map_blocks_undeclared_hoisted_dependencies_at_runtime() {
         eprintln!("skipping package-map runtime smoke: Node.js major is below 27");
         return;
     }
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(
@@ -55,7 +68,10 @@ fn standard_package_map_blocks_undeclared_hoisted_dependencies_at_runtime() {
     );
     write_workspace_yaml(&workspace, "nodeLinker: hoisted\nnodeExperimentalPackageMap: true\n");
 
-    pacquet.with_args(["install"]).assert().success();
+    pacquet
+        .with_args(["install"])
+        .assert()
+        .success();
 
     let root_dependency_dir = root_dependency_dir(&workspace, "@pnpm.e2e/pkg-with-1-dep");
     let smoke = root_dependency_dir.join("package-map-block-smoke.cjs");
@@ -75,8 +91,13 @@ fn loose_package_map_allows_undeclared_hoisted_dependencies_at_runtime() {
         eprintln!("skipping package-map runtime smoke: Node.js major is below 27");
         return;
     }
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(
@@ -91,7 +112,10 @@ fn loose_package_map_allows_undeclared_hoisted_dependencies_at_runtime() {
         "nodeLinker: hoisted\nnodeExperimentalPackageMap: true\nnodePackageMapType: loose\n",
     );
 
-    pacquet.with_args(["install"]).assert().success();
+    pacquet
+        .with_args(["install"])
+        .assert()
+        .success();
 
     let root_dependency_dir = root_dependency_dir(&workspace, "@pnpm.e2e/pkg-with-1-dep");
     let smoke = root_dependency_dir.join("package-map-loose-smoke.cjs");
@@ -115,14 +139,22 @@ fn loose_package_map_allows_undeclared_hoisted_dependencies_at_runtime() {
 /// without it.
 #[test]
 fn hoisted_install_writes_no_package_map_unless_the_setting_is_on() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace, serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
     write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
 
-    pacquet.with_args(["install"]).assert().success();
+    pacquet
+        .with_args(["install"])
+        .assert()
+        .success();
 
     assert!(
         !workspace.join("node_modules/.package-map.json").exists(),
@@ -170,14 +202,22 @@ fn run_pre_and_postinstall_scripts_in_a_workspace_with_hoisted_linker() {
     );
     for generated in ["generated-by-preinstall.js", "generated-by-postinstall.js"] {
         assert!(
-            fixture.workspace.join("node_modules").join(SCRIPTS).join(generated).exists(),
+            fixture.workspace
+                .join("node_modules")
+                .join(SCRIPTS)
+                .join(generated)
+                .exists(),
             "the hoisted root copy must be built ({generated})",
         );
         // Only the versions that lost the root slot are nested, and
         // every nested copy must be built.
         for project in &projects[2..] {
             assert!(
-                project.join("node_modules").join(SCRIPTS).join(generated).exists(),
+                project
+                    .join("node_modules")
+                    .join(SCRIPTS)
+                    .join(generated)
+                    .exists(),
                 "every nested copy must be built ({generated})",
             );
         }
@@ -196,7 +236,10 @@ fn run_pre_and_postinstall_scripts_in_a_workspace_with_hoisted_linker() {
     // up, so they must not carry a second copy of their own.
     for project in &projects[..2] {
         assert!(
-            !project.join("node_modules").join(SCRIPTS).exists(),
+            !project
+                .join("node_modules")
+                .join(SCRIPTS)
+                .exists(),
             "a project on the hoisted version must not nest its own copy",
         );
     }
@@ -207,8 +250,13 @@ fn run_pre_and_postinstall_scripts_in_a_workspace_with_hoisted_linker() {
 #[test]
 fn run_pre_and_postinstall_scripts_and_link_bins() {
     const SCRIPTS: &str = "@pnpm.e2e/pre-and-postinstall-scripts-example";
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_manifest(&workspace, serde_json::json!({ SCRIPTS: "1.0.0" }));
     write_workspace_yaml(
@@ -216,7 +264,10 @@ fn run_pre_and_postinstall_scripts_and_link_bins() {
         &format!("nodeLinker: hoisted\nallowBuilds:\n  '{SCRIPTS}': true\n"),
     );
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let package_dir = workspace.join("node_modules").join(SCRIPTS);
     assert!(!package_dir.join("generated-by-prepare.js").exists());
@@ -244,8 +295,7 @@ fn running_install_scripts_in_workspace_without_root_project() {
     fixture.run(["install"]);
 
     assert!(
-        fixture
-            .workspace
+        fixture.workspace
             .join("node_modules")
             .join(SCRIPTS)
             .join("generated-by-preinstall.js")
@@ -304,8 +354,10 @@ fn hoisted_linker_symlinks_bins_by_default() {
         fixture.run(["install"]);
 
         let bin = consumer.join("node_modules/.bin/project-2");
-        let is_symlink =
-            fs::symlink_metadata(&bin).expect("bin must exist").file_type().is_symlink();
+        let is_symlink = fs::symlink_metadata(&bin)
+            .expect("bin must exist")
+            .file_type()
+            .is_symlink();
         assert_eq!(is_symlink, expect_symlink, "yaml: {yaml}");
     }
 }
@@ -316,17 +368,27 @@ fn hoisted_linker_symlinks_bins_by_default() {
 #[test]
 fn a_present_ignored_build_still_fails_a_strict_install() {
     const SCRIPTS: &str = "@pnpm.e2e/pre-and-postinstall-scripts-example";
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace, serde_json::json!({ SCRIPTS: "1.0.0" }));
     write_workspace_yaml(&workspace, "nodeLinker: hoisted\nstrictDepBuilds: false\n");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     write_workspace_yaml(&workspace, "nodeLinker: hoisted\nstrictDepBuilds: true\n");
-    let output =
-        pacquet_at(&workspace).with_args(["add", "ms@1.0.0"]).output().expect("run pnpm add");
+    let output = pacquet_at(&workspace)
+        .with_args(["add", "ms@1.0.0"])
+        .output()
+        .expect("run pnpm add");
     assert!(!output.status.success(), "the unapproved build is still unapproved: {output:?}");
     let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
     assert!(stderr.contains("ERR_PNPM_IGNORED_BUILDS"), "stderr:\n{stderr}");

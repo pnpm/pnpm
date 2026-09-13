@@ -62,7 +62,12 @@ async fn skips_an_optional_dependency_whose_resolution_fails_with_no_locked_entr
     let mut opts = workspace_opts(false, false);
     opts.hooks.skipped_optional_log = Some(std::sync::Arc::new({
         let skipped = std::sync::Arc::clone(&skipped);
-        move |notification| skipped.lock().unwrap().push(notification)
+        move |notification| {
+            skipped
+                .lock()
+                .unwrap()
+                .push(notification);
+        }
     }));
     let result = resolve_workspace(
         &resolver,
@@ -188,8 +193,7 @@ async fn reused_lockfile_entries_still_notify_the_deprecation_sink() {
     let resolver =
         RecordingResolver { table: HashMap::default(), seen: Mutex::new(HashMap::default()) };
     let mut lockfile = importer_scoped_update_lockfile(&["root"], "old", "^1.0.0", "1.2.0", None);
-    lockfile
-        .packages
+    lockfile.packages
         .as_mut()
         .expect("lockfile carries packages")
         .get_mut(&"old@1.2.0".parse::<pnpm_lockfile::PkgNameVerPeer>().expect("parse key"))
@@ -431,9 +435,7 @@ async fn unchanged_shadow_ownership_handover_keeps_reused_subtree() {
         Some("mid2@1.0.0".to_string()),
         "needyC's required peer mid2 is hoisted to the root importer",
     );
-    let mid2 = result
-        .peers
-        .graph
+    let mid2 = result.peers.graph
         .get(&pnpm_deps_path::DepPath::from("mid2@1.0.0".to_string()))
         .expect("mid2 in graph");
     assert_eq!(
@@ -451,8 +453,7 @@ async fn unchanged_shadow_ownership_handover_keeps_reused_subtree() {
 async fn a_pinned_subtree_keeps_its_children_against_a_fresh_walk() {
     for slow in [("fresh", "1.0.0"), ("reused", "1.0.0")] {
         let tree = resolve_pinned_versus_fresh(slow).await;
-        let recorded: Vec<&str> = tree
-            .children_by_id
+        let recorded: Vec<&str> = tree.children_by_id
             .get("shared@1.0.0")
             .expect("shared children")
             .iter()

@@ -359,7 +359,13 @@ fn settings_block_fast_path(
         config,
         project_manifests,
         catalogs,
-        layout: crate::RepeatInstallLayout { node_linker, included, supported_architectures, .. },
+        layout:
+            crate::RepeatInstallLayout {
+                node_linker,
+                included,
+                supported_architectures,
+                ..
+            },
         ..
     } = check;
     if !settings_match(
@@ -398,7 +404,12 @@ fn lockfile_inputs_block_fast_path(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
 ) -> Option<&'static str> {
-    let &OptimisticRepeatInstallCheck { workspace_root, config, is_workspace_install, .. } = check;
+    let &OptimisticRepeatInstallCheck {
+        workspace_root,
+        config,
+        is_workspace_install,
+        ..
+    } = check;
     // Single-project installs require a lockfile to even attempt the
     // fast path. The single-project branch raises
     // `RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND` when the wanted-lockfile
@@ -458,11 +469,18 @@ fn manifest_has_runtime_deps(manifest: &PackageManifest) -> bool {
     [value.get("dependencies"), value.get("devDependencies"), value.get("optionalDependencies")]
         .into_iter()
         .flatten()
-        .any(|deps| deps.as_object().is_some_and(|map| !map.is_empty()))
+        .any(|deps| {
+            deps.as_object()
+                .is_some_and(|map| !map.is_empty())
+        })
 }
 
 fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String> {
-    manifest.value().get(key).and_then(|v| v.as_str()).map(ToString::to_string)
+    manifest
+        .value()
+        .get(key)
+        .and_then(|v| v.as_str())
+        .map(ToString::to_string)
 }
 
 /// Whether any configured patch file's mtime is newer than the last
@@ -475,15 +493,17 @@ fn patches_modified_since(workspace_root: &Path, config: &Config, cutoff_ms: i64
     let Some(patches) = config.patched_dependencies.as_ref() else {
         return false;
     };
-    patches.values().any(|rel_or_abs| {
-        let candidate = Path::new(rel_or_abs);
-        let path = if candidate.is_absolute() {
-            candidate.to_path_buf()
-        } else {
-            workspace_root.join(candidate)
-        };
-        file_mtime(&path).is_some_and(|mtime| modified_at_or_after(mtime, cutoff_ms))
-    })
+    patches
+        .values()
+        .any(|rel_or_abs| {
+            let candidate = Path::new(rel_or_abs);
+            let path = if candidate.is_absolute() {
+                candidate.to_path_buf()
+            } else {
+                workspace_root.join(candidate)
+            };
+            file_mtime(&path).is_some_and(|mtime| modified_at_or_after(mtime, cutoff_ms))
+        })
 }
 
 /// The pnpmfile list recorded in the workspace state and compared by
@@ -528,13 +548,15 @@ fn pnpmfiles_drift(
     if current != previous {
         return Some("The list of pnpmfiles changed.".to_string());
     }
-    current.iter().find_map(|path| {
-        let Some(mtime) = file_mtime(Path::new(path)) else {
-            return Some(format!(r#"pnpmfile at "{path}" was removed"#));
-        };
-        modified_at_or_after(mtime, cutoff_ms)
-            .then(|| format!(r#"pnpmfile at "{path}" was modified"#))
-    })
+    current
+        .iter()
+        .find_map(|path| {
+            let Some(mtime) = file_mtime(Path::new(path)) else {
+                return Some(format!(r#"pnpmfile at "{path}" was removed"#));
+            };
+            modified_at_or_after(mtime, cutoff_ms)
+                .then(|| format!(r#"pnpmfile at "{path}" was modified"#))
+        })
 }
 
 #[cfg(test)]

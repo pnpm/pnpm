@@ -208,7 +208,11 @@ fn update_mutation(packages: &[String], latest: bool) -> ProjectMutation {
 
 impl Update<'_> {
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), UpdateError> {
-        let Self { options: update, resources: owned, manifest } = self;
+        let Self {
+            options: update,
+            resources: owned,
+            manifest,
+        } = self;
         begin::<Reporter>(update, &owned);
         let site = UpdateSite::find::<Reporter>(update, manifest)?;
         let unsaved = site.hook_update_manifest(update, manifest).await?;
@@ -237,7 +241,11 @@ impl Update<'_> {
         self,
         selected: SelectedProjects<'_>,
     ) -> Result<(), UpdateError> {
-        let Self { options: update, resources: owned, manifest } = self;
+        let Self {
+            options: update,
+            resources: owned,
+            manifest,
+        } = self;
         begin::<Reporter>(update, &owned);
         let selected_indices = selected_project_indices(
             selected.projects,
@@ -248,9 +256,9 @@ impl Update<'_> {
             return Ok(());
         }
         let site = UpdateSite::find::<Reporter>(update, manifest)?;
-        let unsaved = site
-            .hook_selected_manifests(update, selected.projects, manifest, &selected_indices)
-            .await?;
+        let unsaved =
+            site.hook_selected_manifests(update, selected.projects, manifest, &selected_indices)
+                .await?;
         let prepared = prepare_selected_manifests::<Reporter>(
             selected.projects,
             &selected_indices,
@@ -380,7 +388,10 @@ fn begin<Reporter: self::Reporter>(update: UpdateOptions<'_>, owned: &UpdateReso
 }
 
 fn manifest_dir(manifest: &PackageManifest) -> &Path {
-    manifest.path().parent().expect("manifest path always has a parent dir")
+    manifest
+        .path()
+        .parent()
+        .expect("manifest path always has a parent dir")
 }
 
 /// Where the update runs: the lockfile root, and the pnpmfile's
@@ -424,8 +435,9 @@ impl UpdateSite {
         }
         Ok(UnsavedManifests {
             hooked_paths,
-            lockfile_specifiers: (!update.version.save)
-                .then(|| vec![(manifest_dir(manifest).to_path_buf(), manifest.clone())]),
+            lockfile_specifiers: (!update.version.save).then(|| {
+                vec![(manifest_dir(manifest).to_path_buf(), manifest.clone())]
+            }),
         })
     }
 

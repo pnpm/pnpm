@@ -58,7 +58,11 @@ const CONFIG_CONTEXT_KEYS: &[&str] = &[
 fn refused_keys() -> &'static HashSet<&'static str> {
     static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
     SET.get_or_init(|| {
-        PROJECT_MANIFEST_SKIPPED_KEYS.iter().chain(CONFIG_CONTEXT_KEYS).copied().collect()
+        PROJECT_MANIFEST_SKIPPED_KEYS
+            .iter()
+            .chain(CONFIG_CONTEXT_KEYS)
+            .copied()
+            .collect()
     })
 }
 

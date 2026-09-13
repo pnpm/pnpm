@@ -262,7 +262,10 @@ pub struct HoistResult {
 fn snapshot_children(snapshot: &SnapshotEntry) -> IndexMap<String, PackageKey> {
     let mut children = IndexMap::new();
     for dependency_map in [&snapshot.dependencies, &snapshot.optional_dependencies] {
-        let mut dep_entries: Vec<_> = dependency_map.iter().flat_map(|map| map.iter()).collect();
+        let mut dep_entries: Vec<_> = dependency_map
+            .iter()
+            .flat_map(|map| map.iter())
+            .collect();
         dep_entries.sort_by_cached_key(|entry| entry.0.to_string());
         for (alias, dep_ref) in dep_entries {
             // `dep_ref.resolve` is `None` for `link:` deps —
@@ -298,7 +301,11 @@ pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistR
     append_dependency_entries(direct_nodes, 0, input.graph, &mut visited, &mut entries);
 
     // pnpm sorts graph-walker results by depth and virtual-store path.
-    entries.sort_by(|a, b| a.depth.cmp(&b.depth).then_with(|| a.sort_key.cmp(&b.sort_key)));
+    entries.sort_by(|a, b| {
+        a.depth
+            .cmp(&b.depth)
+            .then_with(|| a.sort_key.cmp(&b.sort_key))
+    });
 
     let mut pass = HoistPass::new(input);
     // `hoist-workspace-packages`: consider each named workspace project
@@ -399,10 +406,13 @@ impl<'a> HoistPass<'a> {
                 public_bins_seen: HashSet::new(),
             },
             input,
-            hoisted_aliases: input
-                .direct_deps_by_importer
+            hoisted_aliases: input.direct_deps_by_importer
                 .get(".")
-                .map(|map| map.keys().map(|alias| alias.to_lowercase()).collect())
+                .map(|map| {
+                    map.keys()
+                        .map(|alias| alias.to_lowercase())
+                        .collect()
+                })
                 .unwrap_or_default(),
             hoisted_dependencies: HoistedDependencies::new(),
             hoisted_dependencies_by_node_id: HashMap::new(),
@@ -503,8 +513,7 @@ fn append_dependency_entries<'a>(
         let next_steps: Vec<Vec<&PackageKey>> = nodes
             .iter()
             .map(|node_id| {
-                graph[*node_id]
-                    .children
+                graph[*node_id].children
                     .values()
                     .filter_map(|child_id| {
                         let (graph_key, _) = graph.get_key_value(child_id)?;

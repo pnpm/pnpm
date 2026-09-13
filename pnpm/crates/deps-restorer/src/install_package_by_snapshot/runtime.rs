@@ -108,7 +108,10 @@ pub(super) fn pick_supported<'a>(
     let Some(requested) = requested.filter(|requested| !requested.is_empty()) else {
         return host_value;
     };
-    if requested.iter().any(|value| value == "current" || Some(value.as_str()) == host_value) {
+    if requested
+        .iter()
+        .any(|value| value == "current" || Some(value.as_str()) == host_value)
+    {
         return host_value;
     }
     requested.first().map(String::as_str)
@@ -134,20 +137,27 @@ pub(super) fn bundled_tooling_module(path: &str) -> bool {
     let Some(rest) = after_lib.strip_prefix("node_modules/") else {
         return false;
     };
-    ["npm", "corepack"].into_iter().any(|name| {
-        rest.strip_prefix(name).is_some_and(|tail| tail.is_empty() || tail.starts_with('/'))
-    })
+    ["npm", "corepack"]
+        .into_iter()
+        .any(|name| {
+            rest.strip_prefix(name)
+                .is_some_and(|tail| tail.is_empty() || tail.starts_with('/'))
+        })
 }
 /// `^bin/(?:npm|npx|corepack)$`
 pub(super) fn bundled_tooling_bin(path: &str) -> bool {
-    path.strip_prefix("bin/").is_some_and(|rest| matches!(rest, "npm" | "npx" | "corepack"))
+    path.strip_prefix("bin/")
+        .is_some_and(|rest| matches!(rest, "npm" | "npx" | "corepack"))
 }
 /// `^(?:npm|npx|corepack)(?:\.(?:cmd|ps1))?$`
 ///
 /// These are *not* under `bin/` — they live at the runtime archive root
 /// after the `node-vX.Y.Z-<platform>-<arch>/` prefix strip.
 pub(super) fn bundled_tooling_root_entry(path: &str) -> bool {
-    let stem = path.strip_suffix(".cmd").or_else(|| path.strip_suffix(".ps1")).unwrap_or(path);
+    let stem = path
+        .strip_suffix(".cmd")
+        .or_else(|| path.strip_suffix(".ps1"))
+        .unwrap_or(path);
     matches!(stem, "npm" | "npx" | "corepack")
 }
 /// Build the per-fetch [`IgnoreEntryFilter`] for the package being
@@ -351,12 +361,11 @@ pub(super) fn synthesize_runtime_manifest_bytes(
         "version": stripped.suffix.version().to_string(),
         "bin": bin_value,
     });
-    serde_json::to_vec(&manifest).map_err(|error| {
-        InstallPackageBySnapshotError::SynthesizeRuntimeManifest {
+    serde_json::to_vec(&manifest)
+        .map_err(|error| InstallPackageBySnapshotError::SynthesizeRuntimeManifest {
             package_key: package_key.to_string(),
             error,
-        }
-    })
+        })
 }
 /// Render a variant's target list as a human-readable string for
 /// inclusion in the [`InstallPackageBySnapshotError::NoMatchingPlatformVariant`]

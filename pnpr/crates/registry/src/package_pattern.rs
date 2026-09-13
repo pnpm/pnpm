@@ -58,7 +58,10 @@ impl PackagePattern {
         if pattern == "@*/*" {
             return Ok(PackagePattern::AnyScoped);
         }
-        if let Some(scope) = pattern.strip_prefix('@').and_then(|rest| rest.strip_suffix("/*")) {
+        if let Some(scope) = pattern
+            .strip_prefix('@')
+            .and_then(|rest| rest.strip_suffix("/*"))
+        {
             // A wildcard inside the scope is an unsupported glob; a scope
             // that request parsing would reject — `@.acme`, `@..`, a
             // separator — is a claim no valid package name can ever match.
@@ -87,9 +90,11 @@ impl PackagePattern {
         if namespace.contains('*') || namespace.contains('/') {
             return Err(invalid_pattern(pattern, Ecosystem::Oci));
         }
-        pnpr_package_name::canonicalize_oci_name(namespace).map(PackagePattern::Namespace).map_err(
-            |_| RegistryConfigError::NamespacePatternNotANamespace { pattern: pattern.to_string() },
-        )
+        pnpr_package_name::canonicalize_oci_name(namespace)
+            .map(PackagePattern::Namespace)
+            .map_err(|_| RegistryConfigError::NamespacePatternNotANamespace {
+                pattern: pattern.to_string(),
+            })
     }
 
     /// A literal name, canonicalized the way a request for it will be.
@@ -223,4 +228,70 @@ pub(super) fn wildcard_shapes(ecosystem: Ecosystem) -> &'static str {
 
 pub(super) fn invalid_pattern(pattern: &str, ecosystem: Ecosystem) -> RegistryConfigError {
     RegistryConfigError::InvalidPattern { pattern: pattern.to_string(), ecosystem }
+}
+
+/// Reject a router source whose claims an earlier source already covers.
+///
+/// A source is unreachable when every name it claims is already claimed by an
+/// earlier source — the misordered-catch-all hazard and its general form.
+/// Rejecting it makes a shadowed private source a startup error, not a silent
+/// public fall-through.
+///
+/// The whole-source check only fires when *all* of a source's patterns are
+/// covered, so the partial case is caught per pattern: one dead claim of an
+/// otherwise-reachable source would otherwise silently send a private package
+/// to the origin an earlier catch-all or scope claim points at. An identical
+/// claim by two sources is the same defect: whichever is listed later never
+/// receives the name, which is genuinely ambiguous provenance the operator must
+/// resolve in the declared namespaces, not by order.
+pub(super) fn reject_shadowed_source(
+    router: &str,
+    source: &str,
+    index: usize,
+    patterns: &[PackagePattern],
+    seen: &[&PackagePattern],
+) -> Result<(), RegistryConfigError> {
+    if patterns
+        .iter()
+        .all(|pattern| {
+            seen.iter()
+                .any(|earlier| earlier.covers(pattern))
+        })
+    {
+        return Err(RegistryConfigError::UnreachableSource {
+            router: router.to_string(),
+            index,
+            source: source.to_string(),
+        });
+    }
+    for pattern in patterns {
+        if let Some(earlier) = seen
+            .iter()
+            .find(|&&earlier| earlier.covers(pattern))
+        {
+            return Err(RegistryConfigError::ShadowedPattern {
+                router: router.to_string(),
+                source: source.to_string(),
+                pattern: pattern.to_string(),
+                by: earlier.to_string(),
+            });
+        }
+    }
+    Ok(())
+}
+
+/// Reject a duplicate pattern within one concrete registry's declared namespace.
+pub(super) fn validate_namespace(
+    registry: &str,
+    patterns: &[PackagePattern],
+) -> Result<(), RegistryConfigError> {
+    for (index, pattern) in patterns.iter().enumerate() {
+        if patterns[..index].contains(pattern) {
+            return Err(RegistryConfigError::DuplicatePattern {
+                registry: registry.to_string(),
+                pattern: pattern.to_string(),
+            });
+        }
+    }
+    Ok(())
 }

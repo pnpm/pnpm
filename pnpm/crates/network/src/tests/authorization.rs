@@ -41,7 +41,11 @@ async fn mockito_integration_http_proxy_forwards_request_with_basic_auth() {
     )
     .expect("valid proxy");
     let guard = client.acquire().await;
-    let resp = guard.get("http://target.example/anything").send().await.expect("proxied request");
+    let resp = guard
+        .get("http://target.example/anything")
+        .send()
+        .await
+        .expect("proxied request");
     assert_eq!(resp.status(), 200);
     assert_eq!(resp.text().await.expect("body"), "ok");
     mock.assert_async().await;
@@ -182,13 +186,18 @@ fn for_installs_ignores_ca_entries_that_carry_no_certificate() {
             "{pem:?} parsed as a cert",
         );
     }
-    let mut ca: Vec<String> = unreadable.iter().map(|pem| (*pem).to_string()).collect();
+    let mut ca: Vec<String> = unreadable
+        .iter()
+        .map(|pem| (*pem).to_string())
+        .collect();
     ca.push(TEST_CA_PEM.to_string());
     // The valid entry must still reach the trust store — dropping it
     // alongside its unreadable neighbours would break the install a
     // different way.
     assert_eq!(
-        ca.iter().flat_map(|pem| crate::certificates::parse_ca_bundle(pem.as_bytes())).count(),
+        ca.iter()
+            .flat_map(|pem| crate::certificates::parse_ca_bundle(pem.as_bytes()))
+            .count(),
         1,
     );
     ThrottledClient::for_installs(
@@ -273,8 +282,12 @@ async fn default_tls_rejects_an_untrusted_certificate_without_panicking() {
         let address = listener.local_addr().expect("TLS server address");
         let server = std::thread::spawn(move || {
             let (mut stream, _) = listener.accept().expect("accept TLS connection");
-            stream.set_read_timeout(Some(Duration::from_secs(10))).expect("set read timeout");
-            stream.set_write_timeout(Some(Duration::from_secs(10))).expect("set write timeout");
+            stream
+                .set_read_timeout(Some(Duration::from_secs(10)))
+                .expect("set read timeout");
+            stream
+                .set_write_timeout(Some(Duration::from_secs(10)))
+                .expect("set write timeout");
             ServerConnection::new(Arc::new(config))
                 .expect("create TLS connection")
                 .complete_io(&mut stream)

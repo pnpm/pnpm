@@ -27,7 +27,10 @@ fn filtered_run_keeps_single_script_in_foreground_process_group() {
         ],
     );
 
-    pacquet.with_args(["--filter", "project-1", "run", "prompt"]).assert().success();
+    pacquet
+        .with_args(["--filter", "project-1", "run", "prompt"])
+        .assert()
+        .success();
 
     let groups =
         fs::read_to_string(workspace.join("process-groups.txt")).expect("read process groups");
@@ -63,10 +66,18 @@ fn recursive_run_finds_workspace_root_bin_on_path() {
     fs::create_dir_all(&bin_dir).expect("create workspace-root node_modules/.bin");
     write_executable(&bin_dir.join("root-tool"), "#!/bin/sh\ntouch root-tool-ran.txt\n");
 
-    pacquet.with_arg("-r").with_arg("run").with_arg("build").assert().success();
+    pacquet
+        .with_arg("-r")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
 
     assert!(
-        workspace.join("project-1").join("root-tool-ran.txt").exists(),
+        workspace
+            .join("project-1")
+            .join("root-tool-ran.txt")
+            .exists(),
         "the workspace root's node_modules/.bin should be on the script's PATH",
     );
 
@@ -97,7 +108,12 @@ fn recursive_run_prefers_project_bin_over_workspace_root_bin() {
         write_executable(&bin_dir.join("print-version"), &format!("#!/bin/sh\necho {version}\n"));
     }
 
-    pacquet.with_arg("-r").with_arg("run").with_arg("build").assert().success();
+    pacquet
+        .with_arg("-r")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
 
     let version = fs::read_to_string(workspace.join("project-1").join("version.txt"))
         .expect("read version.txt");
@@ -155,12 +171,18 @@ fn recursive_run_filter_selects_only_matching_project() {
         .success();
 
     assert!(
-        workspace.join("project-1").join("ran.txt").exists(),
+        workspace
+            .join("project-1")
+            .join("ran.txt")
+            .exists(),
         "the selected project-1 should run",
     );
     for name in ["project-2", "project-3"] {
         assert!(
-            !workspace.join(name).join("ran.txt").exists(),
+            !workspace
+                .join(name)
+                .join("ran.txt")
+                .exists(),
             "{name} is not selected by --filter and must not run",
         );
     }
@@ -192,10 +214,25 @@ fn recursive_run_exclude_filter_skips_excluded_project() {
         .assert()
         .success();
 
-    assert!(workspace.join("project-1").join("ran.txt").exists(), "project-1 should run");
-    assert!(workspace.join("project-3").join("ran.txt").exists(), "project-3 should run");
     assert!(
-        !workspace.join("project-2").join("ran.txt").exists(),
+        workspace
+            .join("project-1")
+            .join("ran.txt")
+            .exists(),
+        "project-1 should run",
+    );
+    assert!(
+        workspace
+            .join("project-3")
+            .join("ran.txt")
+            .exists(),
+        "project-3 should run",
+    );
+    assert!(
+        !workspace
+            .join("project-2")
+            .join("ran.txt")
+            .exists(),
         "project-2 is excluded by !project-2 and must not run",
     );
 
@@ -224,11 +261,17 @@ fn filter_without_recursive_flag_enters_recursive_run() {
         .success();
 
     assert!(
-        workspace.join("project-1").join("ran.txt").exists(),
+        workspace
+            .join("project-1")
+            .join("ran.txt")
+            .exists(),
         "the selected project-1 should run",
     );
     assert!(
-        !workspace.join("project-2").join("ran.txt").exists(),
+        !workspace
+            .join("project-2")
+            .join("ran.txt")
+            .exists(),
         "a bare --filter (no -r) should still scope the run to the selection",
     );
 
@@ -271,7 +314,10 @@ fn filtered_run_prints_the_script_command_unless_silent() {
         .expect("run silent filtered build");
     assert!(output.status.success(), "silent filtered build failed: {output:?}");
     assert!(
-        workspace.join("project-2").join("ran.txt").is_file(),
+        workspace
+            .join("project-2")
+            .join("ran.txt")
+            .is_file(),
         "silent filtered build must still execute its script: {output:?}",
     );
     assert!(
@@ -293,7 +339,9 @@ fn filtered_run_prints_the_script_command_unless_silent() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(!stderr.is_empty(), "NDJSON filtered build must emit reporter records");
     assert!(
-        stderr.lines().all(|line| serde_json::from_str::<Value>(line).is_ok()),
+        stderr
+            .lines()
+            .all(|line| serde_json::from_str::<Value>(line).is_ok()),
         "NDJSON filtered build must contain only JSON records: {stderr}",
     );
 
@@ -309,7 +357,12 @@ fn recursive_run_auto_excludes_workspace_root() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace_with_root_and_packages(&workspace);
 
-    pacquet.with_arg("-r").with_arg("run").with_arg("build").assert().success();
+    pacquet
+        .with_arg("-r")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
 
     assert!(workspace.join("packages/project-1/ran.txt").exists(), "project-1 should run");
     assert!(workspace.join("packages/project-2/ran.txt").exists(), "project-2 should run");
@@ -363,7 +416,12 @@ fn include_workspace_root_setting_is_read_from_the_workspace_manifest() {
         workspace.join("packages/project-2/ran.txt"),
     ];
 
-    pacquet.with_arg("-r").with_arg("run").with_arg("build").assert().success();
+    pacquet
+        .with_arg("-r")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
     for marker in &markers {
         assert!(marker.exists(), "{} should run under the setting", marker.display());
         fs::remove_file(marker).expect("clear the marker");
@@ -371,7 +429,10 @@ fn include_workspace_root_setting_is_read_from_the_workspace_manifest() {
 
     let mut negated = Command::cargo_bin("pnpm").unwrap();
     negated.current_dir(&workspace);
-    negated.args(["-r", "--no-include-workspace-root", "run", "build"]).assert().success();
+    negated
+        .args(["-r", "--no-include-workspace-root", "run", "build"])
+        .assert()
+        .success();
     assert!(!markers[0].exists(), "--no-include-workspace-root must override the setting");
     // The negation drops the root, not the selection: a run that
     // selected nothing would leave these missing too.
@@ -538,11 +599,17 @@ fn recursive_run_filter_prod_follows_production_deps_only() {
         .success();
 
     assert!(
-        workspace.join("app").join("ran.txt").exists(),
+        workspace
+            .join("app")
+            .join("ran.txt")
+            .exists(),
         "the --filter-prod-selected app should run",
     );
     assert!(
-        !workspace.join("lib").join("ran.txt").exists(),
+        !workspace
+            .join("lib")
+            .join("ran.txt")
+            .exists(),
         "lib is only a dev dependency of app, so --filter-prod's production-only walk must skip it",
     );
 
@@ -601,7 +668,10 @@ fn recursive_run_filter_no_match_is_a_noop() {
         .success();
 
     assert!(
-        !workspace.join("project-1").join("ran.txt").exists(),
+        !workspace
+            .join("project-1")
+            .join("ran.txt")
+            .exists(),
         "no project is selected, so nothing should run",
     );
 
@@ -676,10 +746,83 @@ fn recursive_run_filters_hidden_regexp_matches_when_a_visible_script_matches() {
         )],
     );
 
-    pacquet.with_args(["-r", "run", "/build/"]).assert().success();
+    pacquet
+        .with_args(["-r", "run", "/build/"])
+        .assert()
+        .success();
 
-    assert!(workspace.join("project").join("visible.txt").exists());
-    assert!(!workspace.join("project").join("hidden.txt").exists());
+    assert!(
+        workspace
+            .join("project")
+            .join("visible.txt")
+            .exists(),
+    );
+    assert!(
+        !workspace
+            .join("project")
+            .join("hidden.txt")
+            .exists(),
+    );
+
+    drop(root);
+}
+
+/// A `[<since>]` changed-packages selector scopes a recursive `run` to
+/// the projects the git diff touches.
+#[test]
+fn recursive_run_diff_selector_selects_changed_projects() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", build_writes_marker("project-1")),
+            ("project-2", build_writes_marker("project-2")),
+        ],
+    );
+    let git = |args: &[&str]| {
+        let output = std::process::Command::new("git")
+            .args(args)
+            .current_dir(&workspace)
+            .output()
+            .expect("spawn git");
+        assert!(
+            output.status.success(),
+            "git {args:?} failed: {}",
+            String::from_utf8_lossy(&output.stderr),
+        );
+    };
+    git(&["init", "--initial-branch=main"]);
+    git(&["config", "user.email", "x@y.z"]);
+    git(&["config", "user.name", "xyz"]);
+    git(&["add", "."]);
+    git(&["commit", "-m", "base", "--no-gpg-sign"]);
+    fs::write(workspace.join("project-1").join("changed.js"), "").expect("write changed file");
+    git(&["add", "."]);
+    git(&["commit", "-m", "change project-1", "--no-gpg-sign"]);
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("[HEAD~1]")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
+
+    assert!(
+        workspace
+            .join("project-1")
+            .join("ran.txt")
+            .exists(),
+        "the changed project-1 should run the build script",
+    );
+    assert!(
+        !workspace
+            .join("project-2")
+            .join("ran.txt")
+            .exists(),
+        "the unchanged project-2 must stay outside the selection",
+    );
 
     drop(root);
 }

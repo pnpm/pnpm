@@ -27,7 +27,10 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -74,7 +77,10 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
         hoist_pattern: config.hoist_pattern.clone(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         store_dir: config.store_dir.display().to_string(),
-        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir: config
+            .effective_virtual_store_dir()
+            .to_string_lossy()
+            .into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
         ..Default::default()
     };
@@ -166,10 +172,12 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
 
     let captured = EVENTS.lock().unwrap();
     assert!(
-        !captured.iter().any(|event| matches!(
-            event,
-            LogEvent::Pnpm(log) if log.message == "Already up to date"
-        )),
+        !captured
+            .iter()
+            .any(|event| matches!(
+                event,
+                LogEvent::Pnpm(log) if log.message == "Already up to date"
+            )),
         "the optimistic 'Already up to date' log MUST NOT fire under --frozen-lockfile; got events: {captured:#?}",
     );
     // The existing no-op short-circuit still does fire on the frozen
@@ -265,7 +273,9 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
 
     let err = result.expect_err("packageExtensions drift must surface as a config mismatch");
     match err {
-        InstallError::LockfileConfigMismatch { setting: "packageExtensionsChecksum" } => {}
+        InstallError::LockfileConfigMismatch {
+            setting: "packageExtensionsChecksum",
+        } => {}
         other => {
             panic!("expected LockfileConfigMismatch for `packageExtensionsChecksum`, got {other:?}")
         }

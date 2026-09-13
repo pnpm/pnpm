@@ -104,7 +104,10 @@ fn snapshot_tree(root: &Path) -> Vec<FixtureEntry> {
         .into_iter()
         .map(|entry| {
             let entry = entry.expect("walk the global fixture tree");
-            let path = entry.path().strip_prefix(root).expect("fixture entry is under its root");
+            let path = entry
+                .path()
+                .strip_prefix(root)
+                .expect("fixture entry is under its root");
             if entry.file_type().is_dir() {
                 FixtureEntry { path: path.to_path_buf(), kind: "directory", payload: Vec::new() }
             } else if entry.file_type().is_symlink() {
@@ -132,7 +135,10 @@ fn snapshot_tree(root: &Path) -> Vec<FixtureEntry> {
 
 #[cfg(unix)]
 fn dependency_manifest_path(install_dir: &Path, alias: &str) -> PathBuf {
-    install_dir.join("node_modules").join(alias).join("package.json")
+    install_dir
+        .join("node_modules")
+        .join(alias)
+        .join("package.json")
 }
 
 #[cfg(unix)]
@@ -463,7 +469,10 @@ fn approve_builds_global_approves_every_install_group() {
         "@pnpm.e2e/install-script-example@1.0.0",
         "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0",
     ] {
-        global_command(&workspace, &pnpm_home).with_args(["add", "-g", package]).assert().success();
+        global_command(&workspace, &pnpm_home)
+            .with_args(["add", "-g", package])
+            .assert()
+            .success();
     }
 
     let install_script =

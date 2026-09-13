@@ -71,8 +71,7 @@ pub(super) async fn fetch_teams(
         .await);
     }
 
-    let body = read_limited_body(response, TEAM_BODY_LIMIT)
-        .await
+    let body = read_limited_body(response, TEAM_BODY_LIMIT).await
         .map_err(|source| registry_operation_error("reading teams response", source))?;
     serde_json::from_slice(&body.bytes)
         .into_diagnostic()
@@ -111,8 +110,7 @@ pub(super) async fn fetch_team_members(
         .await);
     }
 
-    let body = read_limited_body(response, TEAM_BODY_LIMIT)
-        .await
+    let body = read_limited_body(response, TEAM_BODY_LIMIT).await
         .map_err(|source| registry_operation_error("reading team members response", source))?;
     serde_json::from_slice(&body.bytes)
         .into_diagnostic()
@@ -130,9 +128,7 @@ pub(super) fn auth_header_for_registry(
 ) -> miette::Result<String> {
     let registry_url = registry_for_scope(context, scope);
     let pkg_name = format!("@{scope}/_");
-    context
-        .config
-        .auth_headers
+    context.config.auth_headers
         .for_url_with_package(&registry_url, Some(&pkg_name))
         .ok_or_else(|| TeamError::MissingAuthToken.into())
 }
@@ -191,8 +187,9 @@ async fn read_limited_body(
     response: Response,
     limit: usize,
 ) -> Result<LimitedBody, reqwest::Error> {
-    let header_exceeds_limit =
-        response.content_length().is_some_and(|length| length > limit as u64);
+    let header_exceeds_limit = response
+        .content_length()
+        .is_some_and(|length| length > limit as u64);
     let mut bytes = Vec::new();
     let mut truncated = header_exceeds_limit;
     let mut stream = response.bytes_stream();
@@ -209,7 +206,12 @@ async fn read_limited_body(
     if truncated {
         let body = String::from_utf8_lossy(&bytes);
         let mut body = sanitize::sanitize(&body).into_owned();
-        if !body.is_empty() && !body.chars().next_back().is_some_and(char::is_whitespace) {
+        if !body.is_empty()
+            && !body
+                .chars()
+                .next_back()
+                .is_some_and(char::is_whitespace)
+        {
             body.push(' ');
         }
         body.push_str("(response body truncated)");
@@ -238,7 +240,10 @@ pub(super) async fn registry_error_from_response(
     action: String,
 ) -> miette::Report {
     let status = response.status();
-    let status_text = status.canonical_reason().unwrap_or_default().to_string();
+    let status_text = status
+        .canonical_reason()
+        .unwrap_or_default()
+        .to_string();
     let body = match read_limited_body(response, TEAM_ERROR_BODY_LIMIT).await {
         Ok(body) => body.into_display_string(),
         Err(_) => String::new(),
@@ -257,4 +262,38 @@ pub(super) async fn registry_error_from_response(
         return TeamError::Conflict { body }.into();
     }
     TeamError::RegistryWriteFailed { action, status: status.as_u16(), status_text, body }.into()
+}
+
+// When an OTP is in play, restrict redirects to the configured
+// registry origins so a redirect cannot forward the `npm-otp` header
+// to another host (reqwest only strips standard auth headers on
+// cross-host redirects). Mirrors the `access` command's guard.
+//
+// Deliberate divergence from pnpm: the TypeScript fetch layer
+// follows a cross-host redirect after stripping `authorization` and
+// `npm-otp`, so the request proceeds without credentials and fails
+// at the target; here it fails at the redirect hop instead. reqwest
+// redirect policies cannot strip custom headers per hop, so matching
+// pnpm exactly needs a manual redirect loop in pnpm-network — a
+// follow-up that would cover `access` too.
+pub(super) fn redirect_guard(
+    registries: &std::collections::HashMap<String, String>,
+) -> RedirectGuard {
+    let origins: Vec<(String, String, Option<u16>)> = registries
+        .values()
+        .filter_map(|registry| {
+            let url = reqwest::Url::parse(registry).ok()?;
+            Some((url.scheme().to_string(), url.host_str()?.to_string(), url.port()))
+        })
+        .collect();
+    let guard: RedirectGuard = std::sync::Arc::new(move |target: &reqwest::Url| -> bool {
+        origins
+            .iter()
+            .any(|(scheme, host, port)| {
+                target.scheme() == scheme
+                    && target.host_str() == Some(host.as_str())
+                    && target.port() == *port
+            })
+    });
+    guard
 }

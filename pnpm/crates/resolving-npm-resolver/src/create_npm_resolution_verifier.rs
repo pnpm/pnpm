@@ -368,8 +368,10 @@ impl ResolutionVerifier for NpmResolutionVerifier {
         // (stricter window) is trustworthy under a smaller current one
         // — the set of accepted versions is a subset of today's.
         // Tightening the cutoff invalidates the cached run.
-        let past_min_age =
-            cached_policy.get("minimumReleaseAge").and_then(JsonValue::as_u64).unwrap_or(0);
+        let past_min_age = cached_policy
+            .get("minimumReleaseAge")
+            .and_then(JsonValue::as_u64)
+            .unwrap_or(0);
         if past_min_age < self.release_age.minimum_minutes.unwrap_or(0) {
             return false;
         }
@@ -455,15 +457,14 @@ impl NpmResolutionVerifier {
         let registry =
             named_registry.unwrap_or_else(|| self.routing.pick_registry(ctx.name, tarball_url));
 
-        if let Some(violation) = self
-            .run_artifact_binding(
-                &registry,
-                &ctx,
-                resolution,
-                tarball_url,
-                age_applies || trust_applies,
-            )
-            .await
+        if let Some(violation) = self.run_artifact_binding(
+            &registry,
+            &ctx,
+            resolution,
+            tarball_url,
+            age_applies || trust_applies,
+        )
+        .await
         {
             return violation;
         }
@@ -542,9 +543,9 @@ fn is_excluded(policy: Option<&PackageVersionPolicy>, name: &PkgName, version: &
     match policy.matches(&name.to_string()) {
         pnpm_config::version_policy::PolicyMatch::No => false,
         pnpm_config::version_policy::PolicyMatch::AnyVersion => true,
-        pnpm_config::version_policy::PolicyMatch::ExactVersions(versions) => {
-            versions.iter().any(|exact| exact == version)
-        }
+        pnpm_config::version_policy::PolicyMatch::ExactVersions(versions) => versions
+            .iter()
+            .any(|exact| exact == version),
     }
 }
 

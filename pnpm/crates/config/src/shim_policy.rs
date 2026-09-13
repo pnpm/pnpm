@@ -131,12 +131,17 @@ impl GlobalShims {
 
     /// Every package with an entry, and the policy it resolved to.
     pub fn entries(&self) -> impl Iterator<Item = (&str, ShimPolicy)> {
-        self.entries.iter().map(|(name, policy)| (name.as_str(), *policy))
+        self.entries
+            .iter()
+            .map(|(name, policy)| (name.as_str(), *policy))
     }
 
     #[must_use]
     pub fn policy(&self, package_name: &str) -> ShimPolicy {
-        self.entries.get(package_name).copied().unwrap_or(ShimPolicy::Off)
+        self.entries
+            .get(package_name)
+            .copied()
+            .unwrap_or(ShimPolicy::Off)
     }
 
     #[must_use]
@@ -148,6 +153,8 @@ impl GlobalShims {
     /// early exit.
     #[must_use]
     pub fn dispatches_nothing(&self) -> bool {
-        self.entries.values().all(|policy| *policy == ShimPolicy::Off)
+        self.entries
+            .values()
+            .all(|policy| *policy == ShimPolicy::Off)
     }
 }

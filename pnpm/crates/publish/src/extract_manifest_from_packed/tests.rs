@@ -17,7 +17,13 @@ fn write_tarball(dir: &TempDir, entries: &[(&str, &str)]) -> String {
         header.set_cksum();
         builder.append_data(&mut header, name, contents.as_bytes()).unwrap();
     }
-    builder.into_inner().unwrap().finish().unwrap().flush().unwrap();
+    builder
+        .into_inner()
+        .unwrap()
+        .finish()
+        .unwrap()
+        .flush()
+        .unwrap();
     path.to_string_lossy().into_owned()
 }
 

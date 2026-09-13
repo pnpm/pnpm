@@ -27,8 +27,12 @@ fn moves_a_widened_range_to_the_higher_version_another_importer_locks() {
         (recorded.specifier.as_str(), recorded.version.to_string().as_str()),
         ("^1.1.0", "1.2.0"),
     );
-    let mut packages: Vec<_> =
-        updated.packages.as_ref().expect("packages").keys().map(ToString::to_string).collect();
+    let mut packages: Vec<_> = updated.packages
+        .as_ref()
+        .expect("packages")
+        .keys()
+        .map(ToString::to_string)
+        .collect();
     packages.sort();
     assert_eq!(
         packages,
@@ -171,8 +175,12 @@ fn drops_the_importer_of_a_workspace_project_that_is_gone() {
     .expect("dropping a project's importer needs no resolution");
 
     assert_eq!(updated.importers.keys().collect::<Vec<_>>(), vec!["packages/a"]);
-    let mut packages: Vec<_> =
-        updated.packages.as_ref().expect("packages").keys().map(ToString::to_string).collect();
+    let mut packages: Vec<_> = updated.packages
+        .as_ref()
+        .expect("packages")
+        .keys()
+        .map(ToString::to_string)
+        .collect();
     packages.sort();
     assert_eq!(packages, vec!["foo@1.1.0".to_string()], "what only it needed goes with it");
 }
@@ -196,8 +204,7 @@ fn keeps_the_importer_when_the_run_does_not_see_every_project() {
 #[test]
 fn rejects_dropping_an_importer_a_survivor_links_to() {
     let mut subject = parsed_lockfile(WITH_TWO_IMPORTERS);
-    subject
-        .importers
+    subject.importers
         .get_mut("packages/a")
         .expect("importer")
         .dependencies

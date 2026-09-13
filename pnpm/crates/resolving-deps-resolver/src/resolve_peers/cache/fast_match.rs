@@ -23,8 +23,7 @@ impl Walker<'_> {
     ) -> Option<&PeersCacheItem> {
         let canonical_scc = self.canonical_scc();
         let query = FastProviderQuery { canonical_scc: &canonical_scc, parent_refs, pkg_id };
-        self.caches
-            .peers_cache
+        self.caches.peers_cache
             .get(pkg_id)?
             .iter()
             .find(|item| matches!(self.fast_cache_item_matches(query, item), FastCacheMatch::Match))
@@ -108,9 +107,7 @@ impl Walker<'_> {
         let Some(children) = self.tree.children_by_id.get(pkg_id) else {
             return inherited.map_or(FastProvider::Missing, FastProvider::Inherited);
         };
-        let Some(edge_indices) = self
-            .caches
-            .peer_provider_children_by_pkg_id
+        let Some(edge_indices) = self.caches.peer_provider_children_by_pkg_id
             .get(pkg_id)
             .and_then(|providers| providers.edge_indices_by_name.get(name))
         else {

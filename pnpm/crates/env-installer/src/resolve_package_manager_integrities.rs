@@ -60,8 +60,7 @@ pub async fn resolve_package_manager_integrities(
     }
 
     let (package_manager_dependencies, mut resolved) =
-        resolve_direct_deps(package_manager_deps, wanted_specifier, version, resolver, opts)
-            .await?;
+        resolve_direct_deps(package_manager_deps, wanted_specifier, version, resolver, opts).await?;
     env_lockfile.root_importer_mut().package_manager_dependencies =
         Some(package_manager_dependencies);
 
@@ -171,8 +170,9 @@ async fn record_package(
         package.key,
         SnapshotEntry {
             dependencies: (!dependencies.is_empty()).then_some(dependencies),
-            optional_dependencies: (!optional_dependencies.is_empty())
-                .then_some(optional_dependencies),
+            optional_dependencies: (!optional_dependencies.is_empty()).then_some(
+                optional_dependencies,
+            ),
             optional: package.optional,
             ..SnapshotEntry::default()
         },
@@ -227,10 +227,14 @@ fn is_package_manager_resolved_with_deps(
     pnpm_version: &str,
     package_manager_deps: &[&str],
 ) -> bool {
-    recorded_package_manager_deps(env_lockfile).is_some_and(|pm_deps| {
-        pm_deps.len() == package_manager_deps.len()
-            && pm_deps.values().all(|dep| dep.specifier == wanted_specifier)
-    }) && pins_wanted_package_manager(env_lockfile, pnpm_version, package_manager_deps)
+    recorded_package_manager_deps(env_lockfile)
+        .is_some_and(|pm_deps| {
+            pm_deps.len() == package_manager_deps.len()
+                && pm_deps
+                    .values()
+                    .all(|dep| dep.specifier == wanted_specifier)
+        })
+        && pins_wanted_package_manager(env_lockfile, pnpm_version, package_manager_deps)
 }
 
 /// Whether the env lockfile pins the package manager the manifest asks for,
@@ -253,18 +257,21 @@ fn pins_wanted_package_manager(
     let Some(pm_deps) = recorded_package_manager_deps(env_lockfile) else {
         return false;
     };
-    package_manager_deps.iter().all(|name| pm_deps.contains_key(*name))
-        && pm_deps.iter().all(|(name, dep)| {
-            dep.version == pnpm_version
-                && package_manager_entry_exists(env_lockfile, name, &dep.version)
-        })
+    package_manager_deps
+        .iter()
+        .all(|name| pm_deps.contains_key(*name))
+        && pm_deps
+            .iter()
+            .all(|(name, dep)| {
+                dep.version == pnpm_version
+                    && package_manager_entry_exists(env_lockfile, name, &dep.version)
+            })
 }
 
 fn recorded_package_manager_deps(
     env_lockfile: &EnvLockfile,
 ) -> Option<&std::collections::BTreeMap<String, SpecifierAndResolution>> {
-    env_lockfile
-        .importers
+    env_lockfile.importers
         .get(EnvLockfile::ROOT_IMPORTER_KEY)
         .and_then(|importer| importer.package_manager_dependencies.as_ref())
 }
@@ -308,8 +315,9 @@ struct EnvPackage {
 impl EnvPackage {
     fn snapshot_ref(&self, alias: &str) -> Result<SnapshotDepRef, ConfigDepError> {
         if alias == self.name {
-            let ver_peer =
-                self.version.parse::<PkgVerPeer>().map_err(|_| ConfigDepError::BadConfigDep {
+            let ver_peer = self.version
+                .parse::<PkgVerPeer>()
+                .map_err(|_| ConfigDepError::BadConfigDep {
                     message: format!(
                         "Resolved package manager dependency version {} is not valid",
                         self.version,
@@ -381,7 +389,9 @@ fn no_integrity(alias: &str, specifier: &str) -> ConfigDepError {
 }
 
 fn snapshot_dep_name(alias: &str) -> Result<PkgName, ConfigDepError> {
-    alias.parse().map_err(|_| ConfigDepError::BadConfigDep {
-        message: format!("Resolved package manager dependency name {alias} is invalid"),
-    })
+    alias
+        .parse()
+        .map_err(|_| ConfigDepError::BadConfigDep {
+            message: format!("Resolved package manager dependency name {alias} is invalid"),
+        })
 }

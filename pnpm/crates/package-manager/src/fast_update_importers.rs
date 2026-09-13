@@ -109,10 +109,11 @@ fn stale_importer_ids(
     if !prune_stale_importers {
         return Vec::new();
     }
-    let manifest_ids: HashSet<&str> =
-        manifests.iter().map(|(importer_id, _)| importer_id.as_str()).collect();
-    lockfile
-        .importers
+    let manifest_ids: HashSet<&str> = manifests
+        .iter()
+        .map(|(importer_id, _)| importer_id.as_str())
+        .collect();
+    lockfile.importers
         .keys()
         .filter(|importer_id| !manifest_ids.contains(importer_id.as_str()))
         .cloned()
@@ -237,8 +238,7 @@ fn alias_divergence(
         // versions; a specifier they reject (a `workspace:` range
         // above all) can only resolve.
         if Range::parse(specifier).is_err()
-            || dependency
-                .version
+            || dependency.version
                 .ver_peer()
                 .and_then(|ver_peer| ver_peer.version_semver())
                 .is_none()
@@ -261,7 +261,9 @@ fn importer_dependency<'a>(
     ]
     .into_iter()
     .find_map(|(group, dependencies)| {
-        dependencies.and_then(|dependencies| dependencies.get(alias)).map(|spec| (group, spec))
+        dependencies
+            .and_then(|dependencies| dependencies.get(alias))
+            .map(|spec| (group, spec))
     })
 }
 
@@ -340,7 +342,11 @@ fn remove_dependencies_absent_from(
         }
     }
     if let Some(specifiers) = importer.specifiers.as_mut() {
-        specifiers.retain(|alias, _| !removed.iter().any(|name| name.to_string() == *alias));
+        specifiers.retain(|alias, _| {
+            !removed
+                .iter()
+                .any(|name| name.to_string() == *alias)
+        });
     }
 }
 

@@ -109,7 +109,9 @@ pub(super) fn wanted_spec(
             registry,
         );
     }
-    let alias = wanted_dependency.alias.as_deref().filter(|alias| !alias.is_empty())?;
+    let alias = wanted_dependency.alias
+        .as_deref()
+        .filter(|alias| !alias.is_empty())?;
     Some(default_tag_spec(alias, default_tag))
 }
 
@@ -242,9 +244,7 @@ pub(super) fn workspace_packages_active<'o>(
     opts: &'o ResolveOptions,
     spec: &RegistryPackageSpec,
 ) -> Option<&'o std::sync::Arc<WorkspacePackages>> {
-    let can_keep_workspace_resolution = opts
-        .refresh
-        .current_pkg
+    let can_keep_workspace_resolution = opts.refresh.current_pkg
         .as_ref()
         .is_none_or(|current| matches!(current.resolution, LockfileResolution::Directory(_)));
     (spec.revision.is_none()

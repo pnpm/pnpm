@@ -200,7 +200,9 @@ fn assert_first_project_wins(projects: &[Project; 2]) {
     let index = index_projects(projects);
 
     assert_eq!(index.len(), 1, "comparison-equal roots share one entry");
-    let project = index.get(&ProjectPathKey::new(&projects[1].root_dir)).expect("indexed project");
+    let project = index
+        .get(&ProjectPathKey::new(&projects[1].root_dir))
+        .expect("indexed project");
     assert_eq!(project.name.as_deref(), Some("first"), "the first discovered project wins");
 }
 

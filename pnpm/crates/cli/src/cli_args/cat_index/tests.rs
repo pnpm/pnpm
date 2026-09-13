@@ -64,5 +64,10 @@ fn sort_deep_keys_sorts_nested_objects_deterministically() {
 }
 
 fn object_keys(value: &serde_json::Value) -> Vec<&str> {
-    value.as_object().expect("value is an object").keys().map(String::as_str).collect()
+    value
+        .as_object()
+        .expect("value is an object")
+        .keys()
+        .map(String::as_str)
+        .collect()
 }

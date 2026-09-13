@@ -16,8 +16,7 @@ pub(crate) fn enforce_token_helper_trust(
     for (uri, by_scope) in &full.creds_by_scope_by_uri {
         for (scope, raw) in by_scope {
             let Some(value) = &raw.token_helper else { continue };
-            let trusted_value = trusted
-                .creds_by_scope_by_uri
+            let trusted_value = trusted.creds_by_scope_by_uri
                 .get(uri)
                 .and_then(|by_scope| by_scope.get(scope))
                 .and_then(|raw| raw.token_helper.as_deref());
@@ -63,12 +62,16 @@ pub(super) fn parse_token_helper_field(
 ) -> Result<Option<Vec<String>>, LoadWorkspaceYamlError> {
     let Some(raw) = raw else { return Ok(None) };
     let source = raw.trim();
-    if let Some(character) =
-        source.chars().find(|character| TOKEN_HELPER_RESERVED_CHARACTERS.contains(character))
+    if let Some(character) = source
+        .chars()
+        .find(|character| TOKEN_HELPER_RESERVED_CHARACTERS.contains(character))
     {
         return Err(LoadWorkspaceYamlError::TokenHelperUnsupportedCharacter { character });
     }
-    let command: Vec<String> = source.split_whitespace().map(str::to_owned).collect();
+    let command: Vec<String> = source
+        .split_whitespace()
+        .map(str::to_owned)
+        .collect();
     Ok((!command.is_empty()).then_some(command))
 }
 

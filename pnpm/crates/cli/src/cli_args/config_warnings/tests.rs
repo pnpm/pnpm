@@ -6,8 +6,10 @@ use pretty_assertions::assert_eq;
 
 fn config_with(registries: &[(&str, &str)], registry_options_by_url: &[&str]) -> Config {
     let mut config = Config::new();
-    config.registries_by_scope =
-        registries.iter().map(|(scope, url)| ((*scope).to_string(), (*url).to_string())).collect();
+    config.registries_by_scope = registries
+        .iter()
+        .map(|(scope, url)| ((*scope).to_string(), (*url).to_string()))
+        .collect();
     config.registry_options_by_url = registry_options_by_url
         .iter()
         .map(|registry| {

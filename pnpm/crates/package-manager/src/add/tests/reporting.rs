@@ -120,7 +120,10 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 

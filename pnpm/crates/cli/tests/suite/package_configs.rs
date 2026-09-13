@@ -19,8 +19,10 @@ const HELLO: &str = "@pnpm.e2e/hello-world-js-bin";
 /// 100.0.0 and 100.1.0 for, so the pinned and unpinned answers differ.
 fn assert_resolved_dep(project: &Path, version: &str) {
     let lockfile = read_lockfile(&project.join("pnpm-lock.yaml"));
-    let keys: Vec<String> =
-        snapshot_entries(&lockfile, DEP).into_iter().map(|(key, _)| key).collect();
+    let keys: Vec<String> = snapshot_entries(&lockfile, DEP)
+        .into_iter()
+        .map(|(key, _)| key)
+        .collect();
     dbg!(&keys);
     assert_eq!(keys, vec![format!("{DEP}@{version}")], "in {}", project.display());
 }
@@ -157,7 +159,10 @@ fn modules_dir_moves_only_the_named_project() {
     fixture.run(["install"]);
 
     assert!(
-        moved.join("modules").join(PARENT).is_symlink(),
+        moved
+            .join("modules")
+            .join(PARENT)
+            .is_symlink(),
         "the moved project links into modules",
     );
     assert!(!has_link(&moved, PARENT), "the moved project must not link into node_modules");

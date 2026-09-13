@@ -95,12 +95,17 @@ pub fn read_foreign_lockfile_versions(
 
     let yarn_lockfile_path = dir.join(YARN_LOCKFILE_NAME);
     if let Some(contents) = read_if_exists(&yarn_lockfile_path)? {
-        if contents.lines().any(|line| line.starts_with("<<<<<<<")) {
+        if contents
+            .lines()
+            .any(|line| line.starts_with("<<<<<<<"))
+        {
             return Err(ImportLockfileError::YarnLockfileConflict);
         }
-        collect_yarn_lockfile_versions(&contents, &mut versions).map_err(|source| {
-            ImportLockfileError::YarnParse { path: yarn_lockfile_path, source }
-        })?;
+        collect_yarn_lockfile_versions(&contents, &mut versions)
+            .map_err(|source| ImportLockfileError::YarnParse {
+                path: yarn_lockfile_path,
+                source,
+            })?;
         return Ok(versions);
     }
 
@@ -151,7 +156,10 @@ fn add_version(versions: &mut VersionsByPackageName, name: &str, version: &str) 
     if name.is_empty() || version.is_empty() {
         return;
     }
-    versions.entry(name.to_string()).or_default().insert(version.to_string());
+    versions
+        .entry(name.to_string())
+        .or_default()
+        .insert(version.to_string());
 }
 
 #[cfg(test)]

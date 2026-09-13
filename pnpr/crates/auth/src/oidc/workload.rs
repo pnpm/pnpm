@@ -12,7 +12,9 @@ pub(super) fn verify_workload(
 ) -> Result<()> {
     let token: CoreIdToken = raw.parse().map_err(|_| rejected())?;
     let verifier = token_verifier(config, metadata)?;
-    token.claims(&verifier, |_: Option<&Nonce>| Ok(())).map_err(|_| rejected())?;
+    token
+        .claims(&verifier, |_: Option<&Nonce>| Ok(()))
+        .map_err(|_| rejected())?;
     validate_claims(config, &token_payload(raw)?)
 }
 
@@ -62,20 +64,31 @@ pub(super) fn token_payload(raw: &str) -> Result<Value> {
     if raw.len() > 16 * 1024 {
         return Err(rejected());
     }
-    let payload = raw.split('.').nth(1).ok_or_else(rejected)?;
+    let payload = raw
+        .split('.')
+        .nth(1)
+        .ok_or_else(rejected)?;
     let bytes = BASE64_URL_SAFE_NO_PAD.decode(payload).map_err(|_| rejected())?;
     serde_json::from_slice(&bytes).map_err(|_| rejected())
 }
 
 pub(super) fn validate_times(payload: &Value) -> Result<()> {
     let now = Utc::now().timestamp();
-    let issued = payload.get("iat").and_then(Value::as_i64).ok_or_else(rejected)?;
-    let expires = payload.get("exp").and_then(Value::as_i64).ok_or_else(rejected)?;
+    let issued = payload
+        .get("iat")
+        .and_then(Value::as_i64)
+        .ok_or_else(rejected)?;
+    let expires = payload
+        .get("exp")
+        .and_then(Value::as_i64)
+        .ok_or_else(rejected)?;
     if issued > now + 60 || expires <= now || expires <= issued {
         return Err(rejected());
     }
     if let Some(not_before) = payload.get("nbf")
-        && not_before.as_i64().is_none_or(|not_before| not_before > now)
+        && not_before
+            .as_i64()
+            .is_none_or(|not_before| not_before > now)
     {
         return Err(rejected());
     }
@@ -116,7 +129,9 @@ pub(super) fn match_workload_binding(
 
 pub(super) fn binding_matches(binding: &OidcBinding, payload: &Value) -> bool {
     payload.get("sub").and_then(Value::as_str) == Some(binding.subject.as_str())
-        && binding.claims.iter().all(|(key, expected)| {
-            payload.get(key).and_then(Value::as_str) == Some(expected.as_str())
-        })
+        && binding.claims
+            .iter()
+            .all(|(key, expected)| {
+                payload.get(key).and_then(Value::as_str) == Some(expected.as_str())
+            })
 }

@@ -61,7 +61,11 @@ fn copy_restores_executable_mode_from_cas_suffix() {
     link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Copy, &src, &dst)
         .expect("copy should restore executable CAS mode");
 
-    let dst_mode = fs::metadata(&dst).unwrap().permissions().mode() & 0o777;
+    let dst_mode = fs::metadata(&dst)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
     assert_eq!(dst_mode, 0o755, "copied executable file must stay executable");
 }
 /// A non-executable CAS entry has no `-exec` suffix, so the copy must
@@ -81,7 +85,11 @@ fn copy_does_not_widen_non_exec_mode() {
     link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Copy, &src, &dst)
         .expect("copy should succeed");
 
-    let dst_mode = fs::metadata(&dst).unwrap().permissions().mode() & 0o777;
+    let dst_mode = fs::metadata(&dst)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
     assert_eq!(dst_mode, 0o600, "non-executable file must not gain exec bits");
 }
 /// On EEXIST the import adopts the racing writer's dirent, but re-asserts
@@ -108,7 +116,11 @@ fn eexist_restores_executable_mode_from_cas_suffix() {
     )
     .expect("EEXIST import should heal the exec bit");
 
-    let dst_mode = fs::metadata(&dst).unwrap().permissions().mode() & 0o777;
+    let dst_mode = fs::metadata(&dst)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
     assert_eq!(dst_mode, 0o755, "stale 0o644 target must be restored to 0o755 on EEXIST");
 }
 /// The EEXIST exec-bit re-assertion must not widen a non-executable
@@ -132,7 +144,11 @@ fn eexist_does_not_widen_non_exec_mode() {
     )
     .expect("EEXIST import should be a no-op for a non-exec entry");
 
-    let dst_mode = fs::metadata(&dst).unwrap().permissions().mode() & 0o777;
+    let dst_mode = fs::metadata(&dst)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
     assert_eq!(dst_mode, 0o600, "non-exec EEXIST target must not gain exec bits");
 }
 /// The writer that owns a shared slot may replace the target again
@@ -166,7 +182,11 @@ fn spurious_not_found_with_an_existing_target_is_adopted() {
     recover_from_concurrent_import(io::Error::from(io::ErrorKind::NotFound), &src, &dst)
         .expect("a NotFound against an existing target is a concurrent import");
 
-    let dst_mode = fs::metadata(&dst).unwrap().permissions().mode() & 0o777;
+    let dst_mode = fs::metadata(&dst)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
     assert_eq!(dst_mode, 0o755, "the adopted target must be restored to 0o755");
 }
 #[test]

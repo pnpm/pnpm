@@ -234,7 +234,10 @@ fn record_materialized_edge(
     }
     annotate_search(&mut entry, search_match, &subtree, result);
 
-    if entry.status.is_peer && opts.exclude_peer_dependencies && entry.dependencies.is_empty() {
+    if entry.status.is_peer
+        && opts.exclude_peer_dependencies
+        && entry.dependencies.is_empty()
+    {
         return;
     }
     result.count += 1 + if entry.dependencies.is_empty() { 0 } else { subtree.count };
@@ -272,7 +275,12 @@ struct SubtreeWalk<'a> {
 fn materialize_subtree(walk: SubtreeWalk<'_>) -> Subtree {
     let opts = walk.opts;
     let target = walk.target;
-    let TraversalState { cache, ancestors, max_depth, guard_depth } = walk.traversal;
+    let TraversalState {
+        cache,
+        ancestors,
+        max_depth,
+        guard_depth,
+    } = walk.traversal;
 
     // A back-edge to an ancestor is truncated here; `fix_circular_refs`
     // flags it in a post-pass.
@@ -305,11 +313,15 @@ fn materialize_subtree(walk: SubtreeWalk<'_>) -> Subtree {
             search_messages: child_result.search_messages.clone(),
         }),
     );
+    expanded_subtree(child_result, opts.show_deduped_search_matches)
+}
+
+fn expanded_subtree(child_result: MaterializationResult, show_matches: bool) -> Subtree {
     Subtree {
         dependencies: child_result.nodes,
         count: child_result.count,
         walked_has_search_match: child_result.has_search_match,
-        walked_search_messages: if opts.show_deduped_search_matches {
+        walked_search_messages: if show_matches {
             child_result.search_messages
         } else {
             Vec::new()

@@ -62,8 +62,13 @@ async fn resolve_directory() {
     let LockfileResolution::Directory(dir) = &result.resolution else {
         panic!("expected directory resolution, got {:?}", result.resolution);
     };
-    let expected_dir =
-        forward_slashes(project_dir.join("..").lexical_normalize().display().to_string());
+    let expected_dir = forward_slashes(
+        project_dir
+            .join("..")
+            .lexical_normalize()
+            .display()
+            .to_string(),
+    );
     assert_eq!(dir.directory, expected_dir);
 }
 
@@ -104,8 +109,7 @@ async fn resolve_directory_specified_using_absolute_path_with_preserve_absolute_
         injected: false,
     };
     let ctx = LocalResolverContext { preserve_absolute_paths: true };
-    let result = resolve_from_local_scheme(&ctx, &wd, &opts(&project_dir))
-        .await
+    let result = resolve_from_local_scheme(&ctx, &wd, &opts(&project_dir)).await
         .expect("resolve")
         .expect("claims");
 
@@ -128,8 +132,7 @@ async fn resolve_directory_specified_using_absolute_path_with_preserve_absolute_
         injected: false,
     };
     let ctx = LocalResolverContext { preserve_absolute_paths: true };
-    let result = resolve_from_local_scheme(&ctx, &wd, &opts(&project_dir))
-        .await
+    let result = resolve_from_local_scheme(&ctx, &wd, &opts(&project_dir)).await
         .expect("resolve")
         .expect("claims");
 
@@ -341,7 +344,13 @@ async fn resolve_file() {
         panic!("expected tarball resolution, got {:?}", result.resolution);
     };
     assert_eq!(tarball, "file:pnpm-local-resolver-0.1.1.tgz");
-    assert_eq!(got_integrity.as_ref().expect("integrity").to_string(), integrity);
+    assert_eq!(
+        got_integrity
+            .as_ref()
+            .expect("integrity")
+            .to_string(),
+        integrity,
+    );
     assert_eq!(result.resolved_via, "local-filesystem");
     // The bundled manifest is what gives the dep path its `<name>@`
     // prefix, so a lockfile key can be parsed out of it.
@@ -368,8 +377,7 @@ async fn resolve_file_when_lockfile_directory_differs_from_the_packages_dir() {
         bare_specifier: "./pnpm-local-resolver-0.1.1.tgz".to_string(),
         injected: false,
     };
-    let result = resolve_from_local_path(&ctx_default(), &wd, &options)
-        .await
+    let result = resolve_from_local_path(&ctx_default(), &wd, &options).await
         .expect("resolve")
         .expect("claims");
 
@@ -436,8 +444,7 @@ async fn resolve_file_with_different_integrity_force_fetch() {
         bare_specifier: "file:./pnpm-local-resolver-0.1.1.tgz".to_string(),
         injected: false,
     };
-    let result = resolve_from_local_scheme(&ctx_default(), &wd, &options)
-        .await
+    let result = resolve_from_local_scheme(&ctx_default(), &wd, &options).await
         .expect("resolve")
         .expect("claims");
 
@@ -445,7 +452,13 @@ async fn resolve_file_with_different_integrity_force_fetch() {
     else {
         panic!("expected tarball resolution");
     };
-    assert_eq!(integrity.as_ref().expect("integrity").to_string(), true_integrity);
+    assert_eq!(
+        integrity
+            .as_ref()
+            .expect("integrity")
+            .to_string(),
+        true_integrity,
+    );
 }
 
 #[tokio::test]
@@ -478,7 +491,10 @@ async fn fail_when_resolving_from_not_existing_directory_an_injected_dependency(
     let err = resolve_from_local_scheme(&ctx_default(), &wd, &opts(project_dir))
         .await
         .expect_err("expected LINKED_PKG_DIR_NOT_FOUND");
-    let expected = project_dir.join("dir-does-not-exist").display().to_string();
+    let expected = project_dir
+        .join("dir-does-not-exist")
+        .display()
+        .to_string();
     match err {
         ResolveLocalError::LinkedPkgDirNotFound { path } => assert_eq!(path, expected),
         other => panic!("unexpected error: {other:?}"),
@@ -500,10 +516,16 @@ async fn fail_when_resolving_missing_tarball_with_file_protocol() {
     let err = resolve_from_local_scheme(&ctx_default(), &wd, &opts(project_dir))
         .await
         .expect_err("expected LINKED_PKG_DIR_NOT_FOUND");
-    let expected = project_dir.join("missing.tgz").display().to_string();
+    let expected = project_dir
+        .join("missing.tgz")
+        .display()
+        .to_string();
     {
         use miette::Diagnostic;
-        let code = err.code().map(|c| c.to_string()).unwrap_or_default();
+        let code = err
+            .code()
+            .map(|c| c.to_string())
+            .unwrap_or_default();
         assert_eq!(
             code, "ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND",
             "diagnostic code must match the upstream error contract",

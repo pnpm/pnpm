@@ -32,8 +32,13 @@ fn side_effects_materialized_on_warm_frozen_reinstall_with_hoisted_linker() {
 }
 
 fn assert_side_effects_materialized(hoisted: bool) {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     // `allowBuilds` in `pnpm-workspace.yaml`, exactly like the report.
@@ -71,7 +76,10 @@ fn assert_side_effects_materialized(hoisted: bool) {
     };
 
     eprintln!("First install (non-frozen, writes lockfile + populates store)...");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     eprintln!("Wiping node_modules before the first frozen install...");
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
@@ -101,8 +109,13 @@ fn assert_side_effects_materialized(hoisted: bool) {
 /// Regression for <https://github.com/pnpm/pnpm/issues/14717>.
 #[test]
 fn a_build_with_nothing_to_restore_runs_on_every_install() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let yaml_path = workspace.join("pnpm-workspace.yaml");

@@ -56,8 +56,7 @@ importers:
     );
 
     let mut stale_lockfile = lockfile.clone();
-    stale_lockfile
-        .importers
+    stale_lockfile.importers
         .get_mut("../workspace/pkgs/a")
         .expect("nested importer")
         .dependencies

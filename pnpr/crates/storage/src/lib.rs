@@ -575,7 +575,9 @@ fn pipeline_run_key(workspace: &str, run_id: &str) -> Result<String> {
 fn validated_record_name(name: &str) -> Result<&str> {
     let valid = !name.is_empty()
         && !name.starts_with('.')
-        && name.chars().all(|char| char.is_ascii_alphanumeric() || matches!(char, '.' | '_' | '-'));
+        && name
+            .chars()
+            .all(|char| char.is_ascii_alphanumeric() || matches!(char, '.' | '_' | '-'));
     if valid {
         Ok(name)
     } else {
@@ -598,7 +600,9 @@ fn staged_body_object(stage_id: &str) -> Result<String> {
 /// this is the storage layer's own guard.
 fn validated_stage_id(stage_id: &str) -> Result<&str> {
     let valid = !stage_id.is_empty()
-        && stage_id.chars().all(|char| char.is_ascii_hexdigit() || char == '-');
+        && stage_id
+            .chars()
+            .all(|char| char.is_ascii_hexdigit() || char == '-');
     if valid {
         Ok(stage_id)
     } else {

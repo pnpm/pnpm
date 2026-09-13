@@ -9,7 +9,9 @@ pub(super) fn extract_repository(manifest: &serde_json::Value) -> Option<String>
     if let Some(s) = repo.as_str() {
         return Some(s.to_string());
     }
-    repo.get("url").and_then(|u| u.as_str()).map(ToString::to_string)
+    repo.get("url")
+        .and_then(|u| u.as_str())
+        .map(ToString::to_string)
 }
 
 pub(super) fn strip_url_credentials(url: &str) -> String {
@@ -77,8 +79,9 @@ pub(super) fn is_simple_spdx_id(license: &str) -> bool {
 }
 
 pub(super) fn classify_license(license: &str) -> serde_json::Value {
-    let is_expression =
-        license.split_whitespace().any(|word| word == "AND" || word == "OR" || word == "WITH");
+    let is_expression = license
+        .split_whitespace()
+        .any(|word| word == "AND" || word == "OR" || word == "WITH");
     if is_expression {
         serde_json::json!({ "expression": license })
     } else if is_simple_spdx_id(license) {
@@ -148,10 +151,16 @@ pub(super) fn read_pkg_metadata_from_store(
     };
     let store_name = key.to_virtual_store_name(ctx.virtual_store_dir_max_length);
     for virtual_store_dir in ctx.virtual_store_dirs {
-        let pkg_dir = virtual_store_dir.join(&store_name).join("node_modules").join(pkg_name);
+        let pkg_dir = virtual_store_dir
+            .join(&store_name)
+            .join("node_modules")
+            .join(pkg_name);
         if let Ok(Some(manifest)) = safe_read_package_json_from_dir(&pkg_dir) {
             return PkgMetadata {
-                license: manifest.get("license").and_then(|v| v.as_str()).map(ToString::to_string),
+                license: manifest
+                    .get("license")
+                    .and_then(|v| v.as_str())
+                    .map(ToString::to_string),
                 description: manifest
                     .get("description")
                     .and_then(|v| v.as_str())
@@ -228,7 +237,10 @@ pub(super) fn normalize_link_path(base_importer_id: &str, link_target: &str) -> 
     let mut parts: Vec<&str> = if base_importer_id == "." {
         Vec::new()
     } else {
-        base_importer_id.split('/').filter(|segment| !segment.is_empty()).collect()
+        base_importer_id
+            .split('/')
+            .filter(|segment| !segment.is_empty())
+            .collect()
     };
     for segment in link_target.split('/') {
         match segment {
@@ -243,7 +255,9 @@ pub(super) fn normalize_link_path(base_importer_id: &str, link_target: &str) -> 
 }
 
 pub(super) fn sanitize_package_name(name: &str) -> String {
-    name.strip_prefix('@').unwrap_or(name).replace('/', "-")
+    name.strip_prefix('@')
+        .unwrap_or(name)
+        .replace('/', "-")
 }
 
 pub(super) fn sanitize_path_segment(value: &str) -> String {

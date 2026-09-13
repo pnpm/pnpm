@@ -33,8 +33,9 @@ pub(super) fn check_runtimes(
 /// The runtimes one engines field declares. Both the single-object and
 /// the array spellings are accepted, as pnpm does.
 fn declared_runtimes<'a>(manifest: &'a Value, engines_field: &str) -> &'a [Value] {
-    let Some(runtime_entry) =
-        manifest.get(engines_field).and_then(|engines| engines.get("runtime"))
+    let Some(runtime_entry) = manifest
+        .get(engines_field)
+        .and_then(|engines| engines.get("runtime"))
     else {
         return &[];
     };
@@ -51,7 +52,10 @@ fn check_runtime(runtime: &Value, name: &str, emit: fn(&LogEvent)) -> miette::Re
         return Ok(());
     }
     let display_name = runtime_display_name(name);
-    let wanted_range = runtime.get("version").and_then(Value::as_str).map(str::trim);
+    let wanted_range = runtime
+        .get("version")
+        .and_then(Value::as_str)
+        .map(str::trim);
     let Some(wanted_range) = wanted_range.filter(|range| !range.is_empty()) else {
         return fail_runtime_check(
             on_fail,

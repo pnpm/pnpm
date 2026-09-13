@@ -22,7 +22,10 @@ fn repo_versions() -> Vec<RepoVersion> {
 }
 
 fn refs(entries: &[(&str, &str)]) -> HashMap<String, String> {
-    entries.iter().map(|(ref_, commit)| ((*ref_).to_string(), (*commit).to_string())).collect()
+    entries
+        .iter()
+        .map(|(ref_, commit)| ((*ref_).to_string(), (*commit).to_string()))
+        .collect()
 }
 
 fn action(original_value: &str) -> ActionReference {
@@ -444,7 +447,10 @@ async fn skips_repositories_whose_refs_cannot_be_read_and_warns() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS
+                .lock()
+                .expect("lock")
+                .push(event.clone());
         }
     }
 

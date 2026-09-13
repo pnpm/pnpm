@@ -94,8 +94,10 @@ impl ApproveBuildsArgs {
         // rebuild. A pre-emptive approval names a package that is not
         // installed yet, and rebuilding for it would demand a lockfile the
         // project may not have.
-        let build_packages: Vec<String> =
-            decision.build_packages.into_iter().filter(|name| pending.contains(name)).collect();
+        let build_packages: Vec<String> = decision.build_packages
+            .into_iter()
+            .filter(|name| pending.contains(name))
+            .collect();
         if build_packages.is_empty() {
             return Ok(None);
         }
@@ -116,8 +118,11 @@ impl ApproveBuildsArgs {
                 unknown.join(", "),
             ));
         }
-        let contradictions: Vec<String> =
-            approved.iter().filter(|pkg| denied.contains(pkg)).cloned().collect();
+        let contradictions: Vec<String> = approved
+            .iter()
+            .filter(|pkg| denied.contains(pkg))
+            .cloned()
+            .collect();
         if !contradictions.is_empty() {
             return Err(ApproveBuildsError::ContradictingArgs(contradictions).into());
         }
@@ -133,7 +138,10 @@ impl ApproveBuildsArgs {
         };
 
         let decisions = if packages.is_empty() {
-            pending.iter().map(|pkg| (pkg.clone(), build_packages.contains(pkg))).collect()
+            pending
+                .iter()
+                .map(|pkg| (pkg.clone(), build_packages.contains(pkg)))
+                .collect()
         } else {
             named_decisions(&approved, &denied)
         };
@@ -151,7 +159,10 @@ impl ApproveBuildsArgs {
         if self.all && !self.packages.is_empty() {
             return Err(ApproveBuildsError::AllWithArgs.into());
         }
-        if self.packages.iter().any(|param| parse_allow_build_selector(param).0.is_empty()) {
+        if self.packages
+            .iter()
+            .any(|param| parse_allow_build_selector(param).0.is_empty())
+        {
             return Err(ApproveBuildsError::MissingPackage.into());
         }
         Ok(())
@@ -163,7 +174,11 @@ fn named_decisions(approved: &[String], denied: &[String]) -> BTreeMap<String, b
     approved
         .iter()
         .map(|pkg| (pkg.clone(), true))
-        .chain(denied.iter().map(|pkg| (pkg.clone(), false)))
+        .chain(
+            denied
+                .iter()
+                .map(|pkg| (pkg.clone(), false)),
+        )
         .collect()
 }
 
@@ -183,7 +198,9 @@ pub(crate) fn write_approval_settings(
 ) -> miette::Result<()> {
     set_allow_builds_clearing_legacy(
         settings_dir,
-        decision.decisions.iter().map(|(pkg, &value)| (pkg.as_str(), value)),
+        decision.decisions
+            .iter()
+            .map(|(pkg, &value)| (pkg.as_str(), value)),
     )
     .into_diagnostic()
 }
@@ -207,7 +224,10 @@ fn partition_params(params: &[String], automatically_ignored_builds: &[String]) 
     let mut partition = Partition::default();
     for param in params {
         let (name, allowed) = parse_allow_build_selector(param);
-        if !automatically_ignored_builds.iter().any(|build| build == name) {
+        if !automatically_ignored_builds
+            .iter()
+            .any(|build| build == name)
+        {
             partition.unknown.push(name.to_string());
         }
         if allowed {
@@ -231,9 +251,12 @@ fn prompt_for_builds(
         .interact_opt()
         .into_diagnostic()?
     {
-        Some(indices) => {
-            Ok(Some(indices.into_iter().map(|index| choices[index].clone()).collect()))
-        }
+        Some(indices) => Ok(Some(
+            indices
+                .into_iter()
+                .map(|index| choices[index].clone())
+                .collect(),
+        )),
         None => Ok(None),
     }
 }
@@ -269,7 +292,10 @@ pub(crate) fn clear_decided_ignored_builds(
     if decision.clear_all {
         modules.ignored_builds = None;
     } else {
-        let decided: HashSet<&str> = decision.decisions.keys().map(String::as_str).collect();
+        let decided: HashSet<&str> = decision.decisions
+            .keys()
+            .map(String::as_str)
+            .collect();
         if let Some(ignored) = modules.ignored_builds.as_mut() {
             ignored.retain(|dep_path| {
                 !decided.contains(allow_build_key_from_ignored_build(dep_path.as_str()).as_str())
@@ -288,7 +314,11 @@ pub(crate) fn clear_decided_ignored_builds(
 /// Deduplicate and sort `names` by code unit, matching pnpm's
 /// `sortUniqueStrings` (a `Set` then `lexCompare`).
 fn sort_unique(names: Vec<String>) -> Vec<String> {
-    let mut unique: Vec<String> = names.into_iter().collect::<HashSet<_>>().into_iter().collect();
+    let mut unique: Vec<String> = names
+        .into_iter()
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect();
     unique.sort();
     unique
 }

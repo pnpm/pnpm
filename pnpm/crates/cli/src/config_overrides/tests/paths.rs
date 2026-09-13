@@ -145,9 +145,10 @@ fn node_linker_override_rederives_prefer_symlinked_executables() {
     let (overrides, _) =
         ConfigOverrides::extract(argv(["pacquet", "--config.node-linker=hoisted", "install"]));
     let mut config = Config { prefer_symlinked_executables: Some(false), ..Config::default() };
-    config
-        .explicit_settings
-        .insert("preferSymlinkedExecutables".to_string(), serde_json::Value::Bool(false));
+    config.explicit_settings.insert(
+        "preferSymlinkedExecutables".to_string(),
+        serde_json::Value::Bool(false),
+    );
     overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(config.node_linker, NodeLinker::Hoisted);
     assert_eq!(config.prefer_symlinked_executables, Some(false));

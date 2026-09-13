@@ -240,8 +240,7 @@ fn discovery_provider_sources(
             .map(|dep| (dep.alias.clone(), dep.node_id.clone()))
             .collect(),
         declared_direct_dependencies: opts.scope.declared_direct_dependencies.clone(),
-        explicitly_requested_direct_dependencies: opts
-            .scope
+        explicitly_requested_direct_dependencies: opts.scope
             .explicitly_requested_direct_dependencies
             .clone(),
     }]

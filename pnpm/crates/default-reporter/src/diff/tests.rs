@@ -12,8 +12,9 @@ fn identical_frame_produces_empty_diff() {
 fn unchanged_sticky_line_not_rewritten() {
     let mut diff = Diff::new(120);
     diff.update("Lockfile passes supply-chain policies (verified 1h ago)\nProgress: resolved 10\n");
-    let output = diff
-        .update("Lockfile passes supply-chain policies (verified 1h ago)\nProgress: resolved 11\n");
+    let output = diff.update(
+        "Lockfile passes supply-chain policies (verified 1h ago)\nProgress: resolved 11\n",
+    );
     assert!(!output.contains("Lockfile"), "sticky line must not be reprinted: {output:?}");
 }
 

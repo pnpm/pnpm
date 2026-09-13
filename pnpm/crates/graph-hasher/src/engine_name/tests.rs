@@ -40,7 +40,10 @@ fn engine_name_host_default_has_expected_shape() {
 fn detect_node_version_strips_leading_v() {
     let version = detect_node_version().expect("`node` must be on PATH for the test suite");
     assert!(!version.starts_with('v'), "leading `v` must be stripped: {version:?}");
-    let major = version.split('.').next().expect("at least one component");
+    let major = version
+        .split('.')
+        .next()
+        .expect("at least one component");
     assert!(major.parse::<u32>().is_ok(), "major must be numeric: {version:?}");
 }
 
@@ -48,7 +51,11 @@ fn detect_node_version_strips_leading_v() {
 fn detect_node_major_matches_detect_node_version_leading_component() {
     let major = detect_node_major().expect("`node` must be on PATH for the test suite");
     let version = detect_node_version().expect("`node` must be on PATH for the test suite");
-    let leading: u32 =
-        version.split('.').next().expect("non-empty version").parse().expect("major numeric");
+    let leading: u32 = version
+        .split('.')
+        .next()
+        .expect("non-empty version")
+        .parse()
+        .expect("major numeric");
     assert_eq!(major, leading);
 }

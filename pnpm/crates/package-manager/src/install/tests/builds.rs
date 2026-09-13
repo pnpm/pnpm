@@ -118,7 +118,10 @@ fn build_modules_manifest_serializes_skipped_set() {
     // Sort-on-write happens later inside `write_modules_manifest`;
     // the read-after-write order is covered by the integration
     // test on the full install path.
-    let actual: HashSet<String> = manifest.skipped.iter().cloned().collect();
+    let actual: HashSet<String> = manifest.skipped
+        .iter()
+        .cloned()
+        .collect();
     let expected: HashSet<String> = [key1.to_string(), key2.to_string()].into_iter().collect();
     assert_eq!(actual, expected);
 }

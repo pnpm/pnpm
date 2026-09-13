@@ -6,8 +6,7 @@ use super::{
 pub(super) fn validate_provider(config: &OidcProvider) -> Result<()> {
     if config.name.is_empty()
         || config.name.len() > 64
-        || !config
-            .name
+        || !config.name
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
         || config.audience.is_empty()
@@ -18,8 +17,7 @@ pub(super) fn validate_provider(config: &OidcProvider) -> Result<()> {
     }
     secure_url(&config.issuer)?;
     let mut subjects = HashSet::new();
-    for binding in config
-        .login
+    for binding in config.login
         .iter()
         .flat_map(|login| &login.users)
         .chain(config.workloads.iter().map(|workload| &workload.identity))

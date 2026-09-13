@@ -41,7 +41,9 @@ pub(super) fn default_edit_dir(
     package_name: &str,
     target: &PatchTarget,
 ) -> PathBuf {
-    modules_dir.join(".pnpm_patches").join(default_edit_dir_name(package_name, target))
+    modules_dir
+        .join(".pnpm_patches")
+        .join(default_edit_dir_name(package_name, target))
 }
 
 pub(super) fn prepare_default_edit_dir(
@@ -57,9 +59,11 @@ pub(super) fn prepare_default_edit_dir(
         .map_err(|source| PatchError::CreateEditDir { edit_dir: edit_root.clone(), source })?;
     reject_default_edit_dir_symlink_components(&edit_root, edit_dir)?;
 
-    let real_modules_dir = dunce::canonicalize(modules_dir).map_err(|source| {
-        PatchError::ResolveEditDir { edit_dir: modules_dir.to_path_buf(), source }
-    })?;
+    let real_modules_dir = dunce::canonicalize(modules_dir)
+        .map_err(|source| PatchError::ResolveEditDir {
+            edit_dir: modules_dir.to_path_buf(),
+            source,
+        })?;
     let real_edit_root = dunce::canonicalize(&edit_root)
         .map_err(|source| PatchError::ResolveEditDir { edit_dir: edit_root.clone(), source })?;
     if !is_subdir(&real_modules_dir, &real_edit_root) {
@@ -162,10 +166,13 @@ pub(super) fn apply_existing_patch_file(
     let exact_key = format!("{}@{}", target.alias, target.bare_specifier);
     let patch_file = patched_dependencies
         .get(&exact_key)
-        .or_else(|| target.apply_to_all.then(|| patched_dependencies.get(&target.alias)).flatten());
+        .or_else(|| {
+            target.apply_to_all
+                .then(|| patched_dependencies.get(&target.alias))
+                .flatten()
+        });
     let Some(patch_file) = patch_file else { return Ok(()) };
-    let base_dir = config
-        .workspace_dir
+    let base_dir = config.workspace_dir
         .as_deref()
         .unwrap_or_else(|| config.modules_dir.parent().unwrap_or_else(|| Path::new(".")));
     let patch_file_path = checked_existing_patch_file_path(
@@ -198,7 +205,10 @@ impl ExistingPatchFileContext {
             });
         }
         let real_patches_dir = realpath_if_exists(&patches_dir);
-        if real_patches_dir.as_ref().is_some_and(|real| !is_subdir(&real_project_root, real)) {
+        if real_patches_dir
+            .as_ref()
+            .is_some_and(|real| !is_subdir(&real_project_root, real))
+        {
             return Err(PatchError::PatchesDirOutsideProject {
                 patches_dir: patches_dir_setting.to_string(),
             });
@@ -256,7 +266,9 @@ fn check_existing_patch_file_kind(
     }
     let real_target = dunce::canonicalize(target_path).ok();
     if real_patches_dir.is_some_and(|real_patches_dir| {
-        real_target.as_ref().is_none_or(|real_target| !is_subdir(real_patches_dir, real_target))
+        real_target
+            .as_ref()
+            .is_none_or(|real_target| !is_subdir(real_patches_dir, real_target))
     }) {
         return Err(PatchError::PatchFileOutsidePatchesDir { patch_file: patch_file.to_string() });
     }

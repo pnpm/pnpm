@@ -12,7 +12,13 @@ fn converge_override(name: &str, value: &str) -> Vec<VersionOverride> {
 }
 
 fn ranges(name: &str, declared: &[&str]) -> HashMap<String, HashSet<String>> {
-    HashMap::from([(name.to_string(), declared.iter().map(|range| (*range).to_string()).collect())])
+    HashMap::from([(
+        name.to_string(),
+        declared
+            .iter()
+            .map(|range| (*range).to_string())
+            .collect(),
+    )])
 }
 
 /// Canned per-range registry answers standing in for the resolver: a

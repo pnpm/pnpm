@@ -95,7 +95,10 @@ fn current_json(current: &Platform) -> String {
     // The current platform is `{ os, cpu, libc }` with single strings,
     // not arrays.
     fn single(values: &[String]) -> String {
-        values.first().cloned().unwrap_or_default()
+        values
+            .first()
+            .cloned()
+            .unwrap_or_default()
     }
     format!(
         r#"{{"os":{:?},"cpu":{:?},"libc":{:?}}}"#,
@@ -106,7 +109,10 @@ fn current_json(current: &Platform) -> String {
 }
 
 fn json_string_array(values: &[String]) -> String {
-    let joined: Vec<String> = values.iter().map(|s| format!("{s:?}")).collect();
+    let joined: Vec<String> = values
+        .iter()
+        .map(|s| format!("{s:?}"))
+        .collect();
     format!("[{}]", joined.join(","))
 }
 
@@ -191,7 +197,10 @@ fn axis_is_supported(current: &str, supported: Option<&[String]>, wanted: &[Stri
     let Some(matched) = axis_match(current, supported, wanted) else {
         return false;
     };
-    matched || wanted.iter().all(|entry| entry.starts_with('!'))
+    matched
+        || wanted
+            .iter()
+            .all(|entry| entry.starts_with('!'))
 }
 
 /// Whether any value the package declares for this axis matched what is

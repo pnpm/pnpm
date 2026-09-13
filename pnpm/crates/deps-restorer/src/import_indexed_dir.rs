@@ -281,10 +281,11 @@ fn import_into_shared_dir<Reporter: self::Reporter>(
 /// it. `create_dir_all` cannot answer that — it succeeds either way.
 fn claim_dir(dir_path: &Path) -> Result<bool, ImportIndexedDirError> {
     if let Some(parent) = dir_path.parent() {
-        fs::create_dir_all(parent).map_err(|error| ImportIndexedDirError::CreateDir {
-            dirname: parent.to_path_buf(),
-            error,
-        })?;
+        fs::create_dir_all(parent)
+            .map_err(|error| ImportIndexedDirError::CreateDir {
+                dirname: parent.to_path_buf(),
+                error,
+            })?;
     }
     match fs::create_dir(dir_path) {
         Ok(()) => Ok(true),
@@ -345,9 +346,11 @@ fn replace_non_dir<Reporter: self::Reporter>(
     cas_paths: &HashMap<String, PathBuf>,
     file_type: fs::FileType,
 ) -> Result<(), ImportIndexedDirError> {
-    remove_non_dir_dirent(dir_path, file_type).map_err(|error| {
-        ImportIndexedDirError::ClearNonDirEntry { path: dir_path.to_path_buf(), error }
-    })?;
+    remove_non_dir_dirent(dir_path, file_type)
+        .map_err(|error| ImportIndexedDirError::ClearNonDirEntry {
+            path: dir_path.to_path_buf(),
+            error,
+        })?;
     populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths, Placement::Fresh)
 }
 

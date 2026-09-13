@@ -24,8 +24,7 @@ fn a_cycle_package_resolves_identically_at_every_occurrence() {
         "unexpected missing peers: {:#?}",
         result.peer_dependency_issues.missing,
     );
-    let mut ring00_variants: Vec<&str> = result
-        .graph
+    let mut ring00_variants: Vec<&str> = result.graph
         .keys()
         .map(pnpm_deps_path::DepPath::as_str)
         .filter(|path| path.starts_with("ring00@1.0.0"))
@@ -47,10 +46,13 @@ fn cycle_re_walks_collapse_instead_of_multiplying_occurrences() {
     // Each entry provides its own `w`, so nothing untruncated transfers
     // across entries and only occurrence sharing can collapse the
     // repeated laps.
-    let names: Vec<(String, String)> =
-        (0..12).map(|index| (format!("entry{index:02}"), format!("{index}.0.0"))).collect();
-    let entries: Vec<(&str, usize, &str)> =
-        names.iter().map(|(alias, version)| (alias.as_str(), 0, version.as_str())).collect();
+    let names: Vec<(String, String)> = (0..12)
+        .map(|index| (format!("entry{index:02}"), format!("{index}.0.0")))
+        .collect();
+    let entries: Vec<(&str, usize, &str)> = names
+        .iter()
+        .map(|(alias, version)| (alias.as_str(), 0, version.as_str()))
+        .collect();
     let mut tree = peer_cycle_fixture(
         &entries,
         &PeerCycleShape {
@@ -92,8 +94,10 @@ fn backedge_bindings_do_not_depend_on_importer_order() {
         let mut packages = HashMap::default();
         packages.insert(Arc::from("p@1.0.0"), package("p", "1.0.0", &[], true));
         packages.insert(Arc::from("p@2.0.0"), package("p", "2.0.0", &[], true));
-        packages
-            .insert(Arc::from("ring00@1.0.0"), package("ring00", "1.0.0", &[("p", "*")], false));
+        packages.insert(
+            Arc::from("ring00@1.0.0"),
+            package("ring00", "1.0.0", &[("p", "*")], false),
+        );
         packages.insert(Arc::from("ring01@1.0.0"), package("ring01", "1.0.0", &[], false));
         packages.insert(Arc::from("enter-a@1.0.0"), package("enter-a", "1.0.0", &[], false));
         packages.insert(Arc::from("enter-b@1.0.0"), package("enter-b", "1.0.0", &[], false));
@@ -158,8 +162,10 @@ fn backedge_bindings_do_not_depend_on_importer_order() {
             true,
             ResolvePeersOptions::default(),
         );
-        let mut keys: Vec<String> =
-            result.graph.keys().map(|path| path.as_str().to_string()).collect();
+        let mut keys: Vec<String> = result.graph
+            .keys()
+            .map(|path| path.as_str().to_string())
+            .collect();
         keys.sort_unstable();
         keys
     };
@@ -167,7 +173,9 @@ fn backedge_bindings_do_not_depend_on_importer_order() {
     let a_first = graph_for_order("a", "b");
     let b_first = graph_for_order("b", "a");
     assert!(
-        a_first.iter().any(|key| key == "ring00@1.0.0(p@2.0.0)"),
+        a_first
+            .iter()
+            .any(|key| key == "ring00@1.0.0(p@2.0.0)"),
         "the back-edge occurrence binds the id-ordered first realizer's context;          got {a_first:#?}",
     );
     assert_eq!(a_first, b_first, "the graph must not depend on the importers' order");
@@ -187,11 +195,15 @@ fn walk_order_cannot_change_the_graph() {
         &order_test_shape(true),
     );
     assert!(
-        first_order.iter().any(|key| key == "ring02@1.0.0(p@1.0.0)"),
+        first_order
+            .iter()
+            .any(|key| key == "ring02@1.0.0(p@1.0.0)"),
         "ring members resolve their importer-provided p; got {first_order:#?}",
     );
     assert!(
-        !first_order.iter().any(|key| key.starts_with("ring02") && key.contains("(w@")),
+        !first_order
+            .iter()
+            .any(|key| key.starts_with("ring02") && key.contains("(w@")),
         "ring02's canonical subtree ends at the back-edge and reaches no w consumer;          got {first_order:#?}",
     );
     assert_eq!(first_order, second_order, "the graph must not depend on the entries' walk order");

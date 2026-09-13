@@ -38,7 +38,10 @@ pub fn registry_source(index_url: &str) -> String {
 pub fn download_url(template: &str, name: &str, version: &str, checksum: &str) -> String {
     const MARKERS: [&str; 5] =
         ["{crate}", "{version}", "{prefix}", "{lowerprefix}", "{sha256-checksum}"];
-    if !MARKERS.iter().any(|marker| template.contains(marker)) {
+    if !MARKERS
+        .iter()
+        .any(|marker| template.contains(marker))
+    {
         return format!("{}/{name}/{version}/download", template.trim_end_matches('/'));
     }
     template
@@ -79,13 +82,16 @@ impl Registry {
     }
 
     pub(crate) fn versions(&self, name: &str) -> Option<&[RegistryVersion]> {
-        self.packages.get(&normalize_name(name)).map(Vec::as_slice)
+        self.packages
+            .get(&normalize_name(name))
+            .map(Vec::as_slice)
     }
 
     pub(crate) fn package(&self, name: &str) -> Result<&[RegistryVersion]> {
-        self.versions(name).ok_or_else(|| {
-            miette::miette!("sparse index metadata for crate {name} was not fetched")
-        })
+        self.versions(name)
+            .ok_or_else(|| {
+                miette::miette!("sparse index metadata for crate {name} was not fetched")
+            })
     }
 }
 
@@ -122,8 +128,10 @@ fn registry_version_from_index(package: IndexPackage<'_>) -> Result<Option<Regis
     if package.v.is_some_and(|version| version > 3) {
         return Ok(None);
     }
-    let dependencies =
-        package.deps.into_iter().map(registry_dependency_from_index).collect::<Result<Vec<_>>>()?;
+    let dependencies = package.deps
+        .into_iter()
+        .map(registry_dependency_from_index)
+        .collect::<Result<Vec<_>>>()?;
     let mut features: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for (name, values) in package.features.into_iter().chain(package.features2.unwrap_or_default())
     {
@@ -155,7 +163,10 @@ fn registry_dependency_from_index(dependency: IndexDependency<'_>) -> Result<Reg
         registry: dependency.registry.map(std::borrow::Cow::into_owned),
         optional: dependency.optional,
         default_features: dependency.default_features,
-        features: dependency.features.into_iter().map(std::borrow::Cow::into_owned).collect(),
+        features: dependency.features
+            .into_iter()
+            .map(std::borrow::Cow::into_owned)
+            .collect(),
     })
 }
 
@@ -163,7 +174,9 @@ pub(crate) fn matching_versions<'a>(
     versions: &'a [RegistryVersion],
     requirement: &'a VersionReq,
 ) -> impl DoubleEndedIterator<Item = &'a RegistryVersion> {
-    versions.iter().filter(|version| !version.yanked && requirement.matches(&version.version))
+    versions
+        .iter()
+        .filter(|version| !version.yanked && requirement.matches(&version.version))
 }
 
 fn is_crates_io_source(registry: &str) -> bool {

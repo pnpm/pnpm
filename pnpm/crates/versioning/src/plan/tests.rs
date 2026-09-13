@@ -59,7 +59,14 @@ fn ledger(entries: &[(&str, &[&str])]) -> Ledger {
     entries
         .iter()
         .map(|(key, ids)| {
-            ((*key).to_string(), LedgerEntry::Ids(ids.iter().map(|id| (*id).to_string()).collect()))
+            (
+                (*key).to_string(),
+                LedgerEntry::Ids(
+                    ids.iter()
+                        .map(|id| (*id).to_string())
+                        .collect(),
+                ),
+            )
         })
         .collect()
 }
@@ -82,11 +89,17 @@ fn assemble(
 }
 
 fn release<'a>(plan: &'a ReleasePlan, name: &str) -> &'a PlannedRelease {
-    plan.releases.iter().find(|release| release.name == name).expect("release is planned")
+    plan.releases
+        .iter()
+        .find(|release| release.name == name)
+        .expect("release is planned")
 }
 
 fn release_names(plan: &ReleasePlan) -> Vec<&str> {
-    plan.releases.iter().map(|release| release.name.as_str()).collect()
+    plan.releases
+        .iter()
+        .map(|release| release.name.as_str())
+        .collect()
 }
 
 fn on_lane(pkg_name: &str, tag: &str) -> VersioningSettings {
@@ -125,7 +138,10 @@ fn project_at(name: &str, version: &str, dir: &str) -> WorkspaceProject {
 fn epic(lead: &str, packages: &[&str]) -> EpicSettings {
     EpicSettings {
         lead: lead.to_string(),
-        packages: packages.iter().map(|selector| (*selector).to_string()).collect(),
+        packages: packages
+            .iter()
+            .map(|selector| (*selector).to_string())
+            .collect(),
     }
 }
 
@@ -142,7 +158,10 @@ fn assemble_with_unpublished(
         &Ledger::new(),
         versioning,
         &AssembleReleasePlanOptions {
-            unpublished_dirs: unpublished.iter().map(|dir| (*dir).to_string()).collect(),
+            unpublished_dirs: unpublished
+                .iter()
+                .map(|dir| (*dir).to_string())
+                .collect(),
             ..AssembleReleasePlanOptions::default()
         },
     )

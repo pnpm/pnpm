@@ -125,8 +125,7 @@ impl TokenBackend for TokenStore {
 
     async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
         let inner = self.inner.lock().expect("TokenStore mutex poisoned");
-        Ok(inner
-            .tokens
+        Ok(inner.tokens
             .iter()
             .filter(|(_, record)| record.username == username)
             .map(|(hash, record)| (hash.clone(), record.clone()))
@@ -206,8 +205,8 @@ pub(super) fn load_all_tokens(conn: &Connection) -> Result<HashMap<String, Token
         let last_used_at: i64 = row.get(3)?;
         let readonly: i64 = row.get(4)?;
         let cidr_json: String = row.get(5)?;
-        let cidr_whitelist: Vec<String> =
-            serde_json::from_str(&cidr_json).map_err(|err| RegistryError::Internal {
+        let cidr_whitelist: Vec<String> = serde_json::from_str(&cidr_json)
+            .map_err(|err| RegistryError::Internal {
                 reason: format!("token {hash} has an unreadable cidr_whitelist: {err}"),
             })?;
         out.insert(

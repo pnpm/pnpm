@@ -56,13 +56,13 @@ pub fn registry_package_key(package: &PackageVersion) -> Result<PackageKey, Buil
     let name = PkgName::parse(package.name.as_str())
         .map_err(|source| BuildSnapshotError::ParseName { name: package.name.clone(), source })?;
     let version_string = package.version.to_string();
-    let peer = version_string.parse::<PkgVerPeer>().map_err(|source| {
-        BuildSnapshotError::ParseVersion {
+    let peer = version_string
+        .parse::<PkgVerPeer>()
+        .map_err(|source| BuildSnapshotError::ParseVersion {
             name: package.name.clone(),
             version: version_string,
             source,
-        }
-    })?;
+        })?;
     Ok(PkgNameVerPeer::new(name, peer))
 }
 
@@ -118,14 +118,13 @@ pub fn build_package_snapshot(
 mod tests;
 
 fn registry_resolution(package: &PackageVersion) -> Result<RegistryResolution, BuildSnapshotError> {
-    let integrity =
-        package.dist.integrity.clone().ok_or_else(|| BuildSnapshotError::MissingIntegrity {
+    let integrity = package.dist.integrity
+        .clone()
+        .ok_or_else(|| BuildSnapshotError::MissingIntegrity {
             name: package.name.clone(),
             version: package.version.to_string(),
         })?;
-    let revision = package
-        .dist
-        .revision
+    let revision = package.dist.revision
         .clone()
         .map(serde_json::from_value::<TarballRevision>)
         .transpose()

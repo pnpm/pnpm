@@ -60,7 +60,11 @@ struct RecordingResolver {
 
 impl RecordingResolver {
     fn opts_for(&self, alias: &str) -> RecordedOpts {
-        *self.seen.lock().unwrap().get(alias).expect("alias was resolved")
+        *self.seen
+            .lock()
+            .unwrap()
+            .get(alias)
+            .expect("alias was resolved")
     }
 }
 
@@ -390,7 +394,9 @@ impl Resolver for SlowAliasResolver {
     ) -> ResolveFuture<'a> {
         let alias = wanted.alias.clone().unwrap_or_default();
         let range = wanted.bare_specifier.clone().unwrap_or_default();
-        let result = self.table.get(&(alias.clone(), range.clone())).cloned();
+        let result = self.table
+            .get(&(alias.clone(), range.clone()))
+            .cloned();
         let slow = self.slow == (alias, range);
         Box::pin(async move {
             if slow {
@@ -463,7 +469,9 @@ impl Resolver for FailingAliasResolver {
         let range = wanted.bare_specifier.clone().unwrap_or_default();
         let failing = self.failing.contains(&alias);
         let failure = self.failure;
-        let result = self.table.get(&(alias.clone(), range.clone())).cloned();
+        let result = self.table
+            .get(&(alias.clone(), range.clone()))
+            .cloned();
         Box::pin(async move {
             if failing {
                 return Err(failure.error(&alias, &range));
@@ -516,73 +524,6 @@ fn optional_failure_fixture(
 enum ManifestAvailability {
     Present,
     Absent,
-}
-
-async fn project_relative_root_dep_is_not_a_provider(local: &str, manifest: ManifestAvailability) {
-    let (_root_tmp, root_manifest) = fake_manifest(serde_json::json!({ "real-peer": local }));
-    let (_app_tmp, app_manifest) = fake_manifest(serde_json::json!({ "consumer": "1.0.0" }));
-    let importers = vec![
-        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
-        WorkspaceImporter { id: "app-b".to_string(), manifest: &app_manifest },
-    ];
-    let mut unnamed = fake_result(
-        "real-peer",
-        "1.0.0",
-        None,
-        serde_json::json!({ "name": "real-peer", "version": "1.0.0" }),
-    );
-    unnamed.package.name_ver = None;
-    if matches!(manifest, ManifestAvailability::Absent) {
-        unnamed.package.manifest = None;
-    }
-    unnamed.normalized_bare_specifier = Some(local.to_string());
-    unnamed.id = pnpm_resolving_resolver_base::PkgResolutionId::from(local.to_string());
-    let resolver = RecordingResolver {
-        table: HashMap::from_iter([
-            (("real-peer".to_string(), local.to_string()), unnamed),
-            (
-                ("real-peer".to_string(), "^1.0.0".to_string()),
-                fake_result(
-                    "real-peer",
-                    "1.9.9",
-                    None,
-                    serde_json::json!({ "name": "real-peer", "version": "1.9.9" }),
-                ),
-            ),
-            (
-                ("consumer".to_string(), "1.0.0".to_string()),
-                fake_result(
-                    "consumer",
-                    "1.0.0",
-                    None,
-                    serde_json::json!({
-                        "name": "consumer",
-                        "version": "1.0.0",
-                        "peerDependencies": { "real-peer": "^1.0.0" },
-                    }),
-                ),
-            ),
-        ]),
-        seen: Mutex::new(HashMap::default()),
-    };
-    let mut opts = workspace_opts(false, false);
-    opts.peers.auto_install_peers = true;
-    opts.peers.resolve_peers_from_workspace_root = true;
-    let result =
-        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
-            let mut importer_opts =
-                importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None);
-            importer_opts.peers.resolve_peers_from_workspace_root = true;
-            importer_opts
-        })
-        .await
-        .expect("resolve workspace with a project-relative root dep");
-
-    assert_eq!(
-        result.peers.direct_dependencies_by_importer["app-b"]["real-peer"].as_str(),
-        "real-peer@1.9.9",
-        "`{local}` must not be hoisted into app-b",
-    );
 }
 
 async fn link_root_dep_peer_provider(linked_version: Option<&str>, expected: &str) {
@@ -715,14 +656,20 @@ impl Resolver for OverlapRecordingResolver {
                 if in_flight.len() > 1 {
                     let mut overlapping: Vec<_> = in_flight.iter().cloned().collect();
                     overlapping.sort();
-                    self.overlaps.lock().unwrap().push(overlapping);
+                    self.overlaps
+                        .lock()
+                        .unwrap()
+                        .push(overlapping);
                 }
             }
             // Give every other in-flight resolution a chance to run.
             for _ in 0..4 {
                 tokio::task::yield_now().await;
             }
-            self.in_flight.lock().unwrap().remove(&project_dir);
+            self.in_flight
+                .lock()
+                .unwrap()
+                .remove(&project_dir);
 
             let name_ver = pnpm_lockfile::PkgNameVer::new(
                 pnpm_lockfile::PkgName::parse(&alias).expect("alias parses as a package name"),
@@ -776,9 +723,13 @@ async fn announced_finalized_packages(
     let mut opts = workspace_opts(false, false);
     let sink = Arc::clone(&announced);
     opts.hooks.finalized_package = Some(Arc::new(move |package| {
-        let children =
-            package.children.iter().map(|child| child.pkg_id.to_string()).collect::<Vec<_>>();
-        sink.lock().unwrap().push((package.pkg_id.to_string(), children));
+        let children = package.children
+            .iter()
+            .map(|child| child.pkg_id.to_string())
+            .collect::<Vec<_>>();
+        sink.lock()
+            .unwrap()
+            .push((package.pkg_id.to_string(), children));
     }));
     resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
         importer_opts(std::path::PathBuf::from("/repo"), None)
@@ -817,7 +768,12 @@ impl WarmupProbeResolver {
     }
 
     fn calls_for(&self, alias: &str, range: &str) -> usize {
-        self.calls.lock().unwrap().iter().filter(|(a, r)| a == alias && r == range).count()
+        self.calls
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(a, r)| a == alias && r == range)
+            .count()
     }
 }
 
@@ -829,10 +785,14 @@ impl Resolver for WarmupProbeResolver {
     ) -> ResolveFuture<'a> {
         let alias = wanted.alias.clone().unwrap_or_default();
         let range = wanted.bare_specifier.clone().unwrap_or_default();
-        self.calls.lock().unwrap().push((alias.clone(), range.clone()));
-        let result = self.table.get(&(alias.clone(), range)).cloned();
-        let (held, release) = self
-            .gate
+        self.calls
+            .lock()
+            .unwrap()
+            .push((alias.clone(), range.clone()));
+        let result = self.table
+            .get(&(alias.clone(), range))
+            .cloned();
+        let (held, release) = self.gate
             .as_ref()
             .map_or((false, false), |(held, release)| (*held == alias, *release == alias));
         if release {

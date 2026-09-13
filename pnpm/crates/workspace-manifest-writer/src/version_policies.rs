@@ -121,8 +121,9 @@ where
     }
     // Refuse to overwrite a hand-written non-string (parent-scoped object)
     // override value with a scalar — that would corrupt config.
-    if let Some((selector, _)) =
-        entries.iter().find(|(selector, _)| manifest.non_scalar_overrides.contains(*selector))
+    if let Some((selector, _)) = entries
+        .iter()
+        .find(|(selector, _)| manifest.non_scalar_overrides.contains(*selector))
     {
         return Err(UpdateWorkspaceManifestError::OverrideConflict {
             key: (*selector).to_string(),

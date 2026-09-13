@@ -119,7 +119,8 @@ fn sync_workspace_injected_deps(
     let modules =
         read_modules_manifest::<pnpm_modules_yaml::Host>(&workspace_dir.join("node_modules"))
             .map_err(|error| SyncInjectedDepsError::ReadModules { error })?;
-    let Some(injected_deps) = modules.as_ref().and_then(|modules| modules.injected_deps.as_ref())
+    let Some(injected_deps) =
+        modules.as_ref().and_then(|modules| modules.injected_deps.as_ref())
     else {
         tracing::debug!(
             target: "pacquet::sync_injected_deps",
@@ -140,23 +141,35 @@ fn sync_workspace_injected_deps(
         return Ok(());
     };
 
-    let resolved_targets: Vec<PathBuf> =
-        target_dirs.iter().map(|target_dir| workspace_dir.join(target_dir)).collect();
+    let resolved_targets: Vec<PathBuf> = target_dirs
+        .iter()
+        .map(|target_dir| workspace_dir.join(target_dir))
+        .collect();
     patch_targets(&pkg_root_dir, &resolved_targets)?;
 
-    let previous_bin_names = opts
-        .manifest_before_scripts
-        .map_or_else(Vec::new, |manifest| bin_names(manifest, &pkg_root_dir));
-    // The install hoists bins into the virtual store's own `.bin` as well.
-    let hoisted_bin_dir = modules.as_ref().map(|modules| {
-        workspace_dir.join(&modules.virtual_store_dir).join("node_modules").join(".bin")
+    let previous_bin_names = opts.manifest_before_scripts.map_or_else(Vec::new, |manifest| {
+        bin_names(manifest, &pkg_root_dir)
     });
+    // The install hoists bins into the virtual store's own `.bin` as well.
+    let hoisted_bin_dir = hoisted_bin_path(workspace_dir, modules.as_ref());
     sync_bin_links(&SyncBinLinks {
         pkg_root_dir: &pkg_root_dir,
         resolved_targets: &resolved_targets,
         workspace_dir,
         previous_bin_names: &previous_bin_names,
         hoisted_bin_dir: hoisted_bin_dir.as_deref(),
+    })
+}
+
+fn hoisted_bin_path(
+    workspace_dir: &Path,
+    modules: Option<&pnpm_modules_yaml::Modules>,
+) -> Option<PathBuf> {
+    modules.map(|modules| {
+        workspace_dir
+            .join(&modules.virtual_store_dir)
+            .join("node_modules")
+            .join(".bin")
     })
 }
 
@@ -207,9 +220,11 @@ struct RemoveStaleBins<'a> {
 }
 
 fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> {
-    let manifest = safe_read_package_json_from_dir(opts.pkg_root_dir).map_err(|error| {
-        SyncInjectedDepsError::ReadManifest { dir: opts.pkg_root_dir.to_path_buf(), error }
-    })?;
+    let manifest = safe_read_package_json_from_dir(opts.pkg_root_dir)
+        .map_err(|error| SyncInjectedDepsError::ReadManifest {
+            dir: opts.pkg_root_dir.to_path_buf(),
+            error,
+        })?;
     let Some(manifest) = manifest.filter(|manifest| manifest.get("name").is_some()) else {
         return Ok(());
     };
@@ -218,8 +233,10 @@ fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> 
     // its shim, pointing at a command that is no longer there.
     let current_bin_names: HashSet<String> =
         bin_names(&manifest, opts.pkg_root_dir).into_iter().collect();
-    let stale_bin_names: Vec<&String> =
-        opts.previous_bin_names.iter().filter(|name| !current_bin_names.contains(*name)).collect();
+    let stale_bin_names: Vec<&String> = opts.previous_bin_names
+        .iter()
+        .filter(|name| !current_bin_names.contains(*name))
+        .collect();
 
     let has_bins = manifest.get("bin").is_some();
     let manifest = Arc::new(manifest);
@@ -267,12 +284,11 @@ fn relink_project_bins(
         // this package left behind.
         let project_bin_dir = project_modules_dir.join(".bin");
         for name in stale_bin_names {
-            remove_bin(&project_bin_dir.join(name.as_str())).map_err(|error| {
-                SyncInjectedDepsError::RemoveBin {
+            remove_bin(&project_bin_dir.join(name.as_str()))
+                .map_err(|error| SyncInjectedDepsError::RemoveBin {
                     path: project_bin_dir.join(name.as_str()),
                     error,
-                }
-            })?;
+                })?;
         }
         link_bins::<pnpm_cmd_shim::Host>(
             &project_modules_dir,
@@ -294,11 +310,17 @@ fn remove_stale_bins(remove: RemoveStaleBins<'_>) -> Result<(), SyncInjectedDeps
         remove.parent_modules_dir.join(".bin"),
         remove.target_dir.join("node_modules").join(".bin"),
     ];
-    for bin_dir in bin_dirs.iter().map(PathBuf::as_path).chain(remove.hoisted_bin_dir) {
+    for bin_dir in bin_dirs
+        .iter()
+        .map(PathBuf::as_path)
+        .chain(remove.hoisted_bin_dir)
+    {
         for name in remove.stale_bin_names {
-            remove_bin(&bin_dir.join(name.as_str())).map_err(|error| {
-                SyncInjectedDepsError::RemoveBin { path: bin_dir.join(name.as_str()), error }
-            })?;
+            remove_bin(&bin_dir.join(name.as_str()))
+                .map_err(|error| SyncInjectedDepsError::RemoveBin {
+                    path: bin_dir.join(name.as_str()),
+                    error,
+                })?;
         }
     }
     Ok(())

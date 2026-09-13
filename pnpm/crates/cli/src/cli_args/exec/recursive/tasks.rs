@@ -76,16 +76,21 @@ pub(super) fn build_exec_task_graph(
     selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
     command_name: &str,
 ) -> TaskGraph {
-    let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> = if args.workspace.sort {
-        filtered_projects_dependencies(
-            graph,
-            selection.full_graph(),
-            selection.prod_all.as_ref(),
-            &selection.prod_only_selected,
-        )
-    } else {
-        graph.keys().cloned().map(|root| (root, Vec::new())).collect()
-    };
+    let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> =
+        if args.workspace.sort {
+            filtered_projects_dependencies(
+                graph,
+                selection.full_graph(),
+                selection.prod_all.as_ref(),
+                &selection.prod_only_selected,
+            )
+        } else {
+            graph
+                .keys()
+                .cloned()
+                .map(|root| (root, Vec::new()))
+                .collect()
+        };
     let task_graph: TaskGraph = project_dependencies
         .iter()
         .map(|(project, dependencies)| {
@@ -175,12 +180,13 @@ pub(super) fn report_recursive_outcome(
 
 pub(super) fn project_dep_path(root: &Path, dir: &Path, show_prefix: bool) -> Option<String> {
     show_prefix.then(|| {
-        pnpm_workspace::read_project_name(root).unwrap_or_else(|| {
-            pathdiff::diff_paths(root, dir)
-                .unwrap_or_else(|| root.to_path_buf())
-                .to_string_lossy()
-                .into_owned()
-        })
+        pnpm_workspace::read_project_name(root)
+            .unwrap_or_else(|| {
+                pathdiff::diff_paths(root, dir)
+                    .unwrap_or_else(|| root.to_path_buf())
+                    .to_string_lossy()
+                    .into_owned()
+            })
     })
 }
 

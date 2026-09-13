@@ -120,8 +120,18 @@ registries:
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     let rules = &config.routing.hosted["local"].rules;
     // Omitted `access` falls back to the registry-level default...
-    assert!(rules.for_package("@team/x").access.allows(&user("team")));
-    assert!(!rules.for_package("@team/x").access.allows(&user("carol")));
+    assert!(
+        rules
+            .for_package("@team/x")
+            .access
+            .allows(&user("team")),
+    );
+    assert!(
+        !rules
+            .for_package("@team/x")
+            .access
+            .allows(&user("carol")),
+    );
     // ...while the more specific key overrides it.
     assert!(rules.for_package("@team/open").access.allows(&Identity::Anonymous));
 }

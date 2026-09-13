@@ -183,7 +183,10 @@ fn append_normalized(content: &mut Vec<u8>, mut bytes: &[u8], withheld_carriage_
         *withheld_carriage_return = true;
         bytes = rest;
     }
-    while let Some(index) = bytes.iter().position(|byte| *byte == b'\r') {
+    while let Some(index) = bytes
+        .iter()
+        .position(|byte| *byte == b'\r')
+    {
         let (head, tail) = bytes.split_at(index);
         content.extend_from_slice(head);
         if tail.get(1) == Some(&b'\n') {
@@ -218,7 +221,8 @@ fn main_document_of(content: &str) -> &str {
 
 fn env_document_of(content: &str) -> Option<&str> {
     let rest = content.strip_prefix(YAML_DOCUMENT_START)?;
-    rest.find(YAML_DOCUMENT_SEPARATOR).map(|idx| &rest[..idx])
+    rest.find(YAML_DOCUMENT_SEPARATOR)
+        .map(|idx| &rest[..idx])
 }
 
 #[cfg(test)]

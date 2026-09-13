@@ -218,8 +218,7 @@ fn ignored_builds_dedups_and_preserves_insertion_order() {
         .pipe(read_modules_manifest::<DupIgnored>)
         .expect("read manifest")
         .expect("manifest exists");
-    let ignored: Vec<&str> = manifest
-        .ignored_builds
+    let ignored: Vec<&str> = manifest.ignored_builds
         .as_ref()
         .expect("ignored_builds present")
         .iter()
@@ -244,7 +243,9 @@ fn read_fills_pruned_at_from_clock_when_missing() {
     }
     impl Clock for FakeClock {
         fn now() -> SystemTime {
-            Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap().into()
+            Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0)
+                .unwrap()
+                .into()
         }
     }
 

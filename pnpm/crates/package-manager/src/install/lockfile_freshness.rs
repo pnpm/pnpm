@@ -44,7 +44,10 @@ pub async fn wanted_lockfile_satisfies_workspace(
     if check.lockfile.is_empty() {
         return false;
     }
-    if check.config.config_dependencies.as_ref().is_some_and(|deps| !deps.is_empty()) {
+    if check.config.config_dependencies
+        .as_ref()
+        .is_some_and(|deps| !deps.is_empty())
+    {
         return false;
     }
     let Some(manifest_dir) = check.manifest.path().parent() else {
@@ -193,10 +196,11 @@ pub(super) fn removed_importer_id<'a>(
     lockfile: &'a Lockfile,
     manifest_freshness_inputs: &[(String, &PackageManifest)],
 ) -> Option<&'a str> {
-    let manifest_ids: std::collections::HashSet<&str> =
-        manifest_freshness_inputs.iter().map(|(id, _)| id.as_str()).collect();
-    lockfile
-        .importers
+    let manifest_ids: std::collections::HashSet<&str> = manifest_freshness_inputs
+        .iter()
+        .map(|(id, _)| id.as_str())
+        .collect();
+    lockfile.importers
         .keys()
         .find(|importer_id| !manifest_ids.contains(importer_id.as_str()))
         .map(String::as_str)
@@ -364,8 +368,11 @@ pub(crate) fn check_lockfile_settings_drift(
     catalogs: &Catalogs,
     opts: CheckLockfileSettingsDriftOptions<'_>,
 ) -> Result<(), FreshnessCheckError> {
-    let CheckLockfileSettingsDriftOptions { parsed_overrides, pnpmfile_checksum, dedupe_peers } =
-        opts;
+    let CheckLockfileSettingsDriftOptions {
+        parsed_overrides,
+        pnpmfile_checksum,
+        dedupe_peers,
+    } = opts;
     let overrides_map: Option<std::collections::HashMap<String, String>> =
         parsed_overrides.map(pnpm_config_parse_overrides::create_overrides_map_from_parsed);
     let package_extensions_checksum =

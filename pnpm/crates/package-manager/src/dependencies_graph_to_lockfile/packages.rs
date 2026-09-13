@@ -255,8 +255,11 @@ pub(super) fn explicit_version(
 pub(super) fn read_string_list(manifest: Option<&Value>, key: &str) -> Option<Vec<String>> {
     match manifest?.get(key)? {
         Value::Array(items) => {
-            let out: Vec<String> =
-                items.iter().filter_map(Value::as_str).map(ToString::to_string).collect();
+            let out: Vec<String> = items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(ToString::to_string)
+                .collect();
             (!out.is_empty()).then_some(out)
         }
         _ => None,
@@ -278,16 +281,22 @@ pub(super) fn read_string_or_list(
 /// the `hasBin: true` signal; the field is dropped entirely when absent.
 pub(crate) fn manifest_has_bin(manifest: Option<&Value>) -> Option<bool> {
     let manifest = manifest?;
-    let has_bin = manifest.get("bin").is_some_and(|value| match value {
-        Value::String(s) => !s.is_empty(),
-        Value::Object(map) => !map.is_empty(),
-        _ => false,
-    });
+    let has_bin = manifest
+        .get("bin")
+        .is_some_and(|value| match value {
+            Value::String(s) => !s.is_empty(),
+            Value::Object(map) => !map.is_empty(),
+            _ => false,
+        });
     let has_bin_directory = manifest
         .get("directories")
         .and_then(Value::as_object)
         .and_then(|directories| directories.get("bin"))
-        .is_some_and(|value| value.as_str().is_some_and(|path| !path.is_empty()));
+        .is_some_and(|value| {
+            value
+                .as_str()
+                .is_some_and(|path| !path.is_empty())
+        });
     (has_bin || has_bin_directory).then_some(true)
 }
 /// Returned `Option`-pair from [`build_peer_dep_blocks`]: the
@@ -344,13 +353,18 @@ pub(super) fn build_snapshot_entry(
     }
 
     let transitive: Vec<String> = {
-        let mut list: Vec<String> =
-            node.edges.transitive_peer_dependencies.iter().cloned().collect();
+        let mut list: Vec<String> = node.edges.transitive_peer_dependencies
+            .iter()
+            .cloned()
+            .collect();
         list.sort();
         list
     };
 
-    let optional = optional_overrides.get(&node.dep_path).copied().unwrap_or(node.optional);
+    let optional = optional_overrides
+        .get(&node.dep_path)
+        .copied()
+        .unwrap_or(node.optional);
 
     SnapshotEntry {
         id: None,

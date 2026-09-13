@@ -130,7 +130,9 @@ pub(super) fn unknown_repository(name: &str) -> Refusal {
 }
 
 pub(super) fn api_version(mut response: Response) -> Response {
-    response.headers_mut().insert(API_VERSION_HEADER, HeaderValue::from_static("registry/2.0"));
+    response
+        .headers_mut()
+        .insert(API_VERSION_HEADER, HeaderValue::from_static("registry/2.0"));
     response
 }
 

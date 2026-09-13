@@ -48,9 +48,17 @@ async fn checks_the_addresses_returned_to_the_connector() {
         "8.8.8.8:0".parse().unwrap(),
         "127.0.0.1:0".parse().unwrap(),
     ])));
-    assert!(resolver.resolve("issuer.example".parse().unwrap()).await.is_err());
+    assert!(
+        resolver
+            .resolve("issuer.example".parse().unwrap())
+            .await
+            .is_err(),
+    );
     let resolver = PublicResolver(Arc::new(FixedResolver(vec!["8.8.8.8:0".parse().unwrap()])));
-    let addresses: Vec<_> =
-        resolver.resolve("issuer.example".parse().unwrap()).await.unwrap().collect();
+    let addresses: Vec<_> = resolver
+        .resolve("issuer.example".parse().unwrap())
+        .await
+        .unwrap()
+        .collect();
     assert_eq!(addresses, vec!["8.8.8.8:0".parse::<SocketAddr>().unwrap()]);
 }

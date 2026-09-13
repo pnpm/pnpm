@@ -122,10 +122,10 @@ fn proxy_constructor_serves_fixtures_locally_and_proxies_the_rest() {
     // The flat-root hosted org serves the registry-mock fixture scopes.
     assert_eq!(config.routing.hosted["local"].org, "");
     assert_eq!(
-        config
-            .routing
-            .registries
-            .resolve_default(Ecosystem::Npm, "@pnpm.e2e/dep-of-pkg-with-1-dep"),
+        config.routing.registries.resolve_default(
+            Ecosystem::Npm,
+            "@pnpm.e2e/dep-of-pkg-with-1-dep"
+        ),
         Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
     );
     assert_eq!(
@@ -573,7 +573,9 @@ fn an_absent_allow_http_pins_https_only() {
 
     let builder = crate::s3::s3_builder(&s3_settings_for(None, None));
     assert_eq!(
-        builder.get_config_value(&AmazonS3ConfigKey::Client(ClientConfigKey::AllowHttp)).as_deref(),
+        builder
+            .get_config_value(&AmazonS3ConfigKey::Client(ClientConfigKey::AllowHttp))
+            .as_deref(),
         Some("false"),
     );
 }
@@ -582,7 +584,9 @@ fn an_absent_allow_http_pins_https_only() {
 fn an_explicit_allow_http_is_honoured() {
     let builder = crate::s3::s3_builder(&s3_settings_for(None, Some(true)));
     assert_eq!(
-        builder.get_config_value(&AmazonS3ConfigKey::Client(ClientConfigKey::AllowHttp)).as_deref(),
+        builder
+            .get_config_value(&AmazonS3ConfigKey::Client(ClientConfigKey::AllowHttp))
+            .as_deref(),
         Some("true"),
     );
 }

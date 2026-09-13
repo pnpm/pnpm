@@ -148,14 +148,20 @@ fn verifier_policies(config: &Config) -> Result<VerifierPolicies, BuildVerifiers
         BuildVerifiersError::invalid_trust_policy_exclude,
     )?;
 
-    let registries: HashMap<String, String> = config.resolved_registries().into_iter().collect();
+    let registries: HashMap<String, String> = config
+        .resolved_registries()
+        .into_iter()
+        .collect();
 
     // Merged here, not inside the verifier, so its name lookup and its
     // tarball-prefix routing see the same set. Validated here too: this runs
     // before the resolver chain that also validates, and on the frozen path
     // that chain never runs.
     let registries_by_prefix = merge_named_registries(
-        &config.registries_by_prefix.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+        &config.registries_by_prefix
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect(),
     )
     .map_err(|source| BuildVerifiersError::InvalidNamedRegistries { source })?;
 

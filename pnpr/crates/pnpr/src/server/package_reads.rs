@@ -99,10 +99,12 @@ pub(super) fn osv_hides_version(
     package_name: &str,
     version_or_tag: &str,
 ) -> bool {
-    state.inner.osv_index.as_ref().is_some_and(|osv_index| {
-        let resolved = resolve_version_or_tag(packument, version_or_tag);
-        is_osv_vulnerable_packument_version(packument, package_name, resolved, osv_index)
-    })
+    state.inner.osv_index
+        .as_ref()
+        .is_some_and(|osv_index| {
+            let resolved = resolve_version_or_tag(packument, version_or_tag);
+            is_osv_vulnerable_packument_version(packument, package_name, resolved, osv_index)
+        })
 }
 
 // --------------------------------------------------------------------
@@ -163,12 +165,14 @@ pub(super) fn resolve_ecosystem_source(
     package: &str,
 ) -> RegistrySource {
     match state.inner.config.routing.registries.resolve(registry, ecosystem, package) {
-        Resolved::Concrete { registry, kind: ConcreteKind::Upstream } => {
-            RegistrySource::Upstream(registry.to_string())
-        }
-        Resolved::Concrete { registry, kind: ConcreteKind::Hosted } => {
-            RegistrySource::Hosted(registry.to_string())
-        }
+        Resolved::Concrete {
+            registry,
+            kind: ConcreteKind::Upstream,
+        } => RegistrySource::Upstream(registry.to_string()),
+        Resolved::Concrete {
+            registry,
+            kind: ConcreteKind::Hosted,
+        } => RegistrySource::Hosted(registry.to_string()),
         // An unclaimed name is definitive — never a fall-through to another
         // origin, and never a storage or upstream consultation.
         Resolved::Unclaimed => RegistrySource::Unclaimed,
@@ -192,11 +196,11 @@ pub(super) fn resolves_to_private_source(
     package: &str,
 ) -> bool {
     match resolve_ecosystem_source(state, registry, ecosystem, package) {
-        RegistrySource::Hosted(source) => {
-            state.inner.config.routing.hosted.get(&source).is_some_and(|hosted| {
+        RegistrySource::Hosted(source) => state.inner.config.routing.hosted
+            .get(&source)
+            .is_some_and(|hosted| {
                 !hosted.rules.for_package(package).access.allows(&Identity::Anonymous)
-            })
-        }
+            }),
         // A private upstream (registry-level `access:`) is caller-gated for
         // *every* name — unlike a hosted registry, its registry-level gate is
         // enforced independently at serving (`authorized_upstream` runs
@@ -205,12 +209,12 @@ pub(super) fn resolves_to_private_source(
         // alone already means the response varies by caller. A public
         // upstream can still gate individual names through a per-package
         // `access` rule.
-        RegistrySource::Upstream(source) => {
-            state.inner.config.routing.upstreams.get(&source).is_some_and(|upstream| {
+        RegistrySource::Upstream(source) => state.inner.config.routing.upstreams
+            .get(&source)
+            .is_some_and(|upstream| {
                 upstream.access.is_some()
                     || !upstream.rules.for_package(package).access.allows(&Identity::Anonymous)
-            })
-        }
+            }),
         RegistrySource::Unclaimed | RegistrySource::NotFound => false,
     }
 }

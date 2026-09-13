@@ -104,8 +104,7 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
     // pending): that one is judged by the build policy again, as it
     // would be on an install that imported it.
     let pkg_roots = pkg_roots_by_key(
-        walked
-            .graph
+        walked.graph
             .values()
             .filter(|node| build_present || !node.present || recorded_unbuilt(unbuilt, node)),
     );
@@ -132,10 +131,9 @@ fn included_lockfile<'l>(inputs: &HoistedLinkerInputs<'l>) -> std::borrow::Cow<'
     let included = IncludedDependencies {
         dependencies: inputs.projects.dependency_groups.contains(&DependencyGroup::Prod),
         dev_dependencies: inputs.projects.dependency_groups.contains(&DependencyGroup::Dev),
-        optional_dependencies: inputs
-            .projects
-            .dependency_groups
-            .contains(&DependencyGroup::Optional),
+        optional_dependencies: inputs.projects.dependency_groups.contains(
+            &DependencyGroup::Optional,
+        ),
     };
     if included.dependencies && included.dev_dependencies && included.optional_dependencies {
         std::borrow::Cow::Borrowed(inputs.graph.lockfile)
@@ -167,13 +165,14 @@ fn walk_hoisted_graph(
     skipped: &mut SkippedSnapshots,
 ) -> Result<crate::hoisted_dep_graph::LockfileToDepGraphResult, HoistedLinkerError> {
     let config = inputs.config;
-    let walker_skipped: BTreeSet<String> =
-        skipped.iter().map(std::string::ToString::to_string).collect();
+    let walker_skipped: BTreeSet<String> = skipped
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect();
     let walker_opts = LockfileToHoistedDepGraphOptions {
         installability: crate::HoistedInstallability {
             engine_strict: config.engine_strict,
-            current_node_version: inputs
-                .host_node
+            current_node_version: inputs.host_node
                 .map(|host| host.version.clone())
                 .unwrap_or_default(),
             current_os: pnpm_graph_hasher::host_platform().to_string(),
@@ -221,9 +220,7 @@ fn link_hoisted<Reporter: self::Reporter>(
     // Empty CAS index → linker would refuse every non-optional node.
     // Only happens when the install has no snapshots, in which case
     // the linker is a no-op.
-    let cas_index = inputs
-        .graph
-        .cas_paths_by_pkg_id
+    let cas_index = inputs.graph.cas_paths_by_pkg_id
         .as_ref()
         .expect("hoisted CreateVirtualStore populates cas_paths");
     let link_options = crate::shim_link_options(config, NodeLinker::Hoisted);
@@ -365,7 +362,10 @@ fn pkg_roots_by_key<'n>(
     let mut roots: HashMap<PackageKey, Vec<std::path::PathBuf>> = HashMap::new();
     for node in nodes {
         if let Ok(key) = node.package.dep_path.as_str().parse::<PackageKey>() {
-            roots.entry(key).or_default().push(node.dir.clone());
+            roots
+                .entry(key)
+                .or_default()
+                .push(node.dir.clone());
         }
     }
     roots
@@ -423,22 +423,22 @@ impl HoistedLinkScope<'_> {
                 linked_names.push(alias.clone());
             }
         }
-        crate::link_direct_dep_bins(&self.modules_dir, &linked_names, link_options).map_err(
-            |source| {
+        crate::link_direct_dep_bins(&self.modules_dir, &linked_names, link_options)
+            .map_err(|source| {
                 HoistedLinkerError::SymlinkDirectDependencies(
                     SymlinkDirectDependenciesError::LinkBins(source),
                 )
-            },
-        )
+            })
     }
 
     /// `Ok(true)` when the alias now resolves inside the project's own
     /// `node_modules`, so its bins are this importer's to link.
     fn link_one(&self, alias: &str, target: &Path) -> Result<bool, HoistedLinkerError> {
         let link_path =
-            crate::safe_join_modules_dir::safe_join_modules_dir(&self.modules_dir, alias).map_err(
-                |source| self.symlink_failure(alias, SymlinkPackageError::InvalidAlias(source)),
-            )?;
+            crate::safe_join_modules_dir::safe_join_modules_dir(&self.modules_dir, alias)
+                .map_err(|source| {
+                    self.symlink_failure(alias, SymlinkPackageError::InvalidAlias(source))
+                })?;
         // A dependency that won the workspace-root slot is reached by
         // walking up from the project, exactly as it is under pnpm.
         // Repeating it inside the project would give a build a second

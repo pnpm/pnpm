@@ -12,8 +12,10 @@ async fn records_optional_subdeps_with_platform_fields() {
     let root = TempDir::new().unwrap();
 
     let mut config_deps = BTreeMap::new();
-    config_deps
-        .insert("@pnpm.e2e/support-different-architectures".to_string(), clean_spec("1.0.0"));
+    config_deps.insert(
+        "@pnpm.e2e/support-different-architectures".to_string(),
+        clean_spec("1.0.0"),
+    );
 
     resolve_and_install_config_deps::<SilentReporter>(
         &config_deps,
@@ -25,8 +27,7 @@ async fn records_optional_subdeps_with_platform_fields() {
 
     let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
     let parent_key = "@pnpm.e2e/support-different-architectures@1.0.0".parse().unwrap();
-    let optionals = env.snapshots[&parent_key]
-        .optional_dependencies
+    let optionals = env.snapshots[&parent_key].optional_dependencies
         .as_ref()
         .expect("optional subdeps recorded");
     assert_eq!(optionals.len(), 8, "all eight platform variants are recorded");
@@ -116,8 +117,7 @@ async fn resolves_package_manager_dependencies_graph() {
     assert!(!is_package_manager_resolved(&env, "~11.0.0", "11.0.0"));
 
     let mut env_with_extra_pm_dep = env.clone();
-    env_with_extra_pm_dep
-        .importers
+    env_with_extra_pm_dep.importers
         .get_mut(EnvLockfile::ROOT_IMPORTER_KEY)
         .unwrap()
         .package_manager_dependencies
@@ -175,8 +175,8 @@ async fn resolves_package_manager_dependencies_without_exe_from_v12() {
     assert!(env.packages.contains_key(&platform_key));
     let platform_name = "@pnpm/exe.linux-x64".parse().unwrap();
     assert_eq!(
-        env.snapshots[&pnpm_key].optional_dependencies.as_ref().unwrap()[&platform_name]
-            .to_string(),
+        env.snapshots[&pnpm_key].optional_dependencies.as_ref().unwrap()[&platform_name].to_string(
+        ),
         "12.0.0",
     );
     assert!(is_package_manager_resolved(&env, "^12.0.0", "12.0.0"));
@@ -186,11 +186,12 @@ async fn resolves_package_manager_dependencies_without_exe_from_v12() {
 async fn resolves_package_manager_dependencies_without_exe_before_it_was_published() {
     let harness = harness();
     let root = TempDir::new().unwrap();
-    let resolver = FixtureResolver::new().package(serde_json::json!({
-        "name": "pnpm",
-        "version": "6.16.0",
-        "bin": { "pnpm": "bin/pnpm.cjs", "pnpx": "bin/pnpx.cjs" },
-    }));
+    let resolver = FixtureResolver::new()
+        .package(serde_json::json!({
+            "name": "pnpm",
+            "version": "6.16.0",
+            "bin": { "pnpm": "bin/pnpm.cjs", "pnpx": "bin/pnpx.cjs" },
+        }));
 
     resolve_package_manager_integrities(
         pnpm_engine_packages("6.16.0"),

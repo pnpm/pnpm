@@ -117,13 +117,17 @@ pub fn global_config_yaml_enables_gvs() {
         .expect("write to global config.yaml");
 
     static XDG_CONFIG_HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-    XDG_CONFIG_HOME_PATH.set(xdg.path().to_path_buf()).expect("set once");
+    XDG_CONFIG_HOME_PATH
+        .set(xdg.path().to_path_buf())
+        .expect("set once");
 
     struct HostWithXdgConfigHome;
     impl EnvVar for HostWithXdgConfigHome {
         fn var(name: &str) -> Option<String> {
             if name == "XDG_CONFIG_HOME" {
-                return XDG_CONFIG_HOME_PATH.get().map(|path| path.to_string_lossy().into_owned());
+                return XDG_CONFIG_HOME_PATH
+                    .get()
+                    .map(|path| path.to_string_lossy().into_owned());
             }
             safe_host_var(name)
         }
@@ -366,7 +370,12 @@ pub fn lockfile_dir_env_var_overrides_yaml() {
 
     let config = Config::new().current::<HostWithLockfileDirEnv>(tmp.path()).expect("loads");
     assert_eq!(config.lockfile_dir.as_deref(), Some(tmp.path().join("from-env").as_path()));
-    assert_eq!(config.modules_dir, tmp.path().join("from-env").join("node_modules"));
+    assert_eq!(
+        config.modules_dir,
+        tmp.path()
+            .join("from-env")
+            .join("node_modules"),
+    );
 }
 
 #[test]
@@ -493,7 +502,10 @@ pub fn package_manager_bootstrap_ignores_project_npmrc_registry() {
         "package-manager bootstrap ignores the repository-controlled project .npmrc registry",
     );
     assert_eq!(
-        config.package_manager_bootstrap.resolved_registries().get("default").map(String::as_str),
+        config.package_manager_bootstrap
+            .resolved_registries()
+            .get("default")
+            .map(String::as_str),
         Some("https://trusted.example.com/"),
     );
 }
@@ -731,7 +743,9 @@ pub fn an_explicit_merge_setting_wins_over_the_branch_pattern() {
     )
     .unwrap();
     static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    REPO_DIR
+        .set(repo.path().to_path_buf())
+        .expect("set once");
     host_in_repo!(HostExplicitlyNotMerging);
 
     let config =

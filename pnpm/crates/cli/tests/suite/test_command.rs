@@ -20,7 +20,10 @@ fn test_runs_declared_test_script() {
     });
     fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
 
-    pacquet.with_arg("test").assert().success();
+    pacquet
+        .with_arg("test")
+        .assert()
+        .success();
 
     assert_eq!(fs::read_to_string(marker).expect("read marker"), "ran_test");
 
@@ -66,7 +69,10 @@ fn tst_alias_runs_declared_test_script() {
     });
     fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
 
-    pacquet.with_arg("tst").assert().success();
+    pacquet
+        .with_arg("tst")
+        .assert()
+        .success();
 
     assert_eq!(fs::read_to_string(marker).expect("read marker"), "ran_test");
 
@@ -82,7 +88,10 @@ fn test_skips_missing_test_script() {
     });
     fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
 
-    pacquet.with_arg("test").assert().success();
+    pacquet
+        .with_arg("test")
+        .assert()
+        .success();
 
     drop(root);
 }

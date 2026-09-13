@@ -110,9 +110,16 @@ async fn add_user_and_get_token(
         "type": "user",
         "roles": [],
     });
-    let response = app.clone().oneshot(put_json(&path, body)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(put_json(&path, body))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
     let payload = body_json(response.into_body()).await;
-    let token = payload["token"].as_str().expect("token in response").to_string();
+    let token = payload["token"]
+        .as_str()
+        .expect("token in response")
+        .to_string();
     (app, token)
 }

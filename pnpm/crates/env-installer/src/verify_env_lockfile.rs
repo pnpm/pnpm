@@ -32,8 +32,7 @@ pub fn verify_env_lockfile(env_lockfile: &EnvLockfile) -> Result<(), ConfigDepEr
         let Ok(key) = format!("{name}@{}", spec.version).parse::<PackageKey>() else {
             continue;
         };
-        let Some(optionals) = env_lockfile
-            .snapshots
+        let Some(optionals) = env_lockfile.snapshots
             .get(&key)
             .and_then(|snapshot| snapshot.optional_dependencies.as_ref())
         else {
@@ -44,7 +43,10 @@ pub fn verify_env_lockfile(env_lockfile: &EnvLockfile) -> Result<(), ConfigDepEr
         for (subdep_name, dep_ref) in optionals {
             let subdep_name = subdep_name.to_string();
             assert_valid_name(&subdep_name, &description)?;
-            let version = dep_ref.ver_peer().map(ToString::to_string).unwrap_or_default();
+            let version = dep_ref
+                .ver_peer()
+                .map(ToString::to_string)
+                .unwrap_or_default();
             assert_valid_version(&subdep_name, &version)?;
         }
     }

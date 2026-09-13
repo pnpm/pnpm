@@ -128,8 +128,11 @@ fn current_lockfile_contains_only_installed_dependencies() {
     fixture.run(["--filter", "project-2", "install"]);
 
     let current = fixture.current();
-    let package_keys: Vec<String> =
-        current.packages.iter().flatten().map(|(key, _)| key.to_string()).collect();
+    let package_keys: Vec<String> = current.packages
+        .iter()
+        .flatten()
+        .map(|(key, _)| key.to_string())
+        .collect();
     assert_eq!(package_keys, [format!("{NO_DEPS}@1.0.0")]);
 }
 
@@ -310,9 +313,7 @@ fn workspace_linking_respects_dependency_depth() {
             assert_eq!(importer_version(&wanted, "packages/project", DEP), direct);
             let parent_snapshots = snapshot_entries(&wanted, PARENT);
             assert_eq!(parent_snapshots.len(), 1);
-            let subdependency = parent_snapshots[0]
-                .1
-                .dependencies
+            let subdependency = parent_snapshots[0].1.dependencies
                 .as_ref()
                 .and_then(|dependencies| {
                     dependencies.get(&DEP.parse().expect("parse package name"))
@@ -348,9 +349,7 @@ fn resolve_a_subdependency_from_the_workspace() {
     let wanted = fixture.wanted();
     let parent_snapshots = snapshot_entries(&wanted, PARENT);
     assert_eq!(parent_snapshots.len(), 1);
-    let subdependency = parent_snapshots[0]
-        .1
-        .dependencies
+    let subdependency = parent_snapshots[0].1.dependencies
         .as_ref()
         .and_then(|dependencies| dependencies.get(&DEP.parse().expect("parse package name")))
         .expect("parent snapshot records the subdependency")
@@ -383,9 +382,7 @@ fn resolve_a_subdependency_from_the_workspace_via_workspace_protocol_override() 
     let wanted = fixture.wanted();
     let parent_snapshots = snapshot_entries(&wanted, PARENT);
     assert_eq!(parent_snapshots.len(), 1);
-    let subdependency = parent_snapshots[0]
-        .1
-        .dependencies
+    let subdependency = parent_snapshots[0].1.dependencies
         .as_ref()
         .and_then(|dependencies| dependencies.get(&DEP.parse().expect("parse package name")))
         .expect("parent snapshot records the subdependency")
@@ -753,8 +750,9 @@ fn workspace_project_dependencies_built_during_headless_install_with_dedicated_l
 #[test]
 fn custom_virtual_store_directory_with_dedicated_lockfiles() {
     let fixture = WorkspaceFixture::new();
-    fixture
-        .append_workspace_yaml("virtualStoreDir: virtual-store\nsharedWorkspaceLockfile: false\n");
+    fixture.append_workspace_yaml(
+        "virtualStoreDir: virtual-store\nsharedWorkspaceLockfile: false\n",
+    );
     let project = fixture.project(
         "project-1",
         "project-1",

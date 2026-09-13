@@ -81,15 +81,18 @@ pub fn validate_manifest_path(path: &str) -> Result<(), ArtifactProtocolError> {
     if path.chars().any(char::is_control) {
         return Err(invalid_path(path, "control characters are not allowed"));
     }
-    if path.split('/').any(|segment| {
-        segment.is_empty()
-            || segment == "."
-            || segment == ".."
-            || segment.contains(':')
-            || is_windows_reserved_name(segment)
-            || segment.ends_with('.')
-            || segment.ends_with(' ')
-    }) {
+    if path
+        .split('/')
+        .any(|segment| {
+            segment.is_empty()
+                || segment == "."
+                || segment == ".."
+                || segment.contains(':')
+                || is_windows_reserved_name(segment)
+                || segment.ends_with('.')
+                || segment.ends_with(' ')
+        })
+    {
         return Err(invalid_path(
             path,
             "empty, dot, parent, and Windows-normalized segments are not allowed",
@@ -99,16 +102,24 @@ pub fn validate_manifest_path(path: &str) -> Result<(), ArtifactProtocolError> {
 }
 
 fn is_windows_reserved_name(segment: &str) -> bool {
-    let basename = segment.split('.').next().unwrap_or(segment).to_ascii_lowercase();
+    let basename = segment
+        .split('.')
+        .next()
+        .unwrap_or(segment)
+        .to_ascii_lowercase();
     matches!(basename.as_str(), "con" | "prn" | "aux" | "nul")
-        || ["com", "lpt"].iter().any(|prefix| {
-            basename.strip_prefix(prefix).is_some_and(|suffix| {
-                matches!(
-                    suffix,
-                    "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "¹" | "²" | "³",
-                )
+        || ["com", "lpt"]
+            .iter()
+            .any(|prefix| {
+                basename
+                    .strip_prefix(prefix)
+                    .is_some_and(|suffix| {
+                        matches!(
+                            suffix,
+                            "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "¹" | "²" | "³",
+                        )
+                    })
             })
-        })
 }
 
 pub fn blob_id(integrity: &str) -> Result<String, ArtifactProtocolError> {
@@ -122,9 +133,13 @@ pub fn blob_id(integrity: &str) -> Result<String, ArtifactProtocolError> {
             "sha512 integrity is malformed".to_string(),
         ));
     }
-    let digest = BASE64.decode(encoded).map_err(|_| {
-        ArtifactProtocolError::InvalidBlobIntegrity("sha512 digest is not valid base64".to_string())
-    })?;
+    let digest = BASE64
+        .decode(encoded)
+        .map_err(|_| {
+            ArtifactProtocolError::InvalidBlobIntegrity(
+                "sha512 digest is not valid base64".to_string(),
+            )
+        })?;
     if digest.len() != 64 {
         return Err(ArtifactProtocolError::InvalidBlobIntegrity(format!(
             "sha512 digest is {} bytes instead of 64",
@@ -215,11 +230,13 @@ fn invalid_path(path: &str, reason: &str) -> ArtifactProtocolError {
 }
 
 pub(super) fn hex(bytes: &[u8]) -> String {
-    bytes.iter().fold(String::with_capacity(bytes.len() * 2), |mut output, byte| {
-        use std::fmt::Write as _;
-        write!(output, "{byte:02x}").expect("writing to a String cannot fail");
-        output
-    })
+    bytes
+        .iter()
+        .fold(String::with_capacity(bytes.len() * 2), |mut output, byte| {
+            use std::fmt::Write as _;
+            write!(output, "{byte:02x}").expect("writing to a String cannot fail");
+            output
+        })
 }
 
 impl PublishArtifactRequest {
@@ -230,9 +247,7 @@ impl PublishArtifactRequest {
                 "signed input key does not match the publication key".to_string(),
             ));
         }
-        let required: BTreeMap<&str, u64> = payload
-            .manifest
-            .added
+        let required: BTreeMap<&str, u64> = payload.manifest.added
             .iter()
             .map(|file| (file.integrity.as_str(), file.size))
             .collect();
@@ -262,11 +277,13 @@ impl PublishArtifactRequest {
                 )));
             };
             let bytes = decode_uploaded_blob(blob, expected_size)?;
-            uploaded_size = uploaded_size.checked_add(bytes.len() as u64).ok_or_else(|| {
-                ArtifactProtocolError::InvalidBlobIntegrity(
-                    "uploaded blob size overflow".to_string(),
-                )
-            })?;
+            uploaded_size = uploaded_size
+                .checked_add(bytes.len() as u64)
+                .ok_or_else(|| {
+                    ArtifactProtocolError::InvalidBlobIntegrity(
+                        "uploaded blob size overflow".to_string(),
+                    )
+                })?;
             if uploaded_size > MAX_ARTIFACT_SIZE {
                 return Err(ArtifactProtocolError::InvalidBlobIntegrity(format!(
                     "uploaded blobs exceed the {MAX_ARTIFACT_SIZE}-byte artifact limit",
@@ -369,9 +386,11 @@ impl ArtifactManifest {
             validate_manifest_path(&file.path)?;
             insert_unique_path(&file.path, &mut exact_paths, &mut folded_paths)?;
             validate_added_file(file, &mut integrity_sizes)?;
-            total_size = total_size.checked_add(file.size).ok_or_else(|| {
-                ArtifactProtocolError::InvalidManifest("artifact size overflow".to_string())
-            })?;
+            total_size = total_size
+                .checked_add(file.size)
+                .ok_or_else(|| {
+                    ArtifactProtocolError::InvalidManifest("artifact size overflow".to_string())
+                })?;
             if total_size > MAX_ARTIFACT_SIZE {
                 return Err(ArtifactProtocolError::InvalidManifest(format!(
                     "artifact exceeds the {MAX_ARTIFACT_SIZE}-byte size limit",

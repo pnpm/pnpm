@@ -51,8 +51,7 @@ impl LogoutArgs {
 
         // Reconstruct the subset of pnpm's `config.authConfig` the command
         // reads: `<nerf-darted-uri>:_authToken` -> raw token.
-        let auth_config: HashMap<String, String> = config
-            .auth_tokens_by_uri
+        let auth_config: HashMap<String, String> = config.auth_tokens_by_uri
             .iter()
             .map(|(uri, token)| (format!("{uri}:_authToken"), token.clone()))
             .collect();
@@ -69,7 +68,9 @@ impl LogoutArgs {
             LogoutOptions {
                 // `--registry` wins; otherwise the resolved registry,
                 // which already folds in `.npmrc` and the npmjs default.
-                registry: self.registry.as_deref().or(Some(config.registry.as_str())),
+                registry: self.registry
+                    .as_deref()
+                    .or(Some(config.registry.as_str())),
                 auth_config: &auth_config,
                 config_dir,
                 retry,

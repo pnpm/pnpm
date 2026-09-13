@@ -20,7 +20,10 @@ macro_rules! static_env {
         impl EnvVar for $name {
             fn var(name: &str) -> Option<String> {
                 let entries: &[(&str, &str)] = $entries;
-                entries.iter().find(|(k, _)| *k == name).map(|(_, v)| (*v).to_string())
+                entries
+                    .iter()
+                    .find(|(k, _)| *k == name)
+                    .map(|(_, v)| (*v).to_string())
             }
         }
     };
@@ -68,11 +71,17 @@ macro_rules! static_env_with_vars {
         impl EnvVar for $name {
             fn var(name: &str) -> Option<String> {
                 let entries: &[(&str, &str)] = $entries;
-                entries.iter().find(|(k, _)| *k == name).map(|(_, v)| (*v).to_string())
+                entries
+                    .iter()
+                    .find(|(k, _)| *k == name)
+                    .map(|(_, v)| (*v).to_string())
             }
             fn vars() -> Vec<(String, String)> {
                 let entries: &[(&str, &str)] = $entries;
-                entries.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect()
+                entries
+                    .iter()
+                    .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
+                    .collect()
             }
         }
     };

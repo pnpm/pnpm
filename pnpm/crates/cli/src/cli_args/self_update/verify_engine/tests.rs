@@ -23,7 +23,10 @@ fn signing_key() -> SigningKey {
 
 fn public_key_b64(key: &SigningKey) -> String {
     use p256::pkcs8::EncodePublicKey;
-    let der = key.verifying_key().to_public_key_der().expect("encode SPKI");
+    let der = key
+        .verifying_key()
+        .to_public_key_der()
+        .expect("encode SPKI");
     base64::engine::general_purpose::STANDARD.encode(der.as_bytes())
 }
 
@@ -141,8 +144,10 @@ fn env_lockfile_owned_by(owner: &str, platform_optional_deps: &[(&str, &str)]) -
     let mut optional_dependencies = serde_json::Map::new();
     for (name, version) in platform_optional_deps {
         package_entries.insert(format!("{name}@{version}"), packages(name));
-        optional_dependencies
-            .insert((*name).to_string(), serde_json::Value::String((*version).to_string()));
+        optional_dependencies.insert(
+            (*name).to_string(),
+            serde_json::Value::String((*version).to_string()),
+        );
     }
     let mut snapshots = serde_json::Map::new();
     for name in ["pnpm", "@pnpm/exe"] {
@@ -188,7 +193,10 @@ fn only_the_package_that_is_installed_is_verified() {
     .expect("the JavaScript pnpm is verifiable on its own");
 
     assert_eq!(
-        components.iter().map(|component| component.name.as_str()).collect::<Vec<_>>(),
+        components
+            .iter()
+            .map(|component| component.name.as_str())
+            .collect::<Vec<_>>(),
         ["pnpm"],
     );
 }
@@ -220,7 +228,10 @@ fn a_platform_binary_listed_by_the_javascript_pnpm_is_verified() {
     .expect("the JavaScript pnpm and the binary it lists are verifiable");
 
     assert_eq!(
-        components.iter().map(|component| component.name.as_str()).collect::<Vec<_>>(),
+        components
+            .iter()
+            .map(|component| component.name.as_str())
+            .collect::<Vec<_>>(),
         ["pnpm", platform_name.as_str()],
     );
 }
@@ -238,7 +249,10 @@ fn a_native_engine_verifies_the_host_platform_binary() {
     .expect("the native engine and its host binary are verifiable");
 
     assert_eq!(
-        components.iter().map(|component| component.name.as_str()).collect::<Vec<_>>(),
+        components
+            .iter()
+            .map(|component| component.name.as_str())
+            .collect::<Vec<_>>(),
         ["@pnpm/exe", platform_name.as_str()],
     );
 }
@@ -423,8 +437,12 @@ async fn does_not_retry_an_unavailable_fallback_registry() {
     let mut fallback = mockito::Server::new_async().await;
     let component = EngineComponent { registry: format!("{}/", mirror.url()), ..component() };
     let _mirror = mock_packument(&mut mirror, "[]").await;
-    let fallback_mock =
-        fallback.mock("GET", "/pnpm").with_status(502).expect(1).create_async().await;
+    let fallback_mock = fallback
+        .mock("GET", "/pnpm")
+        .with_status(502)
+        .expect(1)
+        .create_async()
+        .await;
     let retry_opts = RetryOpts {
         retries: 2,
         factor: 1,
@@ -452,7 +470,11 @@ async fn reports_absent_when_a_reachable_fallback_has_no_signed_release() {
     let mut fallback = mockito::Server::new_async().await;
     let component = EngineComponent { registry: format!("{}/", mirror.url()), ..component() };
     let _mirror = mock_packument(&mut mirror, "[]").await;
-    let _fallback = fallback.mock("GET", "/pnpm").with_status(404).create_async().await;
+    let _fallback = fallback
+        .mock("GET", "/pnpm")
+        .with_status(404)
+        .create_async()
+        .await;
 
     let failure =
         find_failure_with_fallback(&component, &fallback.url()).await.expect("failure expected");

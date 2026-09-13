@@ -196,7 +196,10 @@ pub(super) fn wanted_lockfile_contains_satisfying_entry(
     let Some(packages) = lockfile.and_then(|lockfile| lockfile.packages.as_ref()) else {
         return false;
     };
-    let Some(alias) = wanted.alias.as_deref().filter(|alias| !alias.is_empty()) else {
+    let Some(alias) = wanted.alias
+        .as_deref()
+        .filter(|alias| !alias.is_empty())
+    else {
         return false;
     };
     let (pkg_name, range) =
@@ -207,10 +210,14 @@ pub(super) fn wanted_lockfile_contains_satisfying_entry(
     let Ok(pkg_name) = PkgName::parse(pkg_name) else {
         return false;
     };
-    packages.keys().any(|key| {
-        key.name == pkg_name
-            && key.suffix.version_semver().is_some_and(|version| range.satisfies(version))
-    })
+    packages
+        .keys()
+        .any(|key| {
+            key.name == pkg_name
+                && key.suffix
+                    .version_semver()
+                    .is_some_and(|version| range.satisfies(version))
+        })
 }
 
 /// Normalize an `npm:` alias specifier into the real package name and
@@ -250,11 +257,15 @@ pub fn real_package_name_of<'edge>(
 ) -> Option<Cow<'edge, str>> {
     let bare = bare_specifier?;
     if let Some(rest) = bare.strip_prefix("npm:") {
-        let alias_keeps_name = alias
-            .is_some_and(|alias| !alias.is_empty() && rest.parse::<node_semver::Range>().is_ok());
+        let alias_keeps_name = alias.is_some_and(|alias| {
+            !alias.is_empty() && rest.parse::<node_semver::Range>().is_ok()
+        });
         if !alias_keeps_name {
-            let last_at =
-                rest.bytes().enumerate().rev().find_map(|(i, b)| (b == b'@').then_some(i));
+            let last_at = rest
+                .bytes()
+                .enumerate()
+                .rev()
+                .find_map(|(i, b)| (b == b'@').then_some(i));
             let name = match last_at {
                 Some(idx) if idx >= 1 => &rest[..idx],
                 _ => rest,
@@ -370,7 +381,10 @@ fn subtree_children_reusable(
     key: &PkgNameVerPeer,
     depth: i32,
 ) -> bool {
-    let Some(snapshot) = lockfile.snapshots.as_ref().and_then(|snaps| snaps.get(key)) else {
+    let Some(snapshot) = lockfile.snapshots
+        .as_ref()
+        .and_then(|snaps| snaps.get(key))
+    else {
         // No snapshot entry → the lockfile doesn't record this node's
         // children, so the reuse walk can't reproduce its subtree.
         // Force a fresh resolve rather than risk silently dropping
@@ -441,8 +455,6 @@ where
         emit_deprecation_if_needed(ctx, &result, &id, edge.depth);
     }
 
-    let next_ancestors: Vec<String> =
-        edge.ancestor_ids.iter().cloned().chain(std::iter::once(id.clone())).collect();
     attach_reused_children(
         ctx,
         resolver,
@@ -452,13 +464,7 @@ where
             key: &reused.key,
             snapshot: identity.snapshot,
             child_refs: &identity.child_refs,
-            ancestry: snapshot_children::ReusedNodeAncestry {
-                ancestor_ids: edge.ancestor_ids,
-                next_ancestors: &Arc::new(next_ancestors),
-                depth: edge.depth,
-                current_is_optional,
-                parent_pkg_aliases: edge.parent_pkg_aliases,
-            },
+            ancestry: snapshot_children::ReusedNodeAncestry::new(edge, &id, current_is_optional),
         },
         &identity.node_id,
     )
@@ -489,10 +495,7 @@ fn reused_identity<'l>(
     result: &pnpm_resolving_resolver_base::ResolveResult,
     key: &PkgNameVerPeer,
 ) -> Result<ReusedIdentity<'l>, ResolveDependencyTreeError> {
-    let snapshot = ctx
-        .workspace
-        .reuse
-        .lockfile
+    let snapshot = ctx.workspace.reuse.lockfile
         .as_ref()
         .and_then(|lockfile| lockfile.snapshots.as_ref())
         .and_then(|snaps| snaps.get(key));

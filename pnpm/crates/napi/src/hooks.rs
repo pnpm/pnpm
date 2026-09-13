@@ -157,8 +157,7 @@ impl JsBatchedReadPackageHook {
 
     fn ensure_driver(&self) {
         self.driver_started.call_once(|| {
-            let (rx, sink) = self
-                .driver_seed
+            let (rx, sink) = self.driver_seed
                 .lock()
                 .expect("driver seed lock")
                 .take()

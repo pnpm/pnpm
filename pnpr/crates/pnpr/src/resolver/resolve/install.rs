@@ -41,7 +41,13 @@ impl<'a> ResolutionInstall<'a> {
         manifest: &'a PackageManifest,
         lockfile_path: &'a Path,
     ) -> Install<'a, [DependencyGroup; 3]> {
-        let Self { config, client, request, auth_headers, observer } = self;
+        let Self {
+            config,
+            client,
+            request,
+            auth_headers,
+            observer,
+        } = self;
         let mut install = Install::new(
             Arc::new(MemCache::default()),
             resolved_packages,

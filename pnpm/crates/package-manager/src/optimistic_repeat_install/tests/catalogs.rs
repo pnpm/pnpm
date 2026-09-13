@@ -79,7 +79,9 @@ fn returns_up_to_date_when_a_catalog_dependency_resolves_to_a_registry_range() {
     );
     let mut projects = BTreeMap::new();
     projects.insert(
-        dir.path().to_string_lossy().into_owned(),
+        dir.path()
+            .to_string_lossy()
+            .into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
     write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);

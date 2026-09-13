@@ -136,12 +136,14 @@ impl ListArgs {
     }
 
     async fn run_global(&self, config: &Config) -> miette::Result<String> {
-        let global_pkg_dir = config.global_pkg_dir.clone().ok_or_else(|| {
-            miette::miette!(
-                code = "ERR_PNPM_NO_GLOBAL_BIN_DIR",
-                "Unable to find the global packages directory"
-            )
-        })?;
+        let global_pkg_dir = config.global_pkg_dir
+            .clone()
+            .ok_or_else(|| {
+                miette::miette!(
+                    code = "ERR_PNPM_NO_GLOBAL_BIN_DIR",
+                    "Unable to find the global packages directory"
+                )
+            })?;
 
         if (matches!(self.graph.depth, RecursionLimit::Levels(n) if n > 0)
             || self.graph.depth == RecursionLimit::Unlimited)
@@ -214,35 +216,36 @@ impl ListArgs {
         let (projects, _) = discover_workspace_projects(&workspace_root, config)?;
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
-        let project_dirs: Vec<PathBuf> = selection.selected.keys().cloned().collect();
+        let project_dirs: Vec<PathBuf> = selection.selected
+            .keys()
+            .cloned()
+            .collect();
 
         let always_print_root_package = self.graph.depth == RecursionLimit::ProjectsOnly;
 
         if config.shares_one_lockfile() {
-            return self
-                .render_projects(
-                    config,
-                    &project_dirs,
-                    &self.packages,
-                    config.lockfile_dir_for(&workspace_root),
-                    always_print_root_package,
-                )
-                .await;
+            return self.render_projects(
+                config,
+                &project_dirs,
+                &self.packages,
+                config.lockfile_dir_for(&workspace_root),
+                always_print_root_package,
+            )
+            .await;
         }
 
         // Per-project lockfiles: each project renders independently
         // (with its own legend and summary).
         let mut outputs = Vec::new();
         for project_dir in project_dirs {
-            let output = self
-                .render_projects(
-                    config,
-                    std::slice::from_ref(&project_dir),
-                    &self.packages,
-                    &project_dir,
-                    always_print_root_package,
-                )
-                .await?;
+            let output = self.render_projects(
+                config,
+                std::slice::from_ref(&project_dir),
+                &self.packages,
+                &project_dir,
+                always_print_root_package,
+            )
+            .await?;
             if !output.is_empty() {
                 outputs.push(output);
             }
@@ -294,20 +297,22 @@ impl ListArgs {
             config.registry_options_by_url.clone(),
         );
 
-        let hierarchies =
-            match env.as_ref().filter(|_| self.graph.depth != RecursionLimit::ProjectsOnly) {
-                Some(env) => {
-                    self.build_hierarchies(config, &state, env, project_dirs, lockfile_dir, params)
-                        .await?
-                }
-                // Without a materialized `node_modules` there is no tree to
-                // walk; every project reports its own line and nothing under
-                // it.
-                None => project_dirs
-                    .iter()
-                    .map(|project_dir| (project_dir.clone(), DependenciesHierarchy::default()))
-                    .collect(),
-            };
+        let hierarchies = match env
+            .as_ref()
+            .filter(|_| self.graph.depth != RecursionLimit::ProjectsOnly)
+        {
+            Some(env) => {
+                self.build_hierarchies(config, &state, env, project_dirs, lockfile_dir, params)
+                    .await?
+            }
+            // Without a materialized `node_modules` there is no tree to
+            // walk; every project reports its own line and nothing under
+            // it.
+            None => project_dirs
+                .iter()
+                .map(|project_dir| (project_dir.clone(), DependenciesHierarchy::default()))
+                .collect(),
+        };
 
         let projects: Vec<ProjectHierarchy> = hierarchies
             .into_iter()

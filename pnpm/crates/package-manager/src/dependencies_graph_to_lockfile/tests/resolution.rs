@@ -35,8 +35,10 @@ fn peer_suffixed_dep_path_splits_into_distinct_snapshot_and_package_keys() {
     let mut react_dom_children = BTreeMap::new();
     react_dom_children.insert("react".to_string(), DepPath::from("react@17.0.2".to_string()));
     let mut react_dom_peers = BTreeMap::new();
-    react_dom_peers
-        .insert("react".to_string(), PeerDep { version: "17.0.2".to_string(), optional: false });
+    react_dom_peers.insert(
+        "react".to_string(),
+        PeerDep { version: "17.0.2".to_string(), optional: false },
+    );
     let react_dom_dep_path = DepPath::from("react-dom@17.0.2(react@17.0.2)".to_string());
     let react_dom = DependenciesGraphNode {
         dep_path: react_dom_dep_path.clone(),
@@ -84,8 +86,11 @@ fn peer_suffixed_dep_path_splits_into_distinct_snapshot_and_package_keys() {
     assert!(metadata.peer_dependencies.is_some(), "peer_deps on packages metadata");
 
     let importer = lockfile.root_project().unwrap();
-    let dom =
-        importer.dependencies.as_ref().unwrap().get(&PkgName::parse("react-dom").unwrap()).unwrap();
+    let dom = importer.dependencies
+        .as_ref()
+        .unwrap()
+        .get(&PkgName::parse("react-dom").unwrap())
+        .unwrap();
     match &dom.version {
         ImporterDepVersion::Regular(ver) => {
             assert_eq!(ver.to_string(), "17.0.2(react@17.0.2)");
@@ -215,8 +220,7 @@ fn snapshot_records_transitive_peer_dependencies_sorted() {
 
     let snapshots = lockfile.snapshots.as_ref().unwrap();
     let outer_key: PackageKey = "outer@1.0.0".parse().unwrap();
-    let recorded = snapshots[&outer_key]
-        .transitive_peer_dependencies
+    let recorded = snapshots[&outer_key].transitive_peer_dependencies
         .as_ref()
         .expect("transitive peers recorded");
     assert_eq!(recorded.as_slice(), ["a-peer".to_string(), "z-peer".to_string()].as_slice());

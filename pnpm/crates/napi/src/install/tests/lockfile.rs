@@ -26,7 +26,13 @@ fn lockfile_records_overrides_in_declaration_order() {
         }),
         dependency_manifest: None,
     }];
-    options.store_dir = Some(temp_dir.path().join("store").to_string_lossy().into_owned());
+    options.store_dir = Some(
+        temp_dir
+            .path()
+            .join("store")
+            .to_string_lossy()
+            .into_owned(),
+    );
     options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
     options.overrides = Some(indexmap::IndexMap::from_iter([
         ("zzz-unmatched".to_string(), "1.0.0".to_string()),

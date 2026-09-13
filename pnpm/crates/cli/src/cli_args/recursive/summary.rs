@@ -25,7 +25,10 @@ pub fn write_recursive_summary(
 /// `ERR_PNPM_RECURSIVE_FAIL` error. Skipped dependents of a failed task do
 /// not add to the count: the failure that blocked them is already counted.
 pub fn count_failures(summary: &IndexMap<String, ExecutionStatus>) -> usize {
-    summary.values().filter(|status| status.status == Status::Failure).count()
+    summary
+        .values()
+        .filter(|status| status.status == Status::Failure)
+        .count()
 }
 
 /// `pnpm-exec-summary.json` top-level shape: `{ "executionStatus": { ... } }`.

@@ -103,7 +103,10 @@ impl OciPublication {
         self.check_referenced_blobs(&storage).await?;
         let addition = self.document_addition(snapshot.generation);
         let children: Vec<Digest> = if pnpr_oci::media_type::is_index(self.manifest.media_type()) {
-            self.manifest.references().map(|descriptor| descriptor.digest.clone()).collect()
+            self.manifest
+                .references()
+                .map(|descriptor| descriptor.digest.clone())
+                .collect()
         } else {
             Vec::new()
         };

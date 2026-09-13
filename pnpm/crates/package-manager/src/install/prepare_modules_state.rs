@@ -236,8 +236,7 @@ fn modules_layout_drifted(
 ) -> bool {
     let Some(modules) = modules_manifest else {
         // Treat existence-check errors conservatively as inconsistent.
-        return config
-            .modules_dir
+        return config.modules_dir
             .join(pnpm_modules_yaml::MODULES_FILENAME)
             .try_exists()
             .unwrap_or(true);

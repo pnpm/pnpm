@@ -184,9 +184,9 @@ pub(super) fn exhausted(
     reason: String,
     fail: impl FnOnce(String, String) -> ResolveError,
 ) -> Result<RegistryPick, ResolveError> {
-    let accepts_rejected = opts
-        .package_version_guard
-        .is_some_and(|guard| guard.exhaustion_policy() == GuardExhaustionPolicy::AcceptRejected);
+    let accepts_rejected = opts.package_version_guard.is_some_and(|guard| {
+        guard.exhaustion_policy() == GuardExhaustionPolicy::AcceptRejected
+    });
     match first_rejected.filter(|_| accepts_rejected) {
         Some(picked) => {
             tracing::debug!(

@@ -50,7 +50,10 @@ fn installed_workspace(members: &[&str]) -> (TempDir, std::path::PathBuf, AddMoc
 }
 
 fn pacquet(cwd: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Command {
-    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(cwd).with_args(args)
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(cwd)
+        .with_args(args)
 }
 
 fn stamp_path(workspace: &Path, project: &str) -> std::path::PathBuf {
@@ -73,8 +76,11 @@ fn clear_stamps(workspace: &Path, members: &[&str]) {
 
 #[track_caller]
 fn assert_ran(workspace: &Path, expected: &[&str], all: &[&str]) {
-    let ran: Vec<&str> =
-        all.iter().copied().filter(|project| stamp_path(workspace, project).exists()).collect();
+    let ran: Vec<&str> = all
+        .iter()
+        .copied()
+        .filter(|project| stamp_path(workspace, project).exists())
+        .collect();
     assert_eq!(ran, expected, "projects whose own postinstall ran");
 }
 

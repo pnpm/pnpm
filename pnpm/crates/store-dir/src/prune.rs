@@ -245,7 +245,10 @@ fn linked_store_slot(entry_path: &Path, canonical_links: &Path) -> Option<PathBu
     let absolute_target = if target.is_absolute() {
         target
     } else {
-        entry_path.parent().map(|parent| parent.join(&target)).unwrap_or(target)
+        entry_path
+            .parent()
+            .map(|parent| parent.join(&target))
+            .unwrap_or(target)
     };
     // Canonicalise the target so a symlink-bearing path prefix doesn't fool
     // the `starts_with` check against the (already-canonical) links root.

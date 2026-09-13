@@ -39,7 +39,10 @@ fn concurrent_and_sequential_consumers_share_a_checkout() {
                 })
             })
             .collect();
-        tasks.into_iter().map(|task| task.join().unwrap()).collect::<Vec<_>>()
+        tasks
+            .into_iter()
+            .map(|task| task.join().unwrap())
+            .collect::<Vec<_>>()
     });
     for source in &sources {
         assert!(Arc::ptr_eq(source, &sources[0]), "different snapshots: {sources:?}");
@@ -157,7 +160,11 @@ fn copies_preserve_symlinks_and_executable_files() {
         std::path::Path::new("missing"),
     );
     assert_eq!(
-        fs::metadata(target.path().join("exec")).unwrap().permissions().mode() & 0o777,
+        fs::metadata(target.path().join("exec"))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
         0o755,
     );
     fs::write(target.path().join("link"), "changed").unwrap();
@@ -192,8 +199,11 @@ fn shallow_and_full_checkouts_of_one_commit_are_isolated() {
     });
     assert!(!Arc::ptr_eq(&shallow, &full), "a shallow and a full checkout shared a source");
     let invocations = parse_shim_log(&log_path);
-    let operations: Vec<&str> =
-        invocations.iter().filter_map(|args| args.first()).map(String::as_str).collect();
+    let operations: Vec<&str> = invocations
+        .iter()
+        .filter_map(|args| args.first())
+        .map(String::as_str)
+        .collect();
     assert!(operations.contains(&"fetch"), "no shallow fetch in {operations:?}");
     assert!(operations.contains(&"clone"), "no full clone in {operations:?}");
 }
@@ -212,18 +222,20 @@ fn checkouts_by_different_git_executables_are_isolated() {
         GitCommandLog::new(&root.path().join("first")),
         GitCommandLog::new(&root.path().join("second")),
     ];
-    let sources = logs.each_ref().map(|log| {
-        cache
-            .get(&GitSource {
-                cache: &cache,
-                path: None,
-                repo: &url,
-                commit: &commit,
-                shallow_hosts: &[],
-                git_bin: Some(&log.bin),
-            })
-            .unwrap()
-    });
+    let sources = logs
+        .each_ref()
+        .map(|log| {
+            cache
+                .get(&GitSource {
+                    cache: &cache,
+                    path: None,
+                    repo: &url,
+                    commit: &commit,
+                    shallow_hosts: &[],
+                    git_bin: Some(&log.bin),
+                })
+                .unwrap()
+        });
     assert!(!Arc::ptr_eq(&sources[0], &sources[1]), "different git executables shared a source");
     for log in &logs {
         assert_eq!(log.acquisitions().len(), 1);
@@ -256,7 +268,10 @@ fn acquisition_failures_are_shared_and_cleaned_and_a_new_install_retries() {
                 })
             })
             .collect();
-        tasks.into_iter().map(|task| task.join().unwrap()).collect::<Vec<_>>()
+        tasks
+            .into_iter()
+            .map(|task| task.join().unwrap())
+            .collect::<Vec<_>>()
     });
     for error in &errors {
         assert!(Arc::ptr_eq(error, &errors[0]), "waiters did not share the failure");
@@ -277,5 +292,10 @@ fn acquisition_failures_are_shared_and_cleaned_and_a_new_install_retries() {
     };
     next_install.get(&opts).unwrap_err();
     assert_eq!(log.acquisitions().len(), 2);
-    assert!(log.acquisitions().iter().all(|path| !path.exists()), "failed checkouts survived");
+    assert!(
+        log.acquisitions()
+            .iter()
+            .all(|path| !path.exists()),
+        "failed checkouts survived",
+    );
 }

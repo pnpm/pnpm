@@ -51,9 +51,7 @@ pub fn npmrc_auth_file_override_supplies_basic_auth_to_bootstrap() {
         .expect("load config");
 
     assert_eq!(
-        config
-            .package_manager_bootstrap
-            .auth_headers
+        config.package_manager_bootstrap.auth_headers
             .for_url_with_package("https://registry.example.com/@pnpm%2Fexe", Some("@pnpm/exe"))
             .as_deref(),
         Some(format!("Basic {pair}").as_str()),
@@ -275,8 +273,7 @@ pub fn json_env_repo_registry_cannot_redirect_token() {
     let config = load_with_fake_env(project.path());
 
     assert_eq!(
-        config
-            .auth_headers
+        config.auth_headers
             .for_url_with_package("https://npm.pkg.github.com/org-a/foo", Some("@org-a/foo"))
             .as_deref(),
         Some("Bearer org-a-token"),
@@ -285,8 +282,7 @@ pub fn json_env_repo_registry_cannot_redirect_token() {
     // only checks the default/unscoped path and would pass even if the
     // `@org-a` token had been rebound to the attacker host.
     assert!(
-        config
-            .auth_headers
+        config.auth_headers
             .for_url_with_package("https://attacker.example/org-a/foo", Some("@org-a/foo"))
             .is_none(),
         "repo-controlled registry URL must not receive the env token",
@@ -305,15 +301,13 @@ pub fn json_env_per_scope_token_on_shared_host() {
     let config = load_with_fake_env(project.path());
 
     assert_eq!(
-        config
-            .auth_headers
+        config.auth_headers
             .for_url_with_package("https://npm.pkg.github.com/org-a/foo", Some("@org-a/foo"))
             .as_deref(),
         Some("Bearer a-tok"),
     );
     assert_eq!(
-        config
-            .auth_headers
+        config.auth_headers
             .for_url_with_package("https://npm.pkg.github.com/org-b/foo", Some("@org-b/foo"))
             .as_deref(),
         Some("Bearer b-tok"),
@@ -353,8 +347,7 @@ pub fn global_config_yaml_registries_cannot_redirect_json_env_token() {
         Some("https://npm.pkg.github.com/"),
     );
     assert_eq!(
-        config
-            .auth_headers
+        config.auth_headers
             .for_url_with_package(
                 "https://npm.pkg.github.com/victim-scope/foo",
                 Some("@victim-scope/foo")
@@ -363,8 +356,7 @@ pub fn global_config_yaml_registries_cannot_redirect_json_env_token() {
         Some("Bearer secret-token"),
     );
     assert!(
-        config
-            .auth_headers
+        config.auth_headers
             .for_url_with_package(
                 "https://attacker.example/victim-scope/foo",
                 Some("@victim-scope/foo")
@@ -719,8 +711,10 @@ pub fn npmrc_auth_file_pointing_at_project_npmrc_suppresses_warning() {
         load_with_fake_env(project.path());
     });
 
-    let auth_warnings: Vec<_> =
-        warnings.iter().filter(|w| w.contains("Ignored project-level auth setting")).collect();
+    let auth_warnings: Vec<_> = warnings
+        .iter()
+        .filter(|w| w.contains("Ignored project-level auth setting"))
+        .collect();
     assert!(
         auth_warnings.is_empty(),
         "expected no auth warning when PNPM_CONFIG_NPMRC_AUTH_FILE points at project .npmrc, got: {auth_warnings:?}",
@@ -744,14 +738,20 @@ pub fn npmrc_auth_file_relative_to_cwd_pointing_at_project_npmrc_suppresses_warn
         config = Some(load_with_fake_env(project.path()));
     });
 
-    let auth_warnings: Vec<_> =
-        warnings.iter().filter(|w| w.contains("Ignored project-level auth setting")).collect();
+    let auth_warnings: Vec<_> = warnings
+        .iter()
+        .filter(|w| w.contains("Ignored project-level auth setting"))
+        .collect();
     assert!(
         auth_warnings.is_empty(),
         "expected no auth warning for a relative npmrcAuthFile that resolves to the project .npmrc, got: {auth_warnings:?}",
     );
     assert_eq!(
-        config.unwrap().auth_headers.for_url("https://registry.npmjs.org/pkg").as_deref(),
+        config
+            .unwrap()
+            .auth_headers
+            .for_url("https://registry.npmjs.org/pkg")
+            .as_deref(),
         Some("Bearer secret-token"),
         "the trusted project .npmrc must expand the auth env placeholder",
     );
@@ -775,7 +775,9 @@ pub fn npmrc_auth_file_relative_resolving_elsewhere_keeps_warning() {
     });
 
     assert!(
-        warnings.iter().any(|w| w.contains("Ignored project-level auth setting")),
+        warnings
+            .iter()
+            .any(|w| w.contains("Ignored project-level auth setting")),
         "expected the auth warning when the relative npmrcAuthFile does not resolve to the project .npmrc, got: {warnings:?}",
     );
 }

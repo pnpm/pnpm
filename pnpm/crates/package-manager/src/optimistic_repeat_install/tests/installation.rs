@@ -107,7 +107,9 @@ fn returns_up_to_date_when_the_local_file_dependency_is_in_an_excluded_group() {
     let settings = current_settings(config, pnpm_config::NodeLinker::Isolated, included, None);
     let mut projects = BTreeMap::new();
     projects.insert(
-        dir.path().to_string_lossy().into_owned(),
+        dir.path()
+            .to_string_lossy()
+            .into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
     write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
@@ -146,7 +148,9 @@ fn returns_skipped_when_the_local_file_dependency_is_in_an_included_group() {
     let settings = current_settings(config, pnpm_config::NodeLinker::Isolated, included, None);
     let mut projects = BTreeMap::new();
     projects.insert(
-        dir.path().to_string_lossy().into_owned(),
+        dir.path()
+            .to_string_lossy()
+            .into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
     write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
@@ -235,7 +239,9 @@ fn returns_up_to_date_when_a_package_extension_optional_dependency_is_excluded()
     let settings = current_settings(config, pnpm_config::NodeLinker::Isolated, included, None);
     let mut projects = BTreeMap::new();
     projects.insert(
-        dir.path().to_string_lossy().into_owned(),
+        dir.path()
+            .to_string_lossy()
+            .into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
     write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);

@@ -50,7 +50,10 @@ pub fn plan<Reporter: self::Reporter + 'static>(
     manifests: Vec<PathBuf>,
     selection: DependencySelection,
 ) -> pnpm_install_coordinator::InstallTask<'static> {
-    let metadata = manifests.iter().map(|path| path.with_file_name("pylock.toml")).collect();
+    let metadata = manifests
+        .iter()
+        .map(|path| path.with_file_name("pylock.toml"))
+        .collect();
     pnpm_install_coordinator::InstallTask::new(
         metadata,
         prepare::<Reporter>(context, manifests, false, selection),
@@ -86,8 +89,7 @@ async fn prepare<Reporter: self::Reporter + 'static>(
     };
     let result = prepare_projects::<Reporter>(&prepare, roots).await;
     drop(writer);
-    writer_task
-        .await
+    writer_task.await
         .into_diagnostic()
         .wrap_err("join Python artifact store index writer")?
         .into_diagnostic()
@@ -113,13 +115,17 @@ async fn read_project_manifests(
 ) -> Result<Vec<(PathBuf, manifest::Manifest)>> {
     let mut roots = Vec::new();
     for path in manifests {
-        let contents = tokio::fs::read_to_string(&path)
-            .await
+        let contents = tokio::fs::read_to_string(&path).await
             .into_diagnostic()
             .wrap_err_with(|| format!("read {}", path.display()))?;
         let manifest = manifest::Manifest::parse(&contents)?;
         if manifest.project.is_some() {
-            roots.push((path.parent().expect("manifest has a parent").to_path_buf(), manifest));
+            roots.push((
+                path.parent()
+                    .expect("manifest has a parent")
+                    .to_path_buf(),
+                manifest,
+            ));
         }
     }
     Ok(roots)
@@ -134,8 +140,12 @@ fn python_index(config: &pnpm_config::Config) -> Result<(url::Url, pnpm_network:
     if !index.username().is_empty() || index.password().is_some() {
         let username = pnpm_network::percent_decode_str(index.username());
         let password = pnpm_network::percent_decode_str(index.password().unwrap_or(""));
-        index.set_username("").map_err(|()| miette::miette!("invalid Python index URL"))?;
-        index.set_password(None).map_err(|()| miette::miette!("invalid Python index URL"))?;
+        index
+            .set_username("")
+            .map_err(|()| miette::miette!("invalid Python index URL"))?;
+        index
+            .set_password(None)
+            .map_err(|()| miette::miette!("invalid Python index URL"))?;
         auth.insert_url_header(
             index.as_str(),
             format!("Basic {}", STANDARD.encode(format!("{username}:{password}"))),
@@ -162,31 +172,31 @@ impl PythonPrepare<'_> {
         let mut registry = self.registry();
         let lock_path = root.join("pylock.toml");
         let existing = read_existing_lock(&lock_path).await?;
-        let fresh = existing.as_ref().is_some_and(|lock| {
-            lock.tool.pnpm == inputs && lock.requires_python == project.requires_python
-        });
+        let fresh = existing
+            .as_ref()
+            .is_some_and(|lock| {
+                lock.tool.pnpm == inputs && lock.requires_python == project.requires_python
+            });
         if self.context.frozen_lockfile && (!fresh || self.resolve) {
             bail!("frozen Python lockfile is missing or out of date: {}", lock_path.display());
         }
-        let lock = self
-            .lockfile::<Reporter>(
-                &mut registry,
-                LockfileInputs {
-                    existing: existing.filter(|_| fresh && !self.resolve),
-                    requirements: &requirements,
-                    inputs,
-                    requires_python: project.requires_python.clone(),
-                },
-            )
-            .await?;
-        let environment = self
-            .environment(
-                &mut registry,
-                &root,
-                &lock,
-                &manifest.requirements(config, self.selection)?,
-            )
-            .await?;
+        let lock = self.lockfile::<Reporter>(
+            &mut registry,
+            LockfileInputs {
+                existing: existing.filter(|_| fresh && !self.resolve),
+                requirements: &requirements,
+                inputs,
+                requires_python: project.requires_python.clone(),
+            },
+        )
+        .await?;
+        let environment = self.environment(
+            &mut registry,
+            &root,
+            &lock,
+            &manifest.requirements(config, self.selection)?,
+        )
+        .await?;
         Ok(Prepared {
             root,
             lock: toml::to_string_pretty(&lock).into_diagnostic()?,
@@ -238,7 +248,12 @@ impl PythonPrepare<'_> {
     async fn lockfile<Reporter: self::Reporter + 'static>(
         &self,
         registry: &mut Registry<'_>,
-        LockfileInputs { existing, requirements, inputs, requires_python }: LockfileInputs<'_>,
+        LockfileInputs {
+            existing,
+            requirements,
+            inputs,
+            requires_python,
+        }: LockfileInputs<'_>,
     ) -> Result<Lockfile> {
         if let Some(lock) = existing {
             self.accept_lockfile::<Reporter>(registry, lock, requirements).await
@@ -294,13 +309,17 @@ impl PythonPrepare<'_> {
         validate_environment_link(root)?;
         let generations = root.join(".pnpm/python-envs");
         ensure_environment_parent(root)?;
-        let environment =
-            tempfile::Builder::new().prefix("env-").tempdir_in(&generations).into_diagnostic()?;
+        let environment = tempfile::Builder::new()
+            .prefix("env-")
+            .tempdir_in(&generations)
+            .into_diagnostic()?;
         registry.packages.candidates.clear();
         lock.seed(&mut registry.packages)?;
         let selected = resolver::locked_solution(registry, selected_requirements)?;
-        let wheels =
-            selected.into_iter().map(|package| &registry.wheels[&package]).collect::<Vec<_>>();
+        let wheels = selected
+            .into_iter()
+            .map(|package| &registry.wheels[&package])
+            .collect::<Vec<_>>();
         host::run::<serde_json::Value>(
             &self.interpreter.executable,
             "install",

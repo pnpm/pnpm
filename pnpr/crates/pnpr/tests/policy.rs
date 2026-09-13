@@ -53,7 +53,9 @@ fn config_from_yaml(packages_block: &str) -> (TempDir, Config) {
 }
 
 fn get(path: &str) -> Request<Body> {
-    Request::get(path).body(Body::empty()).unwrap()
+    Request::get(path)
+        .body(Body::empty())
+        .unwrap()
 }
 
 fn get_auth(path: &str, token: &str) -> Request<Body> {
@@ -84,7 +86,10 @@ async fn add_user_and_get_token(app: &axum::Router, username: &str, password: &s
     assert_eq!(response.status(), StatusCode::CREATED);
     let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let payload: Value = serde_json::from_slice(&bytes).unwrap();
-    payload["token"].as_str().expect("token in response").to_string()
+    payload["token"]
+        .as_str()
+        .expect("token in response")
+        .to_string()
 }
 
 #[tokio::test]

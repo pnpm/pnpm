@@ -13,8 +13,11 @@
 //! resolved before it, so it is added only when asked for.
 
 pub(crate) use policy::record_package_manager_shims;
+pub(crate) use virtual_state::record_virtual_shim_state;
 
 mod policy;
+mod virtual_state;
+use virtual_state::{read_virtual_shim_state, remove_virtual_shim_state, virtual_shim_state_path};
 
 use crate::{
     cli_args::global_bin_lock::acquire_global_bin_lock,
@@ -40,8 +43,7 @@ use std::{
     collections::BTreeMap,
     ffi::OsStr,
     fmt::Write as _,
-    fs,
-    io::{self, Read as _},
+    fs, io,
     path::{Path, PathBuf},
 };
 
@@ -250,7 +252,10 @@ fn remove(config: &Config, bin_dir: &Path, packages: &[String]) -> miette::Resul
 fn list(config: &Config, bin_dir: &Path) -> String {
     let mut packages: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for (bin, package) in virtual_shims(bin_dir) {
-        packages.entry(package).or_default().push(bin);
+        packages
+            .entry(package)
+            .or_default()
+            .push(bin);
     }
     if packages.is_empty() {
         return "No shims. Add one with \"pnpm shim add <package>\".\n".to_string();
@@ -272,7 +277,11 @@ fn list(config: &Config, bin_dir: &Path) -> String {
 /// manifest.
 async fn bins_of(config: &'static Config, package: &str) -> miette::Result<Vec<String>> {
     if let Some(pm) = PackageManager::parse(package) {
-        return Ok(pm.bins().iter().map(|bin| (*bin).to_string()).collect());
+        return Ok(pm
+            .bins()
+            .iter()
+            .map(|bin| (*bin).to_string())
+            .collect());
     }
     let resolved = config_deps::resolve_engine_version(config, package, "latest").await?;
     let manifest = resolved
@@ -285,7 +294,10 @@ async fn bins_of(config: &'static Config, package: &str) -> miette::Result<Vec<S
     if bins.is_empty() {
         return Err(ShimError::NoBins { package: package.to_string() }.into());
     }
-    Ok(bins.into_iter().map(|bin| bin.name).collect())
+    Ok(bins
+        .into_iter()
+        .map(|bin| bin.name)
+        .collect())
 }
 
 /// Whether `bin` is occupied in `bin_dir` by anything other than
@@ -300,7 +312,10 @@ fn taken_by_another(bin_dir: &Path, bin: &str, package: &str) -> bool {
 
 /// The bins in `bin_dir` whose shim stands for `package`.
 fn installed_shims(bin_dir: &Path, package: &str) -> Vec<String> {
-    virtual_shims(bin_dir).filter(|(_, owner)| owner == package).map(|(bin, _)| bin).collect()
+    virtual_shims(bin_dir)
+        .filter(|(_, owner)| owner == package)
+        .map(|(bin, _)| bin)
+        .collect()
 }
 
 /// Every target-less shim in `bin_dir`, as `(bin name, package)`, in bin
@@ -310,10 +325,13 @@ fn installed_shims(bin_dir: &Path, package: &str) -> Vec<String> {
 /// inferred from restoration state. The state only remembers an explicit
 /// opt-in while a global package occupies the public bin slot.
 fn virtual_shims(bin_dir: &Path) -> impl Iterator<Item = (String, String)> + use<'_> {
-    native_shims(bin_dir).unwrap_or_default().into_iter().filter_map(|bin| {
-        let package = virtual_shim_owner(&bin_dir.join(&bin)).ok().flatten()?;
-        Some((bin, package))
-    })
+    native_shims(bin_dir)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|bin| {
+            let package = virtual_shim_owner(&bin_dir.join(&bin)).ok().flatten()?;
+            Some((bin, package))
+        })
 }
 
 /// The package the target-less shim at `path` stands for; `None` for an
@@ -412,75 +430,6 @@ fn claim_restoration_bins(
         owners.insert(bin, state.package.clone());
     }
     Ok(())
-}
-
-fn read_virtual_shim_state(path: &Path) -> miette::Result<Option<VirtualShimState>> {
-    let file = match fs::File::open(path) {
-        Ok(file) => file,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => {
-            return Err(error)
-                .into_diagnostic()
-                .wrap_err_with(|| format!("read virtual shim state from {}", path.display()));
-        }
-    };
-    let mut bytes = Vec::new();
-    file.take(MAX_VIRTUAL_SHIM_METADATA_BYTES + 1)
-        .read_to_end(&mut bytes)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("read virtual shim state from {}", path.display()))?;
-    if bytes.len() as u64 > MAX_VIRTUAL_SHIM_METADATA_BYTES {
-        let path_display = path.display();
-        return Err(miette::miette!("Virtual shim state at {path_display} is too large"));
-    }
-    let state: VirtualShimState = serde_json::from_slice(&bytes)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("parse virtual shim state from {}", path.display()))?;
-    if !is_valid_old_npm_package_name(&state.package) {
-        let path_display = path.display();
-        return Err(miette::miette!(
-            "Virtual shim state at {path_display} has an invalid package owner",
-        ));
-    }
-    if let Some(bin) = state.bins.iter().find(|bin| !is_safe_bin_name(bin)) {
-        let path_display = path.display();
-        return Err(miette::miette!(
-            "Virtual shim state at {path_display} contains invalid bin name {bin:?}",
-        ));
-    }
-    Ok(Some(state))
-}
-
-pub(crate) fn record_virtual_shim_state(
-    bin_dir: &Path,
-    package: &str,
-    bins: &[String],
-) -> miette::Result<()> {
-    let path = virtual_shim_state_path(bin_dir, package);
-    let state = VirtualShimState { package: package.to_string(), bins: bins.to_vec() };
-    let bytes = serde_json::to_vec(&state).into_diagnostic().wrap_err("serialize virtual shims")?;
-    pnpm_fs::write_atomic(&path, &bytes)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("record virtual shims at {}", path.display()))
-}
-
-fn remove_virtual_shim_state(bin_dir: &Path, package: &str) -> miette::Result<()> {
-    let path = virtual_shim_state_path(bin_dir, package);
-    match fs::remove_file(&path) {
-        Ok(()) => {}
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => {
-            return Err(error)
-                .into_diagnostic()
-                .wrap_err_with(|| format!("remove virtual shim state at {}", path.display()));
-        }
-    }
-    Ok(())
-}
-
-fn virtual_shim_state_path(bin_dir: &Path, package: &str) -> PathBuf {
-    let file_name = format!("{VIRTUAL_SHIM_STATE_PREFIX}{}.json", create_short_hash(package));
-    bin_dir.join(file_name)
 }
 
 #[cfg(test)]

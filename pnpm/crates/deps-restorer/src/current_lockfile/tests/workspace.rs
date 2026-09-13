@@ -43,10 +43,18 @@ fn skipped_snapshot_pruned_from_snapshots_and_importer_optional() {
 
     let imp = filtered.importers.get(".").unwrap();
     assert!(
-        imp.optional_dependencies.as_ref().unwrap().is_empty(),
+        imp.optional_dependencies
+            .as_ref()
+            .unwrap()
+            .is_empty(),
         "importer optional_dependencies entry pointing at a pruned snapshot must be removed",
     );
-    assert!(imp.dependencies.as_ref().unwrap().contains_key(&pkg("keep")));
+    assert!(
+        imp.dependencies
+            .as_ref()
+            .unwrap()
+            .contains_key(&pkg("keep")),
+    );
 }
 #[test]
 fn include_optional_false_clears_importer_section() {
@@ -80,9 +88,25 @@ fn include_optional_false_clears_importer_section() {
 
     let filtered = super::super::filter_lockfile_for_current(&lockfile, include, &skipped);
 
-    assert!(filtered.importers.get(".").unwrap().optional_dependencies.is_none());
-    assert!(!filtered.snapshots.as_ref().unwrap().contains_key(&key("opt", "1.0.0")));
-    assert!(filtered.snapshots.as_ref().unwrap().contains_key(&key("keep", "1.0.0")));
+    assert!(
+        filtered.importers
+            .get(".")
+            .unwrap()
+            .optional_dependencies
+            .is_none(),
+    );
+    assert!(
+        !filtered.snapshots
+            .as_ref()
+            .unwrap()
+            .contains_key(&key("opt", "1.0.0")),
+    );
+    assert!(
+        filtered.snapshots
+            .as_ref()
+            .unwrap()
+            .contains_key(&key("keep", "1.0.0")),
+    );
 }
 #[test]
 fn user_excluded_packages_filtered_to_surviving_metadata_keys() {
@@ -148,7 +172,12 @@ fn link_optional_entries_survive_post_filter() {
         &SkippedSnapshots::new(),
     );
 
-    let opt = filtered.importers.get(".").unwrap().optional_dependencies.as_ref().unwrap();
+    let opt = filtered.importers
+        .get(".")
+        .unwrap()
+        .optional_dependencies
+        .as_ref()
+        .unwrap();
     assert!(
         opt.contains_key(&pkg("workspace-pkg")),
         "link: importer entries must survive the optional-deps post-filter",

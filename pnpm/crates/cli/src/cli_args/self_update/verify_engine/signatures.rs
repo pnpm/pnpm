@@ -238,7 +238,10 @@ pub(super) fn signature_validates_against(
     let message = format!("{}@{}:{}", component.name, component.version, component.integrity);
     let published_time = published_at.and_then(parse_timestamp);
     for signature in signatures {
-        let Some(key) = keys.iter().find(|key| key.keyid == signature.keyid) else {
+        let Some(key) = keys
+            .iter()
+            .find(|key| key.keyid == signature.keyid)
+        else {
             continue;
         };
         let expired = match (key.expires.and_then(parse_timestamp), published_time) {
@@ -322,10 +325,10 @@ async fn fetch_packument(
     // Resolve auth against the request URL *and* the package name so a
     // `@scope:registry`-scoped token applies (plain `for_url` skips the
     // scope lookup, breaking bootstrap registries that require it).
-    let authorization = config
-        .package_manager_bootstrap
-        .auth_headers
-        .for_url_with_package(&packument_url, Some(&component.name));
+    let authorization = config.package_manager_bootstrap.auth_headers.for_url_with_package(
+        &packument_url,
+        Some(&component.name),
+    );
 
     let (_guard, response) = send_with_retry(client, &packument_url, retry_opts, |client| {
         let mut request = client.get(&packument_url).header("accept", "application/json");
@@ -386,7 +389,9 @@ const MAX_PACKUMENT_BYTES: u64 = 50 * 1024 * 1024;
 /// trusted package-manager bootstrap configuration.
 pub(super) fn pick_registry(name: &str, config: &Config) -> String {
     let bootstrap = &config.package_manager_bootstrap;
-    if let Some(scope) = name.strip_prefix('@').and_then(|rest| rest.split('/').next())
+    if let Some(scope) = name
+        .strip_prefix('@')
+        .and_then(|rest| rest.split('/').next())
         && let Some(registry) = bootstrap.registries.get(&format!("@{scope}"))
     {
         return registry.clone();

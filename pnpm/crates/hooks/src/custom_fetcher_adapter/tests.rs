@@ -37,8 +37,14 @@ impl ScriptedFetcher {
 impl CustomFetcher for ScriptedFetcher {
     async fn can_fetch(&self, pkg_id: &str, resolution: Value) -> Result<bool, HookError> {
         self.can_fetch_calls.fetch_add(1, Ordering::SeqCst);
-        self.seen_pkg_ids.lock().unwrap().push(pkg_id.to_string());
-        self.seen_resolutions.lock().unwrap().push(resolution);
+        self.seen_pkg_ids
+            .lock()
+            .unwrap()
+            .push(pkg_id.to_string());
+        self.seen_resolutions
+            .lock()
+            .unwrap()
+            .push(resolution);
         Ok(self.can_fetch)
     }
 
@@ -49,7 +55,10 @@ impl CustomFetcher for ScriptedFetcher {
         opts: Value,
     ) -> Result<Value, HookError> {
         self.fetch_calls.fetch_add(1, Ordering::SeqCst);
-        self.seen_opts.lock().unwrap().push(opts);
+        self.seen_opts
+            .lock()
+            .unwrap()
+            .push(opts);
         Ok(self.response.clone())
     }
 }
@@ -132,7 +141,10 @@ async fn skips_fetcher_without_can_fetch() {
     let fetcher = Arc::new(NoCanFetchFetcher);
     let picker = CustomFetcherPicker::new(vec![fetcher]);
 
-    let result = picker.try_fetch("foo@1.0.0", &json!({}), &json!({})).await.unwrap();
+    let result = picker
+        .try_fetch("foo@1.0.0", &json!({}), &json!({}))
+        .await
+        .unwrap();
 
     assert!(result.is_none());
 }
@@ -159,7 +171,10 @@ async fn empty_picker_returns_none() {
     let picker = CustomFetcherPicker::new(vec![]);
     assert!(picker.is_empty());
 
-    let result = picker.try_fetch("foo@1.0.0", &json!({}), &json!({})).await.unwrap();
+    let result = picker
+        .try_fetch("foo@1.0.0", &json!({}), &json!({}))
+        .await
+        .unwrap();
     assert!(result.is_none());
 }
 
@@ -207,7 +222,13 @@ async fn a_non_object_can_fetch_answer_keeps_the_previous_resolution() {
 
     assert!(selection.fetcher.is_some(), "the second fetcher claims the package");
     assert_eq!(selection.resolution, resolution);
-    assert_eq!(claiming.seen_resolutions.lock().unwrap().as_slice(), &[resolution]);
+    assert_eq!(
+        claiming.seen_resolutions
+            .lock()
+            .unwrap()
+            .as_slice(),
+        &[resolution],
+    );
 }
 
 /// A hook that drops the locked integrity while declining gets it restored, so

@@ -55,18 +55,17 @@ impl SharedArtifactStore {
         reclamation_needed: bool,
     ) -> Result<()> {
         for attempt in 0..PUBLICATION_FINISH_RETRIES {
-            let finished = self
-                .mutate_usage(|usage| {
-                    // A registration missing here is not a fault: an expiry pass
-                    // can write one off. What must not be lost is the request to
-                    // reclaim, since the scopes a failed publication claimed come
-                    // back only that way.
-                    usage.active_publications.remove(publication);
-                    usage.active_publication_times.remove(publication);
-                    usage.reclamation_needed |= reclamation_needed;
-                    Ok(true)
-                })
-                .await;
+            let finished = self.mutate_usage(|usage| {
+                // A registration missing here is not a fault: an expiry pass
+                // can write one off. What must not be lost is the request to
+                // reclaim, since the scopes a failed publication claimed come
+                // back only that way.
+                usage.active_publications.remove(publication);
+                usage.active_publication_times.remove(publication);
+                usage.reclamation_needed |= reclamation_needed;
+                Ok(true)
+            })
+            .await;
             let error = match finished {
                 Ok(updated) => return finish_outcome(updated),
                 Err(error) => error,
@@ -129,12 +128,11 @@ impl SharedArtifactStore {
         bytes: u64,
         change: QuotaChange,
     ) -> Result<()> {
-        let changed = self
-            .mutate_usage(|usage| {
-                self.change_usage(usage, owner, bytes, change)?;
-                Ok(true)
-            })
-            .await?;
+        let changed = self.mutate_usage(|usage| {
+            self.change_usage(usage, owner, bytes, change)?;
+            Ok(true)
+        })
+        .await?;
         if !changed {
             return Err(RegistryError::Internal {
                 reason: "shared artifact quota update did not change usage".to_string(),
@@ -211,7 +209,10 @@ impl SharedArtifactStore {
             *owner_bytes = owner_bytes.checked_sub(bytes).ok_or_else(quota_counter_underflow)?;
             return Ok(());
         }
-        let owner_bytes = usage.owner_bytes.get(owner).copied().unwrap_or(0);
+        let owner_bytes = usage.owner_bytes
+            .get(owner)
+            .copied()
+            .unwrap_or(0);
         let next_owner = owner_bytes.checked_add(bytes).ok_or_else(storage_quota_error)?;
         let next_global = usage.global_bytes.checked_add(bytes).ok_or_else(storage_quota_error)?;
         if next_owner > self.owner_limit || next_global > self.global_limit {
@@ -262,13 +263,12 @@ impl SharedArtifactStore {
     }
 
     pub(super) async fn write_usage(&self, usage: &ArtifactUsage, mode: PutMode) -> Result<()> {
-        self.store
-            .put_opts(
-                &self.object_path(self.quota_object()),
-                PutPayload::from(serde_json::to_vec(usage)?),
-                PutOptions { mode, ..PutOptions::default() },
-            )
-            .await?;
+        self.store.put_opts(
+            &self.object_path(self.quota_object()),
+            PutPayload::from(serde_json::to_vec(usage)?),
+            PutOptions { mode, ..PutOptions::default() },
+        )
+        .await?;
         Ok(())
     }
 }

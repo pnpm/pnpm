@@ -119,7 +119,10 @@ pub(super) fn reused_parent_has_changed_direct_child(
         }
     };
     let depends_on = |map: Option<&std::collections::HashMap<PkgName, SnapshotDepRef>>| {
-        map.is_some_and(|deps| deps.keys().any(|name| importer_changed.contains(name)))
+        map.is_some_and(|deps| {
+            deps.keys()
+                .any(|name| importer_changed.contains(name))
+        })
     };
     depends_on(snapshot.dependencies.as_ref())
         || depends_on(snapshot.optional_dependencies.as_ref())
@@ -132,7 +135,13 @@ pub(in super::super) fn node_depends_on_changed_direct_dep(
     prior_key: Option<&PkgNameVerPeer>,
 ) -> bool {
     prior_key
-        .and_then(|key| ctx.workspace.reuse.lockfile.as_ref()?.snapshots.as_ref()?.get(key))
+        .and_then(|key| {
+            ctx.workspace.reuse.lockfile
+                .as_ref()?
+                .snapshots
+                .as_ref()?
+                .get(key)
+        })
         .is_some_and(|snapshot| reused_parent_has_changed_direct_child(ctx, snapshot))
 }
 

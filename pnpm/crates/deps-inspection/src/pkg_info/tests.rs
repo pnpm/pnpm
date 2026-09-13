@@ -95,7 +95,10 @@ fn resolve_package_path_rejects_traversal_in_lockfile_derived_names() {
     .unwrap();
     let lockfile = Lockfile::load_wanted_from_dir(dir.path()).unwrap().unwrap();
 
-    let virtual_store_dir = dir.path().join("node_modules").join(".pnpm");
+    let virtual_store_dir = dir
+        .path()
+        .join("node_modules")
+        .join(".pnpm");
     let env = PkgInfoEnv {
         registry_options_by_url: std::collections::BTreeMap::new(),
         registries: HashMap::from([(

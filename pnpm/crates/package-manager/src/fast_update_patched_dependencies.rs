@@ -75,7 +75,8 @@ pub(crate) fn apply_patched_update(
         return false;
     };
     apply_rekeys(candidate, &rekeys);
-    candidate.patched_dependencies = (!plan.current.is_empty()).then(|| plan.current.clone());
+    candidate.patched_dependencies =
+        (!plan.current.is_empty()).then(|| plan.current.clone());
     true
 }
 
@@ -161,8 +162,10 @@ fn peer_suffixes_survive_rekeys(
     snapshots: &HashMap<PackageKey, pnpm_lockfile::SnapshotEntry>,
     rekeys: &Rekeys,
 ) -> bool {
-    let moved_bases: Vec<String> =
-        rekeys.keys().map(|key| remove_suffix(&key.to_string()).to_string()).collect();
+    let moved_bases: Vec<String> = rekeys
+        .keys()
+        .map(|key| remove_suffix(&key.to_string()).to_string())
+        .collect();
     for key in snapshots.keys() {
         let rendered = key.to_string();
         let Some(index) = index_of_dep_path_suffix(&rendered).peers_index else {
@@ -170,7 +173,9 @@ fn peer_suffixes_survive_rekeys(
         };
         let peers = &rendered[index..];
         if peer_suffix_is_opaque(peers)
-            || moved_bases.iter().any(|base| peers.contains(base.as_str()))
+            || moved_bases
+                .iter()
+                .any(|base| peers.contains(base.as_str()))
         {
             return false;
         }
@@ -218,7 +223,10 @@ fn rewrite_snapshot_dependencies(
         return;
     };
     for (alias, reference) in dependencies.iter_mut() {
-        let Some(moved) = reference.resolve(alias).and_then(|target| rekeys.get(&target)).cloned()
+        let Some(moved) = reference
+            .resolve(alias)
+            .and_then(|target| rekeys.get(&target))
+            .cloned()
         else {
             continue;
         };
@@ -311,7 +319,10 @@ pub(crate) fn unused_patches(
     let hashes = hashes.filter(|hashes| !hashes.is_empty())?;
     let groups = groups_from_hashes(hashes)?;
     let applied = applied_patch_keys(lockfile, &groups)?;
-    let applied = applied.into_iter().map(str::to_string).collect();
+    let applied = applied
+        .into_iter()
+        .map(str::to_string)
+        .collect();
     pnpm_patching::verify_patches(&groups, &applied, true).ok().flatten()
 }
 
@@ -326,9 +337,11 @@ pub(crate) fn unused_patches(
 /// range, leaving `ERR_PNPM_PATCH_NON_SEMVER_RANGE` to the resolver.
 fn groups_from_hashes(hashes: &BTreeMap<String, String>) -> Option<PatchGroupRecord> {
     group_patched_dependencies(
-        hashes.iter().map(|(key, hash)| {
-            (key.clone(), PatchInput { hash: hash.clone(), patch_file_path: None })
-        }),
+        hashes
+            .iter()
+            .map(|(key, hash)| {
+                (key.clone(), PatchInput { hash: hash.clone(), patch_file_path: None })
+            }),
     )
     .ok()
 }

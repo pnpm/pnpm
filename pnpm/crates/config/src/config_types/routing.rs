@@ -184,17 +184,32 @@ const NPM_AUTH_SETTINGS: &[&str] = &[
 
 fn pnpm_config_file_keys() -> &'static HashSet<&'static str> {
     static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
-    SET.get_or_init(|| PNPM_CONFIG_FILE_KEYS.iter().copied().collect())
+    SET.get_or_init(|| {
+        PNPM_CONFIG_FILE_KEYS
+            .iter()
+            .copied()
+            .collect()
+    })
 }
 
 fn structured_config_file_keys() -> &'static HashSet<&'static str> {
     static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
-    SET.get_or_init(|| STRUCTURED_CONFIG_FILE_KEYS.iter().copied().collect())
+    SET.get_or_init(|| {
+        STRUCTURED_CONFIG_FILE_KEYS
+            .iter()
+            .copied()
+            .collect()
+    })
 }
 
 fn excluded_pnpm_keys() -> &'static HashSet<&'static str> {
     static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
-    SET.get_or_init(|| EXCLUDED_PNPM_KEYS.iter().copied().collect())
+    SET.get_or_init(|| {
+        EXCLUDED_PNPM_KEYS
+            .iter()
+            .copied()
+            .collect()
+    })
 }
 
 /// Whether `key` would be read from an INI config file (auth / scoped /

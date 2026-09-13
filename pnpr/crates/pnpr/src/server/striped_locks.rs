@@ -15,7 +15,9 @@ impl StripedLocks {
     const STRIPES: usize = 64;
 
     pub(crate) fn new() -> Self {
-        let stripes = (0..Self::STRIPES).map(|_| tokio::sync::Mutex::new(())).collect();
+        let stripes = (0..Self::STRIPES)
+            .map(|_| tokio::sync::Mutex::new(()))
+            .collect();
         Self { stripes }
     }
 
@@ -30,7 +32,10 @@ impl StripedLocks {
     /// batch publishes — or a batch publish racing a single-package
     /// publish — can't deadlock on lock order.
     pub(crate) async fn lock_many(&self, names: &[&str]) -> Vec<tokio::sync::MutexGuard<'_, ()>> {
-        let mut indices: Vec<usize> = names.iter().map(|name| self.stripe_index(name)).collect();
+        let mut indices: Vec<usize> = names
+            .iter()
+            .map(|name| self.stripe_index(name))
+            .collect();
         indices.sort_unstable();
         indices.dedup();
         let mut guards = Vec::with_capacity(indices.len());

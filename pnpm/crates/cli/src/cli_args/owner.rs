@@ -125,8 +125,10 @@ impl OwnerArgs {
     }
 
     fn context<'a>(&'a self, config: &'a Config) -> miette::Result<OwnerContext<'a>> {
-        let mut registries: HashMap<String, String> =
-            config.resolved_registries().into_iter().collect();
+        let mut registries: HashMap<String, String> = config
+            .resolved_registries()
+            .into_iter()
+            .collect();
         if let Some(registry) = &self.registry {
             registries.insert("default".to_string(), normalize_registry_url(registry));
         }
@@ -134,23 +136,27 @@ impl OwnerArgs {
         // origins so a cross-host redirect cannot forward the `npm-otp` header to
         // another host — reqwest only strips standard auth headers, not custom
         // ones, on cross-host redirects. Mirrors the `team`/`access` guard.
-        let redirect_guard = self.otp.as_ref().map(|_| {
-            let origins: Vec<(String, String, Option<u16>)> = registries
-                .values()
-                .filter_map(|registry| {
-                    let url = reqwest::Url::parse(registry).ok()?;
-                    Some((url.scheme().to_string(), url.host_str()?.to_string(), url.port()))
-                })
-                .collect();
-            let guard: RedirectGuard = Arc::new(move |target: &reqwest::Url| -> bool {
-                origins.iter().any(|(scheme, host, port)| {
-                    target.scheme() == scheme
-                        && target.host_str() == Some(host.as_str())
-                        && target.port() == *port
-                })
+        let redirect_guard = self.otp
+            .as_ref()
+            .map(|_| {
+                let origins: Vec<(String, String, Option<u16>)> = registries
+                    .values()
+                    .filter_map(|registry| {
+                        let url = reqwest::Url::parse(registry).ok()?;
+                        Some((url.scheme().to_string(), url.host_str()?.to_string(), url.port()))
+                    })
+                    .collect();
+                let guard: RedirectGuard = Arc::new(move |target: &reqwest::Url| -> bool {
+                    origins
+                        .iter()
+                        .any(|(scheme, host, port)| {
+                            target.scheme() == scheme
+                                && target.host_str() == Some(host.as_str())
+                                && target.port() == *port
+                        })
+                });
+                guard
             });
-            guard
-        });
         Ok(OwnerContext {
             config,
             http_client: build_http_client(config, redirect_guard.as_ref())?,
@@ -188,8 +194,7 @@ async fn owner_ls(context: &OwnerContext<'_>, params: &[String]) -> miette::Resu
         return Err(write_error_from_response(response, "fetch owners of".to_string()).await);
     }
 
-    let body = read_limited_body(response, OWNER_BODY_LIMIT)
-        .await
+    let body = read_limited_body(response, OWNER_BODY_LIMIT).await
         .map_err(|source| registry_operation_error("reading owners response", source))?;
     let owners: Vec<OwnerEntry> = serde_json::from_slice(&body.bytes)
         .into_diagnostic()
@@ -307,7 +312,10 @@ where
 
 async fn write_error_from_response(response: Response, action: String) -> miette::Report {
     let status = response.status();
-    let status_text = status.canonical_reason().unwrap_or_default().to_string();
+    let status_text = status
+        .canonical_reason()
+        .unwrap_or_default()
+        .to_string();
     let body = match read_limited_body(response, OWNER_ERROR_BODY_LIMIT).await {
         Ok(body) => super::sanitize::body_display_string(&body),
         Err(_) => String::new(),

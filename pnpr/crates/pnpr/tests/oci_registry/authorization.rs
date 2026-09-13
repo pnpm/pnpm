@@ -12,12 +12,21 @@ async fn reads_of_a_private_repository_are_kept_out_of_shared_caches() {
     push_image(&app, &auth, "acme/app", "1.0").await;
 
     for path in ["/v2/acme/app/manifests/1.0", "/v2/acme/app/tags/list", "/v2/_catalog"] {
-        let request =
-            Request::get(path).header(header::AUTHORIZATION, &auth).body(Body::empty()).unwrap();
-        let response = app.clone().oneshot(request).await.unwrap();
+        let request = Request::get(path)
+            .header(header::AUTHORIZATION, &auth)
+            .body(Body::empty())
+            .unwrap();
+        let response = app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::OK, "{path}");
         assert_eq!(
-            response.headers().get(header::CACHE_CONTROL).map(|value| value.to_str().unwrap()),
+            response
+                .headers()
+                .get(header::CACHE_CONTROL)
+                .map(|value| value.to_str().unwrap()),
             Some("private, no-store"),
             "{path} must not be storable by a shared cache",
         );
@@ -38,8 +47,15 @@ async fn deletion_requires_read_access_even_with_a_permissive_unpublish_rule() {
     for path in
         ["/v2/acme/app/manifests/latest".to_string(), format!("/v2/acme/app/blobs/{digest}")]
     {
-        let response =
-            app.clone().oneshot(Request::delete(path).body(Body::empty()).unwrap()).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(
+                Request::delete(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
     let response = app

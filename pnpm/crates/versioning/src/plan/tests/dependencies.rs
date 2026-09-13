@@ -128,8 +128,10 @@ fn returning_to_the_main_lane_releases_the_accumulated_stable_version_even_witho
     let plan = assemble(&projects, &intents, &consumed, None);
     assert_eq!(plan.releases.len(), 1);
     assert_eq!(plan.releases[0].version.next, "2.1.0");
-    let mut consumed_ids: Vec<&str> =
-        plan.releases[0].intents.iter().map(|intent| intent.id.as_str()).collect();
+    let mut consumed_ids: Vec<&str> = plan.releases[0].intents
+        .iter()
+        .map(|intent| intent.id.as_str())
+        .collect();
     consumed_ids.sort_unstable();
     assert_eq!(consumed_ids, ["one", "two"]);
 }
@@ -154,8 +156,10 @@ fn snapshot_plans_release_the_same_set_under_snapshot_versions() {
         &opts,
     )
     .expect("plan assembles");
-    let versions: Vec<&str> =
-        plan.releases.iter().map(|release| release.version.next.as_str()).collect();
+    let versions: Vec<&str> = plan.releases
+        .iter()
+        .map(|release| release.version.next.as_str())
+        .collect();
     assert_eq!(versions, ["0.0.0-preview-20260712000000", "0.0.0-preview-20260712000000"]);
 }
 
@@ -314,7 +318,10 @@ fn a_first_release_publishes_the_current_version_verbatim_ignoring_the_intent_bu
     let release = release(&plan, "newpkg");
     assert_eq!(release.version.next, "1100.0.0");
     // The intent is still consumed for the changelog and the ledger.
-    let intent_ids: Vec<&str> = release.intents.iter().map(|intent| intent.id.as_str()).collect();
+    let intent_ids: Vec<&str> = release.intents
+        .iter()
+        .map(|intent| intent.id.as_str())
+        .collect();
     assert_eq!(intent_ids, ["one"]);
 }
 
@@ -433,7 +440,10 @@ fn check_versioning_invariants_reports_every_violation_at_once() {
     };
     let violations =
         check_versioning_invariants(&projects, Path::new("/ws"), Some(&versioning)).unwrap();
-    let mut codes: Vec<_> = violations.iter().map(|violation| violation.code).collect();
+    let mut codes: Vec<_> = violations
+        .iter()
+        .map(|violation| violation.code)
+        .collect();
     codes.sort_by_key(|code| format!("{code:?}"));
     assert_eq!(
         codes,

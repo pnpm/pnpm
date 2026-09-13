@@ -56,13 +56,15 @@ fn project(root: &str, name: &str, version: &str, prod: &[(&str, &str)]) -> Test
         peer: Vec::new(),
         dev: Vec::new(),
         optional: Vec::new(),
-        prod: prod.iter().map(|(name, spec)| (name.to_string(), spec.to_string())).collect(),
+        prod: prod
+            .iter()
+            .map(|(name, spec)| (name.to_string(), spec.to_string()))
+            .collect(),
     }
 }
 
 fn edges(graph: &crate::ProjectGraph<TestProject>, key: &str) -> Vec<String> {
-    graph[Path::new(key)]
-        .dependencies
+    graph[Path::new(key)].dependencies
         .iter()
         .map(|path| path.to_string_lossy().into_owned())
         .collect()

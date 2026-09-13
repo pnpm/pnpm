@@ -81,8 +81,11 @@ fn read_string_list(manifest: Option<&Value>, key: &str) -> Option<Vec<String>> 
     match manifest?.get(key)? {
         Value::String(value) if !value.is_empty() => Some(vec![value.clone()]),
         Value::Array(items) => {
-            let out: Vec<String> =
-                items.iter().filter_map(Value::as_str).map(ToString::to_string).collect();
+            let out: Vec<String> = items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(ToString::to_string)
+                .collect();
             (!out.is_empty()).then_some(out)
         }
         _ => None,

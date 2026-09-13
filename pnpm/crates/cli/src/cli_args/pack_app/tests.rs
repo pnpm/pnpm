@@ -41,7 +41,11 @@ fn pacquet_tokio_block_on<Fut: std::future::Future>(future: Fut) -> Fut::Output 
 }
 
 fn diagnostic_code(report: impl Into<miette::Report>) -> String {
-    report.into().code().map(|code| code.to_string()).unwrap_or_default()
+    report
+        .into()
+        .code()
+        .map(|code| code.to_string())
+        .unwrap_or_default()
 }
 
 #[test]
@@ -166,7 +170,10 @@ fn signer_resolution_skips_project_local_binaries() {
     let project = TempDir::new().unwrap();
     let outside = TempDir::new().unwrap();
     // A repo-controlled `node_modules/.bin/ldid` and a trusted system one.
-    let bin_dir = project.path().join("node_modules").join(".bin");
+    let bin_dir = project
+        .path()
+        .join("node_modules")
+        .join(".bin");
     fs::create_dir_all(&bin_dir).unwrap();
     let project_ldid = bin_dir.join("ldid");
     fs::write(&project_ldid, "#!/bin/sh\n").unwrap();
@@ -195,7 +202,10 @@ fn rejects_output_file_that_is_a_preexisting_symlink() {
     fs::write(dir.path().join("entry.cjs"), "module.exports = {}").unwrap();
     // The committed output path `dist-app/linux-x64/app` is a symlink to a
     // file outside the project; `node --build-sea` must not write through it.
-    let target_dir = dir.path().join("dist-app").join("linux-x64");
+    let target_dir = dir
+        .path()
+        .join("dist-app")
+        .join("linux-x64");
     fs::create_dir_all(&target_dir).unwrap();
     std::os::unix::fs::symlink(&victim, target_dir.join("app")).unwrap();
     let code = run_and_get_code(

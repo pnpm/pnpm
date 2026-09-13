@@ -154,9 +154,9 @@ fn collect_explicit_settings(
         }
         target.insert(key, value);
     }
-    let virtual_store_type = settings
-        .virtual_store_type
-        .or_else(|| settings.enable_global_virtual_store.map(VirtualStoreType::from_enable_global));
+    let virtual_store_type = settings.virtual_store_type.or_else(|| {
+        settings.enable_global_virtual_store.map(VirtualStoreType::from_enable_global)
+    });
     if let Some(virtual_store_type) = virtual_store_type {
         let Ok(named) = serde_json::to_value(virtual_store_type) else { return };
         target.insert("virtualStoreType".to_string(), named);

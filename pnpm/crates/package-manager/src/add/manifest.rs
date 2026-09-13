@@ -138,7 +138,9 @@ pub(super) fn catalog_version_request(
         .dependencies(DIRECT_GROUPS)
         .find_map(|(name, specifier)| (name == alias).then_some(specifier));
     let catalog_name = crate::per_dep_catalog_name(previous, save_catalog_name);
-    let entry = catalogs.get(catalog_name).and_then(|catalog| catalog.get(&alias))?;
+    let entry = catalogs
+        .get(catalog_name)
+        .and_then(|catalog| catalog.get(&alias))?;
     if !crate::catalog_covers(entry, &wanted) {
         return None;
     }
@@ -221,7 +223,11 @@ pub(super) fn guess_dependency_group(
 ) -> Option<DependencyGroup> {
     [DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Peer]
         .into_iter()
-        .find(|&group| manifest.dependencies([group]).any(|(dep, _)| dep == name))
+        .find(|&group| {
+            manifest
+                .dependencies([group])
+                .any(|(dep, _)| dep == name)
+        })
 }
 /// Resolve every selector against `catalogs` concurrently, then apply them
 /// to `manifest`.
@@ -302,8 +308,11 @@ pub(super) fn read_catalog_ctx(
     manifest: &PackageManifest,
     config: &Config,
 ) -> Result<AddCatalogCtx, AddError> {
-    let manifest_dir =
-        manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
+    let manifest_dir = manifest
+        .path()
+        .parent()
+        .expect("manifest path always has a parent dir")
+        .to_path_buf();
     let workspace_dir_opt =
         pnpm_workspace::find_workspace_dir(&manifest_dir).map_err(AddError::FindWorkspaceDir)?;
     let catalogs = if let Some(catalogs) = config.catalogs.clone() {

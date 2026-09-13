@@ -160,7 +160,10 @@ fn get_valid_cache_dir_honors_max_age() {
     let link = dir.path().join("pkg");
     std::os::unix::fs::symlink(&target, &link).expect("symlink");
 
-    let mtime = fs::symlink_metadata(&link).expect("lstat").modified().expect("mtime");
+    let mtime = fs::symlink_metadata(&link)
+        .expect("lstat")
+        .modified()
+        .expect("mtime");
 
     let within = mtime + Duration::from_secs(1440 * 60 - 1);
     assert_eq!(

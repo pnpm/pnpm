@@ -235,7 +235,9 @@ configDependencies:
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let expected = settings.config_dependencies.clone();
     assert_eq!(
-        expected.as_ref().and_then(|m| m.get("@pnpm/pacquet")),
+        expected
+            .as_ref()
+            .and_then(|m| m.get("@pnpm/pacquet")),
         Some(&ConfigDependency::VersionWithIntegrity("0.2.2-14".to_string())),
     );
 
@@ -341,7 +343,10 @@ fn the_remote_tier_reads_both_environment_spellings() {
         let config = read(&prefixes, "BUILD_ENV", r#"{"CC":"clang"}"#);
         let shared = config.remote_side_effects_cache.expect("shared cache config");
         assert_eq!(
-            shared.build_env.expect("build env").get("CC").map(String::as_str),
+            shared.build_env
+                .expect("build env")
+                .get("CC")
+                .map(String::as_str),
             Some("clang"),
             "BUILD_ENV under {prefixes:?}",
         );
@@ -349,7 +354,10 @@ fn the_remote_tier_reads_both_environment_spellings() {
         let config = read(&prefixes, "TRUSTED_KEYS", r#"{"acme-2026":"AA=="}"#);
         let shared = config.remote_side_effects_cache.expect("shared cache config");
         assert_eq!(
-            shared.trusted_keys.expect("trusted keys").get("acme-2026").map(String::as_str),
+            shared.trusted_keys
+                .expect("trusted keys")
+                .get("acme-2026")
+                .map(String::as_str),
             Some("AA=="),
             "TRUSTED_KEYS under {prefixes:?}",
         );
@@ -442,7 +450,13 @@ remoteSideEffectsCache:
     assert_eq!(shared.packages, ["native-addon"]);
     assert_eq!(shared.publish, Some(true));
     assert_eq!(shared.key_id.as_deref(), Some("acme-2026"));
-    assert_eq!(shared.trusted_keys.expect("trusted keys").get("acme-2026").unwrap(), "AA==");
+    assert_eq!(
+        shared.trusted_keys
+            .expect("trusted keys")
+            .get("acme-2026")
+            .unwrap(),
+        "AA==",
+    );
 }
 
 /// Lockfile-verification policy keys all live in `pnpm-workspace.yaml`
@@ -614,7 +628,9 @@ registries:
     assert_eq!(entries.len(), 1);
     assert!(entries.contains_key("https://npm.example.com/"));
     assert!(
-        !entries.keys().any(|registry| registry.contains("super-secret-token")),
+        !entries
+            .keys()
+            .any(|registry| registry.contains("super-secret-token")),
         "the token must never be expanded into a registry URL: {entries:?}",
     );
 }
@@ -626,7 +642,10 @@ fn a_configured_jsr_route_beats_the_builtin_one() {
         BTreeMap::from([("@jsr".to_owned(), "https://jsr.corp.example/".to_owned())]);
 
     assert_eq!(
-        config.resolved_registries().get("@jsr").map(String::as_str),
+        config
+            .resolved_registries()
+            .get("@jsr")
+            .map(String::as_str),
         Some("https://jsr.corp.example/"),
     );
 }

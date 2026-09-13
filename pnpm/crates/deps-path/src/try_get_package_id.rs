@@ -33,7 +33,10 @@ pub fn try_get_package_id(dep_path: &str) -> std::borrow::Cow<'_, str> {
     // Drop the leading `<name>@` prefix. The scan for `@` starts at
     // position 1 so a leading `@` on a scoped name doesn't count as the
     // separator.
-    let Some(at_idx) = trimmed[1..].find('@').map(|off| off + 1) else {
+    let Some(at_idx) = trimmed[1..]
+        .find('@')
+        .map(|off| off + 1)
+    else {
         return std::borrow::Cow::Borrowed(trimmed);
     };
     let new_pkg_id = &trimmed[at_idx + 1..];

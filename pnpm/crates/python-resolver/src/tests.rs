@@ -128,7 +128,10 @@ fn candidates_leave_out_what_the_target_cannot_install() {
     .expect("page parses");
 
     assert_eq!(
-        candidates.keys().map(ToString::to_string).collect::<Vec<_>>(),
+        candidates
+            .keys()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>(),
         ["1.0.0"],
         "yanked, interpreter-incompatible, foreign-tag, and non-wheel files are left out",
     );
@@ -150,8 +153,7 @@ fn candidates_carry_the_metadata_file_an_index_advertises() {
     )
     .expect("page parses");
 
-    let digests = candidates[&Version::from_str("1.0.0").unwrap()]
-        .core_metadata
+    let digests = candidates[&Version::from_str("1.0.0").unwrap()].core_metadata
         .as_ref()
         .expect("declared with digests");
     assert_eq!(digests["sha256"], "c".repeat(64));

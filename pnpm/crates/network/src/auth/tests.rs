@@ -32,7 +32,12 @@ fn secure_transport_restricts_all_credential_lookups_and_survives_cloning() {
         ] {
             eprintln!("url={url}, allowed={allowed}");
             assert_eq!(headers.for_url(url).is_some(), allowed);
-            assert_eq!(headers.for_url_with_package(url, Some("python:alpha")).is_some(), allowed);
+            assert_eq!(
+                headers
+                    .for_url_with_package(url, Some("python:alpha"))
+                    .is_some(),
+                allowed,
+            );
         }
     }
 }
@@ -40,7 +45,10 @@ fn secure_transport_restricts_all_credential_lookups_and_survives_cloning() {
 fn token_helper_by_uri(uri: &str, command: &[&str]) -> HashMap<String, Vec<String>> {
     std::iter::once((
         uri.to_owned(),
-        command.iter().map(|part| (*part).to_owned()).collect::<Vec<String>>(),
+        command
+            .iter()
+            .map(|part| (*part).to_owned())
+            .collect::<Vec<String>>(),
     ))
     .collect()
 }
@@ -307,7 +315,9 @@ fn hide_auth_information_strips_control_characters() {
 
 fn build(entries: &[(&str, &str)]) -> AuthHeaders {
     AuthHeaders::from_creds_map(
-        entries.iter().map(|(uri, value)| ((*uri).to_string(), (*value).to_string())),
+        entries
+            .iter()
+            .map(|(uri, value)| ((*uri).to_string(), (*value).to_string())),
     )
 }
 
@@ -429,19 +439,27 @@ fn package_scope_auth_wins_over_registry_auth() {
         ("//npm.pkg.github.com/:@orgB", "Bearer org-b-token"),
     ]);
     assert_eq!(
-        headers.for_url_with_package("https://npm.pkg.github.com/", Some("@orgA/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://npm.pkg.github.com/", Some("@orgA/pkg"))
+            .as_deref(),
         Some("Bearer org-a-token"),
     );
     assert_eq!(
-        headers.for_url_with_package("https://npm.pkg.github.com/", Some("@orgB/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://npm.pkg.github.com/", Some("@orgB/pkg"))
+            .as_deref(),
         Some("Bearer org-b-token"),
     );
     assert_eq!(
-        headers.for_url_with_package("https://npm.pkg.github.com/", Some("@orgC/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://npm.pkg.github.com/", Some("@orgC/pkg"))
+            .as_deref(),
         Some("Bearer registry-token"),
     );
     assert_eq!(
-        headers.for_url_with_package("https://npm.pkg.github.com/", Some("pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://npm.pkg.github.com/", Some("pkg"))
+            .as_deref(),
         Some("Bearer registry-token"),
     );
     assert_eq!(
@@ -460,11 +478,15 @@ fn slash_package_scope_auth_wins_over_registry_auth() {
         ("//npm.pkg.github.com/@orgB/", "Bearer org-b-token"),
     ]);
     assert_eq!(
-        headers.for_url_with_package("https://npm.pkg.github.com/", Some("@orgA/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://npm.pkg.github.com/", Some("@orgA/pkg"))
+            .as_deref(),
         Some("Bearer org-a-token"),
     );
     assert_eq!(
-        headers.for_url_with_package("https://npm.pkg.github.com/", Some("@orgB/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://npm.pkg.github.com/", Some("@orgB/pkg"))
+            .as_deref(),
         Some("Bearer org-b-token"),
     );
 }
@@ -476,7 +498,9 @@ fn package_scope_auth_keeps_registry_path() {
         ("//reg.com/npm/:@orgA", "Bearer org-a-token"),
     ]);
     assert_eq!(
-        headers.for_url_with_package("https://reg.com/npm/", Some("@orgA/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://reg.com/npm/", Some("@orgA/pkg"))
+            .as_deref(),
         Some("Bearer org-a-token"),
     );
     assert_eq!(
@@ -486,7 +510,9 @@ fn package_scope_auth_keeps_registry_path() {
         Some("Bearer org-a-token"),
     );
     assert_eq!(
-        headers.for_url_with_package("https://reg.com/npm/", Some("@orgB/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://reg.com/npm/", Some("@orgB/pkg"))
+            .as_deref(),
         Some("Bearer registry-token"),
     );
 }
@@ -533,8 +559,9 @@ fn entries_round_trip_package_scope_auth() {
 #[test]
 fn basic_auth_in_url_wins_over_package_scope_auth() {
     let headers = build(&[("//reg.com/:@orgA", "Bearer org-a-token")]);
-    let header =
-        headers.for_url_with_package("https://user:secret@reg.com/", Some("@orgA/pkg")).unwrap();
+    let header = headers
+        .for_url_with_package("https://user:secret@reg.com/", Some("@orgA/pkg"))
+        .unwrap();
     assert_eq!(header, format!("Basic {}", base64_encode("user:secret")));
 }
 

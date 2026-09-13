@@ -212,7 +212,10 @@ fn no_commit_hooks_bypasses_a_failing_pre_commit_hook() {
     init_git(&workspace);
     write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
     git_commit_all(&workspace, "init");
-    let hook_path = workspace.join(".git").join("hooks").join("pre-commit");
+    let hook_path = workspace
+        .join(".git")
+        .join("hooks")
+        .join("pre-commit");
     fs::write(&hook_path, "#!/bin/sh\nexit 1\n").expect("write pre-commit hook");
     fs::set_permissions(&hook_path, fs::Permissions::from_mode(0o755))
         .expect("mark hook executable");
@@ -303,7 +306,10 @@ fn a_failing_git_commit_surfaces_the_git_error() {
     init_git(&workspace);
     write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
     git_commit_all(&workspace, "init");
-    let hook_path = workspace.join(".git").join("hooks").join("pre-commit");
+    let hook_path = workspace
+        .join(".git")
+        .join("hooks")
+        .join("pre-commit");
     fs::write(&hook_path, "#!/bin/sh\necho refused by hook >&2\nexit 1\n")
         .expect("write pre-commit hook");
     fs::set_permissions(&hook_path, fs::Permissions::from_mode(0o755))

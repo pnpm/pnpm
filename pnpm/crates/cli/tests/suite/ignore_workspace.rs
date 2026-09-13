@@ -10,7 +10,10 @@ use serde_json::json;
 use std::{fs, path::Path, process::Command};
 
 fn write_workspace(workspace: &Path, packages: &[&str], names: &[&str]) {
-    let patterns = packages.iter().map(|name| format!("  - {name}")).collect::<Vec<_>>();
+    let patterns = packages
+        .iter()
+        .map(|name| format!("  - {name}"))
+        .collect::<Vec<_>>();
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         format!("packages:\n{}\nnodeLinker: hoisted\n", patterns.join("\n")),
@@ -62,12 +65,9 @@ fn ignore_workspace_drops_the_workspace_manifest_settings() {
         "the workspace manifest's setting applies by default",
     );
     assert_eq!(
-        stdout_of(pacquet_in(&workspace).with_args([
-            "--ignore-workspace",
-            "config",
-            "get",
-            "nodeLinker"
-        ])),
+        stdout_of(
+            pacquet_in(&workspace).with_args(["--ignore-workspace", "config", "get", "nodeLinker"])
+        ),
         "undefined",
     );
 
@@ -83,11 +83,11 @@ fn a_configured_ignore_workspace_does_not_suppress_the_search() {
     write_workspace(&workspace, &["packages/*"], &["packages/alfa"]);
 
     assert_eq!(
-        stdout_of(pacquet.with_env("PNPM_CONFIG_IGNORE_WORKSPACE", "true").with_args([
-            "config",
-            "get",
-            "nodeLinker"
-        ]),),
+        stdout_of(
+            pacquet
+                .with_env("PNPM_CONFIG_IGNORE_WORKSPACE", "true")
+                .with_args(["config", "get", "nodeLinker"]),
+        ),
         "hoisted",
     );
 

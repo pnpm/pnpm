@@ -59,7 +59,11 @@ async fn search_paginates_across_hosted_and_upstream_sources() {
 
     let first_page = app
         .clone()
-        .oneshot(Request::get("/-/v1/search?text=ajv&size=2").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/v1/search?text=ajv&size=2")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(first_page.status(), StatusCode::OK);
@@ -69,7 +73,11 @@ async fn search_paginates_across_hosted_and_upstream_sources() {
     assert_eq!(first_page["objects"][1]["package"]["name"], json!("ajv-remote-a"));
 
     let second_page = app
-        .oneshot(Request::get("/-/v1/search?text=ajv&from=2&size=1").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/v1/search?text=ajv&from=2&size=1")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(second_page.status(), StatusCode::OK);
@@ -182,7 +190,11 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     // whoami through the registry.
     let whoami = app
         .clone()
-        .oneshot(authed(Request::get("/~acme/-/whoami")).body(Body::empty()).unwrap())
+        .oneshot(
+            authed(Request::get("/~acme/-/whoami"))
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(whoami.status(), StatusCode::OK);
@@ -193,7 +205,9 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     let search = app
         .clone()
         .oneshot(
-            authed(Request::get("/~acme/-/v1/search?text=widget")).body(Body::empty()).unwrap(),
+            authed(Request::get("/~acme/-/v1/search?text=widget"))
+                .body(Body::empty())
+                .unwrap(),
         )
         .await
         .unwrap();
@@ -202,7 +216,11 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     assert_eq!(body["objects"][0]["package"]["name"], json!("@acme/widget"));
     let anon_search = app
         .clone()
-        .oneshot(Request::get("/~acme/-/v1/search?text=widget").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/~acme/-/v1/search?text=widget")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(body_json(anon_search.into_body()).await["total"], json!(0));
@@ -211,7 +229,11 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     // the registry's own base.
     let manifest = app
         .clone()
-        .oneshot(authed(Request::get("/~acme/@acme/widget/1.0.0")).body(Body::empty()).unwrap())
+        .oneshot(
+            authed(Request::get("/~acme/@acme/widget/1.0.0"))
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(manifest.status(), StatusCode::OK);
@@ -247,16 +269,26 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
         .await
         .unwrap();
     assert_eq!(delete_tar.status(), StatusCode::CREATED);
-    assert!(!tmp.path().join("acme/@acme/widget/widget-1.0.0.tgz").exists());
+    assert!(
+        !tmp.path()
+            .join("acme/@acme/widget/widget-1.0.0.tgz")
+            .exists(),
+    );
     let delete_pkg = app
         .clone()
         .oneshot(
-            authed(Request::delete("/~acme/@acme%2Fwidget/-rev/1")).body(Body::empty()).unwrap(),
+            authed(Request::delete("/~acme/@acme%2Fwidget/-rev/1"))
+                .body(Body::empty())
+                .unwrap(),
         )
         .await
         .unwrap();
     assert_eq!(delete_pkg.status(), StatusCode::CREATED);
-    assert!(!tmp.path().join("acme/@acme/widget").exists());
+    assert!(
+        !tmp.path()
+            .join("acme/@acme/widget")
+            .exists(),
+    );
 }
 
 /// Path-less responses resolved to a private registry carry the same
@@ -291,12 +323,18 @@ async fn pathless_private_registry_responses_carry_private_cache_headers() {
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK, "GET {path}");
         assert_eq!(
-            response.headers().get(header::CACHE_CONTROL).and_then(|value| value.to_str().ok()),
+            response
+                .headers()
+                .get(header::CACHE_CONTROL)
+                .and_then(|value| value.to_str().ok()),
             Some("private, no-store"),
             "missing private cache header on {path}",
         );
         assert_eq!(
-            response.headers().get(header::VARY).and_then(|value| value.to_str().ok()),
+            response
+                .headers()
+                .get(header::VARY)
+                .and_then(|value| value.to_str().ok()),
             Some("Authorization"),
             "missing Vary on {path}",
         );
@@ -312,11 +350,20 @@ async fn pathless_private_registry_responses_carry_private_cache_headers() {
         Some("acme".to_string()),
     );
     let app = router_with_auth(config, AuthState::in_memory());
-    let response =
-        app.oneshot(Request::get("/@acme/widget").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .oneshot(
+            Request::get("/@acme/widget")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert!(
-        response.headers().get(header::CACHE_CONTROL).is_none(),
+        response
+            .headers()
+            .get(header::CACHE_CONTROL)
+            .is_none(),
         "a public path-less response must stay cacheable",
     );
 }
@@ -336,9 +383,7 @@ async fn pathless_acl_gated_package_carries_private_cache_headers() {
         vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("acme".to_string()),
     );
-    config
-        .routing
-        .hosted
+    config.routing.hosted
         .get_mut("acme")
         .expect("hosted acme")
         .rules
@@ -358,12 +403,18 @@ async fn pathless_acl_gated_package_carries_private_cache_headers() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(
-        response.headers().get(header::CACHE_CONTROL).and_then(|value| value.to_str().ok()),
+        response
+            .headers()
+            .get(header::CACHE_CONTROL)
+            .and_then(|value| value.to_str().ok()),
         Some("private, no-store"),
         "an ACL-gated path-less response must not be shared-cacheable",
     );
     assert_eq!(
-        response.headers().get(header::VARY).and_then(|value| value.to_str().ok()),
+        response
+            .headers()
+            .get(header::VARY)
+            .and_then(|value| value.to_str().ok()),
         Some("Authorization"),
     );
 }
@@ -442,12 +493,22 @@ async fn browse_paginates_hosted_packages_without_contacting_upstreams() {
             assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
             let body = body_json(response.into_body()).await;
             assert_eq!(body["total"], 3);
-            assert_eq!(body["objects"].as_array().unwrap().len(), 1);
+            assert_eq!(
+                body["objects"]
+                    .as_array()
+                    .unwrap()
+                    .len(),
+                1,
+            );
             assert_eq!(body["objects"][0]["package"]["name"], name);
         }
     }
     let response = app
-        .oneshot(Request::get("/-/v1/search?browse=true&from=3").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/v1/search?browse=true&from=3")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let body = body_json(response.into_body()).await;
@@ -490,7 +551,11 @@ async fn registry_directory_filters_private_registries_and_routing_details() {
         if authenticated {
             request = request.header(header::AUTHORIZATION, format!("Bearer {token}"));
         }
-        let response = app.clone().oneshot(request.body(Body::empty()).unwrap()).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(request.body(Body::empty()).unwrap())
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
         let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
@@ -498,8 +563,16 @@ async fn registry_directory_filters_private_registries_and_routing_details() {
         assert_eq!(body["defaultRegistries"], json!({"npm": "main", "cargo": "main"}));
         assert_eq!(body["ecosystems"]["cargo"], json!({"available": true, "prefixed": true}));
         let entries = body["registries"].as_array().unwrap();
-        let main = entries.iter().find(|registry| registry["name"] == "main").unwrap();
-        assert_eq!(entries.iter().any(|registry| registry["name"] == "private"), authenticated);
+        let main = entries
+            .iter()
+            .find(|registry| registry["name"] == "main")
+            .unwrap();
+        assert_eq!(
+            entries
+                .iter()
+                .any(|registry| registry["name"] == "private"),
+            authenticated,
+        );
         if authenticated {
             assert_eq!(main["sources"], json!(["private", "npmjs"]));
         } else {

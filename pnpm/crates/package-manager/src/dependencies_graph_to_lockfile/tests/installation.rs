@@ -456,7 +456,9 @@ fn file_dep_child_renders_as_bare_file_ref() {
     let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
     let parent_key: PackageKey = "nested-parent@file:parent".parse().unwrap();
     let deps = snapshots[&parent_key].dependencies.as_ref().expect("nested-parent dependencies");
-    let child_ref = deps.get(&PkgName::parse("nested-child").unwrap()).expect("nested-child child");
+    let child_ref = deps
+        .get(&PkgName::parse("nested-child").unwrap())
+        .expect("nested-child child");
     assert_eq!(dbg!(child_ref).to_string(), "file:child");
 }
 /// An injected workspace dep whose alias equals its package name must
@@ -473,8 +475,8 @@ fn same_name_injected_dep_serializes_as_plain_file_ref() {
         resolved_package_id: "file:comp1".to_string(),
         resolve_result: std::sync::Arc::new(ResolveResult {
             id: "file:comp1".into(),
-            resolution: pnpm_lockfile::DirectoryResolution { directory: "comp1".to_string() }
-                .into(),
+            resolution: pnpm_lockfile::DirectoryResolution { directory: "comp1".to_string() }.into(
+            ),
             resolved_via: "local-filesystem".to_string(),
             normalized_bare_specifier: None,
             alias: Some("@scope/comp1".to_string()),

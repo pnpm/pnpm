@@ -216,10 +216,10 @@ fn final_graph_peer_edge_keeps_the_providers_own_peer_suffix() {
         children_by_id: HashMap::default(),
     };
     let mut walker = walker_for_tests(&mut tree);
-    walker
-        .caches
-        .node_dep_paths
-        .insert(provider_analyzer.clone(), provider_analyzer_dep_path.clone());
+    walker.caches.node_dep_paths.insert(
+        provider_analyzer.clone(),
+        provider_analyzer_dep_path.clone(),
+    );
     walker.caches.node_dep_paths.insert(provider_bare.clone(), provider_bare_dep_path.clone());
     walker.caches.node_dep_paths.insert(consumer.clone(), consumer_dep_path.clone());
     walker.caches.node_dep_paths.insert(consumer_revisit.clone(), consumer_dep_path.clone());

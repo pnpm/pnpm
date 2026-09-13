@@ -219,7 +219,8 @@ impl HostSocketLimit {
         let semaphore = {
             let mut map = self.per_origin.lock().expect("host-socket-limit mutex poisoned");
             Arc::clone(
-                map.entry(origin).or_insert_with(|| Arc::new(Semaphore::new(self.max.get()))),
+                map.entry(origin)
+                    .or_insert_with(|| Arc::new(Semaphore::new(self.max.get()))),
             )
         };
         Some(semaphore.acquire_owned().await.expect("host-socket semaphore is never closed"))

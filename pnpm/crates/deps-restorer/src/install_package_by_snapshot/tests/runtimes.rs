@@ -248,7 +248,10 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
     assert!(row.files.contains_key("package.json"), "the row records the synthesized package.json");
     let manifest = row.manifest.expect("the row records a bundled manifest");
     assert_eq!(
-        manifest.get("bin").and_then(|bin| bin.get("node")).and_then(serde_json::Value::as_str),
+        manifest
+            .get("bin")
+            .and_then(|bin| bin.get("node"))
+            .and_then(serde_json::Value::as_str),
         Some("bin/node"),
         "the bundled manifest carries the runtime bin",
     );

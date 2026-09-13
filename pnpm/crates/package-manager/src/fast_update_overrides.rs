@@ -69,16 +69,18 @@ pub(crate) async fn apply_rewrite_plan(
             .iter()
             .filter(|override_entry| {
                 override_entry.new_version.is_some()
-                    && plan
-                        .replacements
+                    && plan.replacements
                         .iter()
                         .any(|(old, new)| old != new && old.name == override_entry.name)
             })
             .map(|override_entry| resolve_override(context, override_entry)),
     )
     .await;
-    let resolved: HashMap<_, _> =
-        resolutions.into_iter().collect::<Option<Vec<_>>>()?.into_iter().collect();
+    let resolved: HashMap<_, _> = resolutions
+        .into_iter()
+        .collect::<Option<Vec<_>>>()?
+        .into_iter()
+        .collect();
     rewrite_lockfile(context, plan, &resolved)
 }
 
@@ -180,8 +182,7 @@ fn apply_replacement_metadata(
         pick_registry_for_package(context.registries, &target.old_key.name.to_string(), None);
     let metadata = package_metadata(
         &replacement.manifest,
-        replacement
-            .resolution
+        replacement.resolution
             .to_lockfile_form(
                 &target.old_key.name.to_string(),
                 &target.new_key.suffix.version().to_string(),
@@ -256,11 +257,13 @@ fn should_remove_dependency(
     parent_key: Option<&PackageKey>,
     overrides: &[FastOverride],
 ) -> bool {
-    overrides.iter().any(|override_entry| {
-        override_entry.new_version.is_none()
-            && override_entry.name == *alias
-            && override_applies_to(override_entry, parent_key)
-    })
+    overrides
+        .iter()
+        .any(|override_entry| {
+            override_entry.new_version.is_none()
+                && override_entry.name == *alias
+                && override_applies_to(override_entry, parent_key)
+        })
 }
 
 /// Whether an edge on `alias` owned by `parent_key` is one a replacing
@@ -272,11 +275,13 @@ fn should_replace_dependency(
     parent_key: Option<&PackageKey>,
     overrides: &[FastOverride],
 ) -> bool {
-    overrides.iter().any(|override_entry| {
-        override_entry.new_version.is_some()
-            && override_entry.name == *alias
-            && override_applies_to(override_entry, parent_key)
-    })
+    overrides
+        .iter()
+        .any(|override_entry| {
+            override_entry.new_version.is_some()
+                && override_entry.name == *alias
+                && override_applies_to(override_entry, parent_key)
+        })
 }
 
 /// Whether `override_entry`'s parent selector names `parent_key`. A
@@ -290,8 +295,7 @@ fn override_applies_to(override_entry: &FastOverride, parent_key: Option<&Packag
     }
     match parent.bare_specifier.as_deref() {
         None => true,
-        Some(range) => parent_key
-            .suffix
+        Some(range) => parent_key.suffix
             .version_semver()
             .is_some_and(|version| Range::parse(range).is_ok_and(|range| range.satisfies(version))),
     }
@@ -358,22 +362,30 @@ fn find_reusable_dependency(
     packages: &HashMap<PackageKey, PackageMetadata>,
     plan: &RewritePlan,
 ) -> Option<SnapshotDepRef> {
-    if plan.peer_names.contains(name) || plan.overrides.iter().any(|entry| entry.name == *name) {
+    if plan.peer_names.contains(name)
+        || plan.overrides
+            .iter()
+            .any(|entry| entry.name == *name)
+    {
         return None;
     }
-    let mut candidates = snapshots.iter().filter(|(key, snapshot)| {
-        if key.name != *name
-            || !key.suffix.peer().is_empty()
-            || key.suffix.prefix() != Prefix::None
-            || !key.suffix.version_semver().is_some_and(|version| range.satisfies(version))
-            || snapshot.optional
-            || snapshot.patched == Some(true)
-            || snapshot.id.is_some()
-            || snapshot.transitive_peer_dependencies.is_some()
-        {
-            return false;
-        }
-        packages.get(&key.without_peer()).is_some_and(|metadata| {
+    let mut candidates = snapshots
+        .iter()
+        .filter(|(key, snapshot)| {
+            if key.name != *name
+                || !key.suffix.peer().is_empty()
+                || key.suffix.prefix() != Prefix::None
+                || !key.suffix
+                    .version_semver()
+                    .is_some_and(|version| range.satisfies(version))
+                || snapshot.optional
+                || snapshot.patched == Some(true)
+                || snapshot.id.is_some()
+                || snapshot.transitive_peer_dependencies.is_some()
+            {
+                return false;
+            }
+            packages.get(&key.without_peer()).is_some_and(|metadata| {
             metadata.peer_dependencies.is_none()
                 && metadata.peer_dependencies_meta.is_none()
                 && (matches!(metadata.resolution, LockfileResolution::Registry(_))
@@ -383,9 +395,12 @@ fn find_reusable_dependency(
                             if tarball.integrity.is_some() && tarball.git_hosted != Some(true),
                     ))
         })
-    });
+        });
     let (key, _) = candidates.next()?;
-    candidates.next().is_none().then(|| SnapshotDepRef::Plain(key.suffix.clone()))
+    candidates
+        .next()
+        .is_none()
+        .then(|| SnapshotDepRef::Plain(key.suffix.clone()))
 }
 
 fn effective_dependencies(manifest: &Value) -> Option<HashMap<PkgName, String>> {

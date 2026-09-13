@@ -1678,9 +1678,13 @@ impl Config {
         &self,
     ) -> Result<Option<PatchGroupRecord>, ResolvePatchedDependenciesError> {
         if let Some(hashes) = self.patched_dependency_hashes_override.as_ref() {
-            let groups = group_patched_dependencies(hashes.iter().map(|(key, hash)| {
-                (key.clone(), PatchInput { hash: hash.clone(), patch_file_path: None })
-            }))?;
+            let groups = group_patched_dependencies(
+                hashes
+                    .iter()
+                    .map(|(key, hash)| {
+                        (key.clone(), PatchInput { hash: hash.clone(), patch_file_path: None })
+                    }),
+            )?;
             return Ok((!groups.is_empty()).then_some(groups));
         }
         let (Some(workspace_dir), Some(raw)) = (&self.workspace_dir, &self.patched_dependencies)

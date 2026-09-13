@@ -150,8 +150,12 @@ pub fn diff_dir(old_index: &InodeMap, new_index: &InodeMap) -> DirDiff {
             new_value: *new_value,
         })
         .collect();
-    let removed =
-        old_index.keys().filter(|path| !new_index.contains_key(*path)).rev().cloned().collect();
+    let removed = old_index
+        .keys()
+        .filter(|path| !new_index.contains_key(*path))
+        .rev()
+        .cloned()
+        .collect();
     DirDiff { changes, removed }
 }
 
@@ -169,8 +173,9 @@ pub fn apply_patch(
     for path in &patch.removed {
         remove_recursive(&target_dir.join(path))?;
     }
-    let (new_dirs, new_files): (Vec<_>, Vec<_>) =
-        patch.changes.iter().partition(|change| change.new_value == Value::Dir);
+    let (new_dirs, new_files): (Vec<_>, Vec<_>) = patch.changes
+        .iter()
+        .partition(|change| change.new_value == Value::Dir);
     for change in new_dirs.into_iter().chain(new_files) {
         apply_change(change, source_dir, target_dir)?;
     }
@@ -190,11 +195,12 @@ fn apply_change(change: &Change, source_dir: &Path, target_dir: &Path) -> Result
         Value::File(_) => {
             let source_path = source_dir.join(&change.path);
             retry_over_blocking_inode(&target_path, || {
-                fs::hard_link(&source_path, &target_path).map_err(|error| PatchError::Link {
-                    source: source_path.clone(),
-                    target: target_path.clone(),
-                    error,
-                })
+                fs::hard_link(&source_path, &target_path)
+                    .map_err(|error| PatchError::Link {
+                        source: source_path.clone(),
+                        target: target_path.clone(),
+                        error,
+                    })
             })
         }
     }
@@ -275,9 +281,9 @@ pub fn extend_files_map(files_map: &HashMap<String, PathBuf>) -> Result<InodeMap
 fn stat_skipping_missing(path: &Path) -> Result<Option<fs::Metadata>, PatchError> {
     match fs::metadata(path) {
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
-        result => {
-            result.map(Some).map_err(|error| PatchError::Stat { path: path.to_path_buf(), error })
-        }
+        result => result
+            .map(Some)
+            .map_err(|error| PatchError::Stat { path: path.to_path_buf(), error }),
     }
 }
 

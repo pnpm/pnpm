@@ -10,12 +10,18 @@ use super::{
 fn warns_when_metadata_request_exceeds_configured_timeout() {
     static WARNINGS: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
     fn record_warning(message: &str) {
-        WARNINGS.lock().expect("warning recorder lock poisoned").push(message.to_string());
+        WARNINGS
+            .lock()
+            .expect("warning recorder lock poisoned")
+            .push(message.to_string());
     }
 
     let http_client = ThrottledClient::default();
     http_client.set_warning_handler(record_warning);
-    WARNINGS.lock().expect("warning recorder lock poisoned").clear();
+    WARNINGS
+        .lock()
+        .expect("warning recorder lock poisoned")
+        .clear();
 
     warn_if_request_is_slow(
         &http_client,
@@ -129,8 +135,18 @@ async fn fetch_full_metadata_targets_full_endpoint_with_auth() {
     assert_eq!(pkg.name, "acme");
     assert_eq!(pkg.published_at("1.0.0"), Some("2025-01-10T08:30:00.000Z"));
     let version = pkg.versions.get("1.0.0").expect("version present");
-    assert!(version.npm_user.as_ref().and_then(|user| user.trusted_publisher.as_ref()).is_some());
-    assert!(version.dist.attestations.as_ref().and_then(|att| att.provenance.as_ref()).is_some());
+    assert!(
+        version.npm_user
+            .as_ref()
+            .and_then(|user| user.trusted_publisher.as_ref())
+            .is_some(),
+    );
+    assert!(
+        version.dist.attestations
+            .as_ref()
+            .and_then(|att| att.provenance.as_ref())
+            .is_some(),
+    );
     mock.assert_async().await;
 }
 
@@ -190,7 +206,12 @@ async fn fetch_full_metadata_uses_package_scope_auth() {
 #[tokio::test]
 async fn fetch_full_metadata_surfaces_5xx_as_network_error() {
     let mut server = mockito::Server::new_async().await;
-    let mock = server.mock("GET", "/acme").with_status(503).expect(1).create_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(503)
+        .expect(1)
+        .create_async()
+        .await;
 
     let registry = format!("{}/", server.url());
     let http_client = ThrottledClient::default();
@@ -220,7 +241,12 @@ async fn fetch_full_metadata_surfaces_5xx_as_network_error() {
 #[tokio::test]
 async fn fetch_full_metadata_redacts_credentials_in_surfaced_error() {
     let mut server = mockito::Server::new_async().await;
-    let mock = server.mock("GET", "/acme").with_status(503).expect(1).create_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(503)
+        .expect(1)
+        .create_async()
+        .await;
 
     // Registry configured with inline basic-auth in the URL: the surfaced
     // error (Display *and* Debug, which reach the terminal and CI logs) must
@@ -251,7 +277,12 @@ async fn fetch_full_metadata_redacts_credentials_in_surfaced_error() {
 #[tokio::test]
 async fn fetch_full_metadata_retries_transient_status() {
     let mut server = mockito::Server::new_async().await;
-    let first = server.mock("GET", "/acme").with_status(503).expect(1).create_async().await;
+    let first = server
+        .mock("GET", "/acme")
+        .with_status(503)
+        .expect(1)
+        .create_async()
+        .await;
     let body = r#"{
         "name": "acme",
         "dist-tags": { "latest": "1.0.0" },

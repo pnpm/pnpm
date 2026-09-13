@@ -23,7 +23,11 @@ fn project_ini_ignores_env_placeholders_in_registry_urls() {
     );
 
     assert_eq!(auth.routes.default, None);
-    assert!(auth.warnings.iter().any(|warning| warning.contains("registry")));
+    assert!(
+        auth.warnings
+            .iter()
+            .any(|warning| warning.contains("registry")),
+    );
 
     let mut config = Config::new();
     auth.apply_to::<EnvWithSecret>(&mut config);
@@ -40,7 +44,11 @@ fn project_ini_ignores_env_placeholders_in_scoped_registry_urls() {
     );
 
     assert!(auth.routes.scoped.is_empty());
-    assert!(auth.warnings.iter().any(|warning| warning.contains("@scope:registry")));
+    assert!(
+        auth.warnings
+            .iter()
+            .any(|warning| warning.contains("@scope:registry")),
+    );
 }
 
 #[test]
@@ -124,7 +132,11 @@ fn env_replace_failure_on_key_warns_and_drops_unresolved_to_empty() {
     let ini = "${MISSING}_authToken=abc\n";
     let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
     assert_eq!(auth.default_creds.auth_token.as_deref(), Some("abc"));
-    assert!(auth.warnings.iter().any(|warning| warning.contains("${MISSING}")));
+    assert!(
+        auth.warnings
+            .iter()
+            .any(|warning| warning.contains("${MISSING}")),
+    );
 }
 
 #[test]
@@ -223,7 +235,11 @@ fn cascade_env_var_lowercase_lookup() {
 fn cafile_relative_path_resolves_against_npmrc_dir() {
     let npmrc_dir = tempfile::tempdir().expect("tempdir");
     let auth = NpmrcAuth::from_ini::<NoEnv>("cafile=certs/ca.pem\n", npmrc_dir.path());
-    let expected = npmrc_dir.path().join("certs/ca.pem").to_string_lossy().into_owned();
+    let expected = npmrc_dir
+        .path()
+        .join("certs/ca.pem")
+        .to_string_lossy()
+        .into_owned();
     assert_eq!(auth.tls.cafile.as_deref(), Some(expected.as_str()));
 }
 

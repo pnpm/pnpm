@@ -211,6 +211,17 @@ impl<'a> RunExecution<'a> {
         }
     }
 
+    fn take_project_scripts(
+        &mut self,
+    ) -> crate::install::state_options::PendingProjectScripts<'a, 'a> {
+        crate::install::state_options::PendingProjectScripts {
+            mutation: self.install.execution.mutation,
+            manifest_dir: self.workspace.dirs.manifest_dir,
+            selection: self.options.selection.take(),
+            rebuild: self.options.rebuild.take(),
+        }
+    }
+
     fn apply_inputs<'r>(
         &mut self,
         projects: (&'r InstallScope<'_>, &'r [(PathBuf, &'r PackageManifest)]),
@@ -246,19 +257,16 @@ impl<'a> RunExecution<'a> {
                 included: self.mode.included,
                 node_linker: self.install.execution.node_linker,
                 filtered_install: scope.importers.filtered_install,
-                supported_architectures: self.owned.projects.supported_architectures.take(),
+                supported_architectures: self.owned.projects
+                    .supported_architectures
+                    .take(),
             },
             resolution: crate::install::state_options::ApplyResolutionState {
                 existing_wanted: lockfiles.wanted.loaded,
                 loaded: lockfiles.wanted.get(),
                 frozen: dispatched.take_frozen_path,
             },
-            scripts: crate::install::state_options::PendingProjectScripts {
-                mutation: self.install.execution.mutation,
-                manifest_dir: self.workspace.dirs.manifest_dir,
-                selection: self.options.selection.take(),
-                rebuild: self.options.rebuild.take(),
-            },
+            scripts: self.take_project_scripts(),
             write: lockfiles.write_policy(self.options.save_lockfile),
             materialized,
         }

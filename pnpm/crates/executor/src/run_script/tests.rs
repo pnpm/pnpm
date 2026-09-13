@@ -108,10 +108,15 @@ fn run_script_prepends_node_modules_bin_to_path() {
 
     run(dir.path(), "build", &script, &[]);
     let written = fs::read_to_string(&marker).expect("read marker");
-    let expected_bin = dir.path().join("node_modules").join(".bin");
+    let expected_bin = dir
+        .path()
+        .join("node_modules")
+        .join(".bin");
     eprintln!("PATH:\n{written}\n");
     assert!(
-        written.split(':').any(|entry| Path::new(entry) == expected_bin),
+        written
+            .split(':')
+            .any(|entry| Path::new(entry) == expected_bin),
         "PATH should contain the project's node_modules/.bin",
     );
 }

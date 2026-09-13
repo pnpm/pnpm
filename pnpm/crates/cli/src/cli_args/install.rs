@@ -245,13 +245,13 @@ impl InstallArgs {
     ) -> PnprLink<'a> {
         PnprLink {
             dependency_groups: self.dependency_options.dependency_groups(config.optional).collect(),
-            supported_architectures: self
-                .supported_architectures
-                .apply_to(config.supported_architectures.clone()),
-            node_linker: self
-                .materialization
-                .node_linker
-                .map_or(config.node_linker, NodeLinkerArg::into_config),
+            supported_architectures: self.supported_architectures.apply_to(
+                config.supported_architectures.clone(),
+            ),
+            node_linker: self.materialization.node_linker.map_or(
+                config.node_linker,
+                NodeLinkerArg::into_config,
+            ),
             skip_runtimes: config.skip_runtimes || self.materialization.no_runtime,
             lockfile_path: Some(lockfile_path),
             use_state_lockfile: true,
@@ -299,10 +299,13 @@ impl InstallArgs {
             base_install.lockfile_policy.ignore_manifest_check =
                 link.lockfile.ignore_manifest_check;
             base_install.lockfile_policy.trust = link.lockfile.trust;
-            base_install.lockfile_policy.update_checksums = self.lockfile_updates.update_checksums;
+            base_install.lockfile_policy.update_checksums = self
+                .lockfile_updates
+                .update_checksums;
             base_install.lockfile_policy.excludes = PolicyExcludes::Persist;
-            base_install.lockfile_policy.disable_optimistic_repeat =
-                self.materialization.verify_deps_before_run_install;
+            base_install.lockfile_policy.disable_optimistic_repeat = self
+                .materialization
+                .verify_deps_before_run_install;
             base_install.execution.skip_runtimes = link.skip_runtimes;
             base_install.execution.node_linker = link.node_linker;
             base_install.execution.lockfile_only = link.lockfile.only;
@@ -348,7 +351,9 @@ impl InstallArgs {
         if !ci_default {
             return Ok(false);
         }
-        Ok(state.lockfile.get()?.is_some_and(|lockfile| !lockfile.is_empty()))
+        Ok(state.lockfile
+            .get()?
+            .is_some_and(|lockfile| !lockfile.is_empty()))
     }
 }
 
@@ -362,14 +367,13 @@ pub(crate) fn workspace_install_selection(
         selected_dirs: selection.selected_dirs.as_ref(),
         install_dirs: selection.install_dirs.as_ref(),
         active_manifest_is_standin: selection.active_manifest_is_standin,
-        workspace_cycles: selection.workspace_cycles.as_ref().map_or(
-            pnpm_package_manager::PrecomputedWorkspaceCycles::Unknown,
-            |cycles| {
+        workspace_cycles: selection.workspace_cycles
+            .as_ref()
+            .map_or(pnpm_package_manager::PrecomputedWorkspaceCycles::Unknown, |cycles| {
                 pnpm_package_manager::PrecomputedWorkspaceCycles::Known(
                     (!cycles.is_empty()).then_some(cycles.as_slice()),
                 )
-            },
-        ),
+            }),
     }
 }
 

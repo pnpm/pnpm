@@ -110,10 +110,19 @@ async fn invalid_oidc_credentials_fail_closed_on_public_endpoints() {
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
     let response = app
-        .oneshot(Request::get("/-/oidc/github/login").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/oidc/github/login")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     assert_eq!(response.headers()["referrer-policy"], "no-referrer");
-    assert!(response.headers()["cache-control"].to_str().unwrap().contains("no-store"));
+    assert!(
+        response.headers()["cache-control"]
+            .to_str()
+            .unwrap()
+            .contains("no-store"),
+    );
 }

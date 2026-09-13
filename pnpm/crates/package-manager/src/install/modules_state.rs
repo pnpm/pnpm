@@ -113,23 +113,25 @@ fn all_virtual_store_slots_present(
         config.virtual_store_dir.clone(),
         config.virtual_store_dir_max_length as usize,
     );
-    snapshots.keys().all(|key| {
-        if skipped.contains(key) {
-            return true;
-        }
-        // The name is lockfile-controlled: join it with the same
-        // traversal-rejecting helper the linkers use, and treat a
-        // malformed name as not-intact so the full path's
-        // structural lockfile gate rejects it.
-        let slot_node_modules = layout.slot_dir(key).join("node_modules");
-        match crate::safe_join_modules_dir::safe_join_modules_dir(
-            &slot_node_modules,
-            &key.name.to_string(),
-        ) {
-            Ok(dir) => dir.is_dir(),
-            Err(_) => false,
-        }
-    })
+    snapshots
+        .keys()
+        .all(|key| {
+            if skipped.contains(key) {
+                return true;
+            }
+            // The name is lockfile-controlled: join it with the same
+            // traversal-rejecting helper the linkers use, and treat a
+            // malformed name as not-intact so the full path's
+            // structural lockfile gate rejects it.
+            let slot_node_modules = layout.slot_dir(key).join("node_modules");
+            match crate::safe_join_modules_dir::safe_join_modules_dir(
+                &slot_node_modules,
+                &key.name.to_string(),
+            ) {
+                Ok(dir) => dir.is_dir(),
+                Err(_) => false,
+            }
+        })
 }
 
 /// Whether every importer's direct dependencies are still symlinked into its
@@ -144,22 +146,24 @@ fn importer_symlinks_intact(
     let groups = crate::prune_direct_deps::selected_groups(modules.included);
     let modules_dir_name: &std::ffi::OsStr =
         config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"));
-    wanted.importers.iter().all(|(importer_id, snapshot)| {
-        if crate::symlink_direct_dependencies::validate_importer_id(importer_id).is_err() {
-            return true;
-        }
-        let modules_dir =
-            crate::symlink_direct_dependencies::importer_root_dir(workspace_root, importer_id)
-                .join(modules_dir_name);
-        crate::symlink_direct_dependencies::direct_dep_names_for_importer(
-            snapshot,
-            groups.iter().copied(),
-            skipped,
-            false,
-        )
+    wanted.importers
         .iter()
-        .all(|name| direct_dep_link_resolves(&modules_dir, name))
-    })
+        .all(|(importer_id, snapshot)| {
+            if crate::symlink_direct_dependencies::validate_importer_id(importer_id).is_err() {
+                return true;
+            }
+            let modules_dir =
+                crate::symlink_direct_dependencies::importer_root_dir(workspace_root, importer_id)
+                    .join(modules_dir_name);
+            crate::symlink_direct_dependencies::direct_dep_names_for_importer(
+                snapshot,
+                groups.iter().copied(),
+                skipped,
+                false,
+            )
+            .iter()
+            .all(|name| direct_dep_link_resolves(&modules_dir, name))
+        })
 }
 
 fn direct_dep_link_resolves(modules_dir: &Path, name: &str) -> bool {
@@ -237,7 +241,10 @@ pub(super) fn modules_layout_consistent_with(
         && modules.virtual_store_dir_max_length == config.virtual_store_dir_max_length
         && modules.store_dir == config.store_dir.display().to_string()
         && modules.virtual_store_dir
-            == config.effective_virtual_store_dir().to_string_lossy().as_ref()
+            == config
+                .effective_virtual_store_dir()
+                .to_string_lossy()
+                .as_ref()
 }
 
 /// Whether `.modules.yaml` records any ignored build that the current
@@ -254,7 +261,10 @@ pub(super) fn has_newly_allowed_ignored_builds(
     modules: &pnpm_modules_yaml::ModulesLayout,
     config: &Config,
 ) -> bool {
-    let Some(ignored) = modules.ignored_builds.as_ref().filter(|set| !set.is_empty()) else {
+    let Some(ignored) = modules.ignored_builds
+        .as_ref()
+        .filter(|set| !set.is_empty())
+    else {
         return false;
     };
     // A malformed `allowBuilds` can't be evaluated here; let the full
@@ -263,7 +273,9 @@ pub(super) fn has_newly_allowed_ignored_builds(
     let Ok(policy) = crate::AllowBuildPolicy::from_config(config) else {
         return true;
     };
-    ignored.iter().any(|dep_path| policy.check(dep_path.as_str()) == Some(true))
+    ignored
+        .iter()
+        .any(|dep_path| policy.check(dep_path.as_str()) == Some(true))
 }
 
 /// Whether the current `allowBuilds` policy withdraws an approval that
@@ -309,7 +321,10 @@ pub(super) fn unapproved_recorded_ignored_builds(
     modules: &pnpm_modules_yaml::ModulesLayout,
     config: &Config,
 ) -> Result<Option<Vec<String>>, pnpm_config::version_policy::VersionPolicyError> {
-    let Some(ignored) = modules.ignored_builds.as_ref().filter(|set| !set.is_empty()) else {
+    let Some(ignored) = modules.ignored_builds
+        .as_ref()
+        .filter(|set| !set.is_empty())
+    else {
         return Ok(None);
     };
     let policy = crate::AllowBuildPolicy::from_config(config)?;
@@ -374,7 +389,11 @@ pub(super) fn build_modules_manifest(
         // allows (see [`has_newly_allowed_ignored_builds`]). `None` when
         // empty, matching pnpm's omit-when-empty encoding.
         ignored_builds: (!ignored_builds.is_empty()).then(|| {
-            ignored_builds.iter().cloned().map(pnpm_modules_yaml::DepPath::from).collect()
+            ignored_builds
+                .iter()
+                .cloned()
+                .map(pnpm_modules_yaml::DepPath::from)
+                .collect()
         }),
         hoist_pattern: config.hoist_pattern.clone(),
         hoisted_dependencies,
@@ -404,17 +423,22 @@ pub(super) fn build_modules_manifest(
         // `iter_installability` excludes fetch-failure entries so they
         // don't get persisted across installs — optional fetch failures
         // are silently swallowed.
-        skipped: skipped.iter_installability().map(ToString::to_string).collect(),
+        skipped: skipped
+            .iter_installability()
+            .map(ToString::to_string)
+            .collect(),
         store_dir: config.store_dir.display().to_string(),
-        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir: config
+            .effective_virtual_store_dir()
+            .to_string_lossy()
+            .into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
         // The build-approval set this install ran under. A GVS install
         // hashes engine-specific slots for allowed builders, so the
         // recorded set is what a later install diffs against to decide
         // whether its slots need re-linking.
         allow_builds: Some(
-            config
-                .allow_builds
+            config.allow_builds
                 .iter()
                 .map(|(spec, allowed)| {
                     (spec.clone(), pnpm_modules_yaml::AllowBuildValue::Bool(*allowed))
@@ -479,5 +503,9 @@ pub(super) fn project_requires_lifecycle_scripts(
 /// shape — `name`/`version` are advisory metadata in this context, so
 /// pacquet matches by silently dropping non-string values.
 pub(super) fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String> {
-    manifest.value().get(key).and_then(|v| v.as_str()).map(ToString::to_string)
+    manifest
+        .value()
+        .get(key)
+        .and_then(|v| v.as_str())
+        .map(ToString::to_string)
 }

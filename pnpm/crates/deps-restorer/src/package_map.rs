@@ -153,7 +153,11 @@ pub fn lockfile_to_package_map(lockfile: &Lockfile, opts: &PackageMapOptions<'_>
 
     // A package with metadata but no snapshot still needs a map entry:
     // it resolves to its own slot and to nothing else.
-    for key in lockfile.packages.iter().flatten().map(|(key, _)| key) {
+    for key in lockfile.packages
+        .iter()
+        .flatten()
+        .map(|(key, _)| key)
+    {
         add_metadata_only_package(&mut accum, opts, key);
     }
 
@@ -233,7 +237,10 @@ fn add_snapshot_package(
     for group in [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()] {
         add_snapshot_dependencies(packages, &mut dependencies, lockfile, opts, group);
     }
-    let package_dir = opts.layout.slot_dir(key).join("node_modules").join(key.name.to_string());
+    let package_dir = opts.layout
+        .slot_dir(key)
+        .join("node_modules")
+        .join(key.name.to_string());
     add_package(packages, id, package_dirs, &package_dir, dependencies, opts.modules_dir);
     let Some(loose_index) = loose_index.as_mut() else { return };
     if let Some(modules_dir) = get_node_modules_path(&package_dir) {
@@ -258,20 +265,34 @@ fn add_metadata_only_package(
     key: &PackageKey,
 ) {
     let id = key.to_string();
-    let package_dir = || opts.layout.slot_dir(key).join("node_modules").join(key.name.to_string());
-    accum.packages.entry(id.clone()).or_insert_with(|| {
-        let mut dependencies = BTreeMap::new();
-        dependencies.insert(key.name.to_string(), id.clone());
-        PackageMapPackage { url: to_relative_url(opts.modules_dir, &package_dir()), dependencies }
-    });
+    let package_dir = || {
+        opts.layout
+            .slot_dir(key)
+            .join("node_modules")
+            .join(key.name.to_string())
+    };
+    accum.packages
+        .entry(id.clone())
+        .or_insert_with(|| {
+            let mut dependencies = BTreeMap::new();
+            dependencies.insert(key.name.to_string(), id.clone());
+            PackageMapPackage {
+                url: to_relative_url(opts.modules_dir, &package_dir()),
+                dependencies,
+            }
+        });
     if let Some(package_dirs) = accum.package_dirs.as_mut() {
         package_dirs.entry(id).or_insert_with(package_dir);
     }
 }
 
 fn has_package_entry(lockfile: &Lockfile, key: &PackageKey) -> bool {
-    lockfile.snapshots.as_ref().is_some_and(|snapshots| snapshots.contains_key(key))
-        || lockfile.packages.as_ref().is_some_and(|packages| packages.contains_key(key))
+    lockfile.snapshots
+        .as_ref()
+        .is_some_and(|snapshots| snapshots.contains_key(key))
+        || lockfile.packages
+            .as_ref()
+            .is_some_and(|packages| packages.contains_key(key))
 }
 
 fn add_package(
@@ -296,10 +317,12 @@ fn add_external_link_package(
     target: &LinkTarget,
     modules_dir: &Path,
 ) {
-    packages.entry(target.id.clone()).or_insert_with(|| PackageMapPackage {
-        url: to_relative_url(modules_dir, &target.dir),
-        dependencies: BTreeMap::new(),
-    });
+    packages
+        .entry(target.id.clone())
+        .or_insert_with(|| PackageMapPackage {
+            url: to_relative_url(modules_dir, &target.dir),
+            dependencies: BTreeMap::new(),
+        });
 }
 
 fn importer_names(
@@ -319,7 +342,11 @@ fn importer_names(
 }
 
 fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String> {
-    manifest.value().get(key).and_then(|v| v.as_str()).map(ToString::to_string)
+    manifest
+        .value()
+        .get(key)
+        .and_then(|v| v.as_str())
+        .map(ToString::to_string)
 }
 
 fn to_relative_url(from: &Path, to: &Path) -> String {

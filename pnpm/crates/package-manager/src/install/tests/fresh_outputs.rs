@@ -426,7 +426,9 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
     let find_optional = |scope: &str, bare: &str| -> Option<bool> {
         snapshots
             .iter()
-            .find(|(key, _)| key.name.scope.as_deref() == Some(scope) && key.name.bare == bare)
+            .find(|(key, _)| {
+                key.name.scope.as_deref() == Some(scope) && key.name.bare == bare
+            })
             .map(|(_, entry)| entry.optional)
     };
 
@@ -531,9 +533,9 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
     .expect("install should succeed");
 
     assert!(
-        is_symlink_or_junction(
-            &dirs.project_root.join("node_modules/@pnpm.e2e/hello-world-js-bin")
-        )
+        is_symlink_or_junction(&dirs.project_root.join(
+            "node_modules/@pnpm.e2e/hello-world-js-bin"
+        ))
         .unwrap(),
         "compatible prod dependency should be linked",
     );
@@ -562,8 +564,7 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
         })
         .expect("optional dependency should stay in the lockfile");
 
-    let written = dirs
-        .modules_dir
+    let written = dirs.modules_dir
         .pipe_as_ref(read_modules_manifest::<Host>)
         .expect("read .modules.yaml")
         .expect("modules manifest exists");
@@ -632,7 +633,10 @@ fn is_modules_yaml_consistent_returns_true_when_settings_match() {
         hoist_pattern: config.hoist_pattern.clone(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         store_dir: config.store_dir.display().to_string(),
-        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir: config
+            .effective_virtual_store_dir()
+            .to_string_lossy()
+            .into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
         ..Default::default()
     };
@@ -678,7 +682,10 @@ fn is_modules_yaml_consistent_returns_false_when_included_drifts() {
         hoist_pattern: config.hoist_pattern.clone(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         store_dir: config.store_dir.display().to_string(),
-        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir: config
+            .effective_virtual_store_dir()
+            .to_string_lossy()
+            .into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
         ..Default::default()
     };
@@ -728,7 +735,10 @@ fn included_drift_alone_does_not_make_the_layout_inconsistent() {
         hoist_pattern: config.hoist_pattern.clone(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         store_dir: config.store_dir.display().to_string(),
-        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir: config
+            .effective_virtual_store_dir()
+            .to_string_lossy()
+            .into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
         ..Default::default()
     };
@@ -769,7 +779,10 @@ fn layout_drift_still_makes_the_layout_inconsistent() {
         hoist_pattern: config.hoist_pattern.clone(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         store_dir: config.store_dir.display().to_string(),
-        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir: config
+            .effective_virtual_store_dir()
+            .to_string_lossy()
+            .into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
         ..Default::default()
     };

@@ -218,8 +218,7 @@ impl VersionArgs {
             select_recursive_projects(&projects, config, &base, AutoExcludeRoot::Disabled)?;
         let mut changes = Vec::new();
         for pkg_dir in selection.selected.keys() {
-            if let Some(change) =
-                self.bump_package_version::<Reporter>(pkg_dir, bump, config, dir)?
+            if let Some(change) = self.bump_package_version::<Reporter>(pkg_dir, bump, config, dir)?
             {
                 changes.push(change);
             }
@@ -276,12 +275,9 @@ impl VersionArgs {
         let mut manifest = PackageManifest::from_path(manifest_path.clone())
             .wrap_err_with(|| format!("reading {}", manifest_path.display()))?;
 
-        let name = manifest.value().get("name").and_then(Value::as_str).unwrap_or_default();
-        let current = manifest.value().get("version").and_then(Value::as_str).unwrap_or_default();
-        if name.is_empty() || current.is_empty() {
+        let Some((name, current)) = package_version_identity(&manifest) else {
             return Ok(None);
-        }
-        let (name, current) = (name.to_string(), current.to_string());
+        };
 
         let current_version = parse_current_version(pkg_dir, &current)?;
 
@@ -302,7 +298,9 @@ impl VersionArgs {
             .expect("package.json is an object — its version field was just read")
             .insert("version".to_string(), Value::String(new_version.clone()));
         if !self.dry_run {
-            manifest.save().wrap_err_with(|| format!("saving {}", manifest_path.display()))?;
+            manifest
+                .save()
+                .wrap_err_with(|| format!("saving {}", manifest_path.display()))?;
         }
 
         let change = VersionChange {
@@ -354,7 +352,9 @@ impl VersionArgs {
             Bump::Release(release) => inc(
                 current_version,
                 *release,
-                self.preid.as_deref().filter(|preid| !preid.is_empty()),
+                self.preid
+                    .as_deref()
+                    .filter(|preid| !preid.is_empty()),
             ),
         }
         .to_string();
@@ -429,6 +429,23 @@ struct VersionChange {
     new_version: String,
     path: PathBuf,
     manifest_path: PathBuf,
+}
+
+fn package_version_identity(manifest: &PackageManifest) -> Option<(String, String)> {
+    let name = manifest
+        .value()
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let current = manifest
+        .value()
+        .get("version")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if name.is_empty() || current.is_empty() {
+        return None;
+    }
+    Some((name.to_string(), current.to_string()))
 }
 
 #[cfg(test)]

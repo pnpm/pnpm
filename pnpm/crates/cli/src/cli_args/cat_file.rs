@@ -42,7 +42,11 @@ impl CatFileArgs {
         let store_dir: &StoreDir = &config.store_dir;
 
         // Path should be <store>/files/<first 2 chars>/<rest of hex chars>
-        let file_path = store_dir.root().join("files").join(&hex[..2]).join(&hex[2..]);
+        let file_path = store_dir
+            .root()
+            .join("files")
+            .join(&hex[..2])
+            .join(&hex[2..]);
 
         let mut file = File::open(&file_path)
             .into_diagnostic()

@@ -58,7 +58,9 @@ pub(super) fn authorized_revision_upstream<'a>(
 }
 
 pub(super) fn revision_registry_is_private(state: &AppState, registry: &str) -> bool {
-    state.inner.config.routing.upstreams.get(registry).is_some_and(|config| config.access.is_some())
+    state.inner.config.routing.upstreams
+        .get(registry)
+        .is_some_and(|config| config.access.is_some())
 }
 
 pub(super) fn revision_source_registry<'a>(
@@ -78,10 +80,7 @@ pub(super) fn revision_source_registry<'a>(
 /// to a fresh computation only for a name outside [`pnpr_config::RoutingConfig::upstreams`] (which
 /// the registry dispatch never produces).
 pub(super) fn upstream_cache_namespace(state: &AppState, upstream: &str) -> String {
-    state
-        .inner
-        .proxy
-        .cache_namespaces
+    state.inner.proxy.cache_namespaces
         .get(upstream)
         .cloned()
         .unwrap_or_else(|| compute_upstream_cache_namespace(&state.inner.config, upstream))
@@ -109,9 +108,7 @@ pub(super) fn upstream_cache_namespace(state: &AppState, upstream: &str) -> Stri
 /// (`~public/<digest-of-registry-name-and-url>`) that is shared across process
 /// restarts.
 pub(super) fn compute_upstream_cache_namespace(config: &Config, upstream: &str) -> String {
-    let url = config
-        .routing
-        .upstreams
+    let url = config.routing.upstreams
         .get(upstream)
         .map_or("", |upstream_config| upstream_config.url.as_str());
     if let Some(upstream_config) = config.routing.upstreams.get(upstream)
@@ -214,7 +211,10 @@ pub(super) fn single_authorization_header(
             reason: "multiple Authorization headers are not allowed".to_string(),
         });
     }
-    value.to_str().map(Some).map_err(|_| RegistryError::BadRequest {
-        reason: "Authorization header is not valid text".to_string(),
-    })
+    value
+        .to_str()
+        .map(Some)
+        .map_err(|_| RegistryError::BadRequest {
+            reason: "Authorization header is not valid text".to_string(),
+        })
 }

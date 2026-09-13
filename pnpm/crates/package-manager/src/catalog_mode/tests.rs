@@ -12,8 +12,9 @@ fn catalogs(entries: &[(&str, &[(&str, &str)])]) -> Catalogs {
     entries
         .iter()
         .map(|(name, deps)| {
-            let catalog =
-                deps.iter().map(|(alias, spec)| ((*alias).to_string(), (*spec).to_string()));
+            let catalog = deps
+                .iter()
+                .map(|(alias, spec)| ((*alias).to_string(), (*spec).to_string()));
             ((*name).to_string(), catalog.collect())
         })
         .collect()
@@ -52,7 +53,9 @@ fn strict_errors_on_a_concrete_version_mismatch() {
         },
     );
     assert_eq!(
-        err.code().expect("error carries a diagnostic code").to_string(),
+        err.code()
+            .expect("error carries a diagnostic code")
+            .to_string(),
         "ERR_PNPM_CATALOG_VERSION_MISMATCH",
     );
 }
@@ -278,7 +281,10 @@ fn prefer_warns_and_keeps_the_direct_version_on_mismatch() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
     // The reporter sink is a process-global `static`; clear it so a prior

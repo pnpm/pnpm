@@ -239,11 +239,15 @@ impl CrateDocument {
 
     #[must_use]
     pub fn version(&self, vers: &str) -> Option<&IndexEntry> {
-        self.versions.iter().find(|entry| entry.vers == vers)
+        self.versions
+            .iter()
+            .find(|entry| entry.vers == vers)
     }
 
     pub fn version_mut(&mut self, vers: &str) -> Option<&mut IndexEntry> {
-        self.versions.iter_mut().find(|entry| entry.vers == vers)
+        self.versions
+            .iter_mut()
+            .find(|entry| entry.vers == vers)
     }
 
     #[must_use]
@@ -263,7 +267,12 @@ pub const MAX_DESCRIPTION_LEN: usize = 1_000;
 /// crate documents kept one, and a publish that worked should keep working.
 #[must_use]
 pub fn bounded_description(description: Option<&str>) -> Option<String> {
-    description.map(|description| description.chars().take(MAX_DESCRIPTION_LEN).collect())
+    description.map(|description| {
+        description
+            .chars()
+            .take(MAX_DESCRIPTION_LEN)
+            .collect()
+    })
 }
 
 /// One row of `GET api/v1/crates`. `cargo search` reads exactly these three

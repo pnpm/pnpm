@@ -245,7 +245,10 @@ pub(super) async fn optimistic_repeat_install_does_not_short_circuit_when_lockfi
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -286,7 +289,10 @@ pub(super) async fn optimistic_repeat_install_does_not_short_circuit_when_lockfi
         hoist_pattern: config.hoist_pattern.clone(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         store_dir: config.store_dir.display().to_string(),
-        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir: config
+            .effective_virtual_store_dir()
+            .to_string_lossy()
+            .into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
         ..Default::default()
     };
@@ -378,10 +384,12 @@ pub(super) async fn optimistic_repeat_install_does_not_short_circuit_when_lockfi
 
     let captured = EVENTS.lock().unwrap();
     assert!(
-        !captured.iter().any(|event| matches!(
-            event,
-            LogEvent::Pnpm(log) if log.message == "Already up to date"
-        )),
+        !captured
+            .iter()
+            .any(|event| matches!(
+                event,
+                LogEvent::Pnpm(log) if log.message == "Already up to date"
+            )),
         "the optimistic 'Already up to date' log MUST NOT fire when \
          no lockfile exists in a single-project install; got events: {captured:#?}",
     );
@@ -486,7 +494,10 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -552,11 +563,13 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
 
     let captured = EVENTS.lock().unwrap();
     assert!(
-        captured.iter().any(|event| matches!(
-            event,
-            LogEvent::Pnpm(log)
-                if log.message == "Lockfile is up to date, resolution step is skipped"
-        )),
+        captured
+            .iter()
+            .any(|event| matches!(
+                event,
+                LogEvent::Pnpm(log)
+                    if log.message == "Lockfile is up to date, resolution step is skipped"
+            )),
         "second install must reach the modules/current-lockfile no-op path; got {captured:#?}",
     );
     let verification_messages: Vec<_> = captured
@@ -583,7 +596,11 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
 #[tokio::test]
 async fn optimistic_repeat_install_restores_missing_lockfile_offline() {
     let (dir, offline_config, manifest) = install_then_go_offline().await;
-    let project_root = manifest.path().parent().unwrap().to_path_buf();
+    let project_root = manifest
+        .path()
+        .parent()
+        .unwrap()
+        .to_path_buf();
     let lockfile_path = project_root.join(Lockfile::FILE_NAME);
     let original_lockfile_bytes =
         std::fs::read(&lockfile_path).expect("read pnpm-lock.yaml written by the first install");
@@ -596,7 +613,10 @@ async fn optimistic_repeat_install_restores_missing_lockfile_offline() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -653,10 +673,12 @@ async fn optimistic_repeat_install_restores_missing_lockfile_offline() {
 
     let captured = EVENTS.lock().unwrap();
     assert!(
-        captured.iter().any(|event| matches!(
-            event,
-            LogEvent::Pnpm(log) if log.message == "Already up to date"
-        )),
+        captured
+            .iter()
+            .any(|event| matches!(
+                event,
+                LogEvent::Pnpm(log) if log.message == "Already up to date"
+            )),
         "the deleted-lockfile repeat install must take the fast path; got {captured:#?}",
     );
     let pipeline_emits = captured

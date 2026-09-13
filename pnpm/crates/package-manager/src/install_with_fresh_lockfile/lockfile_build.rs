@@ -78,7 +78,9 @@ pub(super) fn build_resolved_lockfile<Reporter>(
             prior: crate::install_with_fresh_lockfile::resolution_inputs::FreshLockfilePrior {
                 importers: resolved.reuse.guard_previous_importers,
                 scope: resolved.reuse.guard_update_reuse_scope.clone(),
-                scopes_by_importer: resolved.reuse.guard_update_reuse_scopes_by_importer.clone(),
+                scopes_by_importer: resolved.reuse
+                    .guard_update_reuse_scopes_by_importer
+                    .clone(),
                 lockfile: views.wanted_lockfile,
             },
             resolution:
@@ -125,7 +127,10 @@ pub(super) fn parse_config_overrides(
 pub(super) fn resolved_overrides_map(
     parsed: &[pnpm_config_parse_overrides::VersionOverride],
 ) -> IndexMap<String, String> {
-    parsed.iter().map(|entry| (entry.selector.clone(), entry.new_bare_specifier.clone())).collect()
+    parsed
+        .iter()
+        .map(|entry| (entry.selector.clone(), entry.new_bare_specifier.clone()))
+        .collect()
 }
 pub(super) fn overrides_match(
     lockfile: Option<&IndexMap<String, String>>,
@@ -137,9 +142,13 @@ pub(super) fn overrides_match(
         (None, None) => true,
         (Some(lockfile), Some(config)) => {
             lockfile.len() == config.len()
-                && lockfile.iter().all(|(key, value)| {
-                    config.get(key).is_some_and(|config_value| config_value == value)
-                })
+                && lockfile
+                    .iter()
+                    .all(|(key, value)| {
+                        config
+                            .get(key)
+                            .is_some_and(|config_value| config_value == value)
+                    })
         }
         _ => false,
     }
@@ -148,8 +157,14 @@ pub(super) fn ignored_optional_dependencies_match(
     left: Option<&[String]>,
     right: Option<&[String]>,
 ) -> bool {
-    let left: HashSet<_> = left.unwrap_or_default().iter().collect();
-    let right: HashSet<_> = right.unwrap_or_default().iter().collect();
+    let left: HashSet<_> = left
+        .unwrap_or_default()
+        .iter()
+        .collect();
+    let right: HashSet<_> = right
+        .unwrap_or_default()
+        .iter()
+        .collect();
     left == right
 }
 pub(super) fn compose_manifest_hooks(
@@ -225,9 +240,11 @@ pub(super) struct SpecBumps<'a> {
 impl SpecBumps<'_> {
     fn apply(self, built: &mut Lockfile, importer_manifests: &BTreeMap<String, &PackageManifest>) {
         let Some(bumps) = self.manifest_spec_bumps else { return };
-        let overridden =
-            self.versions_overrider.filter(|overrider| !overrider.is_empty()).map(|overrider| {
-                crate::manifest_spec_bumps::OverriddenDeclarations { overrider, importer_manifests }
+        let overridden = self.versions_overrider
+            .filter(|overrider| !overrider.is_empty())
+            .map(|overrider| crate::manifest_spec_bumps::OverriddenDeclarations {
+                overrider,
+                importer_manifests,
             });
         crate::manifest_spec_bumps::apply_manifest_spec_bumps(built, bumps, overridden.as_ref());
     }
@@ -237,9 +254,10 @@ pub(super) fn build_lockfile(
 ) -> Result<Lockfile, InstallWithFreshLockfileError> {
     let FreshLockfileBuildOptions { inputs, splice, bumps } = opts;
     let importer_manifests = inputs.importer_manifests;
-    let freshly_resolved = build_fresh_lockfile(inputs).map_err(|error| {
-        InstallWithFreshLockfileError::DependenciesGraphToLockfile(Box::new(error))
-    })?;
+    let freshly_resolved = build_fresh_lockfile(inputs)
+        .map_err(|error| {
+            InstallWithFreshLockfileError::DependenciesGraphToLockfile(Box::new(error))
+        })?;
     let mut built = splice.apply(freshly_resolved)?;
     bumps.apply(&mut built, importer_manifests);
     Ok(built)
@@ -248,9 +266,11 @@ impl<'a> FreshLockfileInputs<'a> {
     fn importer_entries(&self) -> BTreeMap<String, ImporterLockfileInput<'a>> {
         let mut importers = BTreeMap::new();
         for (id, manifest) in self.importer_manifests {
-            let direct = self.resolution.direct_by_importer.get(id).cloned().unwrap_or_default();
-            let manifest = self
-                .lockfile_specifier_manifests
+            let direct = self.resolution.direct_by_importer
+                .get(id)
+                .cloned()
+                .unwrap_or_default();
+            let manifest = self.lockfile_specifier_manifests
                 .and_then(|manifests| manifests.get(id))
                 .unwrap_or(*manifest);
             importers.insert(
@@ -286,10 +306,9 @@ pub(super) fn build_fresh_lockfile(
             registry: &config.registry,
             registries_by_prefix: &registries_by_prefix,
             lockfile_include_tarball_url: config.lockfile_include_tarball_url,
-            previous_packages: inputs
-                .prior
-                .lockfile
-                .and_then(|lockfile| lockfile.packages.as_ref()),
+            previous_packages: inputs.prior.lockfile.and_then(|lockfile| {
+                lockfile.packages.as_ref()
+            }),
         },
         manifest_settings: crate::LockfileManifestSettings {
             overrides: inputs.resolution.overrides,
@@ -311,7 +330,11 @@ pub(super) fn registries_by_prefix(config: &Config) -> HashMap<String, String> {
     pnpm_resolving_npm_resolver::BUILTIN_REGISTRIES_BY_PREFIX
         .iter()
         .map(|(name, url)| ((*name).to_string(), (*url).to_string()))
-        .chain(config.registries_by_prefix.iter().map(|(name, url)| (name.clone(), url.clone())))
+        .chain(
+            config.registries_by_prefix
+                .iter()
+                .map(|(name, url)| (name.clone(), url.clone())),
+        )
         .collect()
 }
 /// The `time:` section the rewritten lockfile carries: what the prior
@@ -331,8 +354,9 @@ pub(super) fn merge_recorded_time(
     time
 }
 pub(crate) fn compute_package_extensions_checksum(config: &Config) -> Option<String> {
-    let extensions =
-        config.package_extensions.as_ref().filter(|extensions| !extensions.is_empty())?;
+    let extensions = config.package_extensions
+        .as_ref()
+        .filter(|extensions| !extensions.is_empty())?;
     let value = serde_json::to_value(extensions).ok()?;
     pnpm_graph_hasher::hash_object_nullable_with_prefix(&value)
 }

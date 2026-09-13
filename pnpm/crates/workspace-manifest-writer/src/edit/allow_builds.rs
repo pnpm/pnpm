@@ -25,8 +25,7 @@ pub(crate) fn add_allow_build(manifest: &mut Manifest, name: &str, value: bool) 
     };
     // Keep the decoded view in sync so later upserts in the same write see
     // this entry (for both no-op detection and block-presence checks).
-    manifest
-        .allow_builds
+    manifest.allow_builds
         .get_or_insert_with(IndexMap::new)
         .insert(name.to_string(), AllowBuildValue::Bool(value));
     changed
@@ -42,12 +41,17 @@ fn write_allow_build(
     value: bool,
 ) -> Option<bool> {
     let text = manifest.document.text();
-    if !mapping_keys(text, &[block]).iter().any(|key| key == name) {
+    if !mapping_keys(text, &[block])
+        .iter()
+        .any(|key| key == name)
+    {
         let new_text = write_rendered_entry_at(text, &[block], name, render_bool(value));
         manifest.document.set_text(new_text);
         return Some(true);
     }
-    if manifest.allow_builds.as_ref().and_then(|builds| builds.get(name))
+    if manifest.allow_builds
+        .as_ref()
+        .and_then(|builds| builds.get(name))
         == Some(&AllowBuildValue::Bool(value))
     {
         return None;
@@ -73,7 +77,10 @@ pub(crate) fn add_undecided_allow_build(
     const BLOCK: &str = "allowBuilds";
     let text = manifest.document.text();
     if locate(text, &[BLOCK]).is_some() {
-        if mapping_keys(text, &[BLOCK]).iter().any(|key| key == name) {
+        if mapping_keys(text, &[BLOCK])
+            .iter()
+            .any(|key| key == name)
+        {
             return false;
         }
         let new_text =
@@ -90,8 +97,7 @@ pub(crate) fn add_undecided_allow_build(
         manifest.document.keys =
             render::target_order(&manifest.document.keys, &[BLOCK.to_string()]);
     }
-    manifest
-        .allow_builds
+    manifest.allow_builds
         .get_or_insert_with(IndexMap::new)
         .insert(name.to_string(), AllowBuildValue::String(placeholder.to_string()));
     true
@@ -125,7 +131,10 @@ pub(crate) fn prune_allow_builds(
         return false;
     }
 
-    if all_keys.iter().all(|key| prunable.contains(key)) {
+    if all_keys
+        .iter()
+        .all(|key| prunable.contains(key))
+    {
         manifest.document.set_text(remove_top_level_block(manifest.document.text(), BLOCK));
         manifest.allow_builds = None;
         manifest.document.keys.retain(|key| key != BLOCK);
@@ -209,7 +218,10 @@ fn allow_build_key_package_name(key: &str) -> Option<&str> {
     if !key.contains('#') && (key.starts_with("git+") || key.contains("@git+")) {
         return None;
     }
-    let name = match key.get(1..).and_then(|rest| rest.find('@')) {
+    let name = match key
+        .get(1..)
+        .and_then(|rest| rest.find('@'))
+    {
         // The version part after the `@` separator must be non-empty.
         Some(off) if off + 2 < key.len() => &key[..=off],
         Some(_) => return None,

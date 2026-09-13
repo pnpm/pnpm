@@ -6,8 +6,10 @@ mod higher_direct_dep_version {
     use super::super::{DirectDepVersions, higher_direct_dep_version};
 
     fn direct(name: &str, versions: &[&str]) -> DirectDepVersions {
-        let parsed =
-            versions.iter().map(|raw| raw.parse::<Version>().expect("parse version")).collect();
+        let parsed = versions
+            .iter()
+            .map(|raw| raw.parse::<Version>().expect("parse version"))
+            .collect();
         HashMap::from_iter([(name.to_string(), parsed)])
     }
 
@@ -184,7 +186,10 @@ mod is_update_target {
 
     fn except(names: &[&str]) -> UpdateReuseScope {
         UpdateReuseScope::Except(
-            names.iter().map(|name| ((*name).to_string(), None)).collect::<UpdateTargets>(),
+            names
+                .iter()
+                .map(|name| ((*name).to_string(), None))
+                .collect::<UpdateTargets>(),
         )
     }
 

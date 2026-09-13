@@ -380,7 +380,12 @@ async fn loose_mode_without_persistence_leaves_the_workspace_manifest_unchanged(
 
     assert!(prompt.messages.is_empty());
     assert_eq!(fs::read_to_string(path).expect("read unchanged manifest"), original);
-    assert!(EVENTS.lock().expect("event lock").is_empty());
+    assert!(
+        EVENTS
+            .lock()
+            .expect("event lock")
+            .is_empty(),
+    );
 }
 
 #[tokio::test]

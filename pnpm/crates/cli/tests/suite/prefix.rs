@@ -18,7 +18,10 @@ fn prefix_prints_the_local_prefix_dir() {
     fs::write(workspace.join("package.json"), r#"{ "name": "root-pkg" }"#)
         .expect("write package.json");
 
-    let output = pacquet.with_args(["prefix"]).output().expect("run pacquet prefix");
+    let output = pacquet
+        .with_args(["prefix"])
+        .output()
+        .expect("run pacquet prefix");
     dbg!(&output);
     assert!(output.status.success(), "pacquet prefix should succeed");
 

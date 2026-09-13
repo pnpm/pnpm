@@ -211,22 +211,21 @@ impl ImporterInputs<'_> {
         modules_basename: &std::ffi::OsStr,
     ) -> ResolveImporterOptions {
         let preferred_versions = self.versions.for_importer(&importer.id);
-        let project_dir = importer
-            .manifest
+        let project_dir = importer.manifest
             .path()
             .parent()
             .expect("manifest path always has a parent dir")
             .to_path_buf();
         let modules_dir = Some(project_dir.join(modules_basename));
         ResolveImporterOptions {
-            base_opts: self
-                .shared_resolve_options
-                .build(project_dir, Arc::clone(preferred_versions)),
+            base_opts: self.shared_resolve_options.build(
+                project_dir,
+                Arc::clone(preferred_versions),
+            ),
             peers_suffix_max_length: self.peers_suffix_max_length(),
             peers: pnpm_resolving_deps_resolver::ImporterPeerOptions {
                 auto_install_peers: self.config.auto_install_peers,
-                auto_install_peers_from_highest_match: self
-                    .config
+                auto_install_peers_from_highest_match: self.config
                     .auto_install_peers_from_highest_match,
                 resolve_peers_from_workspace_root: self.config.resolve_peers_from_workspace_root,
                 dedupe_peers: self.config.dedupe_peers,
@@ -309,8 +308,13 @@ impl WorkspaceWalk {
 pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
     inputs: ResolvePassInputs<'_>,
 ) -> Result<pnpm_resolving_deps_resolver::ResolveWorkspaceResult, InstallWithFreshLockfileError> {
-    let ResolvePassInputs { resolver, importer_manifests, dependency_groups, walk, per_importer } =
-        inputs;
+    let ResolvePassInputs {
+        resolver,
+        importer_manifests,
+        dependency_groups,
+        walk,
+        per_importer,
+    } = inputs;
     let workspace_importers: Vec<pnpm_resolving_deps_resolver::WorkspaceImporter<'_>> =
         importer_manifests
             .iter()
@@ -319,9 +323,7 @@ pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
                 manifest,
             })
             .collect();
-    let modules_basename = per_importer
-        .config
-        .modules_dir
+    let modules_basename = per_importer.config.modules_dir
         .file_name()
         .map_or_else(|| std::ffi::OsString::from("node_modules"), std::ffi::OsStr::to_os_string);
     pnpm_resolving_deps_resolver::resolve_workspace(

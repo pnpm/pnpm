@@ -39,7 +39,11 @@ fn unsupported_bin_slot_fails_before_activation_and_cleans_preparation_artifacts
         miette::Diagnostic::code(diagnostic).map(|code| code.to_string()),
         Some("ERR_PNPM_GLOBAL_BIN_UNSUPPORTED_TYPE".to_string()),
     );
-    assert!(error.to_string().contains(&unsupported_path.display().to_string()));
+    assert!(
+        error
+            .to_string()
+            .contains(&unsupported_path.display().to_string()),
+    );
     assert_eq!(ACTIVATION_CALLS.load(Ordering::SeqCst), 0);
     assert!(unsupported_path.is_dir());
     assert_eq!(resolved_hash_target(&fixture.hash_link), canonical(&fixture.old_install_dir));
@@ -161,7 +165,11 @@ fn cleanup_failure_preserves_every_bin_and_the_group() {
 
     let blocked_bin = global_bin_dir.join("blocked");
     assert!(error.to_string().contains("Cannot replace global bin slot"));
-    assert!(error.to_string().contains(&blocked_bin.display().to_string()));
+    assert!(
+        error
+            .to_string()
+            .contains(&blocked_bin.display().to_string()),
+    );
     assert!(global_bin_dir.join("stale").exists());
     assert!(blocked_bin.exists());
     assert!(install_dir.exists());
@@ -493,9 +501,17 @@ fn artifact_probe_failure_is_related_and_not_reported_as_a_confirmed_path() {
         .collect::<Vec<_>>();
     assert_eq!(related.len(), 2);
     assert!(related[0].to_string().contains("remove global bin backup directory"));
-    assert!(related[0].to_string().contains(&backup_dirs[0].display().to_string()));
+    assert!(
+        related[0]
+            .to_string()
+            .contains(&backup_dirs[0].display().to_string()),
+    );
     assert!(related[1].to_string().contains("inspect remaining rollback artifact"));
-    assert!(related[1].to_string().contains(&backup_dirs[0].display().to_string()));
+    assert!(
+        related[1]
+            .to_string()
+            .contains(&backup_dirs[0].display().to_string()),
+    );
     assert!(related[1].to_string().contains("injected rollback artifact probe failure"));
 }
 
@@ -554,12 +570,28 @@ fn both_cleanup_failures_report_both_errors_and_remaining_artifacts() {
     assert_eq!(related.len(), 2);
     let backup_error = std::error::Error::source(related[0]).expect("backup cleanup error source");
     assert!(related[0].to_string().contains("remove global bin backup directory"));
-    assert!(related[0].to_string().contains(&backup_dirs[0].display().to_string()));
-    assert!(related[0].to_string().contains(&backup_error.to_string()));
+    assert!(
+        related[0]
+            .to_string()
+            .contains(&backup_dirs[0].display().to_string()),
+    );
+    assert!(
+        related[0]
+            .to_string()
+            .contains(&backup_error.to_string()),
+    );
     let fresh_error = std::error::Error::source(related[1]).expect("fresh cleanup error source");
     assert!(related[1].to_string().contains("remove fresh global install directory"));
-    assert!(related[1].to_string().contains(&fresh_install_path.display().to_string()));
-    assert!(related[1].to_string().contains(&fresh_error.to_string()));
+    assert!(
+        related[1]
+            .to_string()
+            .contains(&fresh_install_path.display().to_string()),
+    );
+    assert!(
+        related[1]
+            .to_string()
+            .contains(&fresh_error.to_string()),
+    );
     assert!(
         diagnostic_source_messages(diagnostic)
             .iter()

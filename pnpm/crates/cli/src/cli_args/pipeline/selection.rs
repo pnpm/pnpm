@@ -32,7 +32,10 @@ pub(super) fn build_full_graph<'a>(
         ..CreateProjectsGraphOptions::default()
     };
     create_projects_graph(
-        projects.iter().map(|project| GraphPkg { project }).collect(),
+        projects
+            .iter()
+            .map(|project| GraphPkg { project })
+            .collect(),
         &graph_options,
     )
     .graph
@@ -77,8 +80,7 @@ pub(super) struct SelectAffectedOptions<'a> {
 pub(super) fn select_affected_projects(
     options: &SelectAffectedOptions<'_>,
 ) -> miette::Result<Selection> {
-    let all_dirs: Vec<PathBuf> = options
-        .graph
+    let all_dirs: Vec<PathBuf> = options.graph
         .keys()
         .filter(|dir| {
             options.config.include_workspace_root || dir.as_path() != options.workspace_root
@@ -113,16 +115,27 @@ fn projects_with_dependents(
     let mut dependents: HashMap<&Path, Vec<&Path>> = HashMap::new();
     for (dir, node) in graph {
         for dependency in &node.dependencies {
-            dependents.entry(dependency.as_path()).or_default().push(dir.as_path());
+            dependents
+                .entry(dependency.as_path())
+                .or_default()
+                .push(dir.as_path());
         }
     }
     let mut affected: HashSet<PathBuf> = HashSet::new();
-    let mut stack: Vec<&Path> = changed_projects.iter().map(PathBuf::as_path).collect();
+    let mut stack: Vec<&Path> = changed_projects
+        .iter()
+        .map(PathBuf::as_path)
+        .collect();
     while let Some(dir) = stack.pop() {
         if !affected.insert(dir.to_path_buf()) {
             continue;
         }
-        stack.extend(dependents.get(dir).into_iter().flatten());
+        stack.extend(
+            dependents
+                .get(dir)
+                .into_iter()
+                .flatten(),
+        );
     }
     affected
 }
@@ -138,8 +151,10 @@ fn with_transitive_dependencies(
     let mut selected = affected.clone();
     let mut stack: Vec<PathBuf> = affected.iter().cloned().collect();
     while let Some(dir) = stack.pop() {
-        let dependencies =
-            graph.get(&dir).map(|node| node.dependencies.as_slice()).unwrap_or_default();
+        let dependencies = graph
+            .get(&dir)
+            .map(|node| node.dependencies.as_slice())
+            .unwrap_or_default();
         for dependency in dependencies {
             if (config.include_workspace_root || dependency.as_path() != workspace_root)
                 && selected.insert(dependency.clone())
@@ -173,7 +188,11 @@ fn resolve_merge_base(workspace_root: &Path, base: &str) -> Option<String> {
 }
 
 pub(super) fn git_stdout(cwd: &Path, args: &[&str]) -> Option<String> {
-    let output = Command::new("git").args(args).current_dir(cwd).output().ok()?;
+    let output = Command::new("git")
+        .args(args)
+        .current_dir(cwd)
+        .output()
+        .ok()?;
     if !output.status.success() {
         return None;
     }
@@ -204,8 +223,7 @@ fn select_changed_projects(
     // project: the root manifest, the lockfile, a shared config. Those
     // feed every project in ways project topology cannot see, so pruning
     // is disabled for the run rather than guessed at.
-    if changed
-        .changed_projects
+    if changed.changed_projects
         .iter()
         .chain(&changed.ignore_dependent_for_projects)
         .any(|dir| dir == options.workspace_root)
@@ -259,8 +277,11 @@ fn affected_selection(
 
     // In the workspace graph's deterministic order, which is the
     // dispatch tie-break order.
-    let requested: Vec<PathBuf> =
-        options.graph.keys().filter(|dir| affected.contains(dir.as_path())).cloned().collect();
+    let requested: Vec<PathBuf> = options.graph
+        .keys()
+        .filter(|dir| affected.contains(dir.as_path()))
+        .cloned()
+        .collect();
     Selection {
         requested,
         selected,

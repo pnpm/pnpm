@@ -12,7 +12,10 @@ pub(super) fn protocol_to_representation(protocol: &str) -> Representation {
 }
 
 pub(super) fn strip_dot_git(project: &str) -> String {
-    project.strip_suffix(".git").unwrap_or(project).to_string()
+    project
+        .strip_suffix(".git")
+        .unwrap_or(project)
+        .to_string()
 }
 
 pub(super) struct ParsedUrl {
@@ -52,7 +55,9 @@ pub(super) fn whatwg_parse(giturl: &str) -> Option<ParsedUrl> {
     } else {
         parsed.path().to_string()
     };
-    let hash = parsed.fragment().map(|f| format!("#{f}"));
+    let hash = parsed
+        .fragment()
+        .map(|f| format!("#{f}"));
     Some(ParsedUrl { scheme, username, password, host, pathname, hash })
 }
 
@@ -147,8 +152,7 @@ pub(super) fn shortcut_segments(parsed: &ParsedUrl) -> UrlSegments {
     UrlSegments {
         user,
         project: strip_dot_git(&project),
-        committish: parsed
-            .hash
+        committish: parsed.hash
             .as_ref()
             .map(|hash| percent_decode(hash.strip_prefix('#').unwrap_or(hash)))
             .filter(|committish| !committish.is_empty()),
@@ -164,8 +168,7 @@ pub(super) fn host_segments(host_type: HostedGitType, parsed: &ParsedUrl) -> Opt
     Some(UrlSegments {
         user: percent_decode(&segments.user),
         project: percent_decode(&segments.project),
-        committish: segments
-            .committish
+        committish: segments.committish
             .map(|raw| percent_decode(&raw))
             .filter(|decoded| !decoded.is_empty()),
         representation: protocol_to_representation(&parsed.scheme),
@@ -195,8 +198,11 @@ pub(super) fn is_github_shorthand(arg: &str) -> bool {
     }
     let first_hash = arg.find('#');
     let first_slash = arg.find('/');
-    let second_slash =
-        first_slash.and_then(|first| arg[first + 1..].find('/').map(|rest| first + 1 + rest));
+    let second_slash = first_slash.and_then(|first| {
+        arg[first + 1..]
+            .find('/')
+            .map(|rest| first + 1 + rest)
+    });
 
     let has_slash = first_slash.is_some_and(|first| first > 0);
     let does_not_end_with_slash = match first_hash {
@@ -250,8 +256,13 @@ pub(super) fn extract_github(parsed: &ParsedUrl) -> Option<Segments> {
     }
 
     if r#type.is_none() {
-        committish =
-            parsed.hash.as_deref().map(|hash| hash.strip_prefix('#').unwrap_or(hash).to_string());
+        committish = parsed.hash
+            .as_deref()
+            .map(|hash| {
+                hash.strip_prefix('#')
+                    .unwrap_or(hash)
+                    .to_string()
+            });
     }
 
     if project.ends_with(".git") {
@@ -282,10 +293,13 @@ pub(super) fn extract_bitbucket(parsed: &ParsedUrl) -> Option<Segments> {
     if user.is_empty() || project.is_empty() {
         return None;
     }
-    let committish = parsed
-        .hash
+    let committish = parsed.hash
         .as_deref()
-        .map(|hash| hash.strip_prefix('#').unwrap_or(hash).to_string())
+        .map(|hash| {
+            hash.strip_prefix('#')
+                .unwrap_or(hash)
+                .to_string()
+        })
         .filter(|committish| !committish.is_empty());
     Some(Segments { user, project, committish })
 }
@@ -305,10 +319,13 @@ pub(super) fn extract_gitlab(parsed: &ParsedUrl) -> Option<Segments> {
     if user.is_empty() || project.is_empty() {
         return None;
     }
-    let committish = parsed
-        .hash
+    let committish = parsed.hash
         .as_deref()
-        .map(|hash| hash.strip_prefix('#').unwrap_or(hash).to_string())
+        .map(|hash| {
+            hash.strip_prefix('#')
+                .unwrap_or(hash)
+                .to_string()
+        })
         .filter(|committish| !committish.is_empty());
     Some(Segments { user, project, committish })
 }

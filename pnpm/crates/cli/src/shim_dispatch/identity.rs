@@ -26,7 +26,10 @@ pub(super) fn provider_of_target(target: &Path) -> Option<Provider> {
     let package_dir = package_dir_of_target(&target)?;
     let manifest = std::fs::read(package_dir.join("package.json")).ok()?;
     let parsed: Value = serde_json::from_slice(&manifest).ok()?;
-    let name = parsed.get("name").and_then(Value::as_str)?.to_string();
+    let name = parsed
+        .get("name")
+        .and_then(Value::as_str)?
+        .to_string();
     Some(Provider { name, package_dir, manifest_hash: create_hex_hash_bytes(&manifest) })
 }
 
@@ -114,7 +117,11 @@ pub(super) fn small_file_hash(path: &Path, expected_len: u64) -> Option<String> 
         return None;
     }
     let mut bytes = Vec::with_capacity(expected_len as usize);
-    std::fs::File::open(path).ok()?.take(MAX_HASHED_BIN_SIZE + 1).read_to_end(&mut bytes).ok()?;
+    std::fs::File::open(path)
+        .ok()?
+        .take(MAX_HASHED_BIN_SIZE + 1)
+        .read_to_end(&mut bytes)
+        .ok()?;
     (bytes.len() as u64 <= MAX_HASHED_BIN_SIZE).then(|| create_hex_hash_bytes(&bytes))
 }
 

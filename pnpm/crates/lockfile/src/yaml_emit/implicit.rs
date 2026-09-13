@@ -78,7 +78,9 @@ pub(super) fn resolves_float(string: &str) -> bool {
 
 fn float_matches(string: &str) -> bool {
     // [-+]?.inf and .nan special forms.
-    let unsigned = string.strip_prefix(['-', '+']).unwrap_or(string);
+    let unsigned = string
+        .strip_prefix(['-', '+'])
+        .unwrap_or(string);
     if matches!(unsigned, ".inf" | ".Inf" | ".INF") || matches!(string, ".nan" | ".NaN" | ".NAN") {
         return true;
     }
@@ -95,20 +97,31 @@ fn float_matches(string: &str) -> bool {
 fn fraction_matches(after_dot: &str) -> bool {
     let (mantissa, exponent) = split_exponent(after_dot);
     !mantissa.is_empty()
-        && mantissa.bytes().all(|byte| byte.is_ascii_digit() || byte == b'_')
+        && mantissa
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || byte == b'_')
         && exponent_ok(exponent)
 }
 
 /// Form A's body: `[0-9][0-9_]* (\.[0-9_]*)? ([eE][-+]?[0-9]+)?`.
 fn integer_form_matches(body: &str) -> bool {
-    if !body.as_bytes().first().is_some_and(u8::is_ascii_digit) {
+    if !body
+        .as_bytes()
+        .first()
+        .is_some_and(u8::is_ascii_digit)
+    {
         return false;
     }
-    let int_len = body.bytes().take_while(|byte| byte.is_ascii_digit() || *byte == b'_').count();
+    let int_len = body
+        .bytes()
+        .take_while(|byte| byte.is_ascii_digit() || *byte == b'_')
+        .count();
     let mut cursor = &body[int_len..];
     if let Some(rest) = cursor.strip_prefix('.') {
-        let frac_len =
-            rest.bytes().take_while(|byte| byte.is_ascii_digit() || *byte == b'_').count();
+        let frac_len = rest
+            .bytes()
+            .take_while(|byte| byte.is_ascii_digit() || *byte == b'_')
+            .count();
         cursor = &rest[frac_len..];
     }
     // ([eE][-+]?[0-9]+)? — and nothing left over.
@@ -138,7 +151,9 @@ fn exponent_consumes_all(tail: &str) -> bool {
     let Some(rest) = tail.strip_prefix(['e', 'E']) else {
         return false;
     };
-    let rest = rest.strip_prefix(['-', '+']).unwrap_or(rest);
+    let rest = rest
+        .strip_prefix(['-', '+'])
+        .unwrap_or(rest);
     !rest.is_empty() && rest.bytes().all(|byte| byte.is_ascii_digit())
 }
 

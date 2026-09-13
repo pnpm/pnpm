@@ -47,7 +47,8 @@ async fn without_store_hits_drops_entries_with_an_index_row() {
     let cold = pending("@foo/cold@1.0.0", "sha512-d29ybGQ=");
     {
         let idx = StoreIndex::open(store.path()).unwrap();
-        idx.set(&warm.store_key, &sample_index()).unwrap();
+        idx.set(&warm.store_key, &sample_index())
+            .unwrap();
     }
     let index = StoreIndex::open_readonly(store.path())
         .map(|idx| std::sync::Arc::new(std::sync::Mutex::new(idx)))
@@ -56,8 +57,10 @@ async fn without_store_hits_drops_entries_with_an_index_row() {
 
     let remaining = without_store_hits(index, vec![warm, cold]).await;
 
-    let remaining_ids: Vec<&str> =
-        remaining.iter().map(|entry| entry.package_id.as_str()).collect();
+    let remaining_ids: Vec<&str> = remaining
+        .iter()
+        .map(|entry| entry.package_id.as_str())
+        .collect();
     assert_eq!(remaining_ids, ["@foo/cold@1.0.0"]);
 }
 
@@ -120,7 +123,11 @@ async fn revision_prefetch_does_not_follow_redirects() {
         .expect(1)
         .create_async()
         .await;
-    let redirected = server.mock("GET", "/redirected.tgz").expect(0).create_async().await;
+    let redirected = server
+        .mock("GET", "/redirected.tgz")
+        .expect(0)
+        .create_async()
+        .await;
     let store = tempdir().unwrap();
     let store_dir = Box::leak(Box::new(StoreDir::new(store.path())));
     let integrity = format!("sha512-{}==", "A".repeat(86)).parse().unwrap();
@@ -141,8 +148,12 @@ async fn revision_prefetch_does_not_follow_redirects() {
 #[tokio::test]
 async fn revision_prefetch_does_not_retry_a_transient_failure() {
     let mut server = mockito::Server::new_async().await;
-    let failure =
-        server.mock("GET", "/revision.tgz").with_status(503).expect(1).create_async().await;
+    let failure = server
+        .mock("GET", "/revision.tgz")
+        .with_status(503)
+        .expect(1)
+        .create_async()
+        .await;
     let store = tempdir().unwrap();
     let store_dir = Box::leak(Box::new(StoreDir::new(store.path())));
     let integrity = format!("sha512-{}==", "A".repeat(86)).parse().unwrap();

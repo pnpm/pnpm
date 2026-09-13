@@ -188,14 +188,12 @@ impl S3Store {
             Some(version) => PutMode::Update(version.clone()),
             None => PutMode::Create,
         };
-        match self
-            .store
-            .put_opts(
-                &self.document_key(name),
-                PutPayload::from(bytes.to_vec()),
-                PutOptions { mode, ..PutOptions::default() },
-            )
-            .await
+        match self.store.put_opts(
+            &self.document_key(name),
+            PutPayload::from(bytes.to_vec()),
+            PutOptions { mode, ..PutOptions::default() },
+        )
+        .await
         {
             Ok(_) => Ok(true),
             Err(
@@ -256,14 +254,12 @@ impl S3Store {
         // version. Overwriting it would corrupt that artifact against the
         // integrity its document records, so tolerate only byte-identical
         // content and otherwise report a conflict.
-        match self
-            .store
-            .put_opts(
-                &key,
-                PutPayload::from(bytes),
-                PutOptions { mode: PutMode::Create, ..PutOptions::default() },
-            )
-            .await
+        match self.store.put_opts(
+            &key,
+            PutPayload::from(bytes),
+            PutOptions { mode: PutMode::Create, ..PutOptions::default() },
+        )
+        .await
         {
             Ok(_) => Ok(BlobFinalize::Written),
             Err(
@@ -324,8 +320,9 @@ impl S3Store {
     /// directory holding a `package.json`). Backs the local search
     /// endpoint when the hosted store lives in a bucket.
     pub async fn list_package_names(&self) -> Result<Vec<String>> {
-        let scope = (!self.prefix.is_empty())
-            .then(|| ObjectPath::from(self.prefix.trim_end_matches('/').to_string()));
+        let scope = (!self.prefix.is_empty()).then(|| {
+            ObjectPath::from(self.prefix.trim_end_matches('/').to_string())
+        });
         let mut listing = self.store.list(scope.as_ref());
         let mut names = Vec::new();
         while let Some(meta) = listing.next().await {
@@ -364,14 +361,12 @@ impl S3Store {
     }
 
     pub async fn create_record(&self, namespace: &str, key: &str, bytes: &[u8]) -> Result<bool> {
-        match self
-            .store
-            .put_opts(
-                &self.record_key(namespace, key),
-                PutPayload::from(bytes.to_vec()),
-                PutOptions { mode: PutMode::Create, ..PutOptions::default() },
-            )
-            .await
+        match self.store.put_opts(
+            &self.record_key(namespace, key),
+            PutPayload::from(bytes.to_vec()),
+            PutOptions { mode: PutMode::Create, ..PutOptions::default() },
+        )
+        .await
         {
             Ok(_) => Ok(true),
             Err(
@@ -409,14 +404,12 @@ impl S3Store {
         if result.bytes().await?.as_ref() != expected {
             return Ok(DocumentWrite::Conflict);
         }
-        match self
-            .store
-            .put_opts(
-                &key,
-                PutPayload::from(bytes.to_vec()),
-                PutOptions { mode: PutMode::Update(version), ..PutOptions::default() },
-            )
-            .await
+        match self.store.put_opts(
+            &key,
+            PutPayload::from(bytes.to_vec()),
+            PutOptions { mode: PutMode::Update(version), ..PutOptions::default() },
+        )
+        .await
         {
             Ok(_) => Ok(DocumentWrite::Written),
             Err(
@@ -444,8 +437,9 @@ impl S3Store {
             let meta = meta?;
             // `ObjectPath` normalizes what it is built from, so compare
             // against the same normalization rather than the raw prefix.
-            let Some(key) =
-                meta.location.as_ref().strip_prefix(ObjectPath::from(scope.as_str()).as_ref())
+            let Some(key) = meta.location
+                .as_ref()
+                .strip_prefix(ObjectPath::from(scope.as_str()).as_ref())
             else {
                 continue;
             };

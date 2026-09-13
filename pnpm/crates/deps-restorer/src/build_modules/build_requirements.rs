@@ -31,7 +31,10 @@ pub(super) fn patch_adds_build(
     patch_added_build: &HashMap<PackageKey, bool>,
     pkg_roots: PkgRoots<'_>,
 ) -> bool {
-    patch_added_build.get(&key.without_peer()).copied().unwrap_or(false)
+    patch_added_build
+        .get(&key.without_peer())
+        .copied()
+        .unwrap_or(false)
         && pkg_roots.canonical(key).is_some()
 }
 /// What [`requires_build_by_key`] reads to decide, per snapshot, whether
@@ -49,7 +52,13 @@ pub(super) struct RequiresBuildInputs<'a> {
 /// Whether each snapshot needs its build scripts run: what the package
 /// published, plus what its configured patch adds.
 pub(super) fn requires_build_by_key(inputs: RequiresBuildInputs<'_>) -> HashMap<PackageKey, bool> {
-    let RequiresBuildInputs { snapshots, skipped, pkg_roots, prefetched, patches } = inputs;
+    let RequiresBuildInputs {
+        snapshots,
+        skipped,
+        pkg_roots,
+        prefetched,
+        patches,
+    } = inputs;
     let published: HashMap<PackageKey, bool> = snapshots
         .keys()
         // Skip snapshots that never landed on disk. `pkg_requires_build`

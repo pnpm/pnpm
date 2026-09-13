@@ -65,7 +65,10 @@ fn wheel_of(dist_info: &str, metadata: &str) -> Vec<u8> {
         )
         .expect("start the metadata entry");
     archive.write_all(metadata.as_bytes()).expect("write the metadata entry");
-    archive.finish().expect("finish the wheel").into_inner()
+    archive
+        .finish()
+        .expect("finish the wheel")
+        .into_inner()
 }
 
 fn digest(bytes: &[u8]) -> String {
@@ -100,7 +103,10 @@ fn forget_cached_page(storage: &std::path::Path, suffix: &str) {
         }
         let Ok(bytes) = std::fs::read(entry.path()) else { continue };
         let Ok(document) = serde_json::from_slice::<Value>(&bytes) else { continue };
-        if document["url"].as_str().is_some_and(|url| url.ends_with(suffix)) {
+        if document["url"]
+            .as_str()
+            .is_some_and(|url| url.ends_with(suffix))
+        {
             std::fs::remove_file(entry.path()).expect("forget the cached page");
         }
     }
@@ -174,11 +180,10 @@ async fn a_project_resolves_from_the_metadata_files_an_index_publishes() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config
-        .routing
-        .route_policy
-        .public
-        .push(PublicRoute { registry: Some(index.url()), package: None });
+    config.routing.route_policy.public.push(PublicRoute {
+        registry: Some(index.url()),
+        package: None,
+    });
     let app = router_with_auth(config, auth);
 
     let response = app
@@ -229,11 +234,10 @@ async fn a_wheel_is_read_when_the_index_publishes_no_metadata_file() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config
-        .routing
-        .route_policy
-        .public
-        .push(PublicRoute { registry: Some(index.url()), package: None });
+    config.routing.route_policy.public.push(PublicRoute {
+        registry: Some(index.url()),
+        package: None,
+    });
     let app = router_with_auth(config, auth);
 
     let response = app
@@ -273,18 +277,23 @@ async fn a_second_resolve_reads_the_cached_index() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config
-        .routing
-        .route_policy
-        .public
-        .push(PublicRoute { registry: Some(index.url()), package: None });
+    config.routing.route_policy.public.push(PublicRoute {
+        registry: Some(index.url()),
+        package: None,
+    });
     let app = router_with_auth(config, auth);
     let index_url = format!("{}/simple/", index.url());
 
-    let first =
-        app.clone().oneshot(resolve_request(&index_url, &token, &json!(["demo"]))).await.unwrap();
+    let first = app
+        .clone()
+        .oneshot(resolve_request(&index_url, &token, &json!(["demo"])))
+        .await
+        .unwrap();
     let first = resolved_lockfile(first).await;
-    let second = app.oneshot(resolve_request(&index_url, &token, &json!(["demo"]))).await.unwrap();
+    let second = app
+        .oneshot(resolve_request(&index_url, &token, &json!(["demo"])))
+        .await
+        .unwrap();
     let second = resolved_lockfile(second).await;
 
     assert_eq!(first, second);
@@ -318,11 +327,10 @@ async fn a_metadata_file_that_is_not_what_the_index_vouched_for_is_refused() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config
-        .routing
-        .route_policy
-        .public
-        .push(PublicRoute { registry: Some(index.url()), package: None });
+    config.routing.route_policy.public.push(PublicRoute {
+        registry: Some(index.url()),
+        package: None,
+    });
     let app = router_with_auth(config, auth);
 
     let response = app
@@ -367,11 +375,10 @@ async fn metadata_describing_another_distribution_is_refused() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config
-        .routing
-        .route_policy
-        .public
-        .push(PublicRoute { registry: Some(index.url()), package: None });
+    config.routing.route_policy.public.push(PublicRoute {
+        registry: Some(index.url()),
+        package: None,
+    });
     let app = router_with_auth(config, auth);
 
     let response = app
@@ -382,7 +389,10 @@ async fn metadata_describing_another_distribution_is_refused() {
     let frames = frames(response.into_body()).await;
     assert_eq!(frames[0]["type"], "error", "{frames:?}");
     assert!(
-        frames[0]["message"].as_str().unwrap().contains("describes other 9.9.9, not demo 1.0.0"),
+        frames[0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("describes other 9.9.9, not demo 1.0.0"),
         "{frames:?}",
     );
 }
@@ -403,11 +413,10 @@ async fn a_project_page_that_is_not_one_is_not_cached() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config
-        .routing
-        .route_policy
-        .public
-        .push(PublicRoute { registry: Some(index.url()), package: None });
+    config.routing.route_policy.public.push(PublicRoute {
+        registry: Some(index.url()),
+        package: None,
+    });
     let app = router_with_auth(config, auth);
     let index_url = format!("{}/simple/", index.url());
 
@@ -452,11 +461,10 @@ async fn an_index_url_keeps_its_query_on_every_read() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config
-        .routing
-        .route_policy
-        .public
-        .push(PublicRoute { registry: Some(index.url()), package: None });
+    config.routing.route_policy.public.push(PublicRoute {
+        registry: Some(index.url()),
+        package: None,
+    });
     let app = router_with_auth(config, auth);
 
     let response = app
@@ -487,8 +495,12 @@ async fn cached_metadata_is_refused_once_the_index_publishes_another_digest() {
             "core-metadata": { "sha256": digest(digest_of.as_bytes()) },
         }]))
     };
-    let first_page =
-        index.mock("GET", "/simple/demo/").with_body(page(served)).expect(1).create_async().await;
+    let first_page = index
+        .mock("GET", "/simple/demo/")
+        .with_body(page(served))
+        .expect(1)
+        .create_async()
+        .await;
     let metadata = index
         .mock("GET", "/simple/demo/demo-1.0.0-py3-none-any.whl.metadata")
         .with_body(served)
@@ -500,16 +512,18 @@ async fn cached_metadata_is_refused_once_the_index_publishes_another_digest() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config
-        .routing
-        .route_policy
-        .public
-        .push(PublicRoute { registry: Some(index.url()), package: None });
+    config.routing.route_policy.public.push(PublicRoute {
+        registry: Some(index.url()),
+        package: None,
+    });
     let app = router_with_auth(config, auth);
     let index_url = format!("{}/simple/", index.url());
 
     resolved_lockfile(
-        app.clone().oneshot(resolve_request(&index_url, &token, &json!(["demo"]))).await.unwrap(),
+        app.clone()
+            .oneshot(resolve_request(&index_url, &token, &json!(["demo"])))
+            .await
+            .unwrap(),
     )
     .await;
     first_page.assert_async().await;
@@ -525,13 +539,18 @@ async fn cached_metadata_is_refused_once_the_index_publishes_another_digest() {
         .with_body(page("Name: demo\nVersion: 1.0.0\nRequires-Dist: added\n"))
         .create_async()
         .await;
-    let response =
-        app.oneshot(resolve_request(&index_url, &token, &json!(["demo"]))).await.unwrap();
+    let response = app
+        .oneshot(resolve_request(&index_url, &token, &json!(["demo"])))
+        .await
+        .unwrap();
 
     let frames = frames(response.into_body()).await;
     assert_eq!(frames[0]["type"], "error", "{frames:?}");
     assert!(
-        frames[0]["message"].as_str().unwrap().contains("does not match the SHA-256"),
+        frames[0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("does not match the SHA-256"),
         "{frames:?}",
     );
 }
@@ -570,26 +589,39 @@ async fn metadata_read_from_a_wheel_is_not_reused_for_the_wheel_that_replaces_it
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config
-        .routing
-        .route_policy
-        .public
-        .push(PublicRoute { registry: Some(index.url()), package: None });
+    config.routing.route_policy.public.push(PublicRoute {
+        registry: Some(index.url()),
+        package: None,
+    });
     let app = router_with_auth(config, auth);
     let index_url = format!("{}/simple/", index.url());
 
     let locked = resolved_lockfile(
-        app.clone().oneshot(resolve_request(&index_url, &token, &json!(["demo"]))).await.unwrap(),
+        app.clone()
+            .oneshot(resolve_request(&index_url, &token, &json!(["demo"])))
+            .await
+            .unwrap(),
     )
     .await;
-    assert_eq!(locked["packages"].as_array().unwrap().len(), 1, "{locked}");
+    assert_eq!(
+        locked["packages"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1,
+        "{locked}",
+    );
     first_page.assert_async().await;
     first_wheel.assert_async().await;
 
     // Drop the cached project page, as its TTL passing would. The index now
     // serves another wheel at the address the metadata was read from.
     forget_cached_page(tmp.path(), "/simple/demo/");
-    index.mock("GET", "/simple/demo/").with_body(demo_page(&second)).create_async().await;
+    index
+        .mock("GET", "/simple/demo/")
+        .with_body(demo_page(&second))
+        .create_async()
+        .await;
     index
         .mock("GET", "/simple/demo/demo-1.0.0-py3-none-any.whl")
         .with_body(&second)
@@ -607,11 +639,15 @@ async fn metadata_read_from_a_wheel_is_not_reused_for_the_wheel_that_replaces_it
         .await;
 
     let locked = resolved_lockfile(
-        app.oneshot(resolve_request(&index_url, &token, &json!(["demo"]))).await.unwrap(),
+        app.oneshot(resolve_request(&index_url, &token, &json!(["demo"]))).await
+            .unwrap(),
     )
     .await;
     let locked = locked["packages"].as_array().unwrap();
-    let names = locked.iter().map(|package| package["name"].as_str().unwrap()).collect::<Vec<_>>();
+    let names = locked
+        .iter()
+        .map(|package| package["name"].as_str().unwrap())
+        .collect::<Vec<_>>();
     assert_eq!(names, ["demo", "later"], "{locked:?}");
 }
 
@@ -634,11 +670,10 @@ async fn an_unsatisfiable_project_is_reported_as_one() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config
-        .routing
-        .route_policy
-        .public
-        .push(PublicRoute { registry: Some(index.url()), package: None });
+    config.routing.route_policy.public.push(PublicRoute {
+        registry: Some(index.url()),
+        package: None,
+    });
     let app = router_with_auth(config, auth);
 
     let response = app
@@ -649,7 +684,13 @@ async fn an_unsatisfiable_project_is_reported_as_one() {
     assert_eq!(response.status(), StatusCode::OK);
     let frames = frames(response.into_body()).await;
     assert_eq!(frames[0]["type"], "error", "{frames:?}");
-    assert!(frames[0]["message"].as_str().unwrap().contains("resolution failed"), "{frames:?}");
+    assert!(
+        frames[0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("resolution failed"),
+        "{frames:?}",
+    );
 }
 
 #[tokio::test]
@@ -675,11 +716,10 @@ async fn a_requirement_naming_a_url_is_refused() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config
-        .routing
-        .route_policy
-        .public
-        .push(PublicRoute { registry: Some(index.url()), package: None });
+    config.routing.route_policy.public.push(PublicRoute {
+        registry: Some(index.url()),
+        package: None,
+    });
     let app = router_with_auth(config, auth);
 
     let response = app

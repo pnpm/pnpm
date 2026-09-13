@@ -57,10 +57,9 @@ impl<'a> FrozenInputs<'a> {
         IncludedDependencies {
             dependencies: self.projects.dependency_groups.contains(&DependencyGroup::Prod),
             dev_dependencies: self.projects.dependency_groups.contains(&DependencyGroup::Dev),
-            optional_dependencies: self
-                .projects
-                .dependency_groups
-                .contains(&DependencyGroup::Optional),
+            optional_dependencies: self.projects.dependency_groups.contains(
+                &DependencyGroup::Optional,
+            ),
         }
     }
 
@@ -78,8 +77,12 @@ impl<'a> FrozenInputs<'a> {
                     project_dir,
                 )
             };
-        let trusted_importer_ids: std::collections::HashSet<String> =
-            install.projects.manifests.iter().map(importer_id).collect();
+        let trusted_importer_ids: std::collections::HashSet<String> = install
+            .projects
+            .manifests
+            .iter()
+            .map(importer_id)
+            .collect();
         let root_component_importers: std::collections::HashSet<String> = install
             .projects
             .manifests

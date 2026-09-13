@@ -84,12 +84,13 @@ impl PickPolicy {
         let full_metadata = config.requires_full_metadata_for_resolution();
         // On overflow we leave the policy inactive for this run — better
         // than silently producing a cutoff in the wrong direction.
-        let published_by = config.resolved_minimum_release_age().and_then(|minutes| {
-            let duration = chrono::Duration::try_minutes(i64::try_from(minutes).ok()?)?;
-            now.checked_sub_signed(duration)
-        });
-        let published_by_exclude = config
-            .minimum_release_age_exclude
+        let published_by = config
+            .resolved_minimum_release_age()
+            .and_then(|minutes| {
+                let duration = chrono::Duration::try_minutes(i64::try_from(minutes).ok()?)?;
+                now.checked_sub_signed(duration)
+            });
+        let published_by_exclude = config.minimum_release_age_exclude
             .as_deref()
             .filter(|patterns| !patterns.is_empty())
             .map(create_package_version_policy)
@@ -119,10 +120,17 @@ pub fn create_configured_npm_resolver(
     http_client: Arc<ThrottledClient>,
     policy: &PickPolicy,
 ) -> Result<NpmResolver<InMemoryPackageMetaCache>, MergeNamedRegistriesError> {
-    let registries_by_prefix =
-        merge_named_registries(&config.registries_by_prefix.clone().into_iter().collect())?;
+    let registries_by_prefix = merge_named_registries(
+        &config.registries_by_prefix
+            .clone()
+            .into_iter()
+            .collect(),
+    )?;
     Ok(NpmResolver {
-        registries: config.resolved_registries().into_iter().collect(),
+        registries: config
+            .resolved_registries()
+            .into_iter()
+            .collect(),
         registries_by_prefix,
         metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
             http_client,

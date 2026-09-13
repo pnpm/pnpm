@@ -98,8 +98,7 @@ pub(super) fn materialized_script_projects<'a>(
     if inputs.config.ignore_scripts || inputs.config.virtual_store_only {
         Vec::new()
     } else if let Some(rebuild) = inputs.request.rebuild {
-        inputs
-            .materialized_project_manifests
+        inputs.materialized_project_manifests
             .iter()
             .filter(|(project_dir, _)| {
                 let importer_id =
@@ -161,10 +160,9 @@ pub(super) fn report_install_completion<Reporter: self::Reporter>(
     // throwaway per-group directory, and the approval prompt that
     // follows it records the ignored builds against the stable global
     // packages dir instead.
-    let is_global_install =
-        inputs.workspace.config.global_pkg_dir.as_deref().is_some_and(|global_pkg_dir| {
-            inputs.workspace.workspace_root.starts_with(global_pkg_dir)
-        });
+    let is_global_install = inputs.workspace.config.global_pkg_dir
+        .as_deref()
+        .is_some_and(|global_pkg_dir| inputs.workspace.workspace_root.starts_with(global_pkg_dir));
     // Leave the user a line to edit in `pnpm-workspace.yaml` for every
     // build this install blocked, so approving one is an edit rather
     // than recalling the `allowBuilds` shape. Written before the strict
@@ -175,8 +173,7 @@ pub(super) fn report_install_completion<Reporter: self::Reporter>(
         && !is_global_install
         && !inputs.workspace.config.ignore_workspace
     {
-        let allow_build_keys: BTreeSet<String> = inputs
-            .ignored_builds
+        let allow_build_keys: BTreeSet<String> = inputs.ignored_builds
             .iter()
             .map(|dep_path| crate::allow_build_key_from_ignored_build(dep_path))
             .collect();

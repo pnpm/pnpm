@@ -73,15 +73,18 @@ impl RemoteUploadStore {
             version: result.meta.version.clone(),
         };
         let record: UploadRecord = serde_json::from_slice(&result.bytes().await?)?;
-        if record.chunks.len() > MAX_CHUNKS || record.chunks.iter().any(|id| !is_upload_id(id)) {
+        if record.chunks.len() > MAX_CHUNKS
+            || record.chunks
+                .iter()
+                .any(|id| !is_upload_id(id))
+        {
             return Err(RegistryError::Internal { reason: "invalid upload chunk list".into() });
         }
         Ok(Some(VersionedRecord { record, version }))
     }
 
     async fn write(&self, id: &str, record: &UploadRecord, mode: PutMode) -> Result<UpdateVersion> {
-        let result = self
-            .store
+        let result = self.store
             .put_opts(
                 &self.key(id, "session.json"),
                 serde_json::to_vec(record)?.into(),
@@ -335,8 +338,10 @@ impl RemoteUpload {
         }
         let mut file = fs::File::create(path).await?;
         for chunk in &state.record.chunks {
-            let mut stream =
-                self.backend.store.get(&self.backend.key(&self.id, chunk)).await?.into_stream();
+            let mut stream = self.backend.store
+                .get(&self.backend.key(&self.id, chunk))
+                .await?
+                .into_stream();
             while let Some(bytes) = stream.next().await {
                 file.write_all(&bytes?).await?;
             }
@@ -350,7 +355,9 @@ impl RemoteUpload {
     pub(super) async fn prepare_completion(&self, filename: &str) -> Result<()> {
         let mut state = self.state.lock().await;
         if state.record.closed
-            || state.record.completion.as_deref().is_some_and(|value| value != filename)
+            || state.record.completion
+                .as_deref()
+                .is_some_and(|value| value != filename)
         {
             return Err(RegistryError::BlobUploadConflict { id: self.id.clone() });
         }
@@ -380,9 +387,9 @@ impl RemoteChunk {
     pub(super) async fn commit(mut self, size: u64) -> Result<u64> {
         if size == 0 {
             let current = self.upload.backend.read(&self.upload.id).await?;
-            if current
-                .is_none_or(|current| current.record.closed || current.version != self.version)
-            {
+            if current.is_none_or(|current| {
+                current.record.closed || current.version != self.version
+            }) {
                 return Err(RegistryError::BlobUploadConflict { id: self.upload.id.clone() });
             }
             return Ok(self.snapshot.size);
@@ -398,17 +405,17 @@ impl RemoteChunk {
         let mut multipart = self.upload.backend.store.put_multipart(&key).await?;
         send_parts(&self.path, multipart.as_mut()).await?;
         self.snapshot.chunks.push(chunk);
-        self.snapshot.size =
-            self.snapshot.size.checked_add(size).ok_or_else(|| RegistryError::BadRequest {
-                reason: "upload size overflow".into(),
-            })?;
+        self.snapshot.size = self.snapshot.size
+            .checked_add(size)
+            .ok_or_else(|| RegistryError::BadRequest { reason: "upload size overflow".into() })?;
         // An uncertain write may have committed. Leave its chunk until session
         // expiry, when no append can make the chunk reachable anymore.
-        let version = self
-            .upload
-            .backend
-            .write(&self.upload.id, &self.snapshot, PutMode::Update(self.version))
-            .await?;
+        let version = self.upload.backend.write(
+            &self.upload.id,
+            &self.snapshot,
+            PutMode::Update(self.version),
+        )
+        .await?;
         let offset = self.snapshot.size;
         *self.upload.state.lock().await = VersionedRecord { record: self.snapshot, version };
         Ok(offset)

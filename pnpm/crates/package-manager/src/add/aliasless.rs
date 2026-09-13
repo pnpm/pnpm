@@ -201,7 +201,8 @@ pub(super) fn url_token_len(text: &str) -> usize {
             character.is_whitespace() || matches!(character, ')' | ']' | '"' | '\'')
         })
         .unwrap_or(text.len());
-    text.find(": ").map_or(wrapped, |punctuated| wrapped.min(punctuated))
+    text.find(": ")
+        .map_or(wrapped, |punctuated| wrapped.min(punctuated))
 }
 /// One URL token cut at its query or fragment, or `[hidden]` when the cut
 /// would leave credential material behind.
@@ -213,12 +214,17 @@ pub(super) fn url_token_len(text: &str) -> usize {
 /// *uncut* token: any `@` still in front of the path means the userinfo
 /// survived, and the token fails closed instead.
 pub(super) fn redact_url_token(token: &str) -> String {
-    let after_scheme = token.find("://").map_or(token, |pos| &token[pos + "://".len()..]);
+    let after_scheme = token
+        .find("://")
+        .map_or(token, |pos| &token[pos + "://".len()..]);
     let authority = &after_scheme[..after_scheme.find('/').unwrap_or(after_scheme.len())];
     if authority.contains('@') {
         return "[hidden]".to_string();
     }
-    token[..token.find(['?', '#']).unwrap_or(token.len())].to_string()
+    token[..token
+        .find(['?', '#'])
+        .unwrap_or(token.len())]
+        .to_string()
 }
 /// The display-safe form of an alias-less selector, which may be a local
 /// path or a URL. A URL loses its credentials, query, and fragment; a path
@@ -276,9 +282,7 @@ pub(super) async fn resolve_aliasless_git(
         Err(source) => AddError::ResolveGit { specifier: redact_and_sanitize(specifier), source },
     })?
     .ok_or_else(|| AddError::GitPackageName { specifier: redact_and_sanitize(specifier) })?;
-    let package_name = result
-        .package
-        .manifest
+    let package_name = result.package.manifest
         .as_ref()
         .and_then(|manifest| manifest.get("name"))
         .and_then(serde_json::Value::as_str)

@@ -34,7 +34,9 @@ pub fn url_scoped_creds_do_not_warn() {
     let warnings = capture_warnings(|| drop(load_with_project_and_user("", user_file)));
 
     assert!(
-        !warnings.iter().any(|warning| warning.contains("Unscoped per-registry settings")),
+        !warnings
+            .iter()
+            .any(|warning| warning.contains("Unscoped per-registry settings")),
         "{warnings:?} should not contain a deprecation warning",
     );
 }

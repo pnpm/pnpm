@@ -119,7 +119,12 @@ fn patch_remove_rejects_traversal_before_deleting_any_patch() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("ERR_PNPM_PATCH_FILE_OUTSIDE_PATCHES_DIR"), "stderr: {stderr}");
     assert!(workspace.join("patches/good.patch").exists(), "good patch must remain");
-    assert!(root.path().join("outside.patch").exists(), "outside patch must remain");
+    assert!(
+        root.path()
+            .join("outside.patch")
+            .exists(),
+        "outside patch must remain",
+    );
 
     drop((root, mock_instance));
 }
@@ -170,7 +175,10 @@ fn patch_remove_rejects_parent_symlink_outside_patches_dir_before_unlinking_targ
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("ERR_PNPM_PATCH_FILE_OUTSIDE_PATCHES_DIR"), "stderr: {stderr}");
     assert!(
-        fs::symlink_metadata(&outside_link).expect("outside link").file_type().is_symlink(),
+        fs::symlink_metadata(&outside_link)
+            .expect("outside link")
+            .file_type()
+            .is_symlink(),
         "outside symlink target must remain",
     );
 

@@ -40,7 +40,11 @@ async fn integrity_of(
         bare_specifier: Some(version.to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
     match result.resolution {
         LockfileResolution::Tarball(tarball) => tarball.integrity.unwrap().to_string(),
         LockfileResolution::Registry(registry) => registry.integrity.to_string(),
@@ -61,7 +65,11 @@ async fn tarball_url_of(
         bare_specifier: Some(version.to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
     match result.resolution {
         LockfileResolution::Tarball(tarball) => tarball.tarball,
         other => panic!("unexpected resolution: {other:?}"),
@@ -182,8 +190,14 @@ impl FixtureResolver {
     }
 
     fn package(mut self, manifest: serde_json::Value) -> Self {
-        let name = manifest["name"].as_str().expect("fixture package name").to_string();
-        let version = manifest["version"].as_str().expect("fixture package version").to_string();
+        let name = manifest["name"]
+            .as_str()
+            .expect("fixture package name")
+            .to_string();
+        let version = manifest["version"]
+            .as_str()
+            .expect("fixture package version")
+            .to_string();
         self.packages.insert((name, version), manifest);
         self
     }
@@ -207,14 +221,20 @@ impl Resolver for FixtureResolver {
             let Some(specifier) = wanted_dependency.bare_specifier.as_deref() else {
                 return Ok(None);
             };
-            let Some(manifest) =
-                self.packages.get(&(alias.to_string(), specifier.to_string())).cloned()
+            let Some(manifest) = self.packages
+                .get(&(alias.to_string(), specifier.to_string()))
+                .cloned()
             else {
                 return Ok(None);
             };
-            let name = manifest["name"].as_str().expect("fixture package name").to_string();
-            let version =
-                manifest["version"].as_str().expect("fixture package version").to_string();
+            let name = manifest["name"]
+                .as_str()
+                .expect("fixture package name")
+                .to_string();
+            let version = manifest["version"]
+                .as_str()
+                .expect("fixture package version")
+                .to_string();
             let id = format!("{name}@{version}");
             Ok(Some(ResolveResult {
                 id: PkgResolutionId::from(id.as_str()),

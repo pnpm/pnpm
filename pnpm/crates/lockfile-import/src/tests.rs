@@ -14,11 +14,17 @@ fn write(dir: &Path, name: &str, contents: &str) {
 }
 
 fn code_of(error: &ImportLockfileError) -> String {
-    error.code().expect("error carries a code").to_string()
+    error
+        .code()
+        .expect("error carries a code")
+        .to_string()
 }
 
 fn names(versions: &VersionsByPackageName) -> Vec<&str> {
-    versions.keys().map(String::as_str).collect()
+    versions
+        .keys()
+        .map(String::as_str)
+        .collect()
 }
 
 #[test]
@@ -122,7 +128,10 @@ fn every_collected_version_becomes_a_plain_version_selector() {
     let preferred_versions = to_preferred_versions(&versions);
 
     assert_eq!(
-        preferred_versions.keys().map(String::as_str).collect::<Vec<_>>(),
+        preferred_versions
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
         vec!["is-negative", "is-positive"],
     );
     assert_eq!(

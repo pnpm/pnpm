@@ -54,8 +54,7 @@ pub fn json_env_env_scoped_wins_over_workspace_yaml_scoped() {
         Some("https://registry.npmjs.org/"),
     );
     assert_eq!(
-        config
-            .auth_headers
+        config.auth_headers
             .for_url_with_package(
                 "https://registry.npmjs.org/@victim-scope/foo",
                 Some("@victim-scope/foo")
@@ -337,8 +336,14 @@ pub fn gvs_enabled_exposes_hoisted_dependencies_through_node_path_and_the_esm_lo
         config.extra_env.get("NODE_PATH"),
         Some(&format!(
             "{}{path_delimiter}{}",
-            tmp.path().join("node_modules").join(".pnpm").join("node_modules").display(),
-            tmp.path().join("node_modules").display(),
+            tmp.path()
+                .join("node_modules")
+                .join(".pnpm")
+                .join("node_modules")
+                .display(),
+            tmp.path()
+                .join("node_modules")
+                .display(),
         )),
     );
     let node_options = config.extra_env.get("NODE_OPTIONS").expect("NODE_OPTIONS is injected");
@@ -362,7 +367,12 @@ pub fn prefer_symlinked_executables_node_path_anchors_at_the_workspace_root() {
     let config = Config::new().current::<HostNoHome>(&pkg_dir).expect("yaml is valid");
     assert_eq!(
         config.extra_env.get("NODE_PATH"),
-        Some(&tmp.path().join("node_modules/.pnpm/node_modules").display().to_string()),
+        Some(
+            &tmp.path()
+                .join("node_modules/.pnpm/node_modules")
+                .display()
+                .to_string()
+        ),
     );
 }
 
@@ -483,7 +493,14 @@ pub fn npm_config_workspace_dir_re_anchors_modules() {
     let env_workspace = tempdir().unwrap();
     let cwd_dir = tempdir().unwrap();
     static ENV_WORKSPACE_PATH: std::sync::OnceLock<OsString> = std::sync::OnceLock::new();
-    ENV_WORKSPACE_PATH.set(env_workspace.path().as_os_str().to_owned()).expect("set once");
+    ENV_WORKSPACE_PATH
+        .set(
+            env_workspace
+                .path()
+                .as_os_str()
+                .to_owned(),
+        )
+        .expect("set once");
     struct HostWithEnvWorkspaceDir;
     impl EnvVar for HostWithEnvWorkspaceDir {
         fn var(name: &str) -> Option<String> {
@@ -492,8 +509,12 @@ pub fn npm_config_workspace_dir_re_anchors_modules() {
     }
     impl EnvVarOs for HostWithEnvWorkspaceDir {
         fn var_os(name: &str) -> Option<OsString> {
-            (name == "NPM_CONFIG_WORKSPACE_DIR")
-                .then(|| ENV_WORKSPACE_PATH.get().expect("ENV_WORKSPACE_PATH initialised").clone())
+            (name == "NPM_CONFIG_WORKSPACE_DIR").then(|| {
+                ENV_WORKSPACE_PATH
+                    .get()
+                    .expect("ENV_WORKSPACE_PATH initialised")
+                    .clone()
+            })
         }
     }
     impl GetHomeDir for HostWithEnvWorkspaceDir {
@@ -537,8 +558,9 @@ pub fn empty_npm_config_workspace_dir_falls_through() {
     }
     impl EnvVarOs for HostWithEmptyEnvWorkspaceDir {
         fn var_os(name: &str) -> Option<OsString> {
-            matches!(name, "NPM_CONFIG_WORKSPACE_DIR" | "npm_config_workspace_dir")
-                .then(OsString::new)
+            matches!(name, "NPM_CONFIG_WORKSPACE_DIR" | "npm_config_workspace_dir").then(
+                OsString::new,
+            )
         }
     }
     impl GetHomeDir for HostWithEmptyEnvWorkspaceDir {
@@ -600,13 +622,17 @@ pub fn pnpm_workspace_yaml_overrides_global_config_yaml() {
         .expect("write to pnpm-workspace.yaml");
 
     static XDG_CONFIG_HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-    XDG_CONFIG_HOME_PATH.set(xdg.path().to_path_buf()).expect("set once");
+    XDG_CONFIG_HOME_PATH
+        .set(xdg.path().to_path_buf())
+        .expect("set once");
 
     struct HostWithXdgConfigHome;
     impl EnvVar for HostWithXdgConfigHome {
         fn var(name: &str) -> Option<String> {
             if name == "XDG_CONFIG_HOME" {
-                return XDG_CONFIG_HOME_PATH.get().map(|path| path.to_string_lossy().into_owned());
+                return XDG_CONFIG_HOME_PATH
+                    .get()
+                    .map(|path| path.to_string_lossy().into_owned());
             }
             safe_host_var(name)
         }
@@ -658,13 +684,17 @@ pub fn global_virtual_store_dir_survives_workspace_yaml_anchor() {
         .expect("write workspace yaml");
 
     static XDG_CONFIG_HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-    XDG_CONFIG_HOME_PATH.set(xdg.path().to_path_buf()).expect("set once");
+    XDG_CONFIG_HOME_PATH
+        .set(xdg.path().to_path_buf())
+        .expect("set once");
 
     struct HostWithXdgConfigHome;
     impl EnvVar for HostWithXdgConfigHome {
         fn var(name: &str) -> Option<String> {
             if name == "XDG_CONFIG_HOME" {
-                return XDG_CONFIG_HOME_PATH.get().map(|path| path.to_string_lossy().into_owned());
+                return XDG_CONFIG_HOME_PATH
+                    .get()
+                    .map(|path| path.to_string_lossy().into_owned());
             }
             safe_host_var(name)
         }
@@ -709,13 +739,17 @@ pub fn global_config_yaml_workspace_only_keys_are_ignored() {
     .expect("write to global config.yaml");
 
     static XDG_CONFIG_HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-    XDG_CONFIG_HOME_PATH.set(xdg.path().to_path_buf()).expect("set once");
+    XDG_CONFIG_HOME_PATH
+        .set(xdg.path().to_path_buf())
+        .expect("set once");
 
     struct HostWithXdgConfigHome;
     impl EnvVar for HostWithXdgConfigHome {
         fn var(name: &str) -> Option<String> {
             if name == "XDG_CONFIG_HOME" {
-                return XDG_CONFIG_HOME_PATH.get().map(|path| path.to_string_lossy().into_owned());
+                return XDG_CONFIG_HOME_PATH
+                    .get()
+                    .map(|path| path.to_string_lossy().into_owned());
             }
             safe_host_var(name)
         }

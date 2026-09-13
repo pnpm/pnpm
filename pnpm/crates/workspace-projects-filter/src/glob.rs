@@ -33,7 +33,10 @@ pub struct DirGlob {
 impl DirGlob {
     pub fn new(pattern: &str) -> Self {
         let normalized = normalize(pattern);
-        let segments = normalized.split('/').map(Segment::parse).collect();
+        let segments = normalized
+            .split('/')
+            .map(Segment::parse)
+            .collect();
         DirGlob { normalized, segments }
     }
 
@@ -150,7 +153,11 @@ impl CharClass {
             }
             // `a-c` is a range; a `-` that ends the expression is a member.
             match chars.get(index + 1) {
-                Some('-') if chars.get(index + 2).is_some_and(|&end| end != ']') => {
+                Some('-')
+                    if chars
+                        .get(index + 2)
+                        .is_some_and(|&end| end != ']') =>
+                {
                     members.push(ClassMember::Range(character, chars[index + 2]));
                     index += 3;
                 }
@@ -164,10 +171,12 @@ impl CharClass {
     }
 
     fn matches(&self, character: char) -> bool {
-        let contains = self.members.iter().any(|member| match *member {
-            ClassMember::Char(member) => member == character,
-            ClassMember::Range(start, end) => (start..=end).contains(&character),
-        });
+        let contains = self.members
+            .iter()
+            .any(|member| match *member {
+                ClassMember::Char(member) => member == character,
+                ClassMember::Range(start, end) => (start..=end).contains(&character),
+            });
         contains != self.negated
     }
 }

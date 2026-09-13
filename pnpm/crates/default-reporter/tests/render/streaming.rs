@@ -119,7 +119,12 @@ fn append_only_streams_each_lifecycle_output_line() {
         }
     }
 
-    assert!(lines.iter().any(|line| line.contains("downloading the binary")), "lines: {lines:#?}");
+    assert!(
+        lines
+            .iter()
+            .any(|line| line.contains("downloading the binary")),
+        "lines: {lines:#?}",
+    );
 }
 
 /// `hideLifecycleOutput` keeps the script's output in its collapsed block
@@ -143,7 +148,12 @@ fn hide_lifecycle_output_stops_the_streaming_even_under_append_only() {
         }
     }
 
-    assert!(!lines.iter().any(|line| line.contains("downloading the binary")), "lines: {lines:#?}");
+    assert!(
+        !lines
+            .iter()
+            .any(|line| line.contains("downloading the binary")),
+        "lines: {lines:#?}",
+    );
 }
 
 /// Port of upstream's `groups lifecycle output when streamLifecycleOutput

@@ -12,7 +12,9 @@ fn input(hash: &str) -> PatchInput {
 }
 
 fn entries(keys: &[&str]) -> Vec<(String, PatchInput)> {
-    keys.iter().map(|key| (key.to_string(), input(ZERO_HASH))).collect()
+    keys.iter()
+        .map(|key| (key.to_string(), input(ZERO_HASH)))
+        .collect()
 }
 
 #[test]
@@ -33,8 +35,10 @@ fn all_keys_yields_every_configured_key() {
 #[test]
 fn no_unused_patches_returns_ok_none() {
     let groups = group_patched_dependencies(entries(&["foo@1.0.0", "bar"])).unwrap();
-    let applied: HashSet<String> =
-        ["foo@1.0.0", "bar"].iter().map(std::string::ToString::to_string).collect();
+    let applied: HashSet<String> = ["foo@1.0.0", "bar"]
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect();
     assert_eq!(verify_patches(&groups, &applied, false).unwrap(), None);
 }
 

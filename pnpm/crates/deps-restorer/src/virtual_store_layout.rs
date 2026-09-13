@@ -505,12 +505,10 @@ pub fn collect_injected_deps(
             continue;
         }
         let source = path.strip_prefix("./").unwrap_or(path);
-        injected.entry(source.to_string()).or_default().extend(injected_targets(
-            layout,
-            lockfile_dir,
-            key,
-            hoisted_locations,
-        ));
+        injected
+            .entry(source.to_string())
+            .or_default()
+            .extend(injected_targets(layout, lockfile_dir, key, hoisted_locations));
     }
     // A source project whose every snapshot contributed no target
     // (e.g. hoisted entries the walker never placed) would round-trip
@@ -536,12 +534,18 @@ fn injected_targets(
     // Hoisted linker: the walker already recorded every
     // lockfile-relative dir this depPath was placed at.
     if let Some(locations) = hoisted_locations {
-        return locations.get(&key.to_string()).cloned().unwrap_or_default();
+        return locations
+            .get(&key.to_string())
+            .cloned()
+            .unwrap_or_default();
     }
     // Isolated linker: one virtual-store slot per snapshot. The
     // separator normalization matches the `hoistedLocations` entries the
     // hoisted branch reuses (see `path_relative_to_lockfile_dir`).
-    let target = layout.slot_dir(key).join("node_modules").join(key.name.to_string());
+    let target = layout
+        .slot_dir(key)
+        .join("node_modules")
+        .join(key.name.to_string());
     let target = match target.strip_prefix(lockfile_dir) {
         Ok(relative) => relative.to_path_buf(),
         Err(_) => target,

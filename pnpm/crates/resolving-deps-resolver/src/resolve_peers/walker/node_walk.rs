@@ -163,13 +163,18 @@ impl Walker<'_> {
             missing_from_children: &walked.outputs.missing_peers,
         });
         walked.outputs.auto_install_resolved_peers.extend(
-            peers
-                .own_resolved
+            peers.own_resolved
                 .iter()
                 .map(|(peer_name, peer_node_id)| (peer_name.clone(), peer_node_id.clone())),
         );
         let own_missing = (!walked.outputs.missing_peers.is_empty()).then(|| {
-            (entry.pkg.id.to_string(), walked.outputs.missing_peers.keys().cloned().collect())
+            (
+                entry.pkg.id.to_string(),
+                walked.outputs.missing_peers
+                    .keys()
+                    .cloned()
+                    .collect(),
+            )
         });
         let subtree_missing_by_pkg = match (own_missing, walked.outputs.missing_summaries.len()) {
             (None, 0) => None,
@@ -310,13 +315,12 @@ impl Walker<'_> {
             ));
         }
         let dep_path = self.caches.pure_pkgs.get(&*tree_node.resolved_package_id)?;
-        let own_peers_bind =
-            !self.tree.packages[&tree_node.resolved_package_id].peer_dependencies.is_empty();
+        let own_peers_bind = !self.tree.packages[&tree_node.resolved_package_id]
+            .peer_dependencies
+            .is_empty();
         if own_peers_bind
             || (!self.traversal.discovery
-                && self
-                    .output
-                    .graph
+                && self.output.graph
                     .get(dep_path)
                     .is_none_or(|graph_node| graph_node.depth > tree_node.depth))
         {
@@ -357,9 +361,10 @@ impl Walker<'_> {
         for child_node_id in
             new_parent_refs.values().filter_map(|parent_ref| parent_ref.node_id.as_ref())
         {
-            self.caches
-                .parent_pkgs_of_node
-                .insert(child_node_id.clone(), Arc::clone(&parent_dep_paths));
+            self.caches.parent_pkgs_of_node.insert(
+                child_node_id.clone(),
+                Arc::clone(&parent_dep_paths),
+            );
         }
         parent_dep_paths
     }

@@ -40,12 +40,16 @@ fn allow_build_rejects_an_argument_that_names_no_package() {
         let err = apply_allow_build(&mut config, allow_build, dir.path())
             .expect_err("an empty package name is rejected");
         assert_eq!(
-            err.code().map(|code| code.to_string()).as_deref(),
+            err.code()
+                .map(|code| code.to_string())
+                .as_deref(),
             Some("ERR_PNPM_ALLOW_BUILD_MISSING_PACKAGE"),
         );
         assert!(config.allow_builds.is_empty());
         assert!(
-            !dir.path().join("pnpm-workspace.yaml").exists(),
+            !dir.path()
+                .join("pnpm-workspace.yaml")
+                .exists(),
             "a rejected apply persists nothing",
         );
     }
@@ -60,10 +64,17 @@ fn allow_build_rejects_a_package_the_root_disallows() {
     let err = apply_allow_build(&mut config, &["esbuild".to_string()], dir.path())
         .expect_err("disallowed package is rejected");
     assert_eq!(
-        err.code().map(|code| code.to_string()).as_deref(),
+        err.code()
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_OVERRIDING_IGNORED_BUILT_DEPENDENCIES"),
     );
-    assert!(!dir.path().join("pnpm-workspace.yaml").exists(), "a rejected apply persists nothing");
+    assert!(
+        !dir.path()
+            .join("pnpm-workspace.yaml")
+            .exists(),
+        "a rejected apply persists nothing",
+    );
 }
 
 #[test]
@@ -72,7 +83,11 @@ fn allow_build_is_a_noop_when_empty() {
     let mut config = Config::default();
     apply_allow_build(&mut config, &[], dir.path()).expect("empty allow-build is a no-op");
     assert!(config.allow_builds.is_empty());
-    assert!(!dir.path().join("pnpm-workspace.yaml").exists());
+    assert!(
+        !dir.path()
+            .join("pnpm-workspace.yaml")
+            .exists(),
+    );
 }
 
 #[test]
@@ -213,7 +228,10 @@ fn save_build_rejects_mixed_packages_and_conflicting_cargo_targets() {
 }
 
 fn workspace_packages(names: &[&str]) -> pnpm_resolving_resolver_base::WorkspacePackages {
-    names.iter().map(|name| (name.to_string(), std::collections::BTreeMap::default())).collect()
+    names
+        .iter()
+        .map(|name| (name.to_string(), std::collections::BTreeMap::default()))
+        .collect()
 }
 
 #[test]

@@ -45,10 +45,13 @@ const ABBREVIATED_META_CONTENT_TYPE: &str = "application/vnd.npm.install-v1+json
 /// media type. Parameters (`; charset=utf-8`) are dropped and the comparison
 /// is case-insensitive (RFC 9110 §8.3.1).
 pub(crate) fn is_abbreviated_content_type(headers: &header::HeaderMap) -> bool {
-    headers.get(header::CONTENT_TYPE).and_then(|value| value.to_str().ok()).is_some_and(|value| {
-        let media_type = value.split_once(';').map_or(value, |(media_type, _)| media_type);
-        media_type.trim().eq_ignore_ascii_case(ABBREVIATED_META_CONTENT_TYPE)
-    })
+    headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| {
+            let media_type = value.split_once(';').map_or(value, |(media_type, _)| media_type);
+            media_type.trim().eq_ignore_ascii_case(ABBREVIATED_META_CONTENT_TYPE)
+        })
 }
 
 /// Options bundle for [`fetch_full_metadata`]. The cached variant
@@ -168,7 +171,9 @@ impl<'a> Validators<'a> {
         }
         Validators {
             etag: opts.etag.filter(|value| !value.is_empty()),
-            modified: opts.modified.filter(|value| !value.is_empty()).and_then(to_http_date),
+            modified: opts.modified
+                .filter(|value| !value.is_empty())
+                .and_then(to_http_date),
         }
     }
 
@@ -248,15 +253,21 @@ pub async fn fetch_full_metadata(
         if response.status() == StatusCode::NOT_MODIFIED {
             return Ok(FetchFullMetadataOutcome::NotModified);
         }
-        let response = response.error_for_status().map_err(|error| {
-            FetchMetadataError::Network { url: redact_url_credentials(&url), error }
-        })?;
+        let response = response
+            .error_for_status()
+            .map_err(|error| FetchMetadataError::Network {
+                url: redact_url_credentials(&url),
+                error,
+            })?;
         let normalize_to_abbreviated =
             !opts.full_metadata && !is_abbreviated_content_type(response.headers());
-        let raw_body = response.text().await.map_err(|error| FetchMetadataError::BodyRead {
-            url: redact_url_credentials(&url),
-            error,
-        })?;
+        let raw_body = response
+            .text()
+            .await
+            .map_err(|error| FetchMetadataError::BodyRead {
+                url: redact_url_credentials(&url),
+                error,
+            })?;
         // Body fully buffered — release the connection and its
         // network-concurrency permit, then parse off the reactor: a
         // multi-MB packument parse would otherwise pin a tokio worker
@@ -317,9 +328,11 @@ async fn decode_full_metadata(
     let task_url = url.to_string();
     let (meta, elapsed) =
         tokio::task::spawn_blocking(move || -> Result<(Package, Duration), FetchMetadataError> {
-            let mut meta = serde_json::from_str::<Package>(&raw_body).map_err(|error| {
-                FetchMetadataError::Decode { url: redact_url_credentials(&task_url), error }
-            })?;
+            let mut meta = serde_json::from_str::<Package>(&raw_body)
+                .map_err(|error| FetchMetadataError::Decode {
+                    url: redact_url_credentials(&task_url),
+                    error,
+                })?;
             meta.drop_incomplete_publish_times();
             let elapsed = started_at.elapsed();
             let meta =

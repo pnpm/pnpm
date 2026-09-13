@@ -94,18 +94,24 @@ fn find_workspace_inventory_with(
     before_read: impl FnMut(&Path) -> io::Result<()>,
     before_open_directory: impl FnMut(&Path) -> io::Result<()>,
 ) -> Result<WorkspaceInventory, FindWorkspaceInventoryError> {
-    let requested: BTreeSet<&OsStr> = manifest_basenames.iter().map(OsStr::new).collect();
-    let canonical_root = fs::canonicalize(workspace_root).map_err(|source| {
-        FindWorkspaceInventoryError::ReadDirectory { path: workspace_root.to_path_buf(), source }
-    })?;
+    let requested: BTreeSet<&OsStr> = manifest_basenames
+        .iter()
+        .map(OsStr::new)
+        .collect();
+    let canonical_root = canonical_workspace_root(workspace_root)?;
     let ignored = IgnoredDirectories {
         root: workspace_root,
         patterns: compile_excluded_directories(package_patterns)?,
-        basenames: ignored_directory_basenames.iter().map(OsStr::new).collect(),
+        basenames: ignored_directory_basenames
+            .iter()
+            .map(OsStr::new)
+            .collect(),
         paths: ignored_paths_under(workspace_root, &canonical_root, ignored_directories)?,
     };
-    let mut manifests: BTreeMap<String, Vec<PathBuf>> =
-        manifest_basenames.iter().map(|basename| ((*basename).to_string(), Vec::new())).collect();
+    let mut manifests: BTreeMap<String, Vec<PathBuf>> = manifest_basenames
+        .iter()
+        .map(|basename| ((*basename).to_string(), Vec::new()))
+        .collect();
 
     walk_workspace(
         workspace_root,
@@ -114,8 +120,9 @@ fn find_workspace_inventory_with(
         before_open_directory,
         |path, file_name| {
             if requested.contains(file_name)
-                && let Some(manifest_paths) =
-                    file_name.to_str().and_then(|basename| manifests.get_mut(basename))
+                && let Some(manifest_paths) = file_name
+                    .to_str()
+                    .and_then(|basename| manifests.get_mut(basename))
             {
                 manifest_paths.push(path);
             }
@@ -126,6 +133,14 @@ fn find_workspace_inventory_with(
         manifest_paths.sort();
     }
     Ok(WorkspaceInventory { manifests })
+}
+
+fn canonical_workspace_root(workspace_root: &Path) -> Result<PathBuf, FindWorkspaceInventoryError> {
+    fs::canonicalize(workspace_root)
+        .map_err(|source| FindWorkspaceInventoryError::ReadDirectory {
+            path: workspace_root.to_path_buf(),
+            source,
+        })
 }
 
 fn compile_excluded_directories(
@@ -141,12 +156,13 @@ fn compile_excluded_directories(
         })
         .collect::<Result<Vec<_>, _>>()
         .map_err(FindWorkspaceInventoryError::InvalidPattern)?;
-    wax::any(globs).map_err(|error| {
-        FindWorkspaceInventoryError::InvalidPattern(FindWorkspaceProjectsError::InvalidGlob {
-            pattern: "<negated pattern>".to_string(),
-            message: error.to_string(),
+    wax::any(globs)
+        .map_err(|error| {
+            FindWorkspaceInventoryError::InvalidPattern(FindWorkspaceProjectsError::InvalidGlob {
+                pattern: "<negated pattern>".to_string(),
+                message: error.to_string(),
+            })
         })
-    })
 }
 
 /// The ignored directories that exist, relative to the canonical root.
@@ -182,9 +198,11 @@ struct IgnoredDirectories<'a> {
 impl IgnoredDirectories<'_> {
     fn contains(&self, basename: &OsStr, path: &Path) -> bool {
         self.basenames.contains(basename)
-            || path.strip_prefix(self.root).is_ok_and(|relative| {
-                self.paths.contains(relative) || self.patterns.is_match(relative)
-            })
+            || path
+                .strip_prefix(self.root)
+                .is_ok_and(|relative| {
+                    self.paths.contains(relative) || self.patterns.is_match(relative)
+                })
     }
 }
 

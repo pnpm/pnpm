@@ -20,6 +20,7 @@ pub use options::{
     InstallOptions, NetworkConfigInput, NodeApiProject, PackageExtensionInput, PeerIssuesOptions,
     ProxyConfigInput,
 };
+pub(crate) use overlay::install_http_client;
 pub use peer_issues::get_peer_dependency_issues;
 
 use std::{
@@ -137,8 +138,9 @@ fn run_install_blocking(
     // the batch contract.
     let pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>> = match read_package_batch_hook {
         Some(batch) => Some(Arc::new(JsBatchedReadPackageHook::new(batch))),
-        None => read_package_hook
-            .map(|sink| Arc::new(JsReadPackageHook::new(sink)) as Arc<dyn PnpmfileHooks>),
+        None => read_package_hook.map(|sink| {
+            Arc::new(JsReadPackageHook::new(sink)) as Arc<dyn PnpmfileHooks>
+        }),
     };
     begin_stats();
     let deps_requiring_build_sink = (options.return_list_of_deps_requiring_build == Some(true))
@@ -455,8 +457,7 @@ fn run_install_inner(
 /// lone project takes the plain (non-workspace) install path; multiple
 /// importers are handed to the engine via `workspace_projects_override`.
 fn root_manifest_value(options: &InstallOptions, dir: &Path) -> napi::Result<serde_json::Value> {
-    options
-        .projects
+    options.projects
         .iter()
         .find(|project| Path::new(&project.root_dir) == dir)
         .map(|project| project.manifest.clone())
@@ -468,21 +469,6 @@ fn root_manifest_value(options: &InstallOptions, dir: &Path) -> napi::Result<ser
         })
 }
 
-pub(crate) fn install_http_client(
-    config: &pnpm_config::Config,
-) -> napi::Result<Arc<ThrottledClient>> {
-    Ok(Arc::new(
-        ThrottledClient::for_installs(
-            &config.proxy,
-            &config.tls,
-            &config.tls_by_uri,
-            &config.network_settings(),
-        )
-        .map_err(|error| to_napi_error(&error))?
-        .with_max_sockets_per_host(config.max_sockets),
-    ))
-}
-
 fn dependency_groups(options: &InstallOptions) -> Vec<DependencyGroup> {
     let mut groups = vec![DependencyGroup::Prod, DependencyGroup::Dev];
     if options.include_optional_deps != Some(false) {
@@ -492,9 +478,12 @@ fn dependency_groups(options: &InstallOptions) -> Vec<DependencyGroup> {
 }
 
 fn multi_thread_runtime() -> napi::Result<tokio::runtime::Runtime> {
-    tokio::runtime::Builder::new_multi_thread().enable_all().build().map_err(|error| {
-        napi::Error::from_reason(format!("failed to build tokio runtime: {error}"))
-    })
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .map_err(|error| {
+            napi::Error::from_reason(format!("failed to build tokio runtime: {error}"))
+        })
 }
 
 #[napi]

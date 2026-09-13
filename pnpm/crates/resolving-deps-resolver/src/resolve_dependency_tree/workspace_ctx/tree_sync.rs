@@ -125,8 +125,9 @@ impl WorkspaceTreeCtx {
         for (node_id, node) in lock_recoverable(&self.tree.dependencies_tree).iter() {
             tree.dependencies_tree.entry(node_id.clone()).or_insert_with(|| node.clone());
         }
-        tree.all_peer_dep_names
-            .extend(lock_recoverable(&self.tree.all_peer_dep_names).iter().cloned());
+        tree.all_peer_dep_names.extend(
+            lock_recoverable(&self.tree.all_peer_dep_names).iter().cloned(),
+        );
     }
 }
 
@@ -237,7 +238,9 @@ impl super::WorkspaceTreeStorage {
         node_ids
             .filter_map(|node_id| {
                 let pkg_id = &dependencies_tree.get(node_id)?.resolved_package_id;
-                packages.contains_key(&**pkg_id).then(|| (node_id.clone(), pkg_id.to_string()))
+                packages
+                    .contains_key(&**pkg_id)
+                    .then(|| (node_id.clone(), pkg_id.to_string()))
             })
             .collect()
     }

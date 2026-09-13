@@ -92,7 +92,10 @@ fn patch_commit_diff_dirs_accepts_paths_that_start_with_dash() {
 fn patch_commit_diff_temp_files_are_owner_only() {
     let temp_file = DiffTempFile::new("stdout").expect("diff temp file");
 
-    let mode = fs::metadata(&temp_file.path).expect("diff temp metadata").permissions().mode();
+    let mode = fs::metadata(&temp_file.path)
+        .expect("diff temp metadata")
+        .permissions()
+        .mode();
 
     assert_eq!(mode & 0o777, 0o600);
 }
@@ -364,7 +367,10 @@ fn patch_commit_diff_dirs_writes_a_parseable_deleted_file_patch() {
     let diff = diff_folders(before.path(), after.path()).expect("diff dirs");
 
     let mut patches = PatchSet::parse(&diff, ParseOptions::gitdiff());
-    let patch = patches.next().expect("deleted file patch").expect("parse generated patch");
+    let patch = patches
+        .next()
+        .expect("deleted file patch")
+        .expect("parse generated patch");
     let FileOperation::Delete(path) = patch.operation().strip_prefix(1) else {
         panic!("expected a file deletion, diff: {diff}");
     };
@@ -380,13 +386,23 @@ fn patch_commit_diff_dirs_writes_a_parseable_nested_added_file_patch() {
     let before = tempdir().expect("before dir");
     let after = tempdir().expect("after dir");
     fs::create_dir(after.path().join("docs")).unwrap();
-    fs::write(after.path().join("docs").join("readme.md"), "package documentation\n").unwrap();
+    fs::write(
+        after
+            .path()
+            .join("docs")
+            .join("readme.md"),
+        "package documentation\n",
+    )
+    .unwrap();
 
     let diff = diff_folders(before.path(), after.path()).expect("diff dirs");
 
     assert_eq!(diff.lines().next(), Some("diff --git a/docs/readme.md b/docs/readme.md"));
     let mut patches = PatchSet::parse(&diff, ParseOptions::gitdiff());
-    let patch = patches.next().expect("added file patch").expect("parse generated patch");
+    let patch = patches
+        .next()
+        .expect("added file patch")
+        .expect("parse generated patch");
     let FileOperation::Create(path) = patch.operation().strip_prefix(1) else {
         panic!("expected a file creation, diff: {diff}");
     };

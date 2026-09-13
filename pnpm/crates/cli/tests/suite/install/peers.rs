@@ -22,8 +22,13 @@ use assert_cmd::assert::OutputAssertExt;
 /// install onto the fresh-resolve path.
 #[test]
 fn auto_install_peers_hoists_missing_peers_at_importer() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let manifest_path = workspace.join("package.json");
@@ -34,13 +39,21 @@ fn auto_install_peers_hoists_missing_peers_at_importer() {
     });
     fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let pnpm_dir = workspace.join("node_modules/.pnpm");
     let entries: Vec<String> = fs::read_dir(&pnpm_dir)
         .map(|dir| {
             dir.filter_map(Result::ok)
-                .map(|entry| entry.file_name().to_string_lossy().into_owned())
+                .map(|entry| {
+                    entry
+                        .file_name()
+                        .to_string_lossy()
+                        .into_owned()
+                })
                 .collect()
         })
         .unwrap_or_default();
@@ -50,7 +63,9 @@ fn auto_install_peers_hoists_missing_peers_at_importer() {
         // bump doesn't churn this test.
         let prefix = format!("@pnpm.e2e+{peer}@1.");
         assert!(
-            entries.iter().any(|name| name.starts_with(&prefix) && !name.contains('_')),
+            entries
+                .iter()
+                .any(|name| name.starts_with(&prefix) && !name.contains('_')),
             "expected {peer} to be auto-installed; .pnpm/ entries: {entries:?}",
         );
     }
@@ -71,8 +86,13 @@ fn auto_install_peers_hoists_missing_peers_at_importer() {
 /// conflicting peer context.
 #[test]
 fn peer_shared_through_a_diamond_is_resolved_consistently() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let manifest_path = workspace.join("package.json");
@@ -85,7 +105,10 @@ fn peer_shared_through_a_diamond_is_resolved_consistently() {
     });
     fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let lockfile =
         fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
@@ -105,8 +128,13 @@ fn peer_shared_through_a_diamond_is_resolved_consistently() {
 
 #[test]
 fn transitive_pending_peer_uses_provider_final_suffix_in_lockfile() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let manifest_path = workspace.join("package.json");
@@ -118,7 +146,10 @@ fn transitive_pending_peer_uses_provider_final_suffix_in_lockfile() {
     });
     fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let lockfile =
         fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
@@ -218,8 +249,13 @@ fn peer_dependency_prefers_non_aliased_provider_over_alias() {
 /// install of the full manifest does.
 #[test]
 fn peer_dependency_binds_the_same_when_added_to_an_existing_lockfile() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
@@ -243,7 +279,10 @@ fn peer_dependency_binds_the_same_when_added_to_an_existing_lockfile() {
         .to_string(),
     )
     .expect("write package.json");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     fs::write(
         workspace.join("package.json"),
@@ -257,7 +296,10 @@ fn peer_dependency_binds_the_same_when_added_to_an_existing_lockfile() {
     )
     .expect("rewrite package.json");
     bump_mtime(&workspace.join("package.json"));
-    new_pacquet_command(&workspace).with_arg("install").assert().success();
+    new_pacquet_command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let lockfile =
         fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
@@ -287,8 +329,13 @@ fn peer_dependency_prefers_highest_aliased_subdependency_version() {
 /// `100.1.0`.
 #[test]
 fn resolution_mode_highest_picks_highest_direct_version() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let manifest_path = workspace.join("package.json");
@@ -297,7 +344,10 @@ fn resolution_mode_highest_picks_highest_direct_version() {
     });
     fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let pnpm_dir = workspace.join("node_modules/.pnpm");
     assert!(
@@ -321,8 +371,13 @@ fn resolution_mode_highest_picks_highest_direct_version() {
 /// would be masked.
 #[test]
 fn resolution_mode_lowest_direct_picks_lowest_direct_version() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let workspace_yaml = workspace.join("pnpm-workspace.yaml");
@@ -336,7 +391,10 @@ fn resolution_mode_lowest_direct_picks_lowest_direct_version() {
     });
     fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let pnpm_dir = workspace.join("node_modules/.pnpm");
     assert!(
@@ -354,8 +412,13 @@ fn resolution_mode_lowest_direct_picks_lowest_direct_version() {
 /// `minimumReleaseAge` is on by default.
 #[test]
 fn resolution_mode_lowest_direct_applies_under_a_minimum_release_age() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let workspace_yaml = workspace.join("pnpm-workspace.yaml");
@@ -369,7 +432,10 @@ fn resolution_mode_lowest_direct_applies_under_a_minimum_release_age() {
     });
     fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let pnpm_dir = workspace.join("node_modules/.pnpm");
     assert!(
@@ -386,8 +452,13 @@ fn resolution_mode_lowest_direct_applies_under_a_minimum_release_age() {
 /// `lowest-direct` does.
 #[test]
 fn resolution_mode_time_based_applies_under_a_minimum_release_age() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let workspace_yaml = workspace.join("pnpm-workspace.yaml");
@@ -401,7 +472,10 @@ fn resolution_mode_time_based_applies_under_a_minimum_release_age() {
     });
     fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let pnpm_dir = workspace.join("node_modules/.pnpm");
     assert!(
@@ -418,14 +492,20 @@ fn resolution_mode_time_based_applies_under_a_minimum_release_age() {
 /// to it even though it installs at the importer level.
 #[test]
 fn resolution_mode_lowest_direct_resolves_hoisted_peers_to_highest() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let workspace_yaml = workspace.join("pnpm-workspace.yaml");
     let mut existing = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
-    existing
-        .push_str("resolutionMode: lowest-direct\nminimumReleaseAge: 0\nautoInstallPeers: true\n");
+    existing.push_str(
+        "resolutionMode: lowest-direct\nminimumReleaseAge: 0\nautoInstallPeers: true\n",
+    );
     fs::write(&workspace_yaml, existing).expect("write pnpm-workspace.yaml");
 
     let manifest_path = workspace.join("package.json");
@@ -434,7 +514,10 @@ fn resolution_mode_lowest_direct_resolves_hoisted_peers_to_highest() {
     });
     fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let pnpm_dir = workspace.join("node_modules/.pnpm");
     assert!(
@@ -451,8 +534,13 @@ fn resolution_mode_lowest_direct_resolves_hoisted_peers_to_highest() {
 /// subdep publish-date cutoff.
 #[test]
 fn resolution_mode_time_based_resolves_hoisted_peers_to_highest() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let workspace_yaml = workspace.join("pnpm-workspace.yaml");
@@ -466,7 +554,10 @@ fn resolution_mode_time_based_resolves_hoisted_peers_to_highest() {
     });
     fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let pnpm_dir = workspace.join("node_modules/.pnpm");
     assert!(
@@ -483,8 +574,13 @@ fn resolution_mode_time_based_resolves_hoisted_peers_to_highest() {
 /// cutoff every subdependency is resolved under.
 #[test]
 fn time_based_install_records_and_preserves_the_lockfile_time_section() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let workspace_yaml = workspace.join("pnpm-workspace.yaml");
@@ -498,7 +594,10 @@ fn time_based_install_records_and_preserves_the_lockfile_time_section() {
     });
     fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let recorded =
@@ -509,7 +608,10 @@ fn time_based_install_records_and_preserves_the_lockfile_time_section() {
         "only the direct dependency's publish date is recorded: {recorded:?}",
     );
 
-    new_pacquet_command(&workspace).with_arg("install").assert().success();
+    new_pacquet_command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     assert_eq!(read_lockfile(&lockfile_path).time.as_ref(), Some(&recorded));
 
@@ -550,7 +652,10 @@ fn compatible_existing_peer_contexts_survive_writable_lockfile_regeneration() {
             serde_json::json!({ "dependencies": deps }).to_string(),
         )
         .expect("write package.json");
-        new_pacquet_command(&workspace).with_arg("install").assert().success();
+        new_pacquet_command(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
     };
 
     let root_context = "@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@2.0.0)";
@@ -600,8 +705,13 @@ fn compatible_existing_peer_contexts_survive_writable_lockfile_regeneration() {
 /// overrides it back off.
 #[test]
 fn frozen_lockfile_accepts_a_peer_package_extensions_injected() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
@@ -625,7 +735,10 @@ fn frozen_lockfile_accepts_a_peer_package_extensions_injected() {
     )
     .expect("write package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     // The extension made `@pnpm.e2e/foo` a peer of the project, so
     // `autoInstallPeers` recorded it as a dependency of the importer. The
@@ -635,13 +748,18 @@ fn frozen_lockfile_accepts_a_peer_package_extensions_injected() {
         .expect("load wanted lockfile")
         .expect("wanted lockfile");
     assert!(
-        wanted.importers["."].dependencies.as_ref().is_some_and(
-            |dependencies| dependencies.contains_key(&"@pnpm.e2e/foo".parse().expect("alias"))
-        ),
+        wanted.importers["."].dependencies
+            .as_ref()
+            .is_some_and(|dependencies| dependencies.contains_key(
+                &"@pnpm.e2e/foo".parse().expect("alias")
+            )),
         "the injected peer is auto-installed into the importer",
     );
 
-    new_pacquet_command(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    new_pacquet_command(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     drop((root, mock_instance));
 }

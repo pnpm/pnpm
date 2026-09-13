@@ -207,12 +207,18 @@ fn prepare_rejection_suggests_the_allow_builds_key_the_gate_checked() {
     let recorder = Arc::clone(&checked);
     let mut opts = opts(false, false);
     opts.allow_build = Box::new(move |dep_path| {
-        recorder.lock().unwrap().push(dep_path.to_string());
+        recorder
+            .lock()
+            .unwrap()
+            .push(dep_path.to_string());
         false
     });
 
     let err = prepare_package::<SilentReporter>(&opts, dir.path(), None).unwrap_err();
-    let help = err.help().expect("NotAllowed carries a help message").to_string();
+    let help = err
+        .help()
+        .expect("NotAllowed carries a help message")
+        .to_string();
     let checked = checked.lock().unwrap();
     let [gated_key] = checked.as_slice() else {
         panic!("expected exactly one allowBuild check, got {checked:?}");

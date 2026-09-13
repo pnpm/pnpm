@@ -216,10 +216,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     }
 
     let limit = {
-        let entry = ctx
-            .metadata
-            .fetch_locker
-            .limits
+        let entry = ctx.metadata.fetch_locker.limits
             .entry(state.cache_key.clone())
             .or_insert_with(|| Arc::new(Semaphore::new(1)));
         Arc::clone(entry.value())
@@ -294,9 +291,10 @@ impl<'a> PickState<'a> {
         // one: it already folds in the reasons that hold for every registry,
         // so a registry that carries `time` is free to stay on abbreviated
         // metadata while the others do not.
-        let policy_wants_full_metadata = ctx
-            .needs_full_metadata_for
-            .map_or(ctx.full_metadata, |needs_full_metadata| needs_full_metadata(opts.registry));
+        let policy_wants_full_metadata =
+            ctx.needs_full_metadata_for.map_or(ctx.full_metadata, |needs_full_metadata| {
+                needs_full_metadata(opts.registry)
+            });
         let full_metadata = opts.request.optional || policy_wants_full_metadata;
         let use_filtered_full_metadata = full_metadata && ctx.filter_metadata;
         let base_meta_dir = if full_metadata {
@@ -389,9 +387,12 @@ impl<'a> PickState<'a> {
             return Ok(meta);
         }
         if !opts.request.dry_run {
-            if let Some(reloaded) = self.pkg_mirror.as_deref().and_then(|path| {
-                persist_upgraded_to_mirror(path, &meta, self.use_filtered_full_metadata)
-            }) {
+            if let Some(reloaded) = self.pkg_mirror
+                .as_deref()
+                .and_then(|path| {
+                    persist_upgraded_to_mirror(path, &meta, self.use_filtered_full_metadata)
+                })
+            {
                 meta = Arc::new(reloaded);
             }
             // The upgrade fetched a registry-validated document; don't
@@ -465,9 +466,11 @@ impl<'a> PickState<'a> {
         let mut meta = upgrade.meta;
         if upgrade.upgraded {
             if !opts.request.dry_run
-                && let Some(reloaded) = self.pkg_mirror.as_deref().and_then(|path| {
-                    persist_upgraded_to_mirror(path, &meta, self.use_filtered_full_metadata)
-                })
+                && let Some(reloaded) = self.pkg_mirror
+                    .as_deref()
+                    .and_then(|path| {
+                        persist_upgraded_to_mirror(path, &meta, self.use_filtered_full_metadata)
+                    })
             {
                 meta = Arc::new(reloaded);
             }
@@ -569,9 +572,9 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
     // The upgrade fetch (re)validated the packument against the registry.
     let registry_verified = cached.registry_verified || upgrade.upgraded;
     if upgrade.upgraded && !opts.request.dry_run {
-        if let Some(reloaded) = pkg_mirror
-            .and_then(|path| persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata))
-        {
+        if let Some(reloaded) = pkg_mirror.and_then(|path| {
+            persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata)
+        }) {
             meta = Arc::new(reloaded);
         }
         ctx.metadata.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));

@@ -50,12 +50,14 @@ pub(super) fn provisioned_tool<'a>(
     // says which of its bins to run: `pnx --package npm@11 npx`.
     let [spec] = package else { return None };
     let (pm, version_spec) = parse_package_manager_spec(spec)?;
-    pm.bins().contains(&bin_command).then_some(ProvisionedTool::PackageManager {
-        pm,
-        version_spec,
-        spec,
-        bin: Some(bin_command),
-    })
+    pm.bins()
+        .contains(&bin_command)
+        .then_some(ProvisionedTool::PackageManager {
+            pm,
+            version_spec,
+            spec,
+            bin: Some(bin_command),
+        })
 }
 
 /// Split a dlx command word into the package manager it names and the
@@ -102,9 +104,12 @@ pub(super) async fn run_runtime(
     spawn: &DlxSpawn<'_>,
 ) -> miette::Result<()> {
     let executable =
-        Box::pin(materialize_runtime(state_dir, name.to_string(), version_spec.to_string()))
-            .await?;
-    let bin_dirs: Vec<PathBuf> = executable.parent().map(Path::to_path_buf).into_iter().collect();
+        Box::pin(materialize_runtime(state_dir, name.to_string(), version_spec.to_string())).await?;
+    let bin_dirs: Vec<PathBuf> = executable
+        .parent()
+        .map(Path::to_path_buf)
+        .into_iter()
+        .collect();
     run_bin(DlxProgram::Provisioned { command, executable: &executable }, args, bin_dirs, spawn)
 }
 

@@ -89,7 +89,14 @@ pub(super) async fn serve_revision_ref(
     reference: RevisionRef<'_>,
     scan: &mut RevisionScan,
 ) -> Option<Response> {
-    let RevisionRef { registry, source, storage, original, digest, integrity } = reference;
+    let RevisionRef {
+        registry,
+        source,
+        storage,
+        original,
+        digest,
+        integrity,
+    } = reference;
     let package =
         match CanonicalPackageName::parse(&original.package, pnpr_package_name::Ecosystem::Npm) {
             Ok(package) => package,

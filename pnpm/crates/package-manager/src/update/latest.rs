@@ -86,8 +86,7 @@ pub(super) async fn latest_specifier(
         ..WantedDependency::default()
     };
     let opts = ctx.resolve_options(chain);
-    let resolved = Resolver::resolve(&chain.resolver, &wanted, &opts)
-        .await
+    let resolved = Resolver::resolve(&chain.resolver, &wanted, &opts).await
         .map_err(|error| UpdateError::ResolveLatest { name: name.to_string(), error })?;
     // A resolver that reports back what the manifest already says has
     // nothing to rewrite. Recording it anyway would mark the manifest dirty
@@ -116,8 +115,11 @@ pub(super) async fn tag_version(
         bare_specifier: Some(tag.to_string()),
         ..WantedDependency::default()
     };
-    let manifest_dir =
-        ctx.manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
+    let manifest_dir = ctx.manifest
+        .path()
+        .parent()
+        .expect("manifest path always has a parent dir")
+        .to_path_buf();
     let opts = ResolveOptions {
         project: pnpm_resolving_resolver_base::ResolverProjectOptions {
             project_dir: manifest_dir.clone(),
@@ -139,9 +141,12 @@ pub(super) async fn tag_version(
         },
         ..ResolveOptions::default()
     };
-    let resolved = Resolver::resolve(&chain.resolver, &wanted, &opts).await.map_err(|error| {
-        UpdateError::ResolveTag { name: name.to_string(), tag: tag.to_string(), error }
-    })?;
+    let resolved = Resolver::resolve(&chain.resolver, &wanted, &opts).await
+        .map_err(|error| UpdateError::ResolveTag {
+            name: name.to_string(),
+            tag: tag.to_string(),
+            error,
+        })?;
     Ok(resolved.and_then(|result| result.package.name_ver).map(|name_ver| name_ver.suffix))
 }
 /// The resolvers that can answer "what is the latest for this dependency",
@@ -160,9 +165,9 @@ pub(super) fn ensure_latest_resolver_chain<'chain>(
     ctx: &LatestRewriteCtx<'_, '_>,
 ) -> Result<&'chain LatestResolverChain, UpdateError> {
     if chain.is_none() {
-        let extra_excludes = ctx
-            .resolution_observer
-            .and_then(|observer| observer.minimum_release_age_exclude_override());
+        let extra_excludes = ctx.resolution_observer.and_then(|observer| {
+            observer.minimum_release_age_exclude_override()
+        });
         let policy =
             PickPolicy::from_config_with_extra_excludes(ctx.config, extra_excludes.as_deref())
                 .map_err(UpdateError::MinimumReleaseAgeExclude)?;
@@ -218,8 +223,7 @@ pub(crate) fn is_workspace_local_path_specifier(bare_specifier: &str) -> bool {
 
 impl LatestRewriteCtx<'_, '_> {
     fn resolve_options(&self, chain: &LatestResolverChain) -> ResolveOptions {
-        let manifest_dir = self
-            .manifest
+        let manifest_dir = self.manifest
             .path()
             .parent()
             .expect("manifest path always has a parent dir")

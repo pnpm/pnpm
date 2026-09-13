@@ -44,7 +44,10 @@ async fn preserves_concurrent_workflow_edits_when_action_ranges_are_stale() {
         .await;
         let error = result.err().expect("stale edits must fail");
         assert_eq!(
-            error.code().expect("error code").to_string(),
+            error
+                .code()
+                .expect("error code")
+                .to_string(),
             "ERR_PNPM_GITHUB_ACTIONS_WORKFLOW_CHANGED",
         );
         assert_eq!(fs::read_to_string(workflow).expect("workflow"), changed);

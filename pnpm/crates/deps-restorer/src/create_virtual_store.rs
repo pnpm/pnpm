@@ -153,8 +153,8 @@ impl CasPrefetch {
         // Install-scoped `verifiedFilesCache`: one `Arc<DashSet>` for
         // the duration of the install, so a CAFS path verified for one
         // snapshot is not re-stat'd for another.
-        let verified_files_cache = store_context
-            .map_or_else(SharedVerifiedFilesCache::default, |context| {
+        let verified_files_cache =
+            store_context.map_or_else(SharedVerifiedFilesCache::default, |context| {
                 Arc::clone(context.verified_files_cache)
             });
         let cache_keys = derive_cache_keys(config, entries, supported_architectures);
@@ -360,7 +360,9 @@ fn removed_aliases_for<'a>(
     removed_aliases_by_key: &'a HashMap<PackageKey, Vec<PkgName>>,
     snapshot_key: &PackageKey,
 ) -> &'a [PkgName] {
-    removed_aliases_by_key.get(snapshot_key).map_or(&[], Vec::as_slice)
+    removed_aliases_by_key
+        .get(snapshot_key)
+        .map_or(&[], Vec::as_slice)
 }
 
 /// Child aliases linked by the previous install (`current`) that are
@@ -418,9 +420,12 @@ fn create_build_marker_source(
     if config.frozen_store || !layout.enable_global_virtual_store() {
         return Ok(None);
     }
-    tempfile::NamedTempFile::new_in(store_dir.root()).map(Some).map_err(|error| {
-        CreateVirtualStoreError::CreateBuildMarker { path: store_dir.root().to_path_buf(), error }
-    })
+    tempfile::NamedTempFile::new_in(store_dir.root())
+        .map(Some)
+        .map_err(|error| CreateVirtualStoreError::CreateBuildMarker {
+            path: store_dir.root().to_path_buf(),
+            error,
+        })
 }
 
 /// Publish the cold-batch fetch plan for the concurrent verification fan-out:

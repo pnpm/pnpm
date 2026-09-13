@@ -193,8 +193,7 @@ fn state_project_dirs(state: &State, lockfile_dir: &Path) -> miette::Result<Vec<
     why_project_dirs(
         state.config,
         lockfile_dir,
-        state
-            .manifest
+        state.manifest
             .path()
             .parent()
             .expect("manifest path always has a parent dir")

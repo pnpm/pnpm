@@ -107,8 +107,11 @@ fn from_resolved_reports_every_setting() {
         panic!("the projected settings serialize to a JSON object");
     };
 
-    let unreported: Vec<&str> =
-        map.iter().filter(|(_, value)| value.is_null()).map(|(key, _)| key.as_str()).collect();
+    let unreported: Vec<&str> = map
+        .iter()
+        .filter(|(_, value)| value.is_null())
+        .map(|(key, _)| key.as_str())
+        .collect();
     let mut expected = UNREPORTED_SETTINGS.to_vec();
     expected.sort_unstable();
     let mut found = unreported;

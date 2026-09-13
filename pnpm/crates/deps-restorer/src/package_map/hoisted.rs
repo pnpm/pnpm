@@ -124,14 +124,16 @@ impl<'b> HoistedMapBuilder<'b> {
             &self.package_ids_by_graph_key,
         );
 
-        if let Some(snapshot) = lockfile.snapshots.as_ref().and_then(|snapshots| {
-            node.package
-                .dep_path
-                .as_str()
-                .parse::<PackageKey>()
-                .ok()
-                .and_then(|key| snapshots.get(&key))
-        }) {
+        if let Some(snapshot) = lockfile.snapshots
+            .as_ref()
+            .and_then(|snapshots| {
+                node.package.dep_path
+                    .as_str()
+                    .parse::<PackageKey>()
+                    .ok()
+                    .and_then(|key| snapshots.get(&key))
+            })
+        {
             let package_modules_dir = self.is_loose.then(|| node.dir.join("node_modules"));
             for deps in [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()] {
                 add_hoisted_linked_dependencies(

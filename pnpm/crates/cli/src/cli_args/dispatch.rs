@@ -109,15 +109,13 @@ impl CliArgs {
     /// path fails with a proper diagnostic in [`Self::run`], and the
     /// reporter only uses it to shorten the paths it prints.
     pub fn configure_reporter(&self) {
-        if let Some(color) = self
-            .output
-            .presentation
-            .color
-            .or_else(|| self.output.presentation.no_color.then_some(ColorMode::Never))
-        {
+        if let Some(color) = self.output.presentation.color.or_else(|| {
+            self.output.presentation.no_color.then_some(ColorMode::Never)
+        }) {
             configure_color(color);
         }
-        let dir = dunce::canonicalize(&self.paths.dir).unwrap_or_else(|_| self.paths.dir.clone());
+        let dir = dunce::canonicalize(&self.paths.dir)
+            .unwrap_or_else(|_| self.paths.dir.clone());
         configure_default_reporter(&DefaultReporterSetup {
             reporter: self.effective_reporter(),
             dir: &dir,
@@ -382,9 +380,7 @@ impl CliArgs {
                 no_reporter_hide_prefix: self.output.lifecycle.no_hide_prefix,
                 workspace_packages: &self.paths.workspace_packages,
                 test_pattern: &self.workspace.selection.test_pattern,
-                changed_files_ignore_pattern: &self
-                    .workspace
-                    .selection
+                changed_files_ignore_pattern: &self.workspace.selection
                     .changed_files_ignore_pattern,
                 workspace_concurrency: self.workspace.ordering.concurrency,
             },

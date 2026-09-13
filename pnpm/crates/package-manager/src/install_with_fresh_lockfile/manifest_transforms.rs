@@ -104,8 +104,9 @@ impl ImporterTransforms {
         deploy_manifest_hook: bool,
     ) -> Result<Self, InstallWithFreshLockfileError> {
         Ok(Self {
-            compat_package_extender: (!config.ignore_compatibility_db)
-                .then(crate::compat_package_extensions::compat_package_extender),
+            compat_package_extender: (!config.ignore_compatibility_db).then(
+                crate::compat_package_extensions::compat_package_extender,
+            ),
             package_extender: configured_package_extender(config)?,
             versions_overrider: versions_overrider.filter(|overrider| !overrider.is_empty()),
             deploy_manifest_hook,
@@ -145,12 +146,15 @@ impl ImporterTransforms {
     }
 
     fn manifest_hook(&self) -> Option<ManifestHook> {
-        let compat_package_extensions_hook: Option<ManifestHook> =
-            self.compat_package_extender.map(|extender| {
+        let compat_package_extensions_hook: Option<ManifestHook> = self
+            .compat_package_extender
+            .map(|extender| {
                 Arc::new(move |manifest| extender.apply_to_arc(manifest)) as ManifestHook
             });
-        let package_extensions_hook: Option<ManifestHook> =
-            self.package_extender.as_ref().map(|extender| {
+        let package_extensions_hook: Option<ManifestHook> = self
+            .package_extender
+            .as_ref()
+            .map(|extender| {
                 let extender = Arc::clone(extender);
                 Arc::new(move |manifest| extender.apply_to_arc(manifest)) as ManifestHook
             });
@@ -158,12 +162,14 @@ impl ImporterTransforms {
     }
 
     fn override_bare_specifier(&self) -> Option<Arc<DependencyOverrider>> {
-        self.versions_overrider.as_ref().map(|overrider| {
-            let overrider = Arc::clone(overrider);
-            Arc::new(move |name: &str, range: &str, pkg_dir: &Path| {
-                overrider.override_for_undeclared_dependency(name, range, pkg_dir)
-            }) as Arc<DependencyOverrider>
-        })
+        self.versions_overrider
+            .as_ref()
+            .map(|overrider| {
+                let overrider = Arc::clone(overrider);
+                Arc::new(move |name: &str, range: &str, pkg_dir: &Path| {
+                    overrider.override_for_undeclared_dependency(name, range, pkg_dir)
+                }) as Arc<DependencyOverrider>
+            })
     }
 
     /// The deploy hook, the overrides and the `ignoredOptionalDependencies`
@@ -214,7 +220,10 @@ fn transform_importer_manifest(
         apply_deploy_manifest_hook(cloned.value_mut());
     }
     if let Some(overrider) = transforms.versions_overrider.as_deref() {
-        let manifest_dir = cloned.path().parent().map(Path::to_path_buf);
+        let manifest_dir = cloned
+            .path()
+            .parent()
+            .map(Path::to_path_buf);
         overrider.apply(&mut cloned, manifest_dir.as_deref());
     }
     let ignored = ignored_optional_names(cloned.value(), &transforms.ignored_optional_matcher);

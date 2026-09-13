@@ -9,7 +9,9 @@ pub fn is_truthy(value: &Value) -> bool {
     match value {
         Value::Null => false,
         Value::Bool(boolean) => *boolean,
-        Value::Number(number) => number.as_f64().is_some_and(|number| number != 0.0),
+        Value::Number(number) => number
+            .as_f64()
+            .is_some_and(|number| number != 0.0),
         Value::String(string) => !string.is_empty(),
         Value::Array(_) | Value::Object(_) => true,
     }

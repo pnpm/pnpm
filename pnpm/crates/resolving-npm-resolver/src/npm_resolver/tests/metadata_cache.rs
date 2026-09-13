@@ -111,16 +111,12 @@ async fn shared_manifest_cache_does_not_leak_across_registries() {
         .expect("resolver B")
         .expect("resolver B picks");
 
-    let deps_a = result_a
-        .package
-        .manifest
+    let deps_a = result_a.package.manifest
         .as_ref()
         .and_then(|m| m.get("dependencies"))
         .and_then(|d| d.as_object())
         .expect("resolver A manifest carries dependencies");
-    let deps_b = result_b
-        .package
-        .manifest
+    let deps_b = result_b.package.manifest
         .as_ref()
         .and_then(|m| m.get("dependencies"))
         .and_then(|d| d.as_object())
@@ -152,7 +148,11 @@ async fn revision_metadata_is_validated_and_preserved() {
 
     let wanted =
         WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
 
     mock.assert_async().await;
     let LockfileResolution::Tarball(resolution) = result.resolution else {
@@ -211,7 +211,12 @@ async fn invalid_shasum_error_redacts_registry_metadata() {
         },
     })
     .to_string();
-    let _mock = server.mock("GET", "/acme").with_status(200).with_body(body).create_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(body)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 

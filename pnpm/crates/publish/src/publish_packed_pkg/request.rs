@@ -133,7 +133,10 @@ pub(super) async fn put_publish(
         .await
         .map_err(|error| PublishHttpError::Transport { reason: error.to_string() })?;
     let status = response.status();
-    let status_text = status.canonical_reason().unwrap_or_default().to_owned();
+    let status_text = status
+        .canonical_reason()
+        .unwrap_or_default()
+        .to_owned();
     let www_authenticate = www_authenticate_header(&response);
     let body = response.text().await.unwrap_or_default();
 
@@ -168,7 +171,9 @@ fn www_authenticate_header(response: &reqwest::Response) -> Option<String> {
 /// body mentions `one-time pass`.
 pub(super) fn is_otp_challenge(www_authenticate: Option<&str>, body: &str) -> bool {
     let header_lists_otp = www_authenticate.is_some_and(|value| {
-        value.split(',').any(|token| token.trim().eq_ignore_ascii_case("otp"))
+        value
+            .split(',')
+            .any(|token| token.trim().eq_ignore_ascii_case("otp"))
     });
     header_lists_otp || body.to_lowercase().contains("one-time pass")
 }
@@ -176,8 +181,15 @@ pub(super) fn is_otp_challenge(www_authenticate: Option<&str>, body: &str) -> bo
 /// Read `authUrl` / `doneUrl` out of a challenge body for the web-auth flow.
 pub(super) fn parse_otp_challenge(body: &str) -> OtpChallenge {
     let parsed = serde_json::from_str::<Value>(body).ok();
-    let read =
-        |field: &str| parsed.as_ref().and_then(|json| json.get(field)?.as_str().map(str::to_owned));
+    let read = |field: &str| {
+        parsed
+            .as_ref()
+            .and_then(|json| {
+                json.get(field)?
+                    .as_str()
+                    .map(str::to_owned)
+            })
+    };
     OtpChallenge {
         body: Some(OtpErrorBody { auth_url: read("authUrl"), done_url: read("doneUrl") }),
     }
@@ -186,7 +198,11 @@ pub(super) fn parse_otp_challenge(body: &str) -> OtpChallenge {
 fn stage_id_from_body(body: &str) -> Option<String> {
     serde_json::from_str::<Value>(body)
         .ok()
-        .and_then(|json| json.get("stageId")?.as_str().map(str::to_owned))
+        .and_then(|json| {
+            json.get("stageId")?
+                .as_str()
+                .map(str::to_owned)
+        })
 }
 
 pub(crate) fn web_auth_fetch_options(http: &OidcHttpOptions) -> WebAuthFetchOptions {

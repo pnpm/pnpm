@@ -49,7 +49,10 @@ impl WorkspaceTreeCtx {
         let reachable_dependencies_tree: HashMap<_, _> = reachable_node_ids
             .iter()
             .filter_map(|node_id| {
-                dependencies_tree.get(node_id).cloned().map(|node| (node_id.clone(), node))
+                dependencies_tree
+                    .get(node_id)
+                    .cloned()
+                    .map(|node| (node_id.clone(), node))
             })
             .collect();
         // Release before taking the next guard so this function never
@@ -66,7 +69,12 @@ impl WorkspaceTreeCtx {
         let packages = lock_recoverable(&self.tree.packages);
         let packages = reachable_pkg_ids
             .into_iter()
-            .filter_map(|pkg_id| packages.get(&*pkg_id).cloned().map(|pkg| (pkg_id, pkg)))
+            .filter_map(|pkg_id| {
+                packages
+                    .get(&*pkg_id)
+                    .cloned()
+                    .map(|pkg| (pkg_id, pkg))
+            })
             .collect();
 
         ResolvedTree {
@@ -213,26 +221,30 @@ impl super::WorkspaceChildrenState {
             if !recorded_by_current_owner {
                 let names = missing_by_pkg
                     .get(&**pkg_id)
-                    .map(|names| names.iter().map(str::to_owned).collect())
+                    .map(owned_missing_names)
                     .unwrap_or_default();
-                record.map_mut().insert(
-                    std::sync::Arc::<str>::clone(pkg_id).to_string(),
-                    OwnerMissingRecord { recorded_by: Some(owner.clone()), names },
-                );
+                record
+                    .map_mut()
+                    .insert(
+                        std::sync::Arc::<str>::clone(pkg_id).to_string(),
+                        OwnerMissingRecord { recorded_by: Some(owner.clone()), names },
+                    );
             }
         }
         for (pkg_id, names) in missing_by_pkg {
             if record.map().contains_key(*pkg_id) {
                 continue;
             }
-            if owners.get(*pkg_id).is_none_or(|entry| entry.owner.importer_id != importer_id) {
-                record.map_mut().insert(
-                    (*pkg_id).to_owned(),
-                    OwnerMissingRecord {
-                        recorded_by: None,
-                        names: names.iter().map(str::to_owned).collect(),
-                    },
-                );
+            if owners
+                .get(*pkg_id)
+                .is_none_or(|entry| entry.owner.importer_id != importer_id)
+            {
+                record
+                    .map_mut()
+                    .insert(
+                        (*pkg_id).to_owned(),
+                        OwnerMissingRecord { recorded_by: None, names: owned_missing_names(names) },
+                    );
             }
         }
     }
@@ -241,9 +253,13 @@ impl super::WorkspaceChildrenState {
     /// See the `first_walk_missing_by_pkg` field doc.
     #[must_use]
     pub fn first_walk_missing_by_pkg(&self) -> Arc<FirstWalkMissing> {
-        lock_recoverable(&self.first_walk_missing_by_pkg).snapshot(|record| {
-            record.iter().map(|(pkg_id, entry)| (pkg_id.clone(), entry.names.clone())).collect()
-        })
+        lock_recoverable(&self.first_walk_missing_by_pkg)
+            .snapshot(|record| {
+                record
+                    .iter()
+                    .map(|(pkg_id, entry)| (pkg_id.clone(), entry.names.clone()))
+                    .collect()
+            })
     }
 }
 
@@ -279,4 +295,11 @@ impl super::WorkspacePreferredVersions {
             .entry(pkg_id.to_string())
             .or_insert_with(|| (name.to_string(), version.to_string()));
     }
+}
+
+fn owned_missing_names(names: &MissingNames<'_>) -> super::HashSet<String> {
+    names
+        .iter()
+        .map(str::to_owned)
+        .collect()
 }

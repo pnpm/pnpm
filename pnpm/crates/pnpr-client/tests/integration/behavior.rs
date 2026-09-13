@@ -22,9 +22,14 @@ async fn resolves_a_package() {
 
     let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
     assert!(
-        packages.keys().any(|key| key.to_string().starts_with("@foo/no-deps@1.0.0")),
+        packages
+            .keys()
+            .any(|key| key.to_string().starts_with("@foo/no-deps@1.0.0")),
         "lockfile should contain @foo/no-deps@1.0.0, got: {:?}",
-        packages.keys().map(ToString::to_string).collect::<Vec<_>>(),
+        packages
+            .keys()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>(),
     );
 
     assert!(outcome.stats.total_packages >= 1);
@@ -34,7 +39,11 @@ async fn resolves_a_package() {
 async fn handshake_rejects_a_non_pnpr_server() {
     // A plain registry has no `/-/pnpr` route and 404s the handshake.
     let mut server = mockito::Server::new_async().await;
-    let mock = server.mock("GET", "/-/pnpr").with_status(404).create_async().await;
+    let mock = server
+        .mock("GET", "/-/pnpr")
+        .with_status(404)
+        .create_async()
+        .await;
 
     let client = PnprClient::new(server.url());
     let err = client.handshake().await.expect_err("a non-pnpr server should be rejected");
@@ -80,7 +89,10 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
     client.handshake_artifacts().await.expect("artifact capability");
 
     let (publish, public_key, expected_blob) = signed_artifact_fixture();
-    client.publish_artifact(&publish, Some(&pnpr_auth)).await.expect("publish signed artifact");
+    client
+        .publish_artifact(&publish, Some(&pnpr_auth))
+        .await
+        .expect("publish signed artifact");
 
     let candidate = ArtifactCandidate {
         key: publish.key.clone(),
@@ -316,7 +328,10 @@ async fn organization_artifact_existence_is_not_exposed_to_another_owner() {
     let (pnpr_url, pnpr_auth, _storage) = start_pnpr_artifacts().await;
     let client = PnprClient::new(pnpr_url);
     let (publish, public_key, _) = signed_artifact_fixture();
-    client.publish_artifact(&publish, Some(&pnpr_auth)).await.expect("publish artifact");
+    client
+        .publish_artifact(&publish, Some(&pnpr_auth))
+        .await
+        .expect("publish artifact");
 
     let selected = client
         .resolve_artifacts(ResolveArtifactsOptions {
@@ -376,9 +391,14 @@ async fn resolves_a_scope_from_the_registry_declared_for_it() {
 
     let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
     assert!(
-        packages.keys().any(|key| key.to_string().starts_with("@foo/no-deps@1.0.0")),
+        packages
+            .keys()
+            .any(|key| key.to_string().starts_with("@foo/no-deps@1.0.0")),
         "the declared registry should have served the scope, got: {:?}",
-        packages.keys().map(ToString::to_string).collect::<Vec<_>>(),
+        packages
+            .keys()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>(),
     );
 }
 
@@ -401,7 +421,11 @@ async fn a_declared_registry_the_resolve_never_reaches_is_not_rejected() {
 
     let outcome = PnprClient::new(pnpr_url).resolve(opts).await.expect("install should succeed");
     let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
-    assert!(packages.keys().any(|key| key.to_string().starts_with("@foo/no-deps@1.0.0")));
+    assert!(
+        packages
+            .keys()
+            .any(|key| key.to_string().starts_with("@foo/no-deps@1.0.0")),
+    );
 }
 
 /// The SSRF boundary still holds where it matters: a scope the resolve *does*

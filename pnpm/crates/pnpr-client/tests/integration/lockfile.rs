@@ -33,9 +33,14 @@ async fn streams_resolved_packages_before_the_lockfile() {
     let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
     for id in &streamed {
         assert!(
-            packages.keys().any(|key| key.to_string() == *id),
+            packages
+                .keys()
+                .any(|key| key.to_string() == *id),
             "streamed package {id} should appear in the resolved lockfile, got: {:?}",
-            packages.keys().map(ToString::to_string).collect::<Vec<_>>(),
+            packages
+                .keys()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>(),
         );
     }
 }

@@ -13,7 +13,10 @@ fn cascade_legacy_proxy_null_falls_through_to_env() {
 fn cafile_absolute_path_passes_through_unchanged() {
     let npmrc_dir = tempfile::tempdir().expect("tempdir");
     let abs_cafile = tempfile::NamedTempFile::new().expect("tempfile");
-    let abs_path = abs_cafile.path().to_string_lossy().into_owned();
+    let abs_path = abs_cafile
+        .path()
+        .to_string_lossy()
+        .into_owned();
     let auth = NpmrcAuth::from_ini::<NoEnv>(&format!("cafile={abs_path}\n"), npmrc_dir.path());
     assert_eq!(auth.tls.cafile.as_deref(), Some(abs_path.as_str()));
 }

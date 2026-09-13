@@ -189,15 +189,19 @@ pub fn parse_pkg_and_parent_selector(
 ///
 /// Matches the regex `/[^ |@]>/` and returns the index of the `>` itself.
 fn find_parent_delimiter(selector: &str) -> Option<usize> {
-    selector.as_bytes().windows(2).enumerate().find_map(|(idx, window)| {
-        if matches!(window[0], b' ' | b'|' | b'@') {
-            None
-        } else if window[1] == b'>' {
-            Some(idx + 1)
-        } else {
-            None
-        }
-    })
+    selector
+        .as_bytes()
+        .windows(2)
+        .enumerate()
+        .find_map(|(idx, window)| {
+            if matches!(window[0], b' ' | b'|' | b'@') {
+                None
+            } else if window[1] == b'>' {
+                Some(idx + 1)
+            } else {
+                None
+            }
+        })
 }
 
 /// Decide [`VersionOverride::converge`] for a parsed entry: a

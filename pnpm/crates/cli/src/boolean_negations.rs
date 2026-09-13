@@ -25,8 +25,10 @@ use std::collections::HashSet;
 /// (recursively, across all subcommands) that lacks one. See the module
 /// docs for why this mirrors pnpm/nopt.
 pub fn with_boolean_negations(mut cmd: Command) -> Command {
-    let existing_longs: HashSet<String> =
-        cmd.get_arguments().filter_map(|arg| arg.get_long().map(String::from)).collect();
+    let existing_longs: HashSet<String> = cmd
+        .get_arguments()
+        .filter_map(|arg| arg.get_long().map(String::from))
+        .collect();
 
     let negations: Vec<(clap::Id, String, bool)> = cmd
         .get_arguments()
@@ -62,8 +64,10 @@ pub fn with_boolean_negations(mut cmd: Command) -> Command {
         cmd = cmd.arg(negation);
     }
 
-    let subcommand_names: Vec<String> =
-        cmd.get_subcommands().map(|sub| sub.get_name().to_string()).collect();
+    let subcommand_names: Vec<String> = cmd
+        .get_subcommands()
+        .map(|sub| sub.get_name().to_string())
+        .collect();
     for name in subcommand_names {
         cmd = cmd.mut_subcommand(name, with_boolean_negations);
     }

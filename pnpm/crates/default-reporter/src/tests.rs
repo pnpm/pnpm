@@ -94,7 +94,10 @@ fn cursor_ups(output: &str) -> Vec<usize> {
     let mut rest = output;
     while let Some(start) = rest.find("\x1b[") {
         rest = &rest[start + 2..];
-        let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
+        let digits: String = rest
+            .chars()
+            .take_while(char::is_ascii_digit)
+            .collect();
         if !digits.is_empty() && rest[digits.len()..].starts_with('A') {
             result.push(digits.parse().expect("parse the cursor-up distance"));
         }
@@ -155,7 +158,10 @@ fn a_frame_shorter_than_the_committed_prefix_is_rendered_whole() {
     sink.diff = crate::diff::Diff::new(120);
     let mut writes = Vec::new();
 
-    let tall = (0..12).map(|line| format!("line {line}")).collect::<Vec<_>>().join("\n");
+    let tall = (0..12)
+        .map(|line| format!("line {line}"))
+        .collect::<Vec<_>>()
+        .join("\n");
     sink.write_to(Output::Frame(tall), false, &mut writes);
     assert!(sink.viewport.committed_lines > 0, "the tall frame must have overflowed the terminal");
 
@@ -245,8 +251,9 @@ fn a_shrinking_window_starts_a_fresh_frame() {
     let mut writes = Vec::new();
 
     let frame = |resolved: usize| -> Output {
-        let lines: Vec<String> =
-            (0..20).map(|group| format!("install-{group}: resolved {resolved}")).collect();
+        let lines: Vec<String> = (0..20)
+            .map(|group| format!("install-{group}: resolved {resolved}"))
+            .collect();
         Output::Frame(lines.join("\n"))
     };
     sink.write_to(frame(1), false, &mut writes);
@@ -257,7 +264,9 @@ fn a_shrinking_window_starts_a_fresh_frame() {
 
     let output = String::from_utf8(writes).expect("utf8 output");
     assert!(
-        cursor_ups(&output).iter().all(|up| *up < 6),
+        cursor_ups(&output)
+            .iter()
+            .all(|up| *up < 6),
         "a frame the window shrank under must not be moved into, got: {:?}",
         cursor_ups(&output),
     );

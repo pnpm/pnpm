@@ -324,12 +324,14 @@ impl Lockfile {
     /// misread as empty and delete its current lockfile.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.importers.values().all(|importer| {
-            importer.specifiers.as_ref().is_none_or(HashMap::is_empty)
-                && importer.dependencies.as_ref().is_none_or(HashMap::is_empty)
-                && importer.dev_dependencies.as_ref().is_none_or(HashMap::is_empty)
-                && importer.optional_dependencies.as_ref().is_none_or(HashMap::is_empty)
-        })
+        self.importers
+            .values()
+            .all(|importer| {
+                importer.specifiers.as_ref().is_none_or(HashMap::is_empty)
+                    && importer.dependencies.as_ref().is_none_or(HashMap::is_empty)
+                    && importer.dev_dependencies.as_ref().is_none_or(HashMap::is_empty)
+                    && importer.optional_dependencies.as_ref().is_none_or(HashMap::is_empty)
+            })
     }
 
     /// Defense-in-depth for pruned lockfiles (older `turbo prune --docker`,
@@ -361,20 +363,22 @@ impl Lockfile {
         }
         let packages = self.packages.get_or_insert_with(HashMap::new);
         for (key, directory_resolution) in to_insert {
-            packages.entry(key).or_insert_with(|| PackageMetadata {
-                resolution: LockfileResolution::Directory(directory_resolution),
-                version: None,
-                engines: None,
-                cpu: None,
-                os: None,
-                libc: None,
-                deprecated: None,
-                has_bin: None,
-                prepare: None,
-                bundled_dependencies: None,
-                peer_dependencies: None,
-                peer_dependencies_meta: None,
-            });
+            packages
+                .entry(key)
+                .or_insert_with(|| PackageMetadata {
+                    resolution: LockfileResolution::Directory(directory_resolution),
+                    version: None,
+                    engines: None,
+                    cpu: None,
+                    os: None,
+                    libc: None,
+                    deprecated: None,
+                    has_bin: None,
+                    prepare: None,
+                    bundled_dependencies: None,
+                    peer_dependencies: None,
+                    peer_dependencies_meta: None,
+                });
         }
     }
 }

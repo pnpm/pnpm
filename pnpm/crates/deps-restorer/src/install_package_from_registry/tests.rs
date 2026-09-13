@@ -371,7 +371,10 @@ async fn second_visit_skips_progress_emits_but_still_links() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -492,7 +495,10 @@ async fn install_emits_progress_sequence() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -754,8 +760,18 @@ async fn install_rejects_traversal_manifest_name() {
 
     // The traversal must not have materialized anything outside the
     // slot's `node_modules`.
-    assert!(!virtual_store_dir.path().join("OUTSIDE").exists());
-    assert!(!slot_dir.join("node_modules").join("OUTSIDE").exists());
+    assert!(
+        !virtual_store_dir
+            .path()
+            .join("OUTSIDE")
+            .exists(),
+    );
+    assert!(
+        !slot_dir
+            .join("node_modules")
+            .join("OUTSIDE")
+            .exists(),
+    );
 
     drop((store_dir, modules_dir, virtual_store_dir, cache_dir));
 }

@@ -68,7 +68,11 @@ pub fn registry_server_type(
     } else {
         Cow::Owned(format!("{registry}/"))
     };
-    registry_options_by_url.get(key.as_ref()).copied().unwrap_or_default().server_type
+    registry_options_by_url
+        .get(key.as_ref())
+        .copied()
+        .unwrap_or_default()
+        .server_type
 }
 
 /// Whether `registry`'s abbreviated metadata carries the `time` field, per its
@@ -87,7 +91,11 @@ pub fn registry_supports_time_field(
     } else {
         Cow::Owned(format!("{registry}/"))
     };
-    registry_options_by_url.get(key.as_ref()).copied().unwrap_or_default().supports_time_field
+    registry_options_by_url
+        .get(key.as_ref())
+        .copied()
+        .unwrap_or_default()
+        .supports_time_field
 }
 
 /// A declared server type wins; otherwise the built-in layout of a known
@@ -141,7 +149,11 @@ pub fn integrity_addressed_registry_tarball_url(
     let path = integrity_addressed_tarball_path(integrity)?;
     let registry =
         if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") };
-    url::Url::parse(&registry).ok()?.join(&path).ok().map(Into::into)
+    url::Url::parse(&registry)
+        .ok()?
+        .join(&path)
+        .ok()
+        .map(Into::into)
 }
 
 /// Whether `tarball` is the exact digest route derived from `registry` and `integrity`.
@@ -236,7 +248,10 @@ pub fn pick_registry_for_package(
     {
         return url.clone();
     }
-    registries.get("default").cloned().unwrap_or_default()
+    registries
+        .get("default")
+        .cloned()
+        .unwrap_or_default()
 }
 
 fn scope_of(name: &str) -> Option<&str> {

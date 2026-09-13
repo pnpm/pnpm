@@ -157,8 +157,10 @@ fn synthesized_manifest_carries_peer_metadata() {
     let result =
         synthesize_reused_result(&lockfile, &key, "react-dom").expect("registry dep is reusable");
     let manifest = result.package.manifest.expect("synthesized manifest");
-    let peers =
-        manifest.get("peerDependencies").and_then(serde_json::Value::as_object).expect("peers");
+    let peers = manifest
+        .get("peerDependencies")
+        .and_then(serde_json::Value::as_object)
+        .expect("peers");
     assert_eq!(peers.get("react").and_then(serde_json::Value::as_str), Some("^18.0.0"));
 }
 
@@ -339,9 +341,10 @@ fn current_pkg_materializes_a_revision_from_the_registry_prefix_declaration() {
     let mut lockfile = empty_lockfile();
     lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
     let mut context = registry_context(default_registry());
-    context
-        .registries_by_prefix
-        .insert("work".to_string(), "https://registry.example.test/work/npm/".to_string());
+    context.registries_by_prefix.insert(
+        "work".to_string(),
+        "https://registry.example.test/work/npm/".to_string(),
+    );
 
     let current_pkg = super::current_pkg_from_lockfile(&lockfile, &key, &context)
         .expect("declared prefix makes the revision reusable");

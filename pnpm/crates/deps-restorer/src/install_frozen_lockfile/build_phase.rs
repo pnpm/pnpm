@@ -191,9 +191,7 @@ fn build_or_defer<Reporter: self::Reporter>(
         && patches.is_none_or(HashMap::is_empty)
         && (!config.side_effects_cache_read() || inputs.cache.maps_by_snapshot.is_empty());
     let build_output = if can_defer_without_build_modules {
-        let newly_deferred = inputs
-            .graph
-            .materialized_snapshots
+        let newly_deferred = inputs.graph.materialized_snapshots
             .iter()
             .filter(|snapshot_key| !inputs.skipped.contains(snapshot_key))
             .filter_map(|snapshot_key| {
@@ -225,7 +223,8 @@ fn build_modules<'a>(
         cache: crate::BuildCacheContext {
             maps_by_snapshot: Some(inputs.cache.maps_by_snapshot),
             engine_name: inputs.cache.engine_name,
-            read: config.side_effects_cache_read() || config.remote_side_effects_cache.is_some(),
+            read: config.side_effects_cache_read()
+                || config.remote_side_effects_cache.is_some(),
             write: config.side_effects_cache_write(),
             publisher: shared_side_effects_publisher,
             store_dir: Some(&config.store_dir),

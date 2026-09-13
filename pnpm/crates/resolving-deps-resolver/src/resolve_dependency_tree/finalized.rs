@@ -119,7 +119,10 @@ impl Sweep<'_> {
         if let Some(verdict) = self.verdicts.get(pkg_id) {
             return *verdict;
         }
-        if self.inspecting.iter().any(|inspected| inspected == pkg_id) {
+        if self.inspecting
+            .iter()
+            .any(|inspected| inspected == pkg_id)
+        {
             return true;
         }
         let verdict = self.subtree_is_finalized(pkg_id);
@@ -140,7 +143,9 @@ impl Sweep<'_> {
             None => return package.is_leaf,
         };
         self.inspecting.push(Arc::clone(pkg_id));
-        let finalized = edges.iter().all(|edge| self.is_finalized(&edge.pkg_id));
+        let finalized = edges
+            .iter()
+            .all(|edge| self.is_finalized(&edge.pkg_id));
         self.inspecting.pop();
         finalized
     }

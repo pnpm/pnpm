@@ -348,9 +348,11 @@ async fn prefetch_cas_paths_skips_filesystem_checks_when_verify_disabled() {
     )
     .await;
 
-    let map = prefetched.cas_paths.get(&index_key).expect(
-        "verify=false should trust the index row and surface the entry without checking disk",
-    );
+    let map = prefetched.cas_paths
+        .get(&index_key)
+        .expect(
+            "verify=false should trust the index row and surface the entry without checking disk",
+        );
     assert!(map.contains_key("package.json"));
     drop(store_dir);
 }
@@ -685,8 +687,17 @@ async fn raw_archive_projection_ignores_legacy_package_rows() {
     assert_ne!(raw_key, legacy_key);
 
     let index = StoreIndex::open_in(store_path).expect("open store index");
-    assert!(index.get(&legacy_key).unwrap().is_some(), "legacy row is retained");
-    let raw_entry = index.get(&raw_key).unwrap().expect("raw row is indexed separately");
+    assert!(
+        index
+            .get(&legacy_key)
+            .unwrap()
+            .is_some(),
+        "legacy row is retained",
+    );
+    let raw_entry = index
+        .get(&raw_key)
+        .unwrap()
+        .expect("raw row is indexed separately");
     assert_eq!(raw_entry.files.keys().collect::<Vec<_>>(), ["README.md"]);
 
     drop((index, store_dir, local_dir));

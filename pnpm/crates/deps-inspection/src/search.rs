@@ -112,9 +112,14 @@ fn parse_search_query(query: &str) -> miette::Result<ParsedQuery> {
     let match_name = create_matcher(std::slice::from_ref(&name.to_string()));
     let match_version = match spec {
         None => None,
-        Some(spec) => Some(spec.parse::<Range>().map_err(|_| {
-            miette::miette!("Invalid query - {query}. List can search only by version or range")
-        })?),
+        Some(spec) => Some(
+            spec.parse::<Range>()
+                .map_err(|_| {
+                    miette::miette!(
+                        "Invalid query - {query}. List can search only by version or range"
+                    )
+                })?,
+        ),
     };
     Ok(ParsedQuery { match_name, match_version })
 }

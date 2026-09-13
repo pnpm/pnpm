@@ -49,14 +49,16 @@ pub(super) fn expected_tarball_dist(
     filename: &str,
 ) -> Result<Option<TarballDist>, RegistryError> {
     let packument: PackumentDists = serde_json::from_slice(packument)?;
-    let mut matches = packument.versions.iter().filter_map(|(version, manifest)| {
-        let dist = manifest.dist.as_ref()?;
-        dist.tarball
-            .as_deref()
-            .and_then(tarball_basename)
-            .is_some_and(|basename| basename == filename)
-            .then_some((version, dist))
-    });
+    let mut matches = packument.versions
+        .iter()
+        .filter_map(|(version, manifest)| {
+            let dist = manifest.dist.as_ref()?;
+            dist.tarball
+                .as_deref()
+                .and_then(tarball_basename)
+                .is_some_and(|basename| basename == filename)
+                .then_some((version, dist))
+        });
     let Some((version, dist)) = matches.next() else {
         return Ok(None);
     };
@@ -171,7 +173,10 @@ pub(super) fn filter_osv_vulnerable_versions(
     let package_name = name.as_str();
     let mut blocked_keys = HashSet::new();
     let mut retained_version_keys = HashSet::new();
-    let has_time = packument.get("time").and_then(Value::as_object).is_some();
+    let has_time = packument
+        .get("time")
+        .and_then(Value::as_object)
+        .is_some();
     if let Some(versions) = packument.get_mut("versions").and_then(Value::as_object_mut) {
         versions.retain(|key, manifest| {
             if version_is_vulnerable(osv_index, package_name, key, manifest) {
@@ -204,9 +209,11 @@ pub(super) fn drop_blocked_dist_tags(
         return;
     };
     tags.retain(|_, version| {
-        version.as_str().is_none_or(|version| {
-            !blocked.contains(version) && !osv_index.is_vulnerable(package_name, version)
-        })
+        version
+            .as_str()
+            .is_none_or(|version| {
+                !blocked.contains(version) && !osv_index.is_vulnerable(package_name, version)
+            })
     });
 }
 
@@ -264,9 +271,11 @@ pub(super) fn filter_osv_vulnerable_dist_tags(
     };
     let package_name = name.as_str();
     tags.retain(|_, version| {
-        version.as_str().is_none_or(|version| {
-            !is_osv_vulnerable_packument_version(packument, package_name, version, osv_index)
-        })
+        version
+            .as_str()
+            .is_none_or(|version| {
+                !is_osv_vulnerable_packument_version(packument, package_name, version, osv_index)
+            })
     });
 }
 
@@ -326,7 +335,9 @@ pub(super) fn packument_bytes_response(
     if let Some(last_modified) = last_modified {
         builder = builder.header(header::LAST_MODIFIED, last_modified);
     }
-    builder.body(Body::from(bytes)).expect("static-shape response always builds")
+    builder
+        .body(Body::from(bytes))
+        .expect("static-shape response always builds")
 }
 
 /// `Last-Modified` value for a served packument: the document's
@@ -340,7 +351,10 @@ pub(super) fn packument_bytes_response(
 /// `None` when the document carries no parsable `time.modified`; the
 /// header is simply omitted then.
 pub(super) fn packument_last_modified(doc: &Value) -> Option<String> {
-    let modified = doc.get("time")?.get("modified")?.as_str()?;
+    let modified = doc
+        .get("time")?
+        .get("modified")?
+        .as_str()?;
     let parsed = chrono::DateTime::parse_from_rfc3339(modified).ok()?;
     let mut whole_seconds = parsed.with_timezone(&Utc);
     if whole_seconds.timestamp_subsec_nanos() > 0 {

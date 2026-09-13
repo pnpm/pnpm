@@ -161,7 +161,13 @@ impl CommandTempCwd<()> {
         fs::write(&workspace_yaml, workspace_yaml_text).expect("write to pnpm-workspace.yaml");
 
         let npmrc_info = AddMockedRegistry { npmrc_path, store_dir, cache_dir, mock_instance };
-        let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info: () } = self;
+        let CommandTempCwd {
+            pacquet,
+            pnpm,
+            root,
+            workspace,
+            npmrc_info: (),
+        } = self;
         CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info }
     }
 }

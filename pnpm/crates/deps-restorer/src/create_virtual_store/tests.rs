@@ -52,7 +52,12 @@ fn dep_map(children: &[&str]) -> Option<HashMap<PkgName, SnapshotDepRef>> {
     }
     // The ref value is irrelevant to `removed_child_aliases`; only the
     // alias keys matter. A bare version is the simplest valid ref.
-    Some(children.iter().map(|child| (name(child), "1.0.0".parse().expect("ref"))).collect())
+    Some(
+        children
+            .iter()
+            .map(|child| (name(child), "1.0.0".parse().expect("ref")))
+            .collect(),
+    )
 }
 
 fn snapshot(deps: &[&str], optional: &[&str]) -> SnapshotEntry {

@@ -71,9 +71,15 @@ pub fn dedupe_peer_dependents(
 fn collect_duplicates(graph: &DependenciesGraph) -> Vec<Vec<DepPath>> {
     let mut by_pkg: BTreeMap<&str, Vec<DepPath>> = BTreeMap::new();
     for (dep_path, node) in graph {
-        by_pkg.entry(node.resolved_package_id.as_str()).or_default().push(dep_path.clone());
+        by_pkg
+            .entry(node.resolved_package_id.as_str())
+            .or_default()
+            .push(dep_path.clone());
     }
-    by_pkg.into_values().filter(|variants| variants.len() > 1).collect()
+    by_pkg
+        .into_values()
+        .filter(|variants| variants.len() > 1)
+        .collect()
 }
 
 /// Run [`deduplicate_dep_paths`] in rounds: after each round, rewrite the

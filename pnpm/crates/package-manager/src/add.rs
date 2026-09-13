@@ -190,10 +190,9 @@ where
             AddOwned {
                 tarball_mem_cache: self.resources.tarball_mem_cache,
                 http_client_arc: self.resources.http_client_arc,
-                dependency_groups: self
-                    .resources
-                    .dependency_groups
-                    .map(|groups| groups.into_iter().collect()),
+                dependency_groups: self.resources.dependency_groups.map(|groups| {
+                    groups.into_iter().collect()
+                }),
                 save_catalog_name: self.resources.save_catalog_name,
                 supported_architectures: self.resources.supported_architectures,
             },

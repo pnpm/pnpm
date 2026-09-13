@@ -159,7 +159,9 @@ fn distribute_dependencies(
     for node in nodes {
         match field_of.get(node.alias.as_str()) {
             Some(DependenciesField::Dependencies) => hierarchy.dependencies.push(node),
-            Some(DependenciesField::DevDependencies) => hierarchy.dev_dependencies.push(node),
+            Some(DependenciesField::DevDependencies) => {
+                hierarchy.dev_dependencies.push(node);
+            }
             Some(DependenciesField::OptionalDependencies) => {
                 hierarchy.optional_dependencies.push(node);
             }
@@ -197,7 +199,11 @@ fn field_map(
         if !included {
             continue;
         }
-        for alias in group.into_iter().flatten().map(|(alias, _)| alias) {
+        for alias in group
+            .into_iter()
+            .flatten()
+            .map(|(alias, _)| alias)
+        {
             map.insert(alias.to_string(), field);
         }
     }
@@ -350,7 +356,10 @@ fn resolve_link_target(link: &Path) -> Option<PathBuf> {
 fn read_package_version(pkg_dir: &Path) -> Option<String> {
     let bytes = std::fs::read(pkg_dir.join("package.json")).ok()?;
     let manifest = parse_manifest_bytes(&bytes).ok()?;
-    manifest.get("version").and_then(serde_json::Value::as_str).map(str::to_string)
+    manifest
+        .get("version")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string)
 }
 
 #[derive(Debug, Default)]
@@ -371,8 +380,17 @@ pub fn read_project_manifest(project_dir: &Path) -> ProjectManifestSummary {
         return ProjectManifestSummary::default();
     };
     ProjectManifestSummary {
-        name: manifest.get("name").and_then(serde_json::Value::as_str).map(str::to_string),
-        version: manifest.get("version").and_then(serde_json::Value::as_str).map(str::to_string),
-        private: manifest.get("private").and_then(serde_json::Value::as_bool).unwrap_or(false),
+        name: manifest
+            .get("name")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string),
+        version: manifest
+            .get("version")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string),
+        private: manifest
+            .get("private")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false),
     }
 }

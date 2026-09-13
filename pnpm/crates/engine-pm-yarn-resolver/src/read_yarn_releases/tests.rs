@@ -50,7 +50,10 @@ fn no_token_is_sent_when_authentication_is_withheld() {
 fn releases_are_read_with_the_v_prefix_stripped() {
     let releases = parse_releases(&releases_body("")).expect("parse the release list");
     assert_eq!(
-        releases.iter().map(|release| release.version.as_str()).collect::<Vec<_>>(),
+        releases
+            .iter()
+            .map(|release| release.version.as_str())
+            .collect::<Vec<_>>(),
         ["6.0.0-rc.19", "6.0.0-rc.18"],
     );
 }
@@ -144,7 +147,9 @@ fn an_asset_without_a_usable_digest_is_skipped() {
     let releases = parse_releases(&releases_body(unsigned)).expect("parse the release list");
     let variants = asset_variants(&releases[0]).expect("decode the archives");
     assert!(
-        variants.iter().all(|variant| variant.targets[0].cpu != "ia32"),
+        variants
+            .iter()
+            .all(|variant| variant.targets[0].cpu != "ia32"),
         "an archive pnpm cannot verify must not be installable",
     );
 }

@@ -22,8 +22,13 @@ use super::{
 async fn network_error_display_includes_reqwest_inner_chain() {
     let url = "http://127.0.0.1:1/ssl-package.tgz";
     let client = fast_fail_client();
-    let err =
-        client.acquire().await.get(url).send().await.expect_err("connecting to port 1 must fail");
+    let err = client
+        .acquire()
+        .await
+        .get(url)
+        .send()
+        .await
+        .expect_err("connecting to port 1 must fail");
     let expected_code = if err.is_timeout() { "ETIMEDOUT" } else { "ECONNREFUSED" };
     let net_err = NetworkError { url: url.to_string(), error: err };
 
@@ -333,10 +338,19 @@ async fn mem_cache_partitions_raw_and_package_projections_in_both_orders() {
             (package_files, raw_files)
         };
 
-        let mut package_names = package_files.keys().map(String::as_str).collect::<Vec<_>>();
+        let mut package_names = package_files
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>();
         package_names.sort_unstable();
         assert_eq!(package_names, ["README.md", "package.json"]);
-        assert_eq!(raw_files.keys().map(String::as_str).collect::<Vec<_>>(), ["README.md"]);
+        assert_eq!(
+            raw_files
+                .keys()
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
+            ["README.md"],
+        );
         assert_eq!(mem_cache.len(), 2);
         drop(store_dir);
     }
@@ -585,7 +599,12 @@ async fn run_without_mem_cache_fetches_unverified_and_writes_no_index_row() {
 async fn retries_then_succeeds_on_transient_5xx() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
     let mut server = mockito::Server::new_async().await;
-    let fail = server.mock("GET", "/pkg.tgz").with_status(503).expect(1).create_async().await;
+    let fail = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(503)
+        .expect(1)
+        .create_async()
+        .await;
     let ok = server
         .mock("GET", "/pkg.tgz")
         .with_status(200)
@@ -629,7 +648,12 @@ async fn revision_addressed_mem_cache_does_not_retry_a_failed_prefetch() {
     let mut server = mockito::Server::new_async().await;
     let digest = "A".repeat(86);
     let path = format!("/-/tarballs/sha512/{digest}");
-    let mock = server.mock("GET", path.as_str()).with_status(503).expect(1).create_async().await;
+    let mock = server
+        .mock("GET", path.as_str())
+        .with_status(503)
+        .expect(1)
+        .create_async()
+        .await;
     let url = format!("{}{path}", server.url());
     let expected = integrity(&format!("sha512-{digest}=="));
     let client = ThrottledClient::default();
@@ -771,7 +795,12 @@ async fn revision_addressed_mem_cache_does_not_reuse_a_redirect_permitting_fetch
 async fn fails_fast_on_404() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
     let mut server = mockito::Server::new_async().await;
-    let mock = server.mock("GET", "/missing.tgz").with_status(404).expect(1).create_async().await;
+    let mock = server
+        .mock("GET", "/missing.tgz")
+        .with_status(404)
+        .expect(1)
+        .create_async()
+        .await;
 
     let url = format!("{}/missing.tgz", server.url());
     let client = ThrottledClient::default();

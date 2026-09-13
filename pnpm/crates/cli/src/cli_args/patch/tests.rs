@@ -251,6 +251,10 @@ fn prompt_candidate_set() -> PatchCandidateSet {
 
 fn prompt_candidate(key: &str) -> PatchCandidate {
     let package_key = key.parse().expect("package key");
-    let version = key.rsplit('@').next().expect("version").to_string();
+    let version = key
+        .rsplit('@')
+        .next()
+        .expect("version")
+        .to_string();
     PatchCandidate { name: "chalk".to_string(), version, git_tarball_url: None, package_key }
 }

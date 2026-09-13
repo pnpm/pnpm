@@ -9,7 +9,11 @@ use super::{SearchMatch, Searcher};
 use crate::TreeNodeId;
 
 fn searcher(queries: &[&str]) -> Searcher {
-    let queries: Vec<String> = queries.iter().copied().map(str::to_string).collect();
+    let queries: Vec<String> = queries
+        .iter()
+        .copied()
+        .map(str::to_string)
+        .collect();
     Searcher::from_queries(&queries).unwrap()
 }
 

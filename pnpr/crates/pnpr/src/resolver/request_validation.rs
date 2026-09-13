@@ -31,7 +31,10 @@ pub(super) fn reject_off_allowlist_fetches(
     if let Some(registry) = request.registry.as_deref() {
         registries.push(registry);
     }
-    if let Some(off) = registries.into_iter().find(|registry| !context.allows_registry(registry)) {
+    if let Some(off) = registries
+        .into_iter()
+        .find(|registry| !context.allows_registry(registry))
+    {
         return Some(forbidden_off_allowlist(off));
     }
 
@@ -42,8 +45,7 @@ pub(super) fn reject_off_allowlist_fetches(
     }
 
     // Override leaves can themselves be direct-URL specs.
-    if let Some(off) = request
-        .overrides
+    if let Some(off) = request.overrides
         .as_ref()
         .and_then(|overrides| first_off_allowlist_override(overrides, context))
     {
@@ -67,8 +69,12 @@ fn fetchable_specs<'a>(request: &'a ResolveRequest, projects: &'a [ProjectDeps])
         }
     }
     if let Some(catalogs) = request.catalogs.as_ref() {
-        url_specs
-            .extend(catalogs.values().flat_map(|catalog| catalog.values()).map(String::as_str));
+        url_specs.extend(
+            catalogs
+                .values()
+                .flat_map(|catalog| catalog.values())
+                .map(String::as_str),
+        );
     }
     extend_package_extension_specs(request, &mut url_specs);
     if let Some(packages) =
@@ -168,10 +174,15 @@ pub(super) fn reject_invalid_registries(request: &ResolveRequest) -> Option<Resp
 }
 
 pub(super) fn reject_invalid_patch_hashes(request: &ResolveRequest) -> Option<Response> {
-    let (selector, _) = request.patched_dependencies.as_ref()?.iter().find(|(_, hash)| {
-        hash.len() != 64
-            || !hash.bytes().all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
-    })?;
+    let (selector, _) = request.patched_dependencies
+        .as_ref()?
+        .iter()
+        .find(|(_, hash)| {
+            hash.len() != 64
+                || !hash
+                    .bytes()
+                    .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+        })?;
     Some(json_error(
         StatusCode::BAD_REQUEST,
         &format!("patchedDependencies entry {selector:?} does not contain a SHA-256 hex digest"),

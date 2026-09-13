@@ -33,7 +33,10 @@ fn parse_number(value: &str) -> Option<serde_json::Number> {
     if let Ok(int) = value.parse::<i64>() {
         return Some(int.into());
     }
-    value.parse::<f64>().ok().and_then(serde_json::Number::from_f64)
+    value
+        .parse::<f64>()
+        .ok()
+        .and_then(serde_json::Number::from_f64)
 }
 
 /// `validateSimpleKey`: a strictly-kebab-case key passes through; otherwise the
@@ -130,8 +133,12 @@ fn absolutize_patch_paths(result: &mut Map<String, Value>, config: &Config) {
         if let Value::String(path) = value
             && !Path::new(path.as_str()).is_absolute()
         {
-            *value =
-                Value::String(workspace_dir.join(path.as_str()).to_string_lossy().into_owned());
+            *value = Value::String(
+                workspace_dir
+                    .join(path.as_str())
+                    .to_string_lossy()
+                    .into_owned(),
+            );
         }
     }
 }
@@ -144,7 +151,10 @@ fn merge_default_catalog(result: &mut Map<String, Value>) {
         Some(Value::Object(named)) => named,
         _ => Map::new(),
     };
-    let default = result.get("catalog").or_else(|| named.get("default")).cloned();
+    let default = result
+        .get("catalog")
+        .or_else(|| named.get("default"))
+        .cloned();
     let mut merged = Map::new();
     if let Some(default) = default {
         merged.insert("default".to_string(), default);
@@ -173,10 +183,13 @@ fn lookup_config(config: &Config, key: &str, is_scoped: bool) -> Option<Value> {
         return Some(lookup_scoped_config(config, key));
     }
     if key == "globalconfig" {
-        let path = config
-            .config_dir
+        let path = config.config_dir
             .as_ref()
-            .map(|dir| dir.join(GLOBAL_CONFIG_YAML_FILENAME).to_string_lossy().into_owned())
+            .map(|dir| {
+                dir.join(GLOBAL_CONFIG_YAML_FILENAME)
+                    .to_string_lossy()
+                    .into_owned()
+            })
             .unwrap_or_default();
         return Some(Value::String(path));
     }

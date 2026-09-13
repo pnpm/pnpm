@@ -7,13 +7,18 @@ impl OidcState {
     /// Verifies workload credentials against configured issuers only. The returned restrictions
     /// must be enforced before treating the mapped username as an authenticated caller.
     pub async fn workload(&self, raw: &str) -> Result<Option<OidcWorkload>> {
-        if !self.providers.values().any(|provider| !provider.config.workloads.is_empty())
+        if !self.providers
+            .values()
+            .any(|provider| !provider.config.workloads.is_empty())
             || raw.split('.').count() != 3
         {
             return Ok(None);
         }
         let payload = token_payload(raw)?;
-        let issuer = payload.get("iss").and_then(Value::as_str).ok_or_else(rejected)?;
+        let issuer = payload
+            .get("iss")
+            .and_then(Value::as_str)
+            .ok_or_else(rejected)?;
         let mut matched = None;
         for provider in self.providers.values() {
             if provider.config.issuer != issuer || provider.config.workloads.is_empty() {

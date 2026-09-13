@@ -38,9 +38,13 @@ pub(super) fn cached_resolution(
     let mut cache = cache.lock().expect("resolution cache poisoned");
     let candidates = cache.get_mut(key)?;
     candidates.retain(|candidate| candidate.inserted.elapsed() <= ttl);
-    let Some((candidate_index, _)) = candidates.iter().enumerate().find(|(_, candidate)| {
-        candidate.footprint.is_public() || candidate.footprint.allows(route_context, identity)
-    }) else {
+    let Some((candidate_index, _)) = candidates
+        .iter()
+        .enumerate()
+        .find(|(_, candidate)| {
+            candidate.footprint.is_public() || candidate.footprint.allows(route_context, identity)
+        })
+    else {
         if candidates.is_empty() {
             cache.remove(key);
         }
@@ -74,8 +78,9 @@ pub(super) fn store_resolution(
     let mut cache = cache.lock().expect("resolution cache poisoned");
     prune_expired_resolution_cache(&mut cache, ttl);
     let candidates = cache.entry(key).or_default();
-    if let Some(existing) =
-        candidates.iter_mut().find(|entry| entry.descriptor_digest == candidate.descriptor_digest)
+    if let Some(existing) = candidates
+        .iter_mut()
+        .find(|entry| entry.descriptor_digest == candidate.descriptor_digest)
     {
         *existing = candidate;
         return true;

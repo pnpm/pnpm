@@ -178,9 +178,14 @@ impl OidcState {
             .await
             .map_err(|_| rejected())?;
         let token = response.id_token().ok_or_else(rejected)?;
-        let expiration = self
-            .verified_expiration(provider, &metadata, &response, token, &Nonce::new(login.nonce))
-            .await?;
+        let expiration = self.verified_expiration(
+            provider,
+            &metadata,
+            &response,
+            token,
+            &Nonce::new(login.nonce),
+        )
+        .await?;
         let binding = bound_user(&provider.config, token)?;
         let now = Utc::now().timestamp();
         if login.expires <= now {
@@ -212,8 +217,7 @@ impl OidcState {
         {
             return Err(rejected());
         }
-        if self
-            .consumed
+        if self.consumed
             .lock()
             .expect("OIDC consumed mutex poisoned")
             .contains_key(&login.state_hash)
@@ -255,7 +259,10 @@ impl OidcState {
 
     fn record_attempt(&self, state_hash: &str) -> Result<()> {
         let mut attempts = self.attempts.lock().expect("OIDC attempts mutex poisoned");
-        if attempts.iter().any(|state| state == state_hash) {
+        if attempts
+            .iter()
+            .any(|state| state == state_hash)
+        {
             return Err(rejected());
         }
         if attempts.len() >= MAX_ENTRIES {
@@ -283,7 +290,10 @@ impl OidcState {
         let payload = BASE64_URL_SAFE_NO_PAD.decode(payload).map_err(|_| rejected())?;
         let signature = BASE64_URL_SAFE_NO_PAD.decode(signature).map_err(|_| rejected())?;
         let signature = Signature::from_slice(&signature).map_err(|_| rejected())?;
-        self.state_key.verifying_key().verify(&payload, &signature).map_err(|_| rejected())?;
+        self.state_key
+            .verifying_key()
+            .verify(&payload, &signature)
+            .map_err(|_| rejected())?;
         serde_json::from_slice(&payload).map_err(|_| rejected())
     }
 
@@ -354,8 +364,7 @@ impl OidcState {
         secure_url(&request.uri().to_string())?;
         network::validate_destination(&request.uri().to_string())?;
         let (parts, body) = request.into_parts();
-        let mut response = self
-            .http
+        let mut response = self.http
             .request(parts.method, parts.uri.to_string())
             .headers(parts.headers)
             .body(body)
@@ -379,8 +388,7 @@ impl OidcState {
 
 fn cached_metadata(cache: &MetadataCache, refresh: bool) -> Option<CoreProviderMetadata> {
     let recently_attempted = cache.attempted_at.is_some_and(|at| at.elapsed() < REFRESH_INTERVAL);
-    cache
-        .value
+    cache.value
         .as_ref()
         .filter(|(fetched, _)| fetched.elapsed() < METADATA_TTL && (!refresh || recently_attempted))
         .map(|(_, metadata)| metadata.clone())

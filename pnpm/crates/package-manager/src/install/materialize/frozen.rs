@@ -19,11 +19,25 @@ impl<'a> MaterializationInputs<'a, '_> {
                 self.lockfiles.current,
                 self.install.context.config.force,
             ),
-            resolution_verifiers: self
-                .workspace
-                .requested_importer_ids
-                .map_or(self.lockfiles.verification.resolution_verifiers.as_slice(), |_| &[][..]),
+            resolution_verifiers: self.workspace.requested_importer_ids.map_or(
+                self.lockfiles.verification.resolution_verifiers.as_slice(),
+                |_| &[][..],
+            ),
             planned_canonical_fetches: Some(&self.lockfiles.verification.planned_canonical_fetches),
+        }
+    }
+
+    fn take_frozen_seed<'b>(
+        &mut self,
+        frozen_verification_override: Option<crate::LockfileVerificationOverride<'b>>,
+    ) -> pnpm_deps_restorer::FrozenInstallSeed<'b> {
+        pnpm_deps_restorer::FrozenInstallSeed {
+            early_host_detection: self.execution.early_host_detection.take(),
+            node_version: self.execution.effective_node_version.take(),
+            skipped: self.modules.modules_manifest.map(|manifest| {
+                manifest.skipped.clone()
+            }),
+            lockfile_verification_override: frozen_verification_override,
         }
     }
 
@@ -34,12 +48,7 @@ impl<'a> MaterializationInputs<'a, '_> {
         frozen_verification_override: Option<crate::LockfileVerificationOverride<'b>>,
         prior_unbuilt_builds: &'b pnpm_deps_restorer::UnbuiltBuilds,
     ) -> InstallFrozenLockfile<'b> {
-        let seed = pnpm_deps_restorer::FrozenInstallSeed {
-            early_host_detection: self.execution.early_host_detection.take(),
-            node_version: self.execution.effective_node_version.take(),
-            skipped: self.modules.modules_manifest.map(|manifest| manifest.skipped.clone()),
-            lockfile_verification_override: frozen_verification_override,
-        };
+        let seed = self.take_frozen_seed(frozen_verification_override);
         InstallFrozenLockfile {
             drivers: pnpm_deps_restorer::FrozenInstallDrivers {
                 config: self.install.context.config,

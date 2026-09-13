@@ -89,7 +89,10 @@ fn check_settings_returns_drift_when_catalog_snapshot_specifier_changes() {
         Some("^18.2.0"),
     );
     assert_eq!(
-        config.get("default").and_then(|catalog| catalog.get("react")).map(String::as_str),
+        config
+            .get("default")
+            .and_then(|catalog| catalog.get("react"))
+            .map(String::as_str),
         Some("^19.0.0"),
     );
 }

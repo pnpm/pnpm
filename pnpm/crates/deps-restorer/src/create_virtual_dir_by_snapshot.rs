@@ -217,9 +217,7 @@ impl CreateVirtualDirBySnapshot<'_> {
         remove_obsolete_children(
             node_modules,
             &self.dependencies.package_key.name,
-            self.dependencies
-                .snapshot
-                .optional_dependencies
+            self.dependencies.snapshot.optional_dependencies
                 .iter()
                 .flatten()
                 .map(|(alias, _)| alias),
@@ -230,15 +228,11 @@ impl CreateVirtualDirBySnapshot<'_> {
         remove_obsolete_children(
             node_modules,
             &self.dependencies.package_key.name,
-            self.dependencies
-                .snapshot
-                .dependencies
+            self.dependencies.snapshot.dependencies
                 .iter()
                 .flat_map(|dependencies| dependencies.keys())
                 .chain(
-                    self.dependencies
-                        .snapshot
-                        .optional_dependencies
+                    self.dependencies.snapshot.optional_dependencies
                         .iter()
                         .flat_map(|deps| deps.keys()),
                 ),
@@ -287,10 +281,11 @@ fn create_slot_dirs(
         Ok(()) => {}
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            fs::create_dir_all(slot_dir).map_err(|error| CreateVirtualDirError::CreateSlotDir {
-                dir: slot_dir.to_path_buf(),
-                error,
-            })?;
+            fs::create_dir_all(slot_dir)
+                .map_err(|error| CreateVirtualDirError::CreateSlotDir {
+                    dir: slot_dir.to_path_buf(),
+                    error,
+                })?;
         }
         Err(error) => {
             return Err(CreateVirtualDirError::CreateSlotDir {

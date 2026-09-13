@@ -26,17 +26,14 @@ pub(crate) fn filter_advisories_for_fix(
     audit_level: ConfigAuditLevel,
     config: &Config,
 ) -> BTreeMap<String, AuditAdvisory> {
-    let ignore_set = config
-        .audit_config
-        .ignore_ghsas
+    let ignore_set = config.audit_config.ignore_ghsas
         .iter()
         .filter_map(|ghsa| {
             let ghsa = normalize_ghsa_id(ghsa);
             (!ghsa.is_empty()).then_some(ghsa)
         })
         .collect::<HashSet<_>>();
-    report
-        .advisories
+    report.advisories
         .iter()
         .filter(|(_, advisory)| severity_number(advisory.severity) >= severity_number(audit_level))
         .filter(|(_, advisory)| {
@@ -62,8 +59,7 @@ pub(crate) fn prune_ignored_ghsas(
     ignored_ghsas: &[String],
     report: &AuditReport,
 ) -> PruneIgnoredGhsasResult {
-    let advisory_ghsa_ids = report
-        .advisories
+    let advisory_ghsa_ids = report.advisories
         .values()
         .filter(|advisory| !advisory.github_advisory_id.is_empty())
         .map(|advisory| normalize_ghsa_id(&advisory.github_advisory_id))
@@ -119,10 +115,13 @@ pub(crate) async fn fix_override(
     if overrides.is_empty() {
         return Ok("No fixes were made".to_string());
     }
-    let entries = overrides.iter().map(|(key, value)| (key.as_str(), value.as_str()));
-    pnpm_workspace_manifest_writer::set_overrides(settings_dir, entries).map_err(|err| {
-        miette::Report::new(err).wrap_err("write overrides to pnpm-workspace.yaml")
-    })?;
+    let entries = overrides
+        .iter()
+        .map(|(key, value)| (key.as_str(), value.as_str()));
+    pnpm_workspace_manifest_writer::set_overrides(settings_dir, entries)
+        .map_err(|err| {
+            miette::Report::new(err).wrap_err("write overrides to pnpm-workspace.yaml")
+        })?;
     let json = serde_json::to_string_pretty(&overrides).into_diagnostic()?;
     let mut output = format!(
         "{} overrides were added to pnpm-workspace.yaml to fix vulnerabilities.\nRun \"pnpm install\" to apply the fixes.\n\nThe added overrides:\n{json}",
@@ -178,7 +177,9 @@ impl PackumentPublishInfo {
             .filter(|(_, version)| !self.deprecated.contains(version))
             .filter(|(_, version)| satisfies_including_prerelease(version, range))
             .min_by(|(_, a), (_, b)| {
-                a.is_prerelease().cmp(&b.is_prerelease()).then_with(|| a.cmp(b))
+                a.is_prerelease()
+                    .cmp(&b.is_prerelease())
+                    .then_with(|| a.cmp(b))
             })
     }
 }
@@ -341,7 +342,10 @@ pub(crate) fn ignore_vulnerabilities(
     let requested = if ignore_unfixable {
         unfixable_ghsa_ids(report)?
     } else {
-        ignore.iter().map(|ghsa| normalize_ghsa_id(ghsa)).collect()
+        ignore
+            .iter()
+            .map(|ghsa| normalize_ghsa_id(ghsa))
+            .collect()
     };
     let mut new_ignores: Vec<String> = Vec::new();
     for ghsa in requested {
@@ -351,12 +355,11 @@ pub(crate) fn ignore_vulnerabilities(
         }
     }
 
-    pnpm_workspace_manifest_writer::set_audit_ignore_ghsas(settings_dir, &ordered).map_err(
-        |err| {
+    pnpm_workspace_manifest_writer::set_audit_ignore_ghsas(settings_dir, &ordered)
+        .map_err(|err| {
             miette::Report::new(err)
                 .wrap_err("write auditConfig.ignoreGhsas to pnpm-workspace.yaml")
-        },
-    )?;
+        })?;
 
     Ok(ignored_summary(&new_ignores))
 }
@@ -372,8 +375,7 @@ fn ignored_summary(new_ignores: &[String]) -> String {
 /// that carries no GHSA id cannot be ignored, so it is an error rather
 /// than a silent omission.
 fn unfixable_ghsa_ids(report: &AuditReport) -> miette::Result<Vec<String>> {
-    report
-        .advisories
+    report.advisories
         .values()
         .filter(|advisory| advisory.patched_versions.is_none())
         .map(|advisory| {
@@ -423,13 +425,18 @@ pub(crate) fn interactive_select(
     if selected.is_empty() {
         return Ok(None);
     }
-    let chosen: HashSet<&String> = selected.iter().map(|&index| &keys[index]).collect();
+    let chosen: HashSet<&String> = selected
+        .iter()
+        .map(|&index| &keys[index])
+        .collect();
     Ok(Some(
         advisories
             .into_iter()
             .filter(|(_, advisory)| {
-                chosen
-                    .contains(&format!("{}@{}", advisory.module_name, advisory.vulnerable_versions))
+                chosen.contains(&format!(
+                    "{}@{}",
+                    advisory.module_name, advisory.vulnerable_versions,
+                ))
             })
             .collect(),
     ))

@@ -120,13 +120,13 @@ impl ProxyKeys {
             None => match https {
                 Resolved::Url(url) => Resolved::Url(url),
                 Resolved::Disabled => Resolved::Disabled,
-                Resolved::Unset => {
-                    self.env.http_proxy.as_deref().or(self.env.proxy.as_deref()).into()
-                }
+                Resolved::Unset => self.env.http_proxy
+                    .as_deref()
+                    .or(self.env.proxy.as_deref())
+                    .into(),
             },
         };
-        let no_proxy = self
-            .no_proxy
+        let no_proxy = self.no_proxy
             .url()
             .or_else(|| self.noproxy.url())
             .or(self.env.no_proxy.as_deref())

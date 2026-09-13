@@ -120,7 +120,11 @@ pub(super) async fn add_upstream_org_packages(
     let Some(config) = state.inner.config.routing.upstreams.get(scan.source) else {
         return Ok(());
     };
-    if !config.search || config.access.as_ref().is_some_and(|access| !access.allows(identity)) {
+    if !config.search
+        || config.access
+            .as_ref()
+            .is_some_and(|access| !access.allows(identity))
+    {
         return Ok(());
     }
     let Some(upstream) = state.inner.proxy.upstreams.get(scan.source) else {
@@ -213,7 +217,10 @@ pub(super) fn get_org_teams(
         Ok(hosted) => hosted,
         Err(err) => return err.into_response(),
     };
-    let teams: Vec<Value> = hosted.teams.keys().map(|name| json!({ "name": name })).collect();
+    let teams: Vec<Value> = hosted.teams
+        .keys()
+        .map(|name| json!({ "name": name }))
+        .collect();
     (StatusCode::OK, axum::Json(Value::Array(teams))).into_response()
 }
 
@@ -234,7 +241,10 @@ pub(super) fn get_team_members(
     let Some(members) = hosted.teams.get(team) else {
         return not_found();
     };
-    let members: Vec<Value> = members.iter().map(|name| json!({ "name": name })).collect();
+    let members: Vec<Value> = members
+        .iter()
+        .map(|name| json!({ "name": name }))
+        .collect();
     (StatusCode::OK, axum::Json(Value::Array(members))).into_response()
 }
 

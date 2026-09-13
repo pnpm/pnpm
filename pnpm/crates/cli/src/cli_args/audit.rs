@@ -228,19 +228,18 @@ impl AuditArgs {
         .await;
 
         if let Some(fix_method) = fix_method {
-            return self
-                .run_fix::<Reporter>(
-                    fix_method,
-                    &mut state,
-                    &report,
-                    &FixContext {
-                        audit_level,
-                        lockfile_dir: &lockfile_dir,
-                        settings_dir: &settings_dir,
-                        publish_infos: &publish_infos,
-                    },
-                )
-                .await;
+            return self.run_fix::<Reporter>(
+                fix_method,
+                &mut state,
+                &report,
+                &FixContext {
+                    audit_level,
+                    lockfile_dir: &lockfile_dir,
+                    settings_dir: &settings_dir,
+                    publish_infos: &publish_infos,
+                },
+            )
+            .await;
         }
 
         self.render_report(report, state.config, &settings_dir, audit_level)
@@ -284,7 +283,12 @@ impl AuditArgs {
         }
         if self.params.len() > 1 {
             return Err(AuditError::UnknownSubcommand {
-                subcommand: self.params.iter().take(2).cloned().collect::<Vec<_>>().join(" "),
+                subcommand: self.params
+                    .iter()
+                    .take(2)
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(" "),
             }
             .into());
         }
@@ -305,8 +309,7 @@ impl AuditArgs {
         audit_level: ConfigAuditLevel,
         lockfile_dir: &std::path::Path,
     ) -> miette::Result<Option<AuditReport>> {
-        let lockfile = state
-            .lockfile
+        let lockfile = state.lockfile
             .get()
             .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
         let Some(lockfile) = lockfile else {
@@ -372,8 +375,7 @@ impl AuditArgs {
 /// Whether the report holds an advisory at or above the configured
 /// audit level.
 fn audit_outcome(report: &AuditReport, audit_level: ConfigAuditLevel) -> AuditOutcome {
-    if report
-        .advisories
+    if report.advisories
         .values()
         .any(|advisory| severity_number(advisory.severity) >= severity_number(audit_level))
     {
@@ -390,8 +392,7 @@ fn signature_packages(
     include: Include,
     lockfile_dir: &std::path::Path,
 ) -> miette::Result<Vec<signatures::SignaturePackage>> {
-    let lockfile = state
-        .lockfile
+    let lockfile = state.lockfile
         .get()
         .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
     let Some(lockfile) = lockfile else {
@@ -400,18 +401,21 @@ fn signature_packages(
     let env_lockfile = EnvLockfile::read(lockfile_dir)
         .map_err(|err| miette::Report::new(err).wrap_err("load the env lockfile"))?;
     let audit_request = lockfile_to_audit_request(lockfile, env_lockfile.as_ref(), include);
-    let registries: HashMap<String, String> =
-        state.config.resolved_registries().into_iter().collect();
-    Ok(audit_request
-        .request
+    let registries: HashMap<String, String> = state.config
+        .resolved_registries()
+        .into_iter()
+        .collect();
+    Ok(audit_request.request
         .iter()
         .flat_map(|(name, versions)| {
             let registry = pick_registry_for_package(&registries, name, None);
-            versions.iter().map(move |version| signatures::SignaturePackage {
-                name: name.clone(),
-                registry: registry.clone(),
-                version: version.clone(),
-            })
+            versions
+                .iter()
+                .map(move |version| signatures::SignaturePackage {
+                    name: name.clone(),
+                    registry: registry.clone(),
+                    version: version.clone(),
+                })
         })
         .collect())
 }
@@ -440,6 +444,9 @@ mod remediation;
 
 impl AdvisoryFilterArgs {
     fn effective_level(&self, configured: Option<ConfigAuditLevel>) -> ConfigAuditLevel {
-        self.audit_level.map(ConfigAuditLevel::from).or(configured).unwrap_or(ConfigAuditLevel::Low)
+        self.audit_level
+            .map(ConfigAuditLevel::from)
+            .or(configured)
+            .unwrap_or(ConfigAuditLevel::Low)
     }
 }

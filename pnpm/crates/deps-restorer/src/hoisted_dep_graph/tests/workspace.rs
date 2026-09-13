@@ -43,7 +43,11 @@ fn walker_multi_importer_emits_per_importer_direct_deps() {
         modules.join("a"),
     );
     assert_eq!(result.direct_dependencies_by_importer_id["packages/foo"]["b"], modules.join("b"));
-    assert!(!result.graph.values().any(|node| node.alias.as_deref() == Some("packages%2Ffoo")));
+    assert!(
+        !result.graph
+            .values()
+            .any(|node| node.alias.as_deref() == Some("packages%2Ffoo")),
+    );
 }
 /// The linker drives its per-importer parallel fan-out off the hierarchy
 /// map, so an importer missing a hierarchy entry would be silently
@@ -203,7 +207,10 @@ fn walker_workspace_root_version_wins_root_slot() {
     let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
 
     let root_webby = lockfile_dir.join("node_modules").join("webby");
-    let nested_webby = lockfile_dir.join("packages/app").join("node_modules").join("webby");
+    let nested_webby = lockfile_dir
+        .join("packages/app")
+        .join("node_modules")
+        .join("webby");
 
     assert_eq!(
         result.graph[&root_webby].package.dep_path,

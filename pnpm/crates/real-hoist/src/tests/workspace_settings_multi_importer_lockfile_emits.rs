@@ -27,14 +27,18 @@ fn multi_importer_lockfile_emits_workspace_children() {
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("workspace hoist succeeds");
-    let mut children: Vec<(String, String)> = result
-        .dependencies
+    let mut children: Vec<(String, String)> = result.dependencies
         .borrow()
         .iter()
         .map(|child| {
             (
                 child.0.name.clone(),
-                child.0.references.borrow().iter().next().cloned().unwrap_or_default(),
+                child.0.references
+                    .borrow()
+                    .iter()
+                    .next()
+                    .cloned()
+                    .unwrap_or_default(),
             )
         })
         .collect();
@@ -78,8 +82,11 @@ fn hoist_workspace_packages_false_keeps_workspace_children() {
 
     let opts = HoistOpts { hoist_workspace_packages: false, ..HoistOpts::default() };
     let result = hoist(&lockfile, &opts).expect("hoist succeeds");
-    let children: Vec<String> =
-        result.dependencies.borrow().iter().map(|child| child.0.name.clone()).collect();
+    let children: Vec<String> = result.dependencies
+        .borrow()
+        .iter()
+        .map(|child| child.0.name.clone())
+        .collect();
     assert_eq!(
         children,
         vec!["packages%2Ffoo".to_string()],

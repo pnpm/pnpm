@@ -292,12 +292,14 @@ impl<'de> serde::Deserialize<'de> for VerifyDepsBeforeRun {
                 Ok(if value { VerifyDepsBeforeRun::True } else { VerifyDepsBeforeRun::False })
             }
             fn visit_str<DeError: de::Error>(self, value: &str) -> Result<Self::Value, DeError> {
-                value.parse().map_err(|()| {
-                    DeError::invalid_value(
-                        de::Unexpected::Str(value),
-                        &r#"true, false, "install", "warn", "error", or "prompt""#,
-                    )
-                })
+                value
+                    .parse()
+                    .map_err(|()| {
+                        DeError::invalid_value(
+                            de::Unexpected::Str(value),
+                            &r#"true, false, "install", "warn", "error", or "prompt""#,
+                        )
+                    })
             }
         }
         deserializer.deserialize_any(V)

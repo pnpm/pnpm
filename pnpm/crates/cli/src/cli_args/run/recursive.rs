@@ -155,8 +155,7 @@ fn emit_selection_scope(emit: fn(&LogEvent), config: &Config, selected: usize, t
         level: LogLevel::Debug,
         selected,
         total: Some(total),
-        workspace_prefix: config
-            .workspace_dir
+        workspace_prefix: config.workspace_dir
             .as_deref()
             .map(|dir| dir.to_string_lossy().into_owned()),
     }));
@@ -255,23 +254,31 @@ impl RecursiveRun<'_, '_> {
             return Ok(None);
         }
 
+        self.validate_requested_scripts(&mut task_graph)?;
+
+        let task_run_state = task_run_state_context.start(&initially_completed_tasks(
+            &full_task_graph,
+            &task_graph,
+        ))?;
+        Ok(Some(PreparedRun { task_graph, sequenced_tasks, extra_env, task_run_state }))
+    }
+
+    fn validate_requested_scripts(&self, task_graph: &mut TaskGraph) -> miette::Result<()> {
         // Hidden scripts (names starting with `.`) can only be invoked from
         // within another script, detected by an inherited
         // `npm_lifecycle_event`. Checked only for the tasks the invocation
         // named: a `dependsOn` declaration naming a hidden script is a
         // deliberate reference, like a call from another script.
-        filter_hidden_requested_scripts(&mut task_graph, self.script.script_name)?;
+        filter_hidden_requested_scripts(task_graph, self.script.script_name)?;
 
         check_a_project_has_the_script(
-            &task_graph,
+            task_graph,
             self.args,
             self.script.script_name,
             self.script.all_packages_selected,
         )?;
 
-        let task_run_state = task_run_state_context
-            .start(&initially_completed_tasks(&full_task_graph, &task_graph))?;
-        Ok(Some(PreparedRun { task_graph, sequenced_tasks, extra_env, task_run_state }))
+        Ok(())
     }
 
     fn task_graph(&self) -> miette::Result<TaskGraph> {
@@ -346,7 +353,11 @@ fn initially_completed_tasks(
     full_task_graph: &TaskGraph,
     task_graph: &TaskGraph,
 ) -> HashSet<TaskKey> {
-    full_task_graph.keys().filter(|key| !task_graph.contains_key(*key)).cloned().collect()
+    full_task_graph
+        .keys()
+        .filter(|key| !task_graph.contains_key(*key))
+        .cloned()
+        .collect()
 }
 
 mod execution;

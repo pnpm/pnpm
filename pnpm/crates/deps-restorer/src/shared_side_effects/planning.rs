@@ -51,7 +51,10 @@ pub(super) fn eligible_roots(
     in_lockfile_order(snapshots)
         .into_iter()
         .filter(|(snapshot_key, _)| {
-            requires_build_by_snapshot.get(*snapshot_key).copied().unwrap_or(false)
+            requires_build_by_snapshot
+                .get(*snapshot_key)
+                .copied()
+                .unwrap_or(false)
                 && eligible_packages.contains(&snapshot_key.name.to_string())
                 && allow_build_policy.check(&snapshot_key.without_peer().to_string()) == Some(true)
                 && base_cas_paths.contains_key(*snapshot_key)

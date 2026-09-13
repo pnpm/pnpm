@@ -168,8 +168,9 @@ async fn canonical_snapshot_link_keeps_direct_links_relative_to_each_importer() 
         result.peers.direct_dependencies_by_importer["packages/consumer"]["shared"].as_str(),
         "link:../shared",
     );
-    let wrapper =
-        result.peers.graph.get(&crate::DepPath::from("wrapper@1.0.0")).expect("wrapper graph node");
+    let wrapper = result.peers.graph
+        .get(&crate::DepPath::from("wrapper@1.0.0"))
+        .expect("wrapper graph node");
     assert_eq!(
         wrapper.edges.children.get("shared"),
         Some(&crate::DepPath::from("link:packages/shared")),
@@ -246,9 +247,7 @@ async fn catalogs_work_in_injected_workspace_packages() {
 
     assert!(result.merged_tree.packages.contains_key("project2@file:packages/project2"));
     assert!(result.merged_tree.packages.contains_key("is-positive@1.0.0"));
-    let children = result
-        .merged_tree
-        .children_by_id
+    let children = result.merged_tree.children_by_id
         .get("project2@file:packages/project2")
         .expect("injected workspace package children");
     assert_eq!(children.len(), 1);

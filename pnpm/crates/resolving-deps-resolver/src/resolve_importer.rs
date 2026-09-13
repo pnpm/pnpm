@@ -396,7 +396,10 @@ impl DirectSeeds {
                 .iter()
                 .map(|(alias, range, ..)| (alias.clone(), range.clone()))
                 .collect(),
-            parent_pkg_aliases: initial_wanted.iter().map(|(alias, ..)| alias.clone()).collect(),
+            parent_pkg_aliases: initial_wanted
+                .iter()
+                .map(|(alias, ..)| alias.clone())
+                .collect(),
             initial_wanted,
         })
     }
@@ -445,8 +448,7 @@ impl ResolveImporterOptions {
             peers_suffix_max_length: self.peers_suffix_max_length,
             peers: crate::ImporterPeerOptions {
                 auto_install_peers: self.peers.auto_install_peers,
-                auto_install_peers_from_highest_match: self
-                    .peers
+                auto_install_peers_from_highest_match: self.peers
                     .auto_install_peers_from_highest_match,
                 resolve_peers_from_workspace_root: self.peers.resolve_peers_from_workspace_root,
                 dedupe_peers: self.peers.dedupe_peers,
@@ -527,8 +529,7 @@ impl ImporterHoistState {
             },
             scope: crate::PeerResolutionScope {
                 hoist_missing_scope: None,
-                hoisted_peer_provider_node_ids: self
-                    .dependencies
+                hoisted_peer_provider_node_ids: self.dependencies
                     .hoisted_peer_provider_node_ids
                     .clone(),
                 ..Default::default()

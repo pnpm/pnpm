@@ -42,29 +42,31 @@ where
         }
     };
     let slots: Vec<PathBuf> = slots.collect();
-    slots.par_iter().try_for_each(|slot_dir| {
-        let modules_dir = slot_dir.join("node_modules");
-        let Some(self_pkg_dir) = find_slot_own_package_dir(slot_dir, &modules_dir) else {
-            return Ok(());
-        };
-        // Probe the slot's own package directory before walking its
-        // children. Without the probe, an incomplete slot whose
-        // `node_modules/<pkg>` is missing but whose sibling deps are
-        // still present would have `link_bins_excluding` collect the
-        // siblings and `create_dir_all` the missing `<pkg>` chain to
-        // hold the shims, leaving an orphan package directory on
-        // disk. This path runs only for [`crate::InstallWithFreshLockfile`]
-        // and visits ~direct-deps slots (small N), so the probe cost
-        // is trivial; the lockfile-driven path bypasses this by
-        // treating the slot's own pkg dir as an invariant of
-        // [`crate::create_virtual_dir_by_snapshot`].
-        if Sys::read_dir(&self_pkg_dir).is_err() {
-            return Ok(());
-        }
-        let bins_dir = self_pkg_dir.join("node_modules/.bin");
-        link_bins_excluding::<Sys>(&modules_dir, &bins_dir, &self_pkg_dir, link_options)
-            .map_err(LinkVirtualStoreBinsError::LinkBins)
-    })
+    slots
+        .par_iter()
+        .try_for_each(|slot_dir| {
+            let modules_dir = slot_dir.join("node_modules");
+            let Some(self_pkg_dir) = find_slot_own_package_dir(slot_dir, &modules_dir) else {
+                return Ok(());
+            };
+            // Probe the slot's own package directory before walking its
+            // children. Without the probe, an incomplete slot whose
+            // `node_modules/<pkg>` is missing but whose sibling deps are
+            // still present would have `link_bins_excluding` collect the
+            // siblings and `create_dir_all` the missing `<pkg>` chain to
+            // hold the shims, leaving an orphan package directory on
+            // disk. This path runs only for [`crate::InstallWithFreshLockfile`]
+            // and visits ~direct-deps slots (small N), so the probe cost
+            // is trivial; the lockfile-driven path bypasses this by
+            // treating the slot's own pkg dir as an invariant of
+            // [`crate::create_virtual_dir_by_snapshot`].
+            if Sys::read_dir(&self_pkg_dir).is_err() {
+                return Ok(());
+            }
+            let bins_dir = self_pkg_dir.join("node_modules/.bin");
+            link_bins_excluding::<Sys>(&modules_dir, &bins_dir, &self_pkg_dir, link_options)
+                .map_err(LinkVirtualStoreBinsError::LinkBins)
+        })
 }
 /// Locate the slot's own package directory inside `<slot>/node_modules`.
 ///
@@ -105,7 +107,10 @@ pub(super) fn find_slot_own_package_dir(slot_dir: &Path, modules_dir: &Path) -> 
     // `validate-npm-package-name` warns about them), so an unscoped
     // name like `foo+bar` could in principle reach here and would
     // otherwise be split into `foo` / `bar`.
-    let pkg_dir = match scoped.then(|| name_part.split_once('+')).flatten() {
+    let pkg_dir = match scoped
+        .then(|| name_part.split_once('+'))
+        .flatten()
+    {
         Some((scope, name)) => modules_dir.join(scope).join(name),
         None => modules_dir.join(name_part),
     };

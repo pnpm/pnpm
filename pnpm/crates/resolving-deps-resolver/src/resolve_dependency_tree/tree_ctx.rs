@@ -32,10 +32,13 @@ pub(super) fn project_relative_cache_scope(
     wanted: &WantedDependency,
     opts: &ResolveOptions,
 ) -> Option<super::workspace_ctx::PathKey> {
-    (wanted.bare_specifier.as_deref().is_some_and(|spec| {
-        spec.starts_with("link:") || spec.starts_with("file:") || spec.starts_with("workspace:")
-    }) || (opts.project.link_workspace_packages.enabled_at_depth(0)
-        && opts.project.workspace_packages.is_some()))
+    (wanted.bare_specifier
+        .as_deref()
+        .is_some_and(|spec| {
+            spec.starts_with("link:") || spec.starts_with("file:") || spec.starts_with("workspace:")
+        })
+        || (opts.project.link_workspace_packages.enabled_at_depth(0)
+            && opts.project.workspace_packages.is_some()))
     .then(|| opts.project.project_dir.clone().into())
 }
 
@@ -81,7 +84,9 @@ pub(super) fn opts_relative_to_declaring_manifest<'a>(
 ) -> Cow<'a, ResolveOptions> {
     match parent_dir {
         Some(parent_dir)
-            if wanted.bare_specifier.as_deref().is_some_and(|spec| spec.starts_with("file:")) =>
+            if wanted.bare_specifier
+                .as_deref()
+                .is_some_and(|spec| spec.starts_with("file:")) =>
         {
             Cow::Owned(ResolveOptions {
                 project: pnpm_resolving_resolver_base::ResolverProjectOptions {
@@ -332,8 +337,9 @@ impl TreeCtx {
     }
 
     pub(super) fn update_cache_scope(&self) -> Option<String> {
-        (!matches!(self.update_reuse_scope(), UpdateReuseScope::All))
-            .then(|| self.importer.id.clone())
+        (!matches!(self.update_reuse_scope(), UpdateReuseScope::All)).then(|| {
+            self.importer.id.clone()
+        })
     }
 
     /// Set the importer this context walks for. See [`TreeCtx`]'s
@@ -489,9 +495,16 @@ impl TreeCtx {
         let run = self.workspace.run_preferred_versions();
         let mut out = pnpm_resolving_resolver_base::PreferredVersions::new();
         for name in names {
-            let mut bucket = seed.get(name).cloned().unwrap_or_default();
+            let mut bucket = seed
+                .get(name)
+                .cloned()
+                .unwrap_or_default();
             bucket.retain(|_, entry| entry.selector_type() == VersionSelectorType::Version);
-            for (selector, entry) in run.versions.get(name).into_iter().flatten() {
+            for (selector, entry) in run.versions
+                .get(name)
+                .into_iter()
+                .flatten()
+            {
                 bucket.entry(selector.clone()).or_insert_with(|| entry.clone());
             }
             if !bucket.is_empty() {
@@ -505,8 +518,7 @@ impl TreeCtx {
 fn create_subdep_options(base_opts: &ResolveOptions) -> ResolveOptions {
     ResolveOptions {
         project: pnpm_resolving_resolver_base::ResolverProjectOptions {
-            link_workspace_packages: if base_opts
-                .project
+            link_workspace_packages: if base_opts.project
                 .link_workspace_packages
                 .enabled_at_depth(1)
             {

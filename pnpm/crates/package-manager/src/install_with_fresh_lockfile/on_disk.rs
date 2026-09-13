@@ -255,16 +255,19 @@ impl<'a> OnDiskInputs<'a> {
         );
         let built = crate::install_frozen_lockfile::run_build_phase::<Reporter>(
             &crate::install_frozen_lockfile::BuildPhaseInputs {
-                cache: materialized
-                    .build_cache(engine_name.as_deref(), &self.store.store_index_writer),
+                cache: materialized.build_cache(
+                    engine_name.as_deref(),
+                    &self.store.store_index_writer,
+                ),
                 directories: build_directories(self.ctx, linked, top_level_bin_root),
                 graph: pnpm_deps_restorer::BuildPhaseGraph {
                     snapshots: self.projects.materialization_lockfile.snapshots.as_ref(),
                     packages: self.projects.materialization_lockfile.packages.as_ref(),
                     importers: &self.projects.materialization_lockfile.importers,
                     dependency_groups: self.install.projects.dependency_groups,
-                    materialized_snapshots: linked
-                        .build_snapshots(&materialized.materialized_snapshots),
+                    materialized_snapshots: linked.build_snapshots(
+                        &materialized.materialized_snapshots,
+                    ),
                 },
                 policy: pnpm_deps_restorer::BuildPhasePolicy {
                     config: self.ctx.config,
@@ -307,8 +310,11 @@ pub(super) async fn run_on_disk_phases<Reporter: self::Reporter + 'static>(
     fold_fetch_failures(skipped, std::mem::take(&mut materialized.fetch_failed));
 
     let linked = inputs.link::<Reporter>(&mut materialized, skipped)?;
-    let crate::BuildModulesOutput { ignored_builds, deferred_builds, mutated_slots: _ } =
-        inputs.build::<Reporter>(&materialized, &linked, skipped).await?;
+    let crate::BuildModulesOutput {
+        ignored_builds,
+        deferred_builds,
+        mutated_slots: _,
+    } = inputs.build::<Reporter>(&materialized, &linked, skipped).await?;
 
     let injected_deps = crate::collect_injected_deps(
         ctx.linker.layout,
@@ -337,15 +343,11 @@ pub(super) async fn finish_early_materialization<Reporter: self::Reporter + 'sta
 ) {
     let Some(materializer) = materializer else { return };
     let phase_start = std::time::Instant::now();
-    let materialized = materializer
-        .finish(
-            |key| {
-                wanted.is_some_and(|snapshots| snapshots.contains_key(key))
-                    && !skipped.contains(key)
-            },
-            logged_methods,
-        )
-        .await;
+    let materialized = materializer.finish(
+        |key| wanted.is_some_and(|snapshots| snapshots.contains_key(key)) && !skipped.contains(key),
+        logged_methods,
+    )
+    .await;
     tracing::info!(
         target: "pacquet::install::phase",
         phase = "early_materialization",

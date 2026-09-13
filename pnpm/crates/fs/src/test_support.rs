@@ -43,7 +43,10 @@ struct Registration(PathBuf);
 
 impl Drop for Registration {
     fn drop(&mut self) {
-        let observer = OBSERVERS.lock().unwrap_or_else(PoisonError::into_inner).remove(&self.0);
+        let observer = OBSERVERS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(&self.0);
         drop(observer);
     }
 }
@@ -52,8 +55,11 @@ impl Drop for Registration {
 mod tests;
 
 pub(crate) fn notify_attempt(path: &Path, result: &io::Result<()>) {
-    let observer =
-        OBSERVERS.lock().unwrap_or_else(PoisonError::into_inner).get(path).map(Arc::clone);
+    let observer = OBSERVERS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .get(path)
+        .map(Arc::clone);
     if let Some(observer) = observer {
         observer.lock().unwrap_or_else(PoisonError::into_inner)(result);
     }

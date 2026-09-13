@@ -59,7 +59,10 @@ pub(super) fn ingest_record_bytes(
     // OSV sets `withdrawn` to a timestamp string only for withdrawn
     // records; a literal `null` is not a withdrawal, so don't drop the
     // advisory on it.
-    if record.withdrawn.as_ref().is_some_and(|withdrawn| !withdrawn.is_null()) {
+    if record.withdrawn
+        .as_ref()
+        .is_some_and(|withdrawn| !withdrawn.is_null())
+    {
         return Ok(());
     }
     for affected in record.affected {
@@ -80,7 +83,10 @@ pub(super) fn ingest_record_bytes(
         if advisory.versions.is_empty() && advisory.ranges.is_empty() {
             continue;
         }
-        packages.entry(name).or_default().push(advisory);
+        packages
+            .entry(name)
+            .or_default()
+            .push(advisory);
     }
     Ok(())
 }
@@ -90,7 +96,9 @@ pub(super) fn ingest_record_bytes(
 pub(super) fn exceeds_affected_limits(affected: &OsvAffected) -> bool {
     affected.versions.len() > MAX_VERSIONS_PER_AFFECTED
         || affected.ranges.len() > MAX_RANGES_PER_AFFECTED
-        || affected.ranges.iter().any(|range| range.events.len() > MAX_EVENTS_PER_RANGE)
+        || affected.ranges
+            .iter()
+            .any(|range| range.events.len() > MAX_EVENTS_PER_RANGE)
 }
 
 /// Fold an npm package name to its case-insensitive key. npm forbids
@@ -107,7 +115,10 @@ pub(super) fn normalized_name(name: &str) -> Cow<'_, str> {
 }
 
 pub(super) fn advisory_from_affected(id: &str, affected: OsvAffected) -> Advisory {
-    let ranges = affected.ranges.into_iter().filter_map(semver_range_from_osv).collect();
+    let ranges = affected.ranges
+        .into_iter()
+        .filter_map(semver_range_from_osv)
+        .collect();
     Advisory {
         id: truncate_advisory_id(id),
         versions: affected.versions.into_iter().collect(),
@@ -121,7 +132,10 @@ pub(super) fn truncate_advisory_id(id: &str) -> String {
     if id.len() <= MAX_ADVISORY_ID_BYTES {
         return id.to_string();
     }
-    let end = (0..=MAX_ADVISORY_ID_BYTES).rev().find(|&i| id.is_char_boundary(i)).unwrap_or(0);
+    let end = (0..=MAX_ADVISORY_ID_BYTES)
+        .rev()
+        .find(|&i| id.is_char_boundary(i))
+        .unwrap_or(0);
     format!("{}…", &id[..end])
 }
 
@@ -129,7 +143,10 @@ pub(super) fn semver_range_from_osv(range: OsvRange) -> Option<SemverRange> {
     if range.kind != "SEMVER" && range.kind != "ECOSYSTEM" {
         return None;
     }
-    let mut events = range.events.into_iter().filter_map(semver_event_from_osv).collect::<Vec<_>>();
+    let mut events = range.events
+        .into_iter()
+        .filter_map(semver_event_from_osv)
+        .collect::<Vec<_>>();
     // `SemverRange::affects` toggles state as it walks events, so it is
     // order-sensitive. OSV expects events sorted by version bound; sort
     // here so a malformed or reordered events array can't flip a verdict.
@@ -174,7 +191,10 @@ pub(super) fn parse_osv_version(raw: &str) -> Option<Version> {
         // value — an OSV field can be up to the per-record cap, so log a
         // short prefix plus the full length instead of the raw string.
         const MAX_LOGGED_CHARS: usize = 64;
-        let prefix: String = raw.chars().take(MAX_LOGGED_CHARS).collect();
+        let prefix: String = raw
+            .chars()
+            .take(MAX_LOGGED_CHARS)
+            .collect();
         tracing::warn!(
             version_prefix = %prefix,
             version_len = raw.len(),

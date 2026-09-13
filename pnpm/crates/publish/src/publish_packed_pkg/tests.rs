@@ -154,8 +154,13 @@ fn parse_otp_challenge_reads_each_url_independently() {
 #[tokio::test]
 async fn put_publish_returns_an_ok_response_on_success() {
     let mut server = mockito::Server::new_async().await;
-    let mock =
-        server.mock("PUT", "/pkg").with_status(200).with_body("").expect(1).create_async().await;
+    let mock = server
+        .mock("PUT", "/pkg")
+        .with_status(200)
+        .with_body("")
+        .expect(1)
+        .create_async()
+        .await;
     let client = ThrottledClient::default();
     let url = format!("{}/pkg", server.url());
 
@@ -173,7 +178,12 @@ async fn put_publish_returns_an_ok_response_on_success() {
 #[tokio::test]
 async fn put_publish_reports_a_non_success_status_without_erroring() {
     let mut server = mockito::Server::new_async().await;
-    server.mock("PUT", "/pkg").with_status(500).with_body("boom").create_async().await;
+    server
+        .mock("PUT", "/pkg")
+        .with_status(500)
+        .with_body("boom")
+        .create_async()
+        .await;
     let client = ThrottledClient::default();
     let url = format!("{}/pkg", server.url());
 
@@ -209,7 +219,12 @@ async fn put_publish_maps_a_www_authenticate_otp_to_a_challenge() {
 async fn put_publish_maps_a_one_time_pass_body_to_a_web_auth_challenge() {
     let mut server = mockito::Server::new_async().await;
     let challenge_body = r#"{"error":"one-time pass required","authUrl":"https://r/auth/abc","doneUrl":"https://r/auth/abc/done"}"#;
-    server.mock("PUT", "/pkg").with_status(401).with_body(challenge_body).create_async().await;
+    server
+        .mock("PUT", "/pkg")
+        .with_status(401)
+        .with_body(challenge_body)
+        .create_async()
+        .await;
     let client = ThrottledClient::default();
     let url = format!("{}/pkg", server.url());
 
@@ -296,8 +311,7 @@ async fn put_publish_omits_auth_and_otp_headers_when_absent() {
     let client = ThrottledClient::default();
     let url = format!("{}/pkg", server.url());
 
-    put_publish(&client, &url, None, "publish", body(), None, false)
-        .await
+    put_publish(&client, &url, None, "publish", body(), None, false).await
         .expect("the PUT completes");
     mock.assert_async().await;
 }
@@ -315,8 +329,13 @@ async fn put_publish_classifies_a_connection_failure_as_a_transport_error() {
 #[tokio::test]
 async fn publish_with_otp_handling_returns_the_response_when_no_otp_is_required() {
     let mut server = mockito::Server::new_async().await;
-    let mock =
-        server.mock("PUT", "/pkg").with_status(200).with_body("").expect(1).create_async().await;
+    let mock = server
+        .mock("PUT", "/pkg")
+        .with_status(200)
+        .with_body("")
+        .expect(1)
+        .create_async()
+        .await;
     let client = ThrottledClient::default();
     let url = format!("{}/pkg", server.url());
 
@@ -545,7 +564,9 @@ async fn web_auth_flow_polls_then_retries_with_the_web_token() {
     .expect("the web-auth retry succeeds");
     assert!(response.ok);
     assert!(
-        infos().iter().any(|message| message.contains("https://registry.npmjs.org/auth/abc")),
+        infos()
+            .iter()
+            .any(|message| message.contains("https://registry.npmjs.org/auth/abc")),
         "the auth URL should be surfaced, got {:?}",
         infos(),
     );

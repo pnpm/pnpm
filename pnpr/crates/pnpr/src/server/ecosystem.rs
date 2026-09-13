@@ -107,21 +107,18 @@ pub(super) fn registry_requires_auth(
     ecosystem: Ecosystem,
 ) -> bool {
     let config = &state.inner.config;
-    config.routing.registries.sources(registry, ecosystem).into_iter().any(|source| {
-        match config.routing.registries.get(source) {
-            Some(Registry::Hosted { .. }) => config
-                .routing
-                .hosted
+    config.routing.registries
+        .sources(registry, ecosystem)
+        .into_iter()
+        .any(|source| match config.routing.registries.get(source) {
+            Some(Registry::Hosted { .. }) => config.routing.hosted
                 .get(source)
                 .is_some_and(|hosted| !hosted.rules.all_access_admit(&Identity::Anonymous)),
-            Some(Registry::Upstream { .. }) => config
-                .routing
-                .upstreams
+            Some(Registry::Upstream { .. }) => config.routing.upstreams
                 .get(source)
                 .is_some_and(|upstream| upstream.access.is_some()),
             Some(Registry::Router { .. }) | None => false,
-        }
-    })
+        })
 }
 
 /// The hosted registries of `ecosystem` a request through `registry` can land on.

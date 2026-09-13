@@ -240,7 +240,11 @@ impl PackageManifest {
             .filter_map(|group| self.value.get::<&str>(group.into()))
             .filter_map(|dependencies| dependencies.as_object())
             .flatten()
-            .filter_map(|(name, version)| version.as_str().map(|value| (name.as_str(), value)))
+            .filter_map(|(name, version)| {
+                version
+                    .as_str()
+                    .map(|value| (name.as_str(), value))
+            })
     }
 
     /// Resolve a `(key, bare_specifier)` pair from a `package.json`
@@ -402,8 +406,7 @@ impl PackageManifest {
         command: &str,
         if_present: bool, // TODO: split this function into 2, one with --if-present, one without
     ) -> Result<Option<&str>, PackageManifestError> {
-        if let Some(script_str) = self
-            .value
+        if let Some(script_str) = self.value
             .get("scripts")
             .and_then(|scripts| scripts.get(command))
             .and_then(|script| script.as_str())
@@ -440,11 +443,14 @@ pub fn pkg_requires_build(pkg_root: &Path) -> bool {
 /// user to approve a build that does not exist.
 #[must_use]
 pub fn manifest_requires_build(manifest: &Value) -> bool {
-    manifest.get("scripts").and_then(Value::as_object).is_some_and(|scripts| {
-        ["preinstall", "install", "postinstall"]
-            .iter()
-            .any(|name| scripts.get(*name).is_some_and(script_is_set))
-    })
+    manifest
+        .get("scripts")
+        .and_then(Value::as_object)
+        .is_some_and(|scripts| {
+            ["preinstall", "install", "postinstall"]
+                .iter()
+                .any(|name| scripts.get(*name).is_some_and(script_is_set))
+        })
 }
 
 /// Whether a `scripts` entry holds something to run.
@@ -489,13 +495,18 @@ mod tests;
 #[must_use]
 pub fn extract_author(manifest: &serde_json::Value) -> Option<String> {
     let author = manifest.get("author")?;
-    let name = author.as_str().or_else(|| author.get("name")?.as_str())?;
+    let name = author
+        .as_str()
+        .or_else(|| author.get("name")?.as_str())?;
     (!name.trim().is_empty()).then(|| name.to_string())
 }
 
 /// Extracts the homepage field from a manifest.
 pub fn extract_homepage(manifest: &serde_json::Value) -> Option<String> {
-    manifest.get("homepage").and_then(|v| v.as_str()).map(ToString::to_string)
+    manifest
+        .get("homepage")
+        .and_then(|v| v.as_str())
+        .map(ToString::to_string)
 }
 
 /// Extracts the license from either the modern `license` field or the legacy
@@ -512,7 +523,10 @@ fn extract_license_field(field: &serde_json::Value) -> Option<String> {
         return (!license.is_empty()).then(|| license.to_string());
     }
     if let Some(entries) = field.as_array() {
-        let licenses: Vec<&str> = entries.iter().filter_map(extract_license_type).collect();
+        let licenses: Vec<&str> = entries
+            .iter()
+            .filter_map(extract_license_type)
+            .collect();
         return match licenses.as_slice() {
             [] => None,
             [license] => Some((*license).to_string()),
@@ -523,13 +537,18 @@ fn extract_license_field(field: &serde_json::Value) -> Option<String> {
 }
 
 fn extract_license_type(entry: &serde_json::Value) -> Option<&str> {
-    if let Some(license) = entry.as_str().filter(|license| !license.is_empty()) {
+    if let Some(license) = entry
+        .as_str()
+        .filter(|license| !license.is_empty())
+    {
         return Some(license);
     }
     let entry = entry.as_object()?;
     for key in ["type", "name"] {
-        if let Some(license) =
-            entry.get(key).and_then(serde_json::Value::as_str).filter(|license| !license.is_empty())
+        if let Some(license) = entry
+            .get(key)
+            .and_then(serde_json::Value::as_str)
+            .filter(|license| !license.is_empty())
         {
             return Some(license);
         }

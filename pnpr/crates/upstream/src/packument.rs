@@ -75,8 +75,9 @@ pub(super) fn rewrite_dist_tarball(
     if let Some(source_registry) = source_registry {
         rewrite_upstream_revision_tarball_urls(dist, source_registry, public_url);
     }
-    let revision_url = source_registry
-        .and_then(|source_registry| unique_revision_url(dist, source_registry, public_url));
+    let revision_url = source_registry.and_then(|source_registry| {
+        unique_revision_url(dist, source_registry, public_url)
+    });
     if let Some(revision_url) = revision_url {
         let Some(tarball_value) = dist.get_mut("tarball") else { return };
         *tarball_value = Value::String(revision_url);
@@ -105,7 +106,11 @@ pub(super) fn unique_revision_url(
 ) -> Option<String> {
     let revision = dist.get("revision")?.as_u64()?;
     TarballRevision::try_from(revision).ok()?;
-    let integrity: Integrity = dist.get("integrity")?.as_str()?.parse().ok()?;
+    let integrity: Integrity = dist
+        .get("integrity")?
+        .as_str()?
+        .parse()
+        .ok()?;
     let tarball = dist.get("tarball")?.as_str()?;
     if !is_integrity_addressed_registry_tarball_url(tarball, &integrity, source_registry) {
         return None;
@@ -163,9 +168,12 @@ pub(super) fn rewrite_revision_tarball(
     else {
         return false;
     };
-    let addressed = revision.get("tarball").and_then(Value::as_str).is_some_and(|tarball| {
-        is_integrity_addressed_registry_tarball_url(tarball, &integrity, source_registry)
-    });
+    let addressed = revision
+        .get("tarball")
+        .and_then(Value::as_str)
+        .is_some_and(|tarball| {
+            is_integrity_addressed_registry_tarball_url(tarball, &integrity, source_registry)
+        });
     if !addressed {
         return false;
     }
@@ -185,8 +193,13 @@ pub(super) fn rewrite_revision_tarball(
 /// later requests. Returns `None` for a URL whose path ends in `/`.
 #[must_use]
 pub fn tarball_basename(url: &str) -> Option<&str> {
-    let path = url.split(['?', '#']).next().unwrap_or(url);
-    path.rsplit('/').next().filter(|segment| !segment.is_empty())
+    let path = url
+        .split(['?', '#'])
+        .next()
+        .unwrap_or(url);
+    path.rsplit('/')
+        .next()
+        .filter(|segment| !segment.is_empty())
 }
 
 /// Look up the version manifest for `version_or_tag` inside a parsed
@@ -234,7 +247,10 @@ pub(super) fn extract_version_manifest_from_registry(
         .and_then(|tags| tags.get(version_or_tag))
         .and_then(Value::as_str)
         .unwrap_or(version_or_tag);
-    let mut manifest = packument.get("versions")?.get(resolved)?.clone();
+    let mut manifest = packument
+        .get("versions")?
+        .get(resolved)?
+        .clone();
     rewrite_tarball_urls_from_registry(&mut manifest, pkg, source_registry, public_url);
     Some(manifest)
 }
@@ -368,7 +384,10 @@ pub(super) fn trim_dist_fields(version: &mut serde_json::Map<String, Value>) {
         return;
     };
     dist.remove("npm-signature");
-    if dist.get("integrity").and_then(Value::as_str).is_some_and(|integrity| !integrity.is_empty())
+    if dist
+        .get("integrity")
+        .and_then(Value::as_str)
+        .is_some_and(|integrity| !integrity.is_empty())
     {
         dist.remove("shasum");
     }

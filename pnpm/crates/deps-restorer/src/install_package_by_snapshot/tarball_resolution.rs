@@ -122,11 +122,10 @@ pub(super) fn registry_resolution_url<'a>(
     };
     let (registry, version) = registry_and_version(package_key, config)?;
     let tarball_url = match registry_resolution.revision {
-        Some(_) => {
-            integrity_addressed_registry_tarball_url(integrity, &registry).ok_or_else(|| {
+        Some(_) => integrity_addressed_registry_tarball_url(integrity, &registry)
+            .ok_or_else(|| {
                 invalid_tarball_revision(package_key, "has invalid or missing integrity")
-            })?
-        }
+            })?,
         None => npm_tarball_url(
             &package_key.name.to_string(),
             &version,
@@ -147,7 +146,12 @@ pub(super) fn registry_and_version(
             .iter()
             .find(|(name, _)| *name == registry_name)
             .map(|(_, url)| (*url).to_string())
-            .pipe(|builtin| config.registries_by_prefix.get(registry_name).cloned().or(builtin))
+            .pipe(|builtin| {
+                config.registries_by_prefix
+                    .get(registry_name)
+                    .cloned()
+                    .or(builtin)
+            })
             .ok_or_else(|| InstallPackageBySnapshotError::MissingNamedRegistry {
                 package_key: package_key.to_string(),
                 registry_name: registry_name.to_string(),
@@ -155,7 +159,10 @@ pub(super) fn registry_and_version(
         return Ok((registry, version.to_string()));
     }
     let name = package_key.name.to_string();
-    let registries: HashMap<String, String> = config.resolved_registries().into_iter().collect();
+    let registries: HashMap<String, String> = config
+        .resolved_registries()
+        .into_iter()
+        .collect();
     Ok((
         pick_registry_for_package(&registries, &name, None),
         package_key.suffix.version().to_string(),

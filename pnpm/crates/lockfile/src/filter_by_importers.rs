@@ -86,8 +86,10 @@ impl Lockfile {
         }
 
         let reachable = collect_reachable(&filtered, seeds, options)?;
-        let reachable_metadata: HashSet<_> =
-            reachable.iter().map(PkgNameVerPeer::without_peer).collect();
+        let reachable_metadata: HashSet<_> = reachable
+            .iter()
+            .map(PkgNameVerPeer::without_peer)
+            .collect();
         if let Some(snapshots) = filtered.snapshots.as_mut() {
             snapshots.retain(|key, _| reachable.contains(key));
         }
@@ -117,7 +119,10 @@ fn importer_keys(importer: &ProjectSnapshot) -> impl Iterator<Item = PackageKey>
 /// lockfile describes a dependency closure, not a publishable project.
 fn filter_importer(importer: &ProjectSnapshot, include: IncludedDependencies) -> ProjectSnapshot {
     let pick = |group: Option<&ResolvedDependencyMap>, included: bool| {
-        included.then(|| group.cloned()).flatten().unwrap_or_default()
+        included
+            .then(|| group.cloned())
+            .flatten()
+            .unwrap_or_default()
     };
     ProjectSnapshot {
         specifiers: importer.specifiers.clone(),

@@ -83,9 +83,13 @@ fn lifecycle_dependencies<'a>(
             .map(|project_dir| pnpm_fs::lexical_normalize(project_dir))
             .collect::<HashSet<_>>()
     });
-    let explicit_order_covers_projects = ordered_dirs.as_ref().is_some_and(|ordered_dirs| {
-        normalized_project_dirs.iter().all(|project_dir| ordered_dirs.contains(project_dir))
-    });
+    let explicit_order_covers_projects = ordered_dirs
+        .as_ref()
+        .is_some_and(|ordered_dirs| {
+            normalized_project_dirs
+                .iter()
+                .all(|project_dir| ordered_dirs.contains(project_dir))
+        });
     let dependencies: std::borrow::Cow<IndexMap<PathBuf, Vec<PathBuf>>> =
         if explicit_order_covers_projects {
             std::borrow::Cow::Borrowed(ordered_dependencies.expect("checked as present"))
@@ -97,14 +101,7 @@ fn lifecycle_dependencies<'a>(
                 lockfile,
             ))
         } else if let Some(ordered_dirs) = ordered_dirs {
-            return Err(InstallError::ProjectLifecycleOrder {
-                projects: normalized_project_dirs
-                    .iter()
-                    .filter(|project_dir| !ordered_dirs.contains(*project_dir))
-                    .map(|project_dir| project_dir.display().to_string())
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            });
+            return Err(missing_lifecycle_order(normalized_project_dirs, &ordered_dirs));
         } else {
             std::borrow::Cow::Owned(
                 normalized_project_dirs
@@ -125,15 +122,17 @@ fn link_dependencies_from_lockfile(
     workspace_root: &Path,
     lockfile: &Lockfile,
 ) -> IndexMap<PathBuf, Vec<PathBuf>> {
-    let included_set = normalized_project_dirs.iter().cloned().collect::<HashSet<_>>();
+    let included_set = normalized_project_dirs
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>();
     projects
         .iter()
         .zip(normalized_project_dirs)
         .map(|((project_dir, _), normalized_project_dir)| {
             let importer_id =
                 pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir);
-            let dependencies = lockfile
-                .importers
+            let dependencies = lockfile.importers
                 .get(&importer_id)
                 .into_iter()
                 .flat_map(|snapshot| {
@@ -182,16 +181,18 @@ fn retain_known_projects(
         .iter()
         .filter_map(|(dir, project_dependencies)| {
             let dir = pnpm_fs::lexical_normalize(dir);
-            projects_by_dir.contains_key(&dir).then(|| {
-                (
-                    dir,
-                    project_dependencies
-                        .iter()
-                        .map(|dependency| pnpm_fs::lexical_normalize(dependency))
-                        .filter(|dependency| projects_by_dir.contains_key(dependency))
-                        .collect(),
-                )
-            })
+            projects_by_dir
+                .contains_key(&dir)
+                .then(|| {
+                    (
+                        dir,
+                        project_dependencies
+                            .iter()
+                            .map(|dependency| pnpm_fs::lexical_normalize(dependency))
+                            .filter(|dependency| projects_by_dir.contains_key(dependency))
+                            .collect(),
+                    )
+                })
         })
         .collect()
 }
@@ -408,5 +409,22 @@ pub(super) fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
         },
     )
     .map_err(InstallError::ProjectLifecycleThreadPool)?;
-    first_error.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner).map_or(Ok(()), Err)
+    first_error
+        .into_inner()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .map_or(Ok(()), Err)
+}
+
+fn missing_lifecycle_order(
+    project_dirs: &[PathBuf],
+    ordered_dirs: &HashSet<PathBuf>,
+) -> InstallError {
+    InstallError::ProjectLifecycleOrder {
+        projects: project_dirs
+            .iter()
+            .filter(|dir| !ordered_dirs.contains(*dir))
+            .map(|dir| dir.display().to_string())
+            .collect::<Vec<_>>()
+            .join(", "),
+    }
 }

@@ -4,7 +4,10 @@ use clap::Parser as _;
 use miette::Diagnostic as _;
 
 fn strings(values: &[&str]) -> Vec<String> {
-    values.iter().map(|value| (*value).to_string()).collect()
+    values
+        .iter()
+        .map(|value| (*value).to_string())
+        .collect()
 }
 
 fn diagnostic_code(err: &CompletionError) -> Option<String> {
@@ -120,7 +123,11 @@ fn completion_server_treats_pn_as_the_pnpm_binary() {
     let pn = super::complete_words(&strings(&["pn", ""]));
 
     assert_eq!(pnpm, pn);
-    assert!(pn.iter().any(|completion| completion == "install"), "{pn:?}");
+    assert!(
+        pn.iter()
+            .any(|completion| completion == "install"),
+        "{pn:?}",
+    );
 }
 
 #[test]

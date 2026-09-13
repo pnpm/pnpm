@@ -250,7 +250,10 @@ fn record(readonly: bool, cidr_whitelist: &[&str]) -> TokenRecord {
         created_at: 1,
         last_used_at: 1,
         readonly,
-        cidr_whitelist: cidr_whitelist.iter().map(|entry| (*entry).to_string()).collect(),
+        cidr_whitelist: cidr_whitelist
+            .iter()
+            .map(|entry| (*entry).to_string())
+            .collect(),
     }
 }
 
@@ -312,12 +315,16 @@ fn signed(method: Method, path: &str, raw: &str) -> Request<Body> {
 }
 
 fn with_peer(mut request: Request<Body>, addr: SocketAddr) -> Request<Body> {
-    request.extensions_mut().insert(ConnectInfo(PeerAddr(addr)));
+    request
+        .extensions_mut()
+        .insert(ConnectInfo(PeerAddr(addr)));
     request
 }
 
 async fn status(app: axum::Router, request: Request<Body>) -> StatusCode {
-    app.oneshot(request).await.unwrap().status()
+    app.oneshot(request).await
+        .unwrap()
+        .status()
 }
 
 #[tokio::test]
@@ -326,14 +333,21 @@ async fn authenticated_identity_reaches_handlers() {
     let app = app_with_token(&tmp, "tok", record(false, &[]));
     // The middleware resolves the bearer once; whoami reads that identity
     // back out of request extensions rather than re-parsing the header.
-    let response = app.clone().oneshot(signed(Method::GET, "/-/whoami", "tok")).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(signed(Method::GET, "/-/whoami", "tok"))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["username"], "alice");
 
     // An unknown token resolves to anonymous, so whoami is a 401.
-    let anon = app.oneshot(signed(Method::GET, "/-/whoami", "unknown")).await.unwrap();
+    let anon = app
+        .oneshot(signed(Method::GET, "/-/whoami", "unknown"))
+        .await
+        .unwrap();
     assert_eq!(anon.status(), StatusCode::UNAUTHORIZED);
 }
 
@@ -369,9 +383,16 @@ async fn team_tokens_reach_package_authorization() {
     // credentials — rather than masked (masking is the registry-level
     // default's behavior, not an explicit entry's).
     let app = app_with_config_and_token(config, "tok", record(false, &[]));
-    let allowed = app.clone().oneshot(signed(Method::GET, "/@team/missing", "tok")).await.unwrap();
+    let allowed = app
+        .clone()
+        .oneshot(signed(Method::GET, "/@team/missing", "tok"))
+        .await
+        .unwrap();
     assert_eq!(allowed.status(), StatusCode::NOT_FOUND);
-    let anonymous = app.oneshot(signed(Method::GET, "/@team/missing", "unknown")).await.unwrap();
+    let anonymous = app
+        .oneshot(signed(Method::GET, "/@team/missing", "unknown"))
+        .await
+        .unwrap();
     assert_eq!(anonymous.status(), StatusCode::UNAUTHORIZED);
 }
 
@@ -448,7 +469,9 @@ async fn forwarded_header_cannot_satisfy_a_cidr_restriction() {
     let request = signed(Method::GET, "/foo", "pinned");
     let request = {
         let mut request = request;
-        request.headers_mut().insert("x-forwarded-for", "10.1.2.3".parse().unwrap());
+        request
+            .headers_mut()
+            .insert("x-forwarded-for", "10.1.2.3".parse().unwrap());
         request
     };
     assert_eq!(status(app, request).await, StatusCode::FORBIDDEN);
@@ -480,7 +503,13 @@ fn config_with_teams(tmp: &TempDir) -> Config {
     config.routing.hosted.get_mut("local").unwrap().teams = teams
         .into_iter()
         .map(|(team, members)| {
-            (team.to_string(), members.into_iter().map(str::to_string).collect())
+            (
+                team.to_string(),
+                members
+                    .into_iter()
+                    .map(str::to_string)
+                    .collect(),
+            )
         })
         .collect();
     config
@@ -498,13 +527,18 @@ async fn team_listing_serves_config_declared_teams() {
     // Declaration order is preserved; the shape is what `pnpm team ls`
     // consumes.
     let expected = serde_json::json!([{ "name": "developers" }, { "name": "admins" }]);
-    let response =
-        app.clone().oneshot(signed(Method::GET, "/-/org/myorg/team", "tok")).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(signed(Method::GET, "/-/org/myorg/team", "tok"))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_json(response).await, expected);
     // The same listing through the registry-addressed endpoint.
-    let prefixed =
-        app.oneshot(signed(Method::GET, "/~local/-/org/myorg/team", "tok")).await.unwrap();
+    let prefixed = app
+        .oneshot(signed(Method::GET, "/~local/-/org/myorg/team", "tok"))
+        .await
+        .unwrap();
     assert_eq!(prefixed.status(), StatusCode::OK);
     assert_eq!(body_json(prefixed).await, expected);
 }
@@ -530,7 +564,10 @@ async fn team_members_are_listed_sorted() {
     assert_eq!(prefixed.status(), StatusCode::OK);
     assert_eq!(body_json(prefixed).await, expected);
     // A team the config does not declare is a definitive not-found.
-    let missing = app.oneshot(signed(Method::GET, "/-/team/myorg/nope/user", "tok")).await.unwrap();
+    let missing = app
+        .oneshot(signed(Method::GET, "/-/team/myorg/nope/user", "tok"))
+        .await
+        .unwrap();
     assert_eq!(missing.status(), StatusCode::NOT_FOUND);
 }
 
@@ -549,7 +586,11 @@ async fn team_mutations_are_rejected_as_config_managed() {
         (Method::DELETE, "/~local/-/team/myorg/developers/user"),
     ];
     for (method, path) in mutations {
-        let response = app.clone().oneshot(signed(method.clone(), path, "tok")).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(signed(method.clone(), path, "tok"))
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::FORBIDDEN, "{method} {path}");
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let body = String::from_utf8(body.to_vec()).unwrap();
@@ -572,11 +613,18 @@ async fn team_listing_masks_callers_the_registry_denies() {
         (Method::GET, "/-/team/myorg/developers/user"),
         (Method::PUT, "/-/org/myorg/team"),
     ] {
-        let response = app.clone().oneshot(signed(method.clone(), path, "unknown")).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(signed(method.clone(), path, "unknown"))
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{method} {path}");
     }
     // The authenticated caller passes the gate.
-    let allowed = app.oneshot(signed(Method::GET, "/-/org/myorg/team", "tok")).await.unwrap();
+    let allowed = app
+        .oneshot(signed(Method::GET, "/-/org/myorg/team", "tok"))
+        .await
+        .unwrap();
     assert_eq!(allowed.status(), StatusCode::OK);
 }
 

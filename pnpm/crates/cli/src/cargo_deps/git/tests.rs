@@ -284,7 +284,11 @@ fn a_root_package_leaves_the_members_nested_in_it_to_their_own_slots() {
     let linked =
         vendor_from(&repository, &commit, &store_dir, &[("root", "1.0.0"), ("member", "0.3.0")]);
 
-    let root = &linked.iter().find(|(name, _)| name == "root-1.0.0").expect("the root").1;
+    let root = &linked
+        .iter()
+        .find(|(name, _)| name == "root-1.0.0")
+        .expect("the root")
+        .1;
     assert!(root.join("src/lib.rs").is_file());
     assert!(!root.join("member").exists());
     assert!(!fs::read_to_string(root.join("Cargo.toml")).unwrap().contains("[workspace]"));

@@ -233,7 +233,10 @@ pub(super) async fn context_log_reflects_current_lockfile_after_first_install() 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -525,8 +528,7 @@ async fn hoisted_node_linker_empty_lockfile_writes_modules_yaml() {
     .await
     .expect("hoisted-linker install with empty lockfile should succeed");
 
-    let written = dirs
-        .modules_dir
+    let written = dirs.modules_dir
         .pipe_as_ref(read_modules_manifest::<Host>)
         .expect("read .modules.yaml")
         .expect("modules manifest exists");
@@ -828,7 +830,9 @@ async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
     let importer = current_lockfile.root_project().expect("root importer");
     let key = pnpm_lockfile::PkgName::parse("@pnpm.e2e/hello-world-js-bin").unwrap();
     assert!(
-        importer.dependencies.as_ref().is_some_and(|deps| deps.contains_key(&key)),
+        importer.dependencies
+            .as_ref()
+            .is_some_and(|deps| deps.contains_key(&key)),
         "current-lockfile reflects the resolved direct dep",
     );
 

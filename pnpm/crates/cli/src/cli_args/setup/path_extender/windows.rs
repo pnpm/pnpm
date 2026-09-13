@@ -26,8 +26,8 @@ pub(super) fn add_dir_to_windows_env_path(
 ) -> Result<Vec<EnvVariableChange>, PathExtenderError> {
     // `chcp` makes `reg` use UTF-8 for output. Otherwise non-ASCII
     // characters in environment variables become garbled.
-    let chcp_output = run_capture_chcp(&[])
-        .map_err(|err| PathExtenderError::Chcp { message: err.to_string() })?;
+    let chcp_output =
+        run_capture_chcp(&[]).map_err(|err| PathExtenderError::Chcp { message: err.to_string() })?;
     let cp_bak = first_number(&chcp_output)
         .ok_or_else(|| PathExtenderError::Chcp { message: chcp_output.clone() })?;
     run_capture_chcp(&["65001"])?;
@@ -116,7 +116,10 @@ fn add_to_path(
         Some(data) if !data.trim().is_empty() => data,
         _ => return Err(PathExtenderError::NoPath),
     };
-    if path_data.split(';').any(|entry| entry == added_dir) {
+    if path_data
+        .split(';')
+        .any(|entry| entry == added_dir)
+    {
         return Ok(EnvVariableChange {
             variable: variable.to_string(),
             old_value: Some(path_data.clone()),
@@ -193,7 +196,11 @@ fn env_value_from_registry_line(line: &str, env_var_name: &str) -> Option<String
     let after_name = rest[env_var_name.len()..].strip_prefix("    ")?;
     let type_end = after_name.find("    ")?;
     let value_type = &after_name[..type_end];
-    if value_type.is_empty() || !value_type.chars().all(|ch| ch.is_alphanumeric() || ch == '_') {
+    if value_type.is_empty()
+        || !value_type
+            .chars()
+            .all(|ch| ch.is_alphanumeric() || ch == '_')
+    {
         return None;
     }
     Some(after_name[type_end + 4..].to_string())

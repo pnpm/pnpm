@@ -117,15 +117,14 @@ impl PublishArgs {
         recursive: bool,
         before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     ) -> miette::Result<()> {
-        let published = self
-            .publish_packages::<Reporter>(
-                dir,
-                config,
-                recursive,
-                /* stage */ false,
-                before_packing_hooks,
-            )
-            .await?;
+        let published = self.publish_packages::<Reporter>(
+            dir,
+            config,
+            recursive,
+            /* stage */ false,
+            before_packing_hooks,
+        )
+        .await?;
         // Mirror `pnpm publish --json`: serialize only when asked. The
         // recursive path emits the array of per-package summaries (an empty
         // array when nothing was published).
@@ -270,14 +269,13 @@ impl PublishArgs {
         }
 
         let pack_destination = tempfile::tempdir().into_diagnostic().wrap_err("create temp dir")?;
-        let pack_result = self
-            .pack_for_publish::<Reporter>(
-                project_dir,
-                config,
-                pack_destination.path(),
-                before_packing_hooks,
-            )
-            .await?;
+        let pack_result = self.pack_for_publish::<Reporter>(
+            project_dir,
+            config,
+            pack_destination.path(),
+            before_packing_hooks,
+        )
+        .await?;
         let tarball_data = std::fs::read(&pack_result.tarball_path)
             .into_diagnostic()
             .wrap_err("read packed tarball")?;
@@ -362,8 +360,7 @@ impl PublishArgs {
             },
         };
         crate::cli_args::pack::set_injected_changelog(&mut options, config, dir).await?;
-        pack_api::<Reporter, PackHost>(&options)
-            .await
+        pack_api::<Reporter, PackHost>(&options).await
             .map_err(miette::Report::new)
             .wrap_err(crate::cli_args::pack::PACK_ERROR_CONTEXT)
     }
@@ -413,7 +410,10 @@ fn run_publish_scripts<Reporter: self::Reporter>(
             .and_then(Value::as_str)
             .filter(|script| !script.is_empty())
     };
-    if !script_names.iter().any(|name| declares(name).is_some()) {
+    if !script_names
+        .iter()
+        .any(|name| declares(name).is_some())
+    {
         return Ok(());
     }
 

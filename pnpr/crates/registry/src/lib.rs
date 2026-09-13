@@ -34,7 +34,7 @@ pub use pnpr_package_name::Ecosystem;
 mod config_error;
 
 mod package_pattern;
-use package_pattern::wildcard_shapes;
+use package_pattern::{reject_shadowed_source, validate_namespace, wildcard_shapes};
 
 use indexmap::IndexMap;
 use pnpr_package_name::CanonicalPackageName;
@@ -80,7 +80,10 @@ impl Registry {
 /// Whether a concrete registry's declared namespace claims `package`. An empty
 /// pattern list claims every name.
 fn namespace_claims(patterns: &[PackagePattern], package: &str) -> bool {
-    patterns.is_empty() || patterns.iter().any(|pattern| pattern.matches(package))
+    patterns.is_empty()
+        || patterns
+            .iter()
+            .any(|pattern| pattern.matches(package))
 }
 
 /// The kind of a concrete (non-router) source a request resolved to.
@@ -151,10 +154,12 @@ impl Registries {
         self.entries
             .get_key_value(&qualified)
             .or_else(|| {
-                self.entries.get_key_value(name).filter(|(key, kind)| match key.split_once('/') {
-                    Some((prefix, _)) => prefix == ecosystem.as_str(),
-                    None => !kind.is_concrete() || self.concrete_ecosystem(key) == ecosystem,
-                })
+                self.entries
+                    .get_key_value(name)
+                    .filter(|(key, kind)| match key.split_once('/') {
+                        Some((prefix, _)) => prefix == ecosystem.as_str(),
+                        None => !kind.is_concrete() || self.concrete_ecosystem(key) == ecosystem,
+                    })
             })
             .map(|(key, _)| key.as_str())
     }
@@ -168,9 +173,14 @@ impl Registries {
     /// The default serving-table key for one ecosystem.
     #[must_use]
     pub fn default_for(&self, ecosystem: Ecosystem) -> Option<&str> {
-        self.defaults.get(&ecosystem).map(String::as_str).or_else(|| {
-            self.default_registry.as_deref().and_then(|name| self.addressed(name, ecosystem))
-        })
+        self.defaults
+            .get(&ecosystem)
+            .map(String::as_str)
+            .or_else(|| {
+                self.default_registry
+                    .as_deref()
+                    .and_then(|name| self.addressed(name, ecosystem))
+            })
     }
 
     /// Declare the ecosystem a concrete registry serves. Every registry is npm
@@ -195,9 +205,11 @@ impl Registries {
 
     #[must_use]
     pub fn has_ecosystem(&self, ecosystem: Ecosystem) -> bool {
-        self.entries.iter().any(|(name, registry)| {
-            registry.is_concrete() && self.concrete_ecosystem(name) == ecosystem
-        })
+        self.entries
+            .iter()
+            .any(|(name, registry)| {
+                registry.is_concrete() && self.concrete_ecosystem(name) == ecosystem
+            })
     }
 
     #[must_use]
@@ -219,7 +231,10 @@ impl Registries {
     }
 
     fn concrete_ecosystem(&self, registry: &str) -> Ecosystem {
-        self.ecosystems.get(registry).copied().unwrap_or_default()
+        self.ecosystems
+            .get(registry)
+            .copied()
+            .unwrap_or_default()
     }
 
     /// The concrete registries of `ecosystem` a request through `registry` can
@@ -227,7 +242,10 @@ impl Registries {
     /// serves that ecosystem, a router's matching sources, nothing otherwise.
     #[must_use]
     pub fn sources(&self, registry: &str, ecosystem: Ecosystem) -> Vec<&str> {
-        match self.addressed(registry, ecosystem).and_then(|key| self.entries.get_key_value(key)) {
+        match self
+            .addressed(registry, ecosystem)
+            .and_then(|key| self.entries.get_key_value(key))
+        {
             Some((id, Registry::Hosted { .. } | Registry::Upstream { .. })) => {
                 if self.concrete_ecosystem(id) == ecosystem { vec![id] } else { Vec::new() }
             }
@@ -303,8 +321,9 @@ impl Registries {
         ecosystem: Ecosystem,
         package: &str,
     ) -> Resolved<'a> {
-        let Some((registry_id, kind)) =
-            self.addressed(registry, ecosystem).and_then(|key| self.entries.get_key_value(key))
+        let Some((registry_id, kind)) = self
+            .addressed(registry, ecosystem)
+            .and_then(|key| self.entries.get_key_value(key))
         else {
             return Resolved::UnknownRegistry;
         };
@@ -425,16 +444,18 @@ impl Registries {
         kind: &Registry,
         ecosystem: Ecosystem,
     ) -> bool {
-        let duplicate = self.entries.get(local).is_some_and(|other| {
-            !other.is_concrete() || self.concrete_ecosystem(local) == ecosystem
-        });
+        let duplicate = self.entries
+            .get(local)
+            .is_some_and(|other| {
+                !other.is_concrete() || self.concrete_ecosystem(local) == ecosystem
+            });
         let matches = match kind {
             Registry::Hosted { .. } | Registry::Upstream { .. } => {
                 self.concrete_ecosystem(name) == ecosystem
             }
-            Registry::Router { sources } => {
-                sources.iter().all(|source| self.concrete_ecosystem(source) == ecosystem)
-            }
+            Registry::Router { sources } => sources
+                .iter()
+                .all(|source| self.concrete_ecosystem(source) == ecosystem),
         };
         !duplicate && matches
     }
@@ -484,7 +505,9 @@ impl Registries {
                 Some([]) | None => CATCH_ALL,
                 Some(patterns) => patterns,
             };
-            let seen = seen_patterns.entry(self.concrete_ecosystem(source)).or_default();
+            let seen = seen_patterns
+                .entry(self.concrete_ecosystem(source))
+                .or_default();
             reject_shadowed_source(router, source, index, patterns, seen)?;
             // Extend the seen set only after the per-pattern pass: a source's
             // own patterns may overlap each other (a registry-level redundancy,
@@ -513,63 +536,6 @@ impl Registries {
             Some(kind) => Ok(kind),
         }
     }
-}
-
-/// Reject a router source whose claims an earlier source already covers.
-///
-/// A source is unreachable when every name it claims is already claimed by an
-/// earlier source — the misordered-catch-all hazard and its general form.
-/// Rejecting it makes a shadowed private source a startup error, not a silent
-/// public fall-through.
-///
-/// The whole-source check only fires when *all* of a source's patterns are
-/// covered, so the partial case is caught per pattern: one dead claim of an
-/// otherwise-reachable source would otherwise silently send a private package
-/// to the origin an earlier catch-all or scope claim points at. An identical
-/// claim by two sources is the same defect: whichever is listed later never
-/// receives the name, which is genuinely ambiguous provenance the operator must
-/// resolve in the declared namespaces, not by order.
-fn reject_shadowed_source(
-    router: &str,
-    source: &str,
-    index: usize,
-    patterns: &[PackagePattern],
-    seen: &[&PackagePattern],
-) -> Result<(), RegistryConfigError> {
-    if patterns.iter().all(|pattern| seen.iter().any(|earlier| earlier.covers(pattern))) {
-        return Err(RegistryConfigError::UnreachableSource {
-            router: router.to_string(),
-            index,
-            source: source.to_string(),
-        });
-    }
-    for pattern in patterns {
-        if let Some(earlier) = seen.iter().find(|&&earlier| earlier.covers(pattern)) {
-            return Err(RegistryConfigError::ShadowedPattern {
-                router: router.to_string(),
-                source: source.to_string(),
-                pattern: pattern.to_string(),
-                by: earlier.to_string(),
-            });
-        }
-    }
-    Ok(())
-}
-
-/// Reject a duplicate pattern within one concrete registry's declared namespace.
-fn validate_namespace(
-    registry: &str,
-    patterns: &[PackagePattern],
-) -> Result<(), RegistryConfigError> {
-    for (index, pattern) in patterns.iter().enumerate() {
-        if patterns[..index].contains(pattern) {
-            return Err(RegistryConfigError::DuplicatePattern {
-                registry: registry.to_string(),
-                pattern: pattern.to_string(),
-            });
-        }
-    }
-    Ok(())
 }
 
 #[cfg(test)]

@@ -75,8 +75,16 @@ fn renders_search_message_below_the_root_label() {
 
     eprintln!("output:\n{output}");
     assert!(lines[0].contains("foo@1.0.0"));
-    assert!(lines.iter().any(|line| line.contains("Matched by custom finder")));
-    assert!(lines.iter().any(|line| line.contains("my-project@0.0.0")));
+    assert!(
+        lines
+            .iter()
+            .any(|line| line.contains("Matched by custom finder")),
+    );
+    assert!(
+        lines
+            .iter()
+            .any(|line| line.contains("my-project@0.0.0")),
+    );
 }
 
 // Port of upstream's 'does not render extra line when searchMessage is undefined' (deps/inspection/list/test/renderDependentsTree.test.ts).
@@ -105,14 +113,18 @@ fn depth_limits_how_deep_the_tree_is_rendered() {
 
     // Without depth, root-project appears twice: once nested under
     // mid-a, once as direct dependent.
-    let full_occurrences =
-        without_depth.lines().filter(|line| line.contains("root-project@0.0.0")).count();
+    let full_occurrences = without_depth
+        .lines()
+        .filter(|line| line.contains("root-project@0.0.0"))
+        .count();
     assert_eq!(full_occurrences, 2);
 
     // With depth 1, mid-a's children are not expanded, so root-project
     // appears only once (as direct dependent).
-    let limited_occurrences =
-        with_depth.lines().filter(|line| line.contains("root-project@0.0.0")).count();
+    let limited_occurrences = with_depth
+        .lines()
+        .filter(|line| line.contains("root-project@0.0.0"))
+        .count();
     assert_eq!(limited_occurrences, 1);
     assert!(with_depth.contains("mid-a@2.0.0"));
 }
@@ -285,11 +297,18 @@ fn depth_truncates_dependents_in_json_output() {
     let dependents = trees[0]["dependents"].as_array().expect("dependents array");
     assert_eq!(dependents.len(), 2);
     // mid-a should have its dependents stripped (depth 1 is beyond the limit).
-    let mid_a = dependents.iter().find(|dep| dep["name"] == "mid-a").expect("mid-a present");
+    let mid_a = dependents
+        .iter()
+        .find(|dep| dep["name"] == "mid-a")
+        .expect("mid-a present");
     dbg!(mid_a);
     assert!(mid_a.get("dependents").is_none());
     // root-project (direct dependent) should still be present.
-    assert!(dependents.iter().any(|dep| dep["name"] == "root-project"));
+    assert!(
+        dependents
+            .iter()
+            .any(|dep| dep["name"] == "root-project"),
+    );
 }
 
 // Port of upstream's 'renderDependentsJson > no depth option preserves full dependents in JSON output' (deps/inspection/list/test/renderDependentsTree.test.ts).
@@ -298,7 +317,10 @@ fn no_depth_option_preserves_full_dependents_in_json_output() {
     let parsed: Value = serde_json::from_str(&render_dependents_json(&deep_tree(), &opts(None)))
         .expect("valid JSON");
     let dependents = parsed[0]["dependents"].as_array().expect("dependents array");
-    let mid_a = dependents.iter().find(|dep| dep["name"] == "mid-a").expect("mid-a present");
+    let mid_a = dependents
+        .iter()
+        .find(|dep| dep["name"] == "mid-a")
+        .expect("mid-a present");
     let mid_a_dependents = mid_a["dependents"].as_array().expect("mid-a dependents array");
     assert_eq!(mid_a_dependents.len(), 1);
     assert_eq!(mid_a_dependents[0]["name"], "root-project");

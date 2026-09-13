@@ -235,7 +235,10 @@ async fn fetcher_blocks_build_when_not_allowed() {
     // `-c commit.gpgsign=false` neutralises a user-global `gpgsign=true`
     // setting that would otherwise demand a real signing key in CI.
     exec_git(&["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"], Some(&work)).unwrap();
-    let commit = exec_git(&["rev-parse", "HEAD"], Some(&work)).unwrap().trim().to_string();
+    let commit = exec_git(&["rev-parse", "HEAD"], Some(&work))
+        .unwrap()
+        .trim()
+        .to_string();
     exec_git(&["clone", "--bare", "-q", &work.to_string_lossy(), &bare.to_string_lossy()], None)
         .unwrap();
 
@@ -416,7 +419,10 @@ async fn fetcher_surfaces_prepare_failure() {
     // string) would silently regress error-code parity with pnpm
     // without this check.
     use miette::Diagnostic;
-    let code = err.code().map(|c| c.to_string()).unwrap_or_default();
+    let code = err
+        .code()
+        .map(|c| c.to_string())
+        .unwrap_or_default();
     assert_eq!(
         code, "ERR_PNPM_PREPARE_PACKAGE",
         "diagnostic code must match the upstream error contract",
@@ -603,7 +609,9 @@ async fn fetcher_uses_shallow_fetch_for_allowed_hosts() {
     // Without this guard, a future regression that took both paths
     // would still pass the positive assertions above.
     assert!(
-        !invocations.iter().any(|args| args.first().map(String::as_str) == Some("clone")),
+        !invocations
+            .iter()
+            .any(|args| args.first().map(String::as_str) == Some("clone")),
         "shallow path must NOT call `git clone`; got {invocations:?}",
     );
 
@@ -675,9 +683,11 @@ async fn fetcher_clones_when_host_not_in_shallow_list() {
     // path argument, but pin the leading argv slots. The `--` keeps a
     // `-`-leading repo out of git's option parser.
     assert!(
-        invocations.iter().any(|args| {
-            args.len() >= 4 && args[0] == "clone" && args[1] == "--" && args[2] == repo_url
-        }),
+        invocations
+            .iter()
+            .any(|args| {
+                args.len() >= 4 && args[0] == "clone" && args[1] == "--" && args[2] == repo_url
+            }),
         "non-shallow path must call `git clone -- <url> <dir>`; got {invocations:?}",
     );
     // The shallow argv must be absent — guards the gate's polarity.
@@ -758,12 +768,20 @@ async fn a_failed_clone_over_ssh_names_the_package_and_how_to_re_record_it() {
     assert_eq!(host, "github.com");
     assert_eq!(stderr, "ssh: connect to host port 22: Connection refused");
 
-    assert_eq!(err.code().expect("a diagnostic code").to_string(), "ERR_PNPM_GIT_FETCH_FAILED");
+    assert_eq!(
+        err.code()
+            .expect("a diagnostic code")
+            .to_string(),
+        "ERR_PNPM_GIT_FETCH_FAILED",
+    );
     let rendered = err.to_string();
     dbg!(&rendered);
     assert!(rendered.contains(r#"Failed to fetch "@scope/pkg""#), "{rendered}");
 
-    let help = err.help().expect("SSH remediation help").to_string();
+    let help = err
+        .help()
+        .expect("SSH remediation help")
+        .to_string();
     dbg!(&help);
     assert!(help.contains("needs an SSH key for github.com"), "{help}");
     assert!(help.contains("pnpm update @scope/pkg"), "{help}");
@@ -789,6 +807,11 @@ async fn a_failed_clone_over_https_carries_no_ssh_remediation() {
     .expect_err("the shim fails every clone");
 
     assert!(matches!(err, GitFetcherError::Fetch { .. }), "{err:?}");
-    assert_eq!(err.code().expect("a diagnostic code").to_string(), "ERR_PNPM_GIT_FETCH_FAILED");
+    assert_eq!(
+        err.code()
+            .expect("a diagnostic code")
+            .to_string(),
+        "ERR_PNPM_GIT_FETCH_FAILED",
+    );
     assert!(err.help().is_none(), "an HTTPS remote needs no SSH remediation");
 }

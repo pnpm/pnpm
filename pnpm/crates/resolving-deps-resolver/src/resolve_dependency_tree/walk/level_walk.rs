@@ -199,12 +199,17 @@ pub(super) fn record_walked_children(
     if !is_current_children_owner(ctx, &pending.identity.id, &claim.owner) {
         return (lazy_children(&pending.ancestry.parent_ancestors), false);
     }
-    let optional_by_alias: HashMap<&str, bool> =
-        child_specs.iter().map(|(name, _, optional, _)| (name.as_str(), *optional)).collect();
+    let optional_by_alias: HashMap<&str, bool> = child_specs
+        .iter()
+        .map(|(name, _, optional, _)| (name.as_str(), *optional))
+        .collect();
     let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
     let mut by_id: Vec<crate::resolved_tree::ChildEdge> = Vec::new();
     for dep in seeds.iter().filter_map(seeded_dep) {
-        let optional = optional_by_alias.get(dep.alias.as_str()).copied().unwrap_or(false);
+        let optional = optional_by_alias
+            .get(dep.alias.as_str())
+            .copied()
+            .unwrap_or(false);
         by_id.push(crate::resolved_tree::ChildEdge {
             alias: dep.alias.clone(),
             pkg_id: Arc::from(dep.id),
@@ -299,9 +304,9 @@ pub(in super::super) fn level_versions(
     for seed in seeds {
         let name_ver = match seed {
             NodeSeed::Pending(pending) => pending.result.package.name_ver.as_ref(),
-            NodeSeed::Done(Some(dep)) => {
-                packages.get(dep.id.as_str()).and_then(|pkg| pkg.result.package.name_ver.as_ref())
-            }
+            NodeSeed::Done(Some(dep)) => packages
+                .get(dep.id.as_str())
+                .and_then(|pkg| pkg.result.package.name_ver.as_ref()),
             NodeSeed::Done(None) => None,
         };
         let Some(name_ver) = name_ver else { continue };
@@ -326,8 +331,9 @@ pub(super) fn pkgs_info_from_ids(
     ancestor_ids
         .iter()
         .map(|id| {
-            let name_ver =
-                packages.get(id.as_str()).and_then(|pkg| pkg.result.package.name_ver.as_ref());
+            let name_ver = packages
+                .get(id.as_str())
+                .and_then(|pkg| pkg.result.package.name_ver.as_ref());
             SkippedOptionalDependencyParent {
                 id: id.clone(),
                 name: name_ver.map(|name_ver| name_ver.name.to_string()).unwrap_or_default(),

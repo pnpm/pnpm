@@ -437,7 +437,10 @@ impl Frame {
 impl Default for SummaryState {
     fn default() -> Self {
         Self {
-            diff: SUMMARY_ORDER.into_iter().map(|kind| (diff_key(kind), HashMap::new())).collect(),
+            diff: SUMMARY_ORDER
+                .into_iter()
+                .map(|kind| (diff_key(kind), HashMap::new()))
+                .collect(),
             manifest_diffs: HashMap::new(),
             slot: BlockSlot::default(),
             seen: false,

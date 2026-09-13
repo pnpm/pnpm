@@ -256,8 +256,10 @@ fn push_fixed_group_violations(
     violations: &mut Vec<VersioningInvariantViolation>,
 ) {
     for (index, group) in workspace.fixed_groups.iter().enumerate() {
-        let distinct: BTreeSet<&str> =
-            group.iter().map(|dir| workspace.participants[dir.as_str()].current_version).collect();
+        let distinct: BTreeSet<&str> = group
+            .iter()
+            .map(|dir| workspace.participants[dir.as_str()].current_version)
+            .collect();
         if distinct.len() > 1 {
             let detail = group
                 .iter()
@@ -267,8 +269,9 @@ fn push_fixed_group_violations(
                 })
                 .collect::<Vec<_>>()
                 .join(", ");
-            let declared =
-                versioning.map(|settings| settings.fixed[index].join(", ")).unwrap_or_default();
+            let declared = versioning
+                .map(|settings| settings.fixed[index].join(", "))
+                .unwrap_or_default();
             violations.push(VersioningInvariantViolation {
                 code: VersioningInvariantCode::FixedGroupMismatch,
                 message: format!("The fixed group [{declared}] is not in lockstep: {detail}."),
@@ -320,7 +323,10 @@ struct AssembleContext<'a> {
 
 impl AssembleContext<'_> {
     fn intent_bump_for(&self, intent: &ChangeIntent, dir: &str) -> Option<IntentBumpType> {
-        self.intent_bumps.get(&intent.id).and_then(|by_dir| by_dir.get(dir)).copied()
+        self.intent_bumps
+            .get(&intent.id)
+            .and_then(|by_dir| by_dir.get(dir))
+            .copied()
     }
 }
 

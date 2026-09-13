@@ -66,8 +66,7 @@ async fn load_custom_fetcher_session_is_none_when_pnpmfile_exports_no_fetchers()
     std::fs::write(tmp.path().join(".pnpmfile.cjs"), "module.exports = { hooks: {} }\n")
         .expect("write pnpmfile");
     let hooks = pnpm_hooks::finder::load_pnpmfile(tmp.path());
-    let session = super::load_custom_fetcher_session(hooks.as_ref())
-        .await
+    let session = super::load_custom_fetcher_session(hooks.as_ref()).await
         .expect("a fetchers-less pnpmfile is not an error");
     assert!(session.is_none());
 }
@@ -81,8 +80,7 @@ async fn load_custom_fetcher_session_loads_exported_fetchers() {
     )
     .expect("write pnpmfile");
     let hooks = pnpm_hooks::finder::load_pnpmfile(tmp.path());
-    let session = super::load_custom_fetcher_session(hooks.as_ref())
-        .await
+    let session = super::load_custom_fetcher_session(hooks.as_ref()).await
         .expect("a well-formed fetchers export must load");
     assert!(session.is_some());
 }

@@ -41,8 +41,7 @@ pub async fn read_bun_assets(
 ) -> Result<Vec<PlatformAssetResolution>, ReadBunAssetsError> {
     let integrities_url =
         format!("https://github.com/oven-sh/bun/releases/download/bun-v{version}/SHASUMS256.txt");
-    let items = fetch_shasums_file(http_client, &integrities_url)
-        .await
+    let items = fetch_shasums_file(http_client, &integrities_url).await
         .map_err(ReadBunAssetsError::FetchShasumsFile)?;
 
     let mut variants = Vec::new();
@@ -60,8 +59,9 @@ fn asset_resolution(
     item: &ShasumsFileItem,
     parsed: BunAssetName,
 ) -> Result<PlatformAssetResolution, ReadBunAssetsError> {
-    let integrity: Integrity =
-        item.integrity.parse().map_err(|error| ReadBunAssetsError::Integrity {
+    let integrity: Integrity = item.integrity
+        .parse()
+        .map_err(|error| ReadBunAssetsError::Integrity {
             integrity: item.integrity.clone(),
             file_name: item.file_name.clone(),
             error: Arc::new(error),

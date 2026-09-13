@@ -120,7 +120,10 @@ fn place_value(current: &mut Value, last: &Segment, value: Value) -> miette::Res
     if !current.is_object() {
         *current = Value::Object(Map::new());
     }
-    current.as_object_mut().expect("current was just made an object").insert(key, value);
+    current
+        .as_object_mut()
+        .expect("current was just made an object")
+        .insert(key, value);
     Ok(())
 }
 

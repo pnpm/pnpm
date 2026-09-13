@@ -144,7 +144,9 @@ fn link_strong_count(chain: &SharedChain<String>) -> usize {
 
 /// Build `root -> ... -> tip` and return the chain at the tip.
 fn chain_of(values: &[&str]) -> SharedChain<String> {
-    values.iter().fold(SharedChain::default(), |chain, value| chain.pushed((*value).to_string()))
+    values
+        .iter()
+        .fold(SharedChain::default(), |chain, value| chain.pushed((*value).to_string()))
 }
 
 #[test]
@@ -160,15 +162,19 @@ fn memoized_any_matches_the_unmemoized_answer() {
     let mut fresh = ChainSuffixMemo::default();
     assert_eq!(
         with_match.any_memoized(&mut fresh, |value| value == "needle"),
-        with_match.iter().any(|value| value == "needle"),
+        with_match
+            .iter()
+            .any(|value| value == "needle"),
     );
 }
 
 #[test]
 fn a_match_in_a_shared_suffix_answers_every_chain_built_on_it() {
     let shared = chain_of(&["root", "needle"]);
-    let branches: Vec<_> =
-        ["a", "b", "c"].iter().map(|tip| shared.pushed((*tip).to_string())).collect();
+    let branches: Vec<_> = ["a", "b", "c"]
+        .iter()
+        .map(|tip| shared.pushed((*tip).to_string()))
+        .collect();
 
     let mut memo = ChainSuffixMemo::default();
     let mut visits = 0;
@@ -189,8 +195,10 @@ fn a_match_in_a_shared_suffix_answers_every_chain_built_on_it() {
 #[test]
 fn an_unmatched_shared_suffix_is_still_evaluated_only_once() {
     let shared = chain_of(&["root", "plain"]);
-    let branches: Vec<_> =
-        ["a", "b", "c"].iter().map(|tip| shared.pushed((*tip).to_string())).collect();
+    let branches: Vec<_> = ["a", "b", "c"]
+        .iter()
+        .map(|tip| shared.pushed((*tip).to_string()))
+        .collect();
 
     let mut memo = ChainSuffixMemo::default();
     let mut visits = 0;

@@ -230,7 +230,9 @@ fn stream_into_temp_file(
             Ok(0) => break,
             Ok(read) => {
                 hasher.update(&copy_buffer[..read]);
-                writer.write_all(&copy_buffer[..read]).map_err(io_write_error)?;
+                writer
+                    .write_all(&copy_buffer[..read])
+                    .map_err(io_write_error)?;
                 size += read as u64;
             }
             Err(error) if error.kind() == io::ErrorKind::Interrupted => {}

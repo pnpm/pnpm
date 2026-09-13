@@ -96,7 +96,10 @@ struct PendingEntryGuard {
 
 impl Drop for PendingEntryGuard {
     fn drop(&mut self) {
-        self.pending.lock().unwrap().remove(&self.id);
+        self.pending
+            .lock()
+            .unwrap()
+            .remove(&self.id);
     }
 }
 
@@ -244,9 +247,12 @@ impl NodeWorker {
     /// implement, mirroring pnpm's optional-method checks
     /// (`if (!customResolver.canResolve || !customResolver.resolve) continue`).
     pub async fn get_resolver_capabilities(&self) -> Result<Vec<ResolverCapabilities>, HookError> {
-        let value = self
-            .request("resolvers", serde_json::json!({ "target": "resolvers" }), Arc::new(|_| {}))
-            .await?;
+        let value = self.request(
+            "resolvers",
+            serde_json::json!({ "target": "resolvers" }),
+            Arc::new(|_| {}),
+        )
+        .await?;
         serde_json::from_value(value).map_err(|err| self.exec_err(err.to_string()))
     }
 
@@ -278,16 +284,16 @@ impl NodeWorker {
     /// Get the capabilities of every custom fetcher exported by the
     /// pnpmfile's `fetchers` array, in array order.
     pub async fn get_fetcher_capabilities(&self) -> Result<Vec<FetcherCapabilities>, HookError> {
-        let value = self
-            .request("fetchers", serde_json::json!({ "target": "fetchers" }), Arc::new(|_| {}))
-            .await?;
+        let value =
+            self.request("fetchers", serde_json::json!({ "target": "fetchers" }), Arc::new(|_| {}))
+                .await?;
         serde_json::from_value(value).map_err(|err| self.exec_err(err.to_string()))
     }
 
     pub async fn get_finder_names(&self) -> Result<Vec<String>, HookError> {
-        let value = self
-            .request("finders", serde_json::json!({ "target": "finders" }), Arc::new(|_| {}))
-            .await?;
+        let value =
+            self.request("finders", serde_json::json!({ "target": "finders" }), Arc::new(|_| {}))
+                .await?;
         serde_json::from_value(value).map_err(|err| self.exec_err(err.to_string()))
     }
 
@@ -327,17 +333,25 @@ impl NodeWorker {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let (done, rx) = oneshot::channel();
         let callback_timeout = label == "fetch" && callbacks.is_some();
-        self.pending.lock().unwrap().insert(id, Pending { log, done, callbacks });
+        self.pending
+            .lock()
+            .unwrap()
+            .insert(id, Pending { log, done, callbacks });
         let _pending_guard = PendingEntryGuard { pending: Arc::clone(&self.pending), id };
 
         body["id"] = serde_json::json!(id);
-        let mut line =
-            serde_json::to_string(&body).map_err(|err| self.exec_err(err.to_string()))?;
+        let mut line = serde_json::to_string(&body).map_err(|err| self.exec_err(err.to_string()))?;
         line.push('\n');
         {
             let mut stdin = self.stdin.lock().await;
-            stdin.write_all(line.as_bytes()).await.map_err(|err| self.exec_err(err.to_string()))?;
-            stdin.flush().await.map_err(|err| self.exec_err(err.to_string()))?;
+            stdin
+                .write_all(line.as_bytes())
+                .await
+                .map_err(|err| self.exec_err(err.to_string()))?;
+            stdin
+                .flush()
+                .await
+                .map_err(|err| self.exec_err(err.to_string()))?;
         }
 
         let request_timeout = if callback_timeout {
@@ -377,7 +391,11 @@ fn dispatch_line(pending: &PendingMap, stdin: &Arc<Mutex<ChildStdin>>, line: &st
     let Some(id) = message.get("id").and_then(Value::as_u64) else { return };
 
     if let Some(log) = message.get("log").and_then(Value::as_str) {
-        let log_fn = pending.lock().unwrap().get(&id).map(|entry| Arc::clone(&entry.log));
+        let log_fn = pending
+            .lock()
+            .unwrap()
+            .get(&id)
+            .map(|entry| Arc::clone(&entry.log));
         if let Some(log_fn) = log_fn {
             log_fn(log.to_string());
         }
@@ -392,7 +410,10 @@ fn dispatch_line(pending: &PendingMap, stdin: &Arc<Mutex<ChildStdin>>, line: &st
     let Some(entry) = pending.lock().unwrap().remove(&id) else { return };
     let result = match message.get("err").and_then(Value::as_str) {
         Some(err) => Err(err.to_string()),
-        None => Ok(message.get("ok").cloned().unwrap_or(Value::Null)),
+        None => Ok(message
+            .get("ok")
+            .cloned()
+            .unwrap_or(Value::Null)),
     };
     let _ = entry.done.send(result);
 }
@@ -408,9 +429,19 @@ fn dispatch_callback(
     let Some(callback_id) = callback.get("id").and_then(Value::as_u64) else { return };
     let Some(method) = callback.get("method").cloned() else { return };
     let Ok(method) = serde_json::from_value(method) else { return };
-    let resolution = callback.get("resolution").cloned().unwrap_or(Value::Null);
-    let options = callback.get("options").cloned().unwrap_or(Value::Null);
-    let callbacks = pending.lock().unwrap().get(&id).and_then(|entry| entry.callbacks.clone());
+    let resolution = callback
+        .get("resolution")
+        .cloned()
+        .unwrap_or(Value::Null);
+    let options = callback
+        .get("options")
+        .cloned()
+        .unwrap_or(Value::Null);
+    let callbacks = pending
+        .lock()
+        .unwrap()
+        .get(&id)
+        .and_then(|entry| entry.callbacks.clone());
     let (response, receiver) = oneshot::channel();
     if let Some(callbacks) = callbacks {
         let _ = callbacks.send(FetcherCallback { method, resolution, options, response });

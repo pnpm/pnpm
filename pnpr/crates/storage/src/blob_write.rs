@@ -58,8 +58,7 @@ impl BlobWrite {
         if let Some(parent) = self.final_path.parent() {
             fs::create_dir_all(parent).await?;
         }
-        let tmp_path = self
-            .tmp_path
+        let tmp_path = self.tmp_path
             .as_ref()
             .ok_or_else(|| std::io::Error::other("blob cache temp path is missing"))?;
         fs::rename(tmp_path, &self.final_path).await?;
@@ -78,8 +77,7 @@ impl BlobWrite {
         };
         file.sync_all().await?;
         let len = file.metadata().await?.len();
-        let tmp_path = self
-            .tmp_path
+        let tmp_path = self.tmp_path
             .take()
             .ok_or_else(|| std::io::Error::other("blob cache temp path is missing"))?;
         file.seek(SeekFrom::Start(0)).await?;

@@ -76,8 +76,13 @@ fn add_prerelease_resolved_version_keeps_no_prefix() {
 /// bump would have written.
 #[test]
 fn add_existing_dependency_without_version_keeps_tilde_range() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     std::fs::write(
         workspace.join("package.json"),
         r#"{ "name": "p", "version": "1.0.0", "dependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "~100.0.0" } }"#,
@@ -97,8 +102,13 @@ fn add_existing_dependency_without_version_keeps_tilde_range() {
 /// widening it to the default caret.
 #[test]
 fn add_existing_dependency_without_version_keeps_exact_pin() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     std::fs::write(
         workspace.join("package.json"),
         r#"{ "name": "p", "version": "1.0.0", "dependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "100.0.0" } }"#,
@@ -158,8 +168,13 @@ fn add_explicit_dist_tag_resolves_with_caret() {
 
 #[test]
 fn readding_a_dev_dependency_at_a_dist_tag_keeps_its_group() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let name = "@pnpm.e2e/dep-of-pkg-with-1-dep";
     std::fs::write(
         workspace.join("package.json"),
@@ -167,16 +182,23 @@ fn readding_a_dev_dependency_at_a_dist_tag_keeps_its_group() {
     )
     .expect("write package.json");
 
-    pacquet.with_args(["add", &format!("{name}@latest"), "--lockfile-only"]).assert().success();
+    pacquet
+        .with_args(["add", &format!("{name}@latest"), "--lockfile-only"])
+        .assert()
+        .success();
 
     let manifest =
         PackageManifest::from_path(workspace.join("package.json")).expect("read package.json");
     assert_eq!(
-        manifest.dependencies([DependencyGroup::Dev]).collect::<Vec<_>>(),
+        manifest
+            .dependencies([DependencyGroup::Dev])
+            .collect::<Vec<_>>(),
         vec![(name, "^101.0.0")],
     );
     assert!(
-        manifest.dependencies([DependencyGroup::Prod]).all(|(dependency, _)| dependency != name),
+        manifest
+            .dependencies([DependencyGroup::Prod])
+            .all(|(dependency, _)| dependency != name),
     );
 
     drop((root, npmrc_info));
@@ -189,8 +211,13 @@ fn readding_a_dev_dependency_at_a_dist_tag_keeps_its_group() {
 /// pnpm, which dedups to and keeps the already-declared version.
 #[test]
 fn add_explicit_range_respects_existing_operator() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     std::fs::write(
         workspace.join("package.json"),
         r#"{ "name": "p", "version": "1.0.0", "dependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "~100.0.0" } }"#,
@@ -227,8 +254,13 @@ fn add_npm_alias_spec_is_kept_verbatim() {
 /// (`^100.1.0`), not an exact `100.1.0`.
 #[test]
 fn add_explicit_range_ignores_pin_from_non_registry_prev() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     std::fs::write(
         workspace.join("package.json"),
         r#"{ "name": "p", "version": "1.0.0", "dependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "file:../deps/100.0.0.tgz" } }"#,
@@ -259,12 +291,20 @@ fn save_prefix_arbitrary_value_falls_back_to_caret() {
 /// version, not the raw `latest` dist-tag.
 #[test]
 fn add_without_version_respects_minimum_release_age() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
 
     set_minimum_release_age(&workspace, bravo_dep_mature_up_to_1_0_1_minimum_release_age());
 
-    pacquet.with_args(["add", "@pnpm.e2e/bravo-dep"]).assert().success();
+    pacquet
+        .with_args(["add", "@pnpm.e2e/bravo-dep"])
+        .assert()
+        .success();
 
     assert_eq!(prod_spec(&workspace, "@pnpm.e2e/bravo-dep"), "^1.0.1");
 
@@ -277,8 +317,10 @@ fn add_without_version_respects_minimum_release_age() {
 fn save_prefix_and_save_peer_settings_drive_add() {
     let (root, workspace, mock_instance) = add_with_save_settings(&["add"]);
 
-    let manifest =
-        workspace.join("package.json").pipe(PackageManifest::from_path).expect("read manifest");
+    let manifest = workspace
+        .join("package.json")
+        .pipe(PackageManifest::from_path)
+        .expect("read manifest");
     let peer_spec = manifest
         .dependencies([DependencyGroup::Peer])
         .find(|(name, _)| *name == "@pnpm.e2e/hello-world-js-bin")
@@ -301,8 +343,10 @@ fn save_flags_overrule_the_save_settings() {
     let (root, workspace, mock_instance) =
         add_with_save_settings(&["add", "--save-prefix", "^", "--no-save-peer"]);
 
-    let manifest =
-        workspace.join("package.json").pipe(PackageManifest::from_path).expect("read manifest");
+    let manifest = workspace
+        .join("package.json")
+        .pipe(PackageManifest::from_path)
+        .expect("read manifest");
     let prod_spec = manifest
         .dependencies([DependencyGroup::Prod])
         .find(|(name, _)| *name == "@pnpm.e2e/hello-world-js-bin")

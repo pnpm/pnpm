@@ -13,7 +13,9 @@ fn pacquet_in(workspace: &std::path::Path) -> Command {
 
 #[test]
 fn set_writes_the_setting_and_get_reads_it_back() {
-    let CommandTempCwd { pacquet: _pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let CommandTempCwd {
+        pacquet: _pacquet, root, workspace, ..
+    } = CommandTempCwd::init();
     fs::write(workspace.join("pnpm-workspace.yaml"), "packages: []\n")
         .expect("write pnpm-workspace.yaml");
 
@@ -24,8 +26,10 @@ fn set_writes_the_setting_and_get_reads_it_back() {
     eprintln!("set stderr={}", String::from_utf8_lossy(&set.stderr));
     assert!(set.status.success());
 
-    let get =
-        pacquet_in(&workspace).with_args(["get", "node-linker"]).output().expect("run pacquet get");
+    let get = pacquet_in(&workspace)
+        .with_args(["get", "node-linker"])
+        .output()
+        .expect("run pacquet get");
     eprintln!("get stderr={}", String::from_utf8_lossy(&get.stderr));
     assert!(get.status.success());
     assert_eq!(String::from_utf8_lossy(&get.stdout).trim_end(), "hoisted");
@@ -41,7 +45,10 @@ fn get_keeps_stdout_to_the_value() {
     fs::write(workspace.join("pnpm-workspace.yaml"), "nodeLinker: hoisted\n")
         .expect("write pnpm-workspace.yaml");
 
-    let output = pacquet.with_args(["get", "node-linker"]).output().expect("run pacquet get");
+    let output = pacquet
+        .with_args(["get", "node-linker"])
+        .output()
+        .expect("run pacquet get");
     assert!(output.status.success());
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), "hoisted");
 

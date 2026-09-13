@@ -121,11 +121,13 @@ impl PipelineRunStore {
         let Some(bytes) = self.storage.read_pipeline_run(workspace, &key).await? else {
             return Ok(None);
         };
-        serde_json::from_slice(&bytes).map(Some).map_err(|error| RegistryError::Internal {
-            // Name the record: it is one of many in a store several replicas
-            // write, and an operator has to be able to find the one at fault.
-            reason: format!("pipeline run {workspace}/{run_id} is not readable: {error}"),
-        })
+        serde_json::from_slice(&bytes)
+            .map(Some)
+            .map_err(|error| RegistryError::Internal {
+                // Name the record: it is one of many in a store several replicas
+                // write, and an operator has to be able to find the one at fault.
+                reason: format!("pipeline run {workspace}/{run_id} is not readable: {error}"),
+            })
     }
 }
 
@@ -160,7 +162,9 @@ fn validate_name(name: &str, field: &str) -> Result<()> {
     let valid = !name.is_empty()
         && name.len() <= MAX_NAME_LEN
         && !name.starts_with('.')
-        && name.chars().all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-'));
+        && name
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-'));
     if valid {
         return Ok(());
     }

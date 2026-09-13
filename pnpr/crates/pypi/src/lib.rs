@@ -145,7 +145,9 @@ impl ProjectDocument {
 
     #[must_use]
     pub fn file(&self, filename: &str) -> Option<&ProjectFile> {
-        self.files.iter().find(|file| file.filename == filename)
+        self.files
+            .iter()
+            .find(|file| file.filename == filename)
     }
 
     /// The distinct versions the listed files belong to, oldest first, for
@@ -153,23 +155,24 @@ impl ProjectDocument {
     /// skipped rather than failing the page.
     #[must_use]
     pub fn versions(&self) -> Vec<String> {
-        let mut versions: Vec<Version> = self
-            .files
+        let mut versions: Vec<Version> = self.files
             .iter()
             .filter_map(|file| parse_distribution_filename(&file.filename).ok())
             .filter_map(|distribution| Version::from_str(&distribution.version).ok())
             .collect();
         versions.sort();
         versions.dedup();
-        versions.iter().map(ToString::to_string).collect()
+        versions
+            .iter()
+            .map(ToString::to_string)
+            .collect()
     }
 
     /// The PEP 691 JSON page, with every file served from
     /// `<file_base>/<filename>`.
     #[must_use]
     pub fn render_json(&self, file_base: &str) -> Value {
-        let files: Vec<Value> = self
-            .files
+        let files: Vec<Value> = self.files
             .iter()
             .map(|file| {
                 let mut entry = json!({
@@ -241,7 +244,10 @@ fn file_url(file_base: &str, filename: &str) -> String {
 /// `<simple_base>/<name>/`.
 #[must_use]
 pub fn render_project_list_json<'name>(names: impl IntoIterator<Item = &'name str>) -> Value {
-    let projects: Vec<Value> = names.into_iter().map(|name| json!({ "name": name })).collect();
+    let projects: Vec<Value> = names
+        .into_iter()
+        .map(|name| json!({ "name": name }))
+        .collect();
     json!({ "meta": { "api-version": API_VERSION }, "projects": projects })
 }
 
@@ -306,9 +312,10 @@ pub fn wants_json(accept: Option<&str>) -> bool {
 #[must_use]
 pub fn wants_versioned_html(accept: Option<&str>) -> bool {
     accept.is_some_and(|accept| {
-        quality(accept, HTML_CONTENT_TYPE).is_some_and(|quality| {
-            quality > 0.0 && quality >= media_quality(accept, "text/html").unwrap_or(0.0)
-        })
+        quality(accept, HTML_CONTENT_TYPE)
+            .is_some_and(|quality| {
+                quality > 0.0 && quality >= media_quality(accept, "text/html").unwrap_or(0.0)
+            })
     })
 }
 
@@ -384,8 +391,9 @@ pub fn parse_distribution_filename(filename: &str) -> Result<Distribution, Filen
             return Err(invalid());
         }
         (parts[0], parts[1], DistributionKind::Wheel)
-    } else if let Some(stem) =
-        filename.strip_suffix(".tar.gz").or_else(|| filename.strip_suffix(".zip"))
+    } else if let Some(stem) = filename
+        .strip_suffix(".tar.gz")
+        .or_else(|| filename.strip_suffix(".zip"))
     {
         let (name, version) = stem.rsplit_once('-').ok_or_else(invalid)?;
         (name, version, DistributionKind::Sdist)
@@ -451,7 +459,9 @@ pub fn parse_upload(parts: Vec<multipart::FormPart>) -> Result<Upload, UploadErr
     let filetype = text(&fields, "filetype")?.ok_or(UploadError::MissingField("filetype"))?;
     let sha256_digest = text(&fields, "sha256_digest")?.filter(|digest| !digest.is_empty());
     let requires_python = text(&fields, "requires_python")?.filter(|value| !value.is_empty());
-    let content = fields.remove("content").ok_or(UploadError::MissingField("content"))?;
+    let content = fields
+        .remove("content")
+        .ok_or(UploadError::MissingField("content"))?;
     let filename = content.filename.ok_or(UploadError::MissingFilename)?;
     Ok(Upload {
         name,

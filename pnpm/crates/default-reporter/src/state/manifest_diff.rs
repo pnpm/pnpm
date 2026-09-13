@@ -66,14 +66,16 @@ pub(super) fn record_missing(
         if other.contains_key(name) {
             continue;
         }
-        bucket.entry(format!("{sign}{name}")).or_insert_with(|| PackageDiff {
-            added,
-            from: None,
-            name: name.clone(),
-            real_name: None,
-            version: Some(version.clone()),
-            latest: None,
-        });
+        bucket
+            .entry(format!("{sign}{name}"))
+            .or_insert_with(|| PackageDiff {
+                added,
+                from: None,
+                name: name.clone(),
+                real_name: None,
+                version: Some(version.clone()),
+                latest: None,
+            });
     }
 }
 
@@ -83,7 +85,15 @@ pub(super) fn manifest_dep_versions(manifest: &Value, prop: &str) -> HashMap<Str
         .and_then(Value::as_object)
         .map(|obj| {
             obj.iter()
-                .map(|(name, value)| (name.clone(), value.as_str().unwrap_or_default().to_string()))
+                .map(|(name, value)| {
+                    (
+                        name.clone(),
+                        value
+                            .as_str()
+                            .unwrap_or_default()
+                            .to_string(),
+                    )
+                })
                 .collect()
         })
         .unwrap_or_default()

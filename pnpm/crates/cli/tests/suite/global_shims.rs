@@ -66,19 +66,39 @@ fn prepare_local_and_global_from(
     provider: &str,
 ) -> (std::path::PathBuf, std::path::PathBuf) {
     let project = root.path().join("project");
-    write_script(&project.join("node_modules").join(provider).join("cli.sh"), "local");
+    write_script(
+        &project
+            .join("node_modules")
+            .join(provider)
+            .join("cli.sh"),
+        "local",
+    );
     fs::write(
-        project.join("node_modules").join(provider).join("package.json"),
+        project
+            .join("node_modules")
+            .join(provider)
+            .join("package.json"),
         serde_json::json!({ "name": provider, "version": "1.0.0" }).to_string(),
     )
     .unwrap();
-    let bin = project.join("node_modules").join(".bin").join(name);
+    let bin = project
+        .join("node_modules")
+        .join(".bin")
+        .join(name);
     fs::create_dir_all(bin.parent().unwrap()).unwrap();
     std::os::unix::fs::symlink(format!("../{provider}/cli.sh"), &bin).unwrap();
-    let global_target = root.path().join("global").join("node_modules").join(name).join("cli.sh");
+    let global_target = root
+        .path()
+        .join("global")
+        .join("node_modules")
+        .join(name)
+        .join("cli.sh");
     write_script(&global_target, "global");
     fs::write(
-        global_target.parent().unwrap().join("package.json"),
+        global_target
+            .parent()
+            .unwrap()
+            .join("package.json"),
         serde_json::json!({ "name": name, "version": "1.0.0" }).to_string(),
     )
     .unwrap();
@@ -156,7 +176,10 @@ fn shim_args_reach_the_target() {
     use std::os::unix::fs::PermissionsExt;
     let root = tempfile::tempdir().unwrap();
     let (project, global_target) = prepare_local_and_global(&root, "tool");
-    let script = project.join("node_modules").join("tool").join("cli.sh");
+    let script = project
+        .join("node_modules")
+        .join("tool")
+        .join("cli.sh");
     fs::write(&script, "#!/bin/sh\necho \"$@\"\n").unwrap();
     fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).unwrap();
     let output = shim_command(&root, &project, "tool", global_target.to_str().unwrap())
@@ -223,11 +246,21 @@ fn runtime_pin_downloads_node_on_demand() {
         .to_string(),
     )
     .unwrap();
-    let global_target =
-        root.path().join("global").join("node_modules").join("node").join("bin").join("node");
+    let global_target = root
+        .path()
+        .join("global")
+        .join("node_modules")
+        .join("node")
+        .join("bin")
+        .join("node");
     write_script(&global_target, "global");
     fs::write(
-        global_target.parent().unwrap().parent().unwrap().join("package.json"),
+        global_target
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("package.json"),
         serde_json::json!({ "name": "node", "version": "1.0.0" }).to_string(),
     )
     .unwrap();
@@ -398,7 +431,10 @@ fn write_lockfile_verified_record(root: &TempDir, project: &Path) {
         "verifiedAt": "2026-01-01T00:00:00.000Z",
         "policy": { "tarballUrlBinding": true, "integrityRequired": true },
     });
-    let cache_dir = root.path().join("cache-home").join("pnpm");
+    let cache_dir = root
+        .path()
+        .join("cache-home")
+        .join("pnpm");
     fs::create_dir_all(&cache_dir).unwrap();
     fs::write(cache_dir.join("lockfile-verified.jsonl"), format!("{record}\n")).unwrap();
 }
@@ -463,8 +499,10 @@ fn global_fallback_preserves_quoted_shebang_arguments() {
         .unwrap();
 
     assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
-    let lines: Vec<_> =
-        String::from_utf8_lossy(&output.stdout).lines().map(str::to_string).collect();
+    let lines: Vec<_> = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::to_string)
+        .collect();
     assert_eq!(lines.first().map(String::as_str), Some("<--label>"));
     assert_eq!(lines.get(1).map(String::as_str), Some("<value with spaces>"));
     assert_eq!(lines.get(2).map(String::as_str), Some(format!("<{}>", target.display()).as_str()));
@@ -485,8 +523,10 @@ fn global_fallback_prefers_the_sibling_interpreter() {
     let cwd = root.path().join("outside");
     fs::create_dir_all(&cwd).unwrap();
 
-    let output =
-        shim_command(&root, &cwd, "tool", target.to_str().unwrap()).arg("--flag").output().unwrap();
+    let output = shim_command(&root, &cwd, "tool", target.to_str().unwrap())
+        .arg("--flag")
+        .output()
+        .unwrap();
 
     assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "sibling node");
@@ -503,7 +543,10 @@ fn a_shim_without_a_readable_target_fails() {
     let shim = shim_command(&root, &cwd, "tool", "placeholder").get_program().to_owned();
     fs::write(root.path().join("global-bin/.pnpm-shim-v1-tool-target"), b"pkg:not a name").unwrap();
 
-    let output = Command::new(&shim).with_current_dir(&cwd).output().unwrap();
+    let output = Command::new(&shim)
+        .with_current_dir(&cwd)
+        .output()
+        .unwrap();
     assert_eq!(output.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&output.stderr).contains("cannot read the global target"));
 
@@ -515,7 +558,11 @@ fn a_shim_without_a_readable_target_fails() {
 #[cfg(windows)]
 fn windows_shim_command(root: &TempDir, cwd: &Path, name: &str, target: &Path) -> Command {
     use std::os::windows::ffi::OsStrExt as _;
-    let encoded = target.as_os_str().encode_wide().flat_map(u16::to_le_bytes).collect::<Vec<_>>();
+    let encoded = target
+        .as_os_str()
+        .encode_wide()
+        .flat_map(u16::to_le_bytes)
+        .collect::<Vec<_>>();
     let shim = install_shim(&root.path().join("global-bin"), name, &encoded);
     Command::new(shim)
         .without_ambient_pnpm_config()
@@ -574,27 +621,52 @@ fn shims_can_be_added_and_removed_for_a_package_that_is_not_installed() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("project");
     fs::create_dir_all(&project).unwrap();
-    let global_bin = root.path().join("pnpm-home").join("bin");
+    let global_bin = root
+        .path()
+        .join("pnpm-home")
+        .join("bin");
 
-    let added = pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+    let added = pnpm_command(&root, &project)
+        .with_args(["shim", "add", "yarn"])
+        .output()
+        .unwrap();
     assert!(stdout_of(&added).contains("yarn, yarnpkg"));
     let exe = std::env::consts::EXE_SUFFIX;
-    assert!(global_bin.join(format!("yarn{exe}")).exists());
-    assert!(global_bin.join(format!("yarnpkg{exe}")).exists());
+    assert!(
+        global_bin
+            .join(format!("yarn{exe}"))
+            .exists(),
+    );
+    assert!(
+        global_bin
+            .join(format!("yarnpkg{exe}"))
+            .exists(),
+    );
     let config =
         fs::read_to_string(root.path().join("config/pnpm/config.yaml")).expect("read config.yaml");
     assert!(config.contains("yarn: auto"), "{config}");
 
-    let listed = pnpm_command(&root, &project).with_args(["shim", "ls"]).output().unwrap();
+    let listed = pnpm_command(&root, &project)
+        .with_args(["shim", "ls"])
+        .output()
+        .unwrap();
     assert!(stdout_of(&listed).contains("yarn (auto): yarn, yarnpkg"));
 
-    let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "yarn"]).output().unwrap();
+    let removed = pnpm_command(&root, &project)
+        .with_args(["shim", "rm", "yarn"])
+        .output()
+        .unwrap();
     assert!(stdout_of(&removed).contains("Removed yarn, yarnpkg"));
     let left: Vec<_> = fs::read_dir(&global_bin)
         .into_iter()
         .flatten()
         .flatten()
-        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .filter(|name| name.starts_with("yarn"))
         .collect();
     assert!(left.is_empty(), "{left:?}");
@@ -616,8 +688,10 @@ fn adding_a_shim_under_a_global_disable_is_refused() {
     fs::create_dir_all(&config_dir).unwrap();
     fs::write(config_dir.join("config.yaml"), "globalShims: false\n").unwrap();
 
-    let refused =
-        pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+    let refused = pnpm_command(&root, &project)
+        .with_args(["shim", "add", "yarn"])
+        .output()
+        .unwrap();
 
     assert!(!refused.status.success());
     let stderr = String::from_utf8_lossy(&refused.stderr);
@@ -625,7 +699,10 @@ fn adding_a_shim_under_a_global_disable_is_refused() {
     assert_eq!(fs::read_to_string(config_dir.join("config.yaml")).unwrap(), "globalShims: false\n");
     // Nothing was linked at all — not the bare shim, not a Windows
     // flavor, not the dispatcher beside them.
-    let global_bin = root.path().join("pnpm-home").join("bin");
+    let global_bin = root
+        .path()
+        .join("pnpm-home")
+        .join("bin");
     let linked: Vec<_> = fs::read_dir(&global_bin)
         .into_iter()
         .flatten()
@@ -636,7 +713,10 @@ fn adding_a_shim_under_a_global_disable_is_refused() {
 
     // Removing shims under it still works, and still leaves the setting
     // as the user wrote it.
-    let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "yarn"]).output().unwrap();
+    let removed = pnpm_command(&root, &project)
+        .with_args(["shim", "rm", "yarn"])
+        .output()
+        .unwrap();
     assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
     assert_eq!(fs::read_to_string(config_dir.join("config.yaml")).unwrap(), "globalShims: false\n");
 }
@@ -649,9 +729,16 @@ fn removing_a_shim_that_was_never_recorded_leaves_the_config_alone() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("project");
     fs::create_dir_all(&project).unwrap();
-    let config = root.path().join("config").join("pnpm").join("config.yaml");
+    let config = root
+        .path()
+        .join("config")
+        .join("pnpm")
+        .join("config.yaml");
 
-    let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "yarn"]).output().unwrap();
+    let removed = pnpm_command(&root, &project)
+        .with_args(["shim", "rm", "yarn"])
+        .output()
+        .unwrap();
 
     assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
     assert!(stdout_of(&removed).contains("No shims for yarn"));
@@ -670,7 +757,10 @@ fn removing_a_disabled_shim_does_not_enable_it() {
     fs::create_dir_all(&config_dir).unwrap();
     fs::write(config_dir.join("config.yaml"), "globalShims:\n  node: false\n").unwrap();
 
-    let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "node"]).output().unwrap();
+    let removed = pnpm_command(&root, &project)
+        .with_args(["shim", "rm", "node"])
+        .output()
+        .unwrap();
 
     assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
     assert_eq!(
@@ -691,8 +781,10 @@ fn removing_a_disabled_shim_clears_it_when_nothing_would_switch_on() {
     fs::create_dir_all(&config_dir).unwrap();
     fs::write(config_dir.join("config.yaml"), "globalShims:\n  typescript: false\n").unwrap();
 
-    let removed =
-        pnpm_command(&root, &project).with_args(["shim", "rm", "typescript"]).output().unwrap();
+    let removed = pnpm_command(&root, &project)
+        .with_args(["shim", "rm", "typescript"])
+        .output()
+        .unwrap();
 
     assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
     let config = fs::read_to_string(config_dir.join("config.yaml")).unwrap();
@@ -718,7 +810,10 @@ fn removing_a_shim_under_a_higher_precedence_disable_records_no_defaults() {
         .unwrap();
     fs::write(pnpm_home.join("pnpm-workspace.yaml"), "globalShims: false\n").unwrap();
 
-    let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "yarn"]).output().unwrap();
+    let removed = pnpm_command(&root, &project)
+        .with_args(["shim", "rm", "yarn"])
+        .output()
+        .unwrap();
 
     assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
     let config = fs::read_to_string(config_dir.join("config.yaml")).unwrap();
@@ -748,7 +843,10 @@ fn adding_a_shim_under_a_higher_precedence_disable_is_refused() {
         } else {
             command = command.with_env("PNPM_CONFIG_GLOBAL_SHIMS", "false");
         }
-        let refused = command.with_args(["shim", "add", "yarn"]).output().unwrap();
+        let refused = command
+            .with_args(["shim", "add", "yarn"])
+            .output()
+            .unwrap();
 
         assert!(!refused.status.success(), "{label}");
         let stderr = String::from_utf8_lossy(&refused.stderr);
@@ -774,21 +872,34 @@ fn adding_a_shim_over_another_package_s_bin_is_refused() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("project");
     fs::create_dir_all(&project).unwrap();
-    let global_bin = root.path().join("pnpm-home").join("bin");
+    let global_bin = root
+        .path()
+        .join("pnpm-home")
+        .join("bin");
 
-    let added = pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+    let added = pnpm_command(&root, &project)
+        .with_args(["shim", "add", "yarn"])
+        .output()
+        .unwrap();
     assert!(added.status.success(), "{}", String::from_utf8_lossy(&added.stderr));
-    let readded =
-        pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+    let readded = pnpm_command(&root, &project)
+        .with_args(["shim", "add", "yarn"])
+        .output()
+        .unwrap();
     assert!(readded.status.success(), "{}", String::from_utf8_lossy(&readded.stderr));
 
-    let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "yarn"]).output().unwrap();
+    let removed = pnpm_command(&root, &project)
+        .with_args(["shim", "rm", "yarn"])
+        .output()
+        .unwrap();
     assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
     assert!(!global_bin.join("yarn").exists());
     let installed_globally = "#!/bin/sh\necho a global install\n";
     fs::write(global_bin.join("yarn"), installed_globally).unwrap();
-    let refused =
-        pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+    let refused = pnpm_command(&root, &project)
+        .with_args(["shim", "add", "yarn"])
+        .output()
+        .unwrap();
 
     assert!(!refused.status.success());
     let stderr = String::from_utf8_lossy(&refused.stderr);
@@ -807,20 +918,28 @@ fn a_shim_without_a_project_target_reports_it() {
     fs::create_dir_all(&project).unwrap();
     fs::write(project.join("package.json"), r#"{"name":"project","version":"1.0.0"}"#).unwrap();
 
-    let added = pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
-    assert!(added.status.success(), "{}", String::from_utf8_lossy(&added.stderr));
-    let output = Command::new(root.path().join("pnpm-home").join("bin").join("yarn"))
-        .without_ambient_pnpm_config()
-        .with_current_dir(&project)
-        .with_env("PNPM_HOME", root.path().join("pnpm-home"))
-        .with_env("XDG_STATE_HOME", root.path().join("state"))
-        .with_env("XDG_CONFIG_HOME", root.path().join("config"))
-        // The dispatched shim must not reach into the developer's cache
-        // either, whatever it decides to run.
-        .with_env("XDG_CACHE_HOME", root.path().join("cache-home"))
-        .with_arg("--version")
+    let added = pnpm_command(&root, &project)
+        .with_args(["shim", "add", "yarn"])
         .output()
         .unwrap();
+    assert!(added.status.success(), "{}", String::from_utf8_lossy(&added.stderr));
+    let output = Command::new(
+        root.path()
+            .join("pnpm-home")
+            .join("bin")
+            .join("yarn"),
+    )
+    .without_ambient_pnpm_config()
+    .with_current_dir(&project)
+    .with_env("PNPM_HOME", root.path().join("pnpm-home"))
+    .with_env("XDG_STATE_HOME", root.path().join("state"))
+    .with_env("XDG_CONFIG_HOME", root.path().join("config"))
+    // The dispatched shim must not reach into the developer's cache
+    // either, whatever it decides to run.
+    .with_env("XDG_CACHE_HOME", root.path().join("cache-home"))
+    .with_arg("--version")
+    .output()
+    .unwrap();
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);

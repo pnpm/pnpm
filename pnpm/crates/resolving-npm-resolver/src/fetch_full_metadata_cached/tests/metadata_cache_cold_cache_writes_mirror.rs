@@ -51,7 +51,12 @@ async fn cold_cache_writes_mirror_on_200() {
 #[tokio::test]
 async fn offline_with_mirror_reads_cache_without_registry() {
     let mut server = mockito::Server::new_async().await;
-    let no_network = server.mock("GET", "/acme").with_status(500).expect(0).create_async().await;
+    let no_network = server
+        .mock("GET", "/acme")
+        .with_status(500)
+        .expect(0)
+        .create_async()
+        .await;
 
     let cache = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
@@ -81,7 +86,12 @@ async fn offline_with_mirror_reads_cache_without_registry() {
 #[tokio::test]
 async fn offline_without_mirror_errors_without_registry() {
     let mut server = mockito::Server::new_async().await;
-    let no_network = server.mock("GET", "/acme").with_status(500).expect(0).create_async().await;
+    let no_network = server
+        .mock("GET", "/acme")
+        .with_status(500)
+        .expect(0)
+        .create_async()
+        .await;
 
     let cache = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
@@ -596,7 +606,10 @@ async fn a_304_renews_the_mirror_mtime() {
 
     fetch_full_metadata_cached("acme", &opts).await.expect("304 reads from mirror");
 
-    let renewed = std::fs::metadata(&mirror_path).expect("stat mirror").modified().expect("mtime");
+    let renewed = std::fs::metadata(&mirror_path)
+        .expect("stat mirror")
+        .modified()
+        .expect("mtime");
     let age = std::time::SystemTime::now().duration_since(renewed).expect("mtime in the past");
     assert!(
         age < std::time::Duration::from_mins(1),
@@ -704,7 +717,12 @@ async fn read_only_cache_dir_does_not_fail_the_call() {
         .await;
 
     let cache = TempDir::new().expect("tempdir");
-    let mode = cache.path().metadata().expect("stat").permissions().mode();
+    let mode = cache
+        .path()
+        .metadata()
+        .expect("stat")
+        .permissions()
+        .mode();
     fs::set_permissions(cache.path(), fs::Permissions::from_mode(0o555)).expect("set read-only");
 
     let registry = format!("{}/", server.url());

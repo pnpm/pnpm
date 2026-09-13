@@ -23,20 +23,27 @@ pub(super) fn build_access_context<'a>(
     let registry =
         args.registry.as_deref().map_or_else(|| config.registry.clone(), normalize_registry_url);
 
-    let redirect_guard = args.otp.as_ref().map(|_| {
-        let registry_origin: Option<(String, String, Option<u16>)> =
-            reqwest::Url::parse(&registry).ok().and_then(|url| {
-                url.host_str().map(|host| (url.scheme().to_string(), host.to_string(), url.port()))
+    let redirect_guard = args.otp
+        .as_ref()
+        .map(|_| {
+            let registry_origin: Option<(String, String, Option<u16>)> =
+                reqwest::Url::parse(&registry)
+                    .ok()
+                    .and_then(|url| {
+                        url.host_str()
+                            .map(|host| (url.scheme().to_string(), host.to_string(), url.port()))
+                    });
+            let guard: RedirectGuard = Arc::new(move |target: &reqwest::Url| -> bool {
+                registry_origin
+                    .as_ref()
+                    .is_some_and(|(scheme, host, port)| {
+                        target.scheme() == scheme
+                            && target.host_str() == Some(host.as_str())
+                            && target.port() == *port
+                    })
             });
-        let guard: RedirectGuard = Arc::new(move |target: &reqwest::Url| -> bool {
-            registry_origin.as_ref().is_some_and(|(scheme, host, port)| {
-                target.scheme() == scheme
-                    && target.host_str() == Some(host.as_str())
-                    && target.port() == *port
-            })
+            guard
         });
-        guard
-    });
 
     Ok(AccessContext {
         config,
@@ -127,7 +134,10 @@ pub(super) async fn fetch_error_from_response(response: Response, action: &str) 
     AccessError::RegistryFetchFailed {
         action: action.to_string(),
         status: status.as_u16(),
-        status_text: status.canonical_reason().unwrap_or_default().to_string(),
+        status_text: status
+            .canonical_reason()
+            .unwrap_or_default()
+            .to_string(),
     }
     .into()
 }
@@ -138,7 +148,10 @@ pub(super) async fn write_error_from_response(
     package_name: &str,
 ) -> miette::Report {
     let status = response.status();
-    let status_text = status.canonical_reason().unwrap_or_default().to_string();
+    let status_text = status
+        .canonical_reason()
+        .unwrap_or_default()
+        .to_string();
     let body = redact_and_sanitize(&read_error_body(response).await);
 
     match status {
@@ -157,8 +170,9 @@ pub(super) async fn write_error_from_response(
 
 async fn read_error_body(response: Response) -> String {
     let limit = ACCESS_ERROR_BODY_LIMIT;
-    let header_exceeds_limit =
-        response.content_length().is_some_and(|length| length > limit as u64);
+    let header_exceeds_limit = response
+        .content_length()
+        .is_some_and(|length| length > limit as u64);
     let mut bytes = Vec::new();
     let mut truncated = header_exceeds_limit;
     let mut stream = response.bytes_stream();
@@ -174,7 +188,12 @@ async fn read_error_body(response: Response) -> String {
     }
     let mut body = String::from_utf8_lossy(&bytes).into_owned();
     if truncated {
-        if !body.is_empty() && !body.chars().next_back().is_some_and(char::is_whitespace) {
+        if !body.is_empty()
+            && !body
+                .chars()
+                .next_back()
+                .is_some_and(char::is_whitespace)
+        {
             body.push(' ');
         }
         body.push_str("(response body truncated)");

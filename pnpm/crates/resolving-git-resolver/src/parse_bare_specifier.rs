@@ -79,7 +79,10 @@ pub fn parse_bare_specifier(bare: &str) -> Option<PartialSpec> {
     }
     let corrected = correct_url(bare);
     let parsed = reqwest::Url::parse(&corrected).ok()?;
-    let hash = parsed.fragment().filter(|f| !f.is_empty()).map(percent_decode_str);
+    let hash = parsed
+        .fragment()
+        .filter(|f| !f.is_empty())
+        .map(percent_decode_str);
     let params = parse_git_params(hash.as_deref());
     Some(PartialSpec::Direct(HostedPackageSpec {
         fetch_spec: url_to_fetch_spec(&parsed),
@@ -107,7 +110,10 @@ fn url_to_fetch_spec(parsed: &reqwest::Url) -> String {
     let mut clone = parsed.clone();
     clone.set_fragment(None);
     let formatted = clone.to_string();
-    formatted.strip_prefix("git+").map(str::to_string).unwrap_or(formatted)
+    formatted
+        .strip_prefix("git+")
+        .map(str::to_string)
+        .unwrap_or(formatted)
 }
 
 /// Normalise the input URL: strips a leading `git+` and rewrites the
@@ -149,7 +155,8 @@ fn has_scp_colon(auth: &str) -> bool {
     let host = auth.rsplit_once('@').map_or(auth, |(_, host)| host);
     // The colons of a bracketed IPv6 literal belong to the address.
     let after_host = if host.starts_with('[') {
-        host.find(']').map_or(host, |idx| &host[idx + 1..])
+        host.find(']')
+            .map_or(host, |idx| &host[idx + 1..])
     } else {
         host
     };

@@ -9,7 +9,9 @@ use super::{
 pub(super) fn reject_non_object_manifests(projects: &[NodeApiProject]) -> napi::Result<()> {
     for project in projects {
         if !project.manifest.is_object()
-            || project.dependency_manifest.as_ref().is_some_and(|value| !value.is_object())
+            || project.dependency_manifest
+                .as_ref()
+                .is_some_and(|value| !value.is_object())
         {
             return Err(invalid_manifest_error(&project.root_dir));
         }
