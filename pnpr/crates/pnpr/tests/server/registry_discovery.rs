@@ -417,3 +417,36 @@ async fn registry_directory_describes_oci_only_named_endpoints() {
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "{path}");
     }
 }
+
+/// A caller denied by any of an upstream's package access refinements is
+/// excluded from that upstream's search entirely — its advertised totals
+/// never reach the caller-visible `total`. This is the property that makes
+/// folding the raw unscanned remainder into `total` safe: only callers the
+/// whole source admits ever see its counts.
+#[tokio::test]
+async fn search_excludes_an_upstream_with_a_denying_package_rule() {
+    let mut upstream = mockito::Server::new_async().await;
+    let never_queried = upstream
+        .mock("GET", "/-/v1/search")
+        .match_query(mockito::Matcher::Any)
+        .expect(0)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    seed_hosted(tmp.path(), "ajv");
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    let npmjs = config.routing.upstreams.get_mut("npmjs").unwrap();
+    npmjs.search = true;
+    npmjs.rules = PackageRules::new(vec![access_rule("@corp/*", "alice")], None);
+    let app = router(config);
+
+    let response = app
+        .oneshot(Request::get("/-/v1/search?text=ajv").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = body_json(response.into_body()).await;
+    assert_eq!(body["total"], json!(1));
+    assert_eq!(body["objects"][0]["package"]["name"], json!("ajv"));
+    never_queried.assert_async().await;
+}

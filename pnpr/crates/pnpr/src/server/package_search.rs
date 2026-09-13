@@ -356,6 +356,13 @@ pub(super) fn consume_upstream_page(
         });
     }
     if budget.remaining_results() == 0 || !budget.try_take_page() {
+        // Folding the raw advertised remainder into the caller-visible total
+        // is safe: [`upstream_search_admits`] only lets a caller search a
+        // source when its default access and every per-package refinement
+        // admit them, so a caller denied any package never receives this
+        // source's counts at all. For an admitted caller the remainder can
+        // include entries the registry graph routes elsewhere — a count of
+        // names, never their contents, from a source they may query freely.
         page.unscanned = page.unscanned.saturating_add(response.total.saturating_sub(*from));
         return Ok(PageOutcome::Done);
     }
