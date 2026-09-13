@@ -30,7 +30,7 @@ async fn upstream_dist_tags_enforce_package_access() {
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
     // The gate lives on the upstream registry's own `packages:` rules: an
     // access-restricted name can't be read even through a public upstream.
-    config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").rules =
+    config.routing.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").rules =
         PackageRules::new(vec![access_rule("restricted", "$authenticated")], None);
     let app = router(config);
 
@@ -59,7 +59,7 @@ async fn upstream_auth_and_custom_headers_are_forwarded_upstream() {
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    let upstream = config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream");
+    let upstream = config.routing.upstreams.get_mut("npmjs").expect("default `npmjs` upstream");
     upstream.headers.insert("authorization", "Bearer secret-token".parse().unwrap());
     upstream.headers.insert("x-org", "acme".parse().unwrap());
     // A credentialed upstream must be access-gated (server construction
@@ -271,10 +271,10 @@ async fn upstream_cache_does_not_leak_to_the_public_path() {
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&public_upstream.url(), tmp.path().to_path_buf());
-    let mut corp = config.upstreams.get("npmjs").expect("default `npmjs` upstream").clone();
+    let mut corp = config.routing.upstreams.get("npmjs").expect("default `npmjs` upstream").clone();
     corp.url = private_upstream.url();
     corp.access = Some(AccessList::from_tokens(["alice"]));
-    config.upstreams.insert("corp".to_string(), corp);
+    config.routing.upstreams.insert("corp".to_string(), corp);
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(config, auth);
@@ -383,7 +383,7 @@ async fn upstream_endpoint_cache_false_streams_without_caching() {
 
     let tmp = TempDir::new().unwrap();
     let mut config = upstream_endpoint_config(&upstream.url(), tmp.path().to_path_buf(), "alice");
-    config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").cache = false;
+    config.routing.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").cache = false;
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(config, auth);
@@ -421,7 +421,7 @@ async fn osv_refuses_vulnerable_tarball_before_upstream_fetch() {
     let tmp = TempDir::new().unwrap();
     let osv = osv_database("foo", &["1.0.0"]);
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.resolver.enabled = false;
+    config.features.resolver.enabled = false;
     enable_osv(&mut config, osv.path());
     let app = router(config);
 
@@ -450,7 +450,7 @@ async fn osv_tarball_screening_preserves_access_gate() {
     let tmp = TempDir::new().unwrap();
     let osv = osv_database("@pnpm.e2e/needs-auth", &["1.0.0"]);
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.resolver.enabled = false;
+    config.features.resolver.enabled = false;
     enable_osv(&mut config, osv.path());
     let app = router(config);
 
@@ -493,7 +493,7 @@ async fn osv_refuses_vulnerable_tarball_from_cache() {
 
     let osv = osv_database("foo", &["1.0.0"]);
     let mut config = config_for(&upstream.url(), cache_dir);
-    config.resolver.enabled = false;
+    config.features.resolver.enabled = false;
     enable_osv(&mut config, osv.path());
     let screened_app = router(config);
 
@@ -569,7 +569,7 @@ async fn osv_refuses_vulnerable_cached_tarball_under_noncanonical_name() {
     // 0.0.1, so only a resolved-version screen on the cache hit can refuse.
     let osv = osv_database("foo", &["1.0.0"]);
     let mut config = config_for(&upstream.url(), cache_dir);
-    config.resolver.enabled = false;
+    config.features.resolver.enabled = false;
     enable_osv(&mut config, osv.path());
     let screened_app = router(config);
 

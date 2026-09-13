@@ -15,6 +15,8 @@
 //! state pnpm shows for a resolved-but-not-installed dependency does not
 //! arise.
 
+pub(crate) mod query;
+
 pub use query::{OutdatedPackage, OutdatedQuery, TargetVersion, collect_outdated};
 pub(crate) use query::{
     OutdatedRun, collect_outdated_for_importer, collect_outdated_for_importer_in_run,
@@ -114,44 +116,41 @@ pub struct OutdatedArgs {
     /// patterns (`*` wildcard, leading `!` to negate). With no arguments,
     /// every direct dependency in the included groups is checked.
     pub packages: Vec<String>,
-
     /// --prod, --dev, and --no-optional.
     #[clap(flatten)]
     pub dependency_options: OutdatedDependencyOptions,
-
     /// Print only versions that satisfy the ranges in package.json.
     #[clap(long)]
     pub compatible: bool,
+    /// Also check GitHub Actions dependencies in workflow and action files.
+    #[clap(long = "include-github-actions")]
+    pub include_github_actions: bool,
+    /// Check globally installed packages.
+    #[clap(short = 'g', long)]
+    pub global: bool,
+    #[clap(flatten)]
+    pub output: OutdatedOutputArgs,
+}
 
+#[derive(Debug, Clone, clap::Args)]
+pub struct OutdatedOutputArgs {
     /// Print details about the outdated packages (homepage, deprecation
     /// notice).
     #[clap(long)]
     pub long: bool,
-
     /// Output format.
     #[clap(long, value_enum, default_value_t = OutdatedFormat::Table)]
     pub format: OutdatedFormat,
-
     /// Shorthand for `--format list`. Good for small consoles.
     #[clap(long = "no-table")]
     pub no_table: bool,
-
     /// Shorthand for `--format json`.
     #[clap(long)]
     pub json: bool,
-
     /// Sorting method. Currently only `name` is supported; the default
     /// sorts by the size of the version change, then by name.
     #[clap(long, value_enum)]
     pub sort_by: Option<SortBy>,
-
-    /// Also check GitHub Actions dependencies in workflow and action files.
-    #[clap(long = "include-github-actions")]
-    pub include_github_actions: bool,
-
-    /// Check globally installed packages.
-    #[clap(short = 'g', long)]
-    pub global: bool,
 }
 
 /// Sort order for the outdated report.
@@ -223,7 +222,7 @@ impl OutdatedArgs {
     }
 
     fn report_outdated(&self, outdated: &mut [OutdatedPackage]) -> miette::Result<OutdatedOutcome> {
-        sort_outdated(outdated, self.sort_by);
+        sort_outdated(outdated, self.output.sort_by);
         self.write_rendered(outdated)?;
 
         Ok(if outdated.is_empty() { OutdatedOutcome::UpToDate } else { OutdatedOutcome::Outdated })
@@ -241,18 +240,18 @@ impl OutdatedArgs {
 
     fn write_rendered(&self, outdated: &[OutdatedPackage]) -> miette::Result<()> {
         let output = match self.resolve_format() {
-            OutdatedFormat::Table => render_table(outdated, self.long),
-            OutdatedFormat::List => render_list(outdated, self.long),
-            OutdatedFormat::Json => render_json(outdated, self.long),
+            OutdatedFormat::Table => render_table(outdated, self.output.long),
+            OutdatedFormat::List => render_list(outdated, self.output.long),
+            OutdatedFormat::Json => render_json(outdated, self.output.long),
         };
         write_output(&output)
     }
 
     fn write_recursive_rendered(&self, outdated: &[OutdatedInWorkspace]) -> miette::Result<()> {
         let output = match self.resolve_format() {
-            OutdatedFormat::Table => render_recursive_table(outdated, self.long),
-            OutdatedFormat::List => render_recursive_list(outdated, self.long),
-            OutdatedFormat::Json => render_recursive_json(outdated, self.long),
+            OutdatedFormat::Table => render_recursive_table(outdated, self.output.long),
+            OutdatedFormat::List => render_recursive_list(outdated, self.output.long),
+            OutdatedFormat::Json => render_recursive_json(outdated, self.output.long),
         };
         write_output(&output)
     }
@@ -397,7 +396,7 @@ impl OutdatedArgs {
             );
         }
 
-        sort_outdated(&mut outdated, self.sort_by);
+        sort_outdated(&mut outdated, self.output.sort_by);
         self.write_rendered(&outdated)?;
 
         Ok(if outdated.is_empty() { OutdatedOutcome::UpToDate } else { OutdatedOutcome::Outdated })
@@ -408,12 +407,12 @@ impl OutdatedArgs {
     /// `--format`, with `--json` taking precedence over `--no-table`,
     /// mirroring pnpm's shorthand expansion order.
     fn resolve_format(&self) -> OutdatedFormat {
-        if self.json {
+        if self.output.json {
             OutdatedFormat::Json
-        } else if self.no_table {
+        } else if self.output.no_table {
             OutdatedFormat::List
         } else {
-            self.format
+            self.output.format
         }
     }
 }
@@ -449,7 +448,5 @@ impl OutdatedFilters {
 mod tests;
 
 mod render;
-
-mod query;
 
 mod workspace;

@@ -26,8 +26,8 @@ use tower::ServiceExt;
 fn config_for(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::proxy(listen, storage);
-    config.public_url = "http://example.test".to_string();
-    config.packument_ttl = Duration::from_mins(1);
+    config.http.public_url = "http://example.test".to_string();
+    config.http.packument_ttl = Duration::from_mins(1);
     config
 }
 
@@ -174,7 +174,11 @@ async fn a_project_resolves_from_the_metadata_files_an_index_publishes() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config.route_policy.public.push(PublicRoute { registry: Some(index.url()), package: None });
+    config
+        .routing
+        .route_policy
+        .public
+        .push(PublicRoute { registry: Some(index.url()), package: None });
     let app = router_with_auth(config, auth);
 
     let response = app
@@ -225,7 +229,11 @@ async fn a_wheel_is_read_when_the_index_publishes_no_metadata_file() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config.route_policy.public.push(PublicRoute { registry: Some(index.url()), package: None });
+    config
+        .routing
+        .route_policy
+        .public
+        .push(PublicRoute { registry: Some(index.url()), package: None });
     let app = router_with_auth(config, auth);
 
     let response = app
@@ -265,7 +273,11 @@ async fn a_second_resolve_reads_the_cached_index() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config.route_policy.public.push(PublicRoute { registry: Some(index.url()), package: None });
+    config
+        .routing
+        .route_policy
+        .public
+        .push(PublicRoute { registry: Some(index.url()), package: None });
     let app = router_with_auth(config, auth);
     let index_url = format!("{}/simple/", index.url());
 
@@ -306,7 +318,11 @@ async fn a_metadata_file_that_is_not_what_the_index_vouched_for_is_refused() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config.route_policy.public.push(PublicRoute { registry: Some(index.url()), package: None });
+    config
+        .routing
+        .route_policy
+        .public
+        .push(PublicRoute { registry: Some(index.url()), package: None });
     let app = router_with_auth(config, auth);
 
     let response = app
@@ -351,7 +367,11 @@ async fn metadata_describing_another_distribution_is_refused() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config.route_policy.public.push(PublicRoute { registry: Some(index.url()), package: None });
+    config
+        .routing
+        .route_policy
+        .public
+        .push(PublicRoute { registry: Some(index.url()), package: None });
     let app = router_with_auth(config, auth);
 
     let response = app
@@ -383,7 +403,11 @@ async fn a_project_page_that_is_not_one_is_not_cached() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config.route_policy.public.push(PublicRoute { registry: Some(index.url()), package: None });
+    config
+        .routing
+        .route_policy
+        .public
+        .push(PublicRoute { registry: Some(index.url()), package: None });
     let app = router_with_auth(config, auth);
     let index_url = format!("{}/simple/", index.url());
 
@@ -428,7 +452,11 @@ async fn an_index_url_keeps_its_query_on_every_read() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config.route_policy.public.push(PublicRoute { registry: Some(index.url()), package: None });
+    config
+        .routing
+        .route_policy
+        .public
+        .push(PublicRoute { registry: Some(index.url()), package: None });
     let app = router_with_auth(config, auth);
 
     let response = app
@@ -472,7 +500,11 @@ async fn cached_metadata_is_refused_once_the_index_publishes_another_digest() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config.route_policy.public.push(PublicRoute { registry: Some(index.url()), package: None });
+    config
+        .routing
+        .route_policy
+        .public
+        .push(PublicRoute { registry: Some(index.url()), package: None });
     let app = router_with_auth(config, auth);
     let index_url = format!("{}/simple/", index.url());
 
@@ -538,7 +570,11 @@ async fn metadata_read_from_a_wheel_is_not_reused_for_the_wheel_that_replaces_it
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config.route_policy.public.push(PublicRoute { registry: Some(index.url()), package: None });
+    config
+        .routing
+        .route_policy
+        .public
+        .push(PublicRoute { registry: Some(index.url()), package: None });
     let app = router_with_auth(config, auth);
     let index_url = format!("{}/simple/", index.url());
 
@@ -598,7 +634,11 @@ async fn an_unsatisfiable_project_is_reported_as_one() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config.route_policy.public.push(PublicRoute { registry: Some(index.url()), package: None });
+    config
+        .routing
+        .route_policy
+        .public
+        .push(PublicRoute { registry: Some(index.url()), package: None });
     let app = router_with_auth(config, auth);
 
     let response = app
@@ -635,7 +675,11 @@ async fn a_requirement_naming_a_url_is_refused() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config.route_policy.public.push(PublicRoute { registry: Some(index.url()), package: None });
+    config
+        .routing
+        .route_policy
+        .public
+        .push(PublicRoute { registry: Some(index.url()), package: None });
     let app = router_with_auth(config, auth);
 
     let response = app

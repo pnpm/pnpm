@@ -11,7 +11,7 @@ use pnpm_resolving_resolver_base::ResolutionVerifier;
 #[tokio::test]
 async fn min_age_zero_keeps_age_check_inactive() {
     let mut opts = default_opts("http://nonexistent.example.invalid/");
-    opts.minimum_release_age = Some(0);
+    opts.release_age.minimum_minutes = Some(0);
     let verifier = create_npm_resolution_verifier(opts);
     let result = verifier
         .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.0.0"))
@@ -24,10 +24,10 @@ async fn verify_skips_age_check_when_package_excluded() {
     // No mockito needed: if the exclude were ignored, the verifier
     // would issue a network call to the bogus URL and fail.
     let mut opts = default_opts("http://nonexistent.example.invalid/");
-    opts.minimum_release_age = Some(60 * 24 * 365);
-    opts.minimum_release_age_exclude =
+    opts.release_age.minimum_minutes = Some(60 * 24 * 365);
+    opts.release_age.exclude =
         Some(create_package_version_policy(["acme".to_string()]).expect("policy"));
-    opts.minimum_release_age_exclude_patterns = vec!["acme".to_string()];
+    opts.release_age.exclude_patterns = vec!["acme".to_string()];
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = registry_resolution();
     let name: PkgName = "acme".parse().expect("parse");
@@ -38,10 +38,10 @@ async fn verify_skips_age_check_when_package_excluded() {
 #[tokio::test]
 async fn verify_skips_age_check_when_package_matches_exclude_pattern() {
     let mut opts = default_opts("http://nonexistent.example.invalid/");
-    opts.minimum_release_age = Some(60 * 24 * 365);
-    opts.minimum_release_age_exclude =
+    opts.release_age.minimum_minutes = Some(60 * 24 * 365);
+    opts.release_age.exclude =
         Some(create_package_version_policy(["acme-*".to_string()]).expect("policy"));
-    opts.minimum_release_age_exclude_patterns = vec!["acme-*".to_string()];
+    opts.release_age.exclude_patterns = vec!["acme-*".to_string()];
     let verifier = create_npm_resolution_verifier(opts);
     let name: PkgName = "acme-widget".parse().expect("parse");
 
@@ -53,10 +53,10 @@ async fn verify_skips_age_check_when_package_matches_exclude_pattern() {
 #[tokio::test]
 async fn verify_skips_age_check_for_an_exact_version_in_a_union() {
     let mut opts = default_opts("http://nonexistent.example.invalid/");
-    opts.minimum_release_age = Some(60 * 24 * 365);
-    opts.minimum_release_age_exclude =
+    opts.release_age.minimum_minutes = Some(60 * 24 * 365);
+    opts.release_age.exclude =
         Some(create_package_version_policy(["acme@1.0.0 || 1.1.0".to_string()]).expect("policy"));
-    opts.minimum_release_age_exclude_patterns = vec!["acme@1.0.0 || 1.1.0".to_string()];
+    opts.release_age.exclude_patterns = vec!["acme@1.0.0 || 1.1.0".to_string()];
     let verifier = create_npm_resolution_verifier(opts);
     let name: PkgName = "acme".parse().expect("parse");
 
@@ -86,7 +86,7 @@ async fn min_age_pass_when_published_before_cutoff() {
         .create_async()
         .await;
     let mut opts = default_opts(&registry);
-    opts.minimum_release_age = Some(60 * 24); // 1 day
+    opts.release_age.minimum_minutes = Some(60 * 24); // 1 day
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let verifier = create_npm_resolution_verifier(opts);
     let result = verifier
@@ -113,7 +113,7 @@ async fn min_age_fail_when_published_within_cutoff() {
         .create_async()
         .await;
     let mut opts = default_opts(&registry);
-    opts.minimum_release_age = Some(60 * 24); // 1 day
+    opts.release_age.minimum_minutes = Some(60 * 24); // 1 day
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let verifier = create_npm_resolution_verifier(opts);
     let result = verifier
@@ -159,7 +159,7 @@ async fn min_age_missing_time_fails_closed_by_default() {
         .create_async()
         .await;
     let mut opts = default_opts(&registry);
-    opts.minimum_release_age = Some(60 * 24);
+    opts.release_age.minimum_minutes = Some(60 * 24);
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let verifier = create_npm_resolution_verifier(opts);
     let result = verifier
@@ -208,8 +208,8 @@ async fn min_age_missing_time_passes_when_ignored() {
         .create_async()
         .await;
     let mut opts = default_opts(&registry);
-    opts.minimum_release_age = Some(60 * 24);
-    opts.ignore_missing_time_field = true;
+    opts.release_age.minimum_minutes = Some(60 * 24);
+    opts.metadata.ignore_missing_time_field = true;
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let verifier = create_npm_resolution_verifier(opts);
     let result = verifier
@@ -237,8 +237,8 @@ async fn min_age_unlisted_version_fails_when_missing_time_is_ignored() {
         .create_async()
         .await;
     let mut opts = default_opts(&registry);
-    opts.minimum_release_age = Some(60 * 24);
-    opts.ignore_missing_time_field = true;
+    opts.release_age.minimum_minutes = Some(60 * 24);
+    opts.metadata.ignore_missing_time_field = true;
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let verifier = create_npm_resolution_verifier(opts);
     let result = verifier
@@ -260,7 +260,7 @@ async fn min_age_unlisted_version_fails_when_missing_time_is_ignored() {
 #[test]
 fn can_trust_past_check_accepts_looser_min_age() {
     let mut opts = default_opts("https://registry.example/");
-    opts.minimum_release_age = Some(60 * 24); // today: 1 day
+    opts.release_age.minimum_minutes = Some(60 * 24); // today: 1 day
     let verifier = create_npm_resolution_verifier(opts);
 
     let mut cached = verifier.policy().clone();
@@ -278,7 +278,7 @@ fn can_trust_past_check_accepts_looser_min_age() {
 #[test]
 fn can_trust_past_check_rejects_tighter_min_age() {
     let mut opts = default_opts("https://registry.example/");
-    opts.minimum_release_age = Some(60 * 24 * 7); // today: 7 days
+    opts.release_age.minimum_minutes = Some(60 * 24 * 7); // today: 7 days
     let verifier = create_npm_resolution_verifier(opts);
 
     let mut cached = serde_json::Map::new();
@@ -314,7 +314,7 @@ async fn min_age_pass_via_abbreviated_modified_shortcut() {
         .create_async()
         .await;
     let mut opts = default_opts(&registry);
-    opts.minimum_release_age = Some(60 * 24); // 1 day
+    opts.release_age.minimum_minutes = Some(60 * 24); // 1 day
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let verifier = create_npm_resolution_verifier(opts);
     let result = verifier
@@ -365,7 +365,7 @@ async fn min_age_shortcut_falls_through_when_modified_within_cutoff() {
         .create_async()
         .await;
     let mut opts = default_opts(&registry);
-    opts.minimum_release_age = Some(60 * 24); // 1 day
+    opts.release_age.minimum_minutes = Some(60 * 24); // 1 day
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let verifier = create_npm_resolution_verifier(opts);
     let result = verifier
@@ -417,7 +417,7 @@ async fn min_age_shortcut_falls_through_when_version_not_listed() {
         .create_async()
         .await;
     let mut opts = default_opts(&registry);
-    opts.minimum_release_age = Some(60 * 24);
+    opts.release_age.minimum_minutes = Some(60 * 24);
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let verifier = create_npm_resolution_verifier(opts);
     let result = verifier

@@ -1,5 +1,5 @@
 use super::{
-    UpdateError, UpdateOwned, UpdateView, is_workspace_local_path_specifier,
+    UpdateError, UpdateOptions, UpdateResources, is_workspace_local_path_specifier,
     prepare_selected_manifests, reject_versions_of_indirect_update_specs, selected_project_indices,
 };
 use crate::update::{
@@ -24,24 +24,24 @@ fn test_update(
     packages: &[String],
     latest: bool,
     save: bool,
-) -> (UpdateView<'_>, UpdateOwned) {
+) -> (UpdateOptions<'_>, UpdateResources) {
     (
-        UpdateView {
+        UpdateOptions {
             resolved_packages: Box::leak(Box::new(super::ResolvedPackages::default())),
             http_client: Box::leak(Box::new(pnpm_network::ThrottledClient::default())),
             config: Box::leak(Box::new(config)),
             lockfile: None,
             lockfile_path: None,
-            packages,
-            latest,
-            patches: false,
-            save_exact: false,
-            save,
-            depth: 0,
-            workspace_packages: None,
             lockfile_only: false,
+            selection: crate::UpdateSelection { packages, depth: 0, workspace_packages: None },
+            version: crate::UpdateVersionOptions {
+                latest,
+                patches: false,
+                save_exact: false,
+                save,
+            },
         },
-        UpdateOwned {
+        UpdateResources {
             tarball_mem_cache: std::sync::Arc::new(pnpm_tarball::MemCache::default()),
             http_client_arc: std::sync::Arc::new(pnpm_network::ThrottledClient::default()),
             include_direct: vec![DependencyGroup::Prod],

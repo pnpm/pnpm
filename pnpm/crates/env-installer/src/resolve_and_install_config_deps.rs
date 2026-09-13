@@ -201,7 +201,7 @@ async fn resolve_one(
     if !crate::resolve_optional_subdeps::resolution_has_integrity(&result.resolution) {
         return Err(no_integrity());
     }
-    let version = result.name_ver.as_ref().ok_or_else(no_integrity)?.suffix.to_string();
+    let version = result.package.name_ver.as_ref().ok_or_else(no_integrity)?.suffix.to_string();
     let registry = opts.pick_registry(name);
     let key = pkg_key(name, &version)?;
 
@@ -217,7 +217,7 @@ async fn resolve_one(
 
     // A pinned dependency covers only itself, so its optional subdeps stay out
     // of the lockfile until it is declared as a clean specifier.
-    let optional_subdeps = match (pinned_integrity, result.manifest.as_deref()) {
+    let optional_subdeps = match (pinned_integrity, result.package.manifest.as_deref()) {
         (None, Some(manifest)) => {
             resolve_optional_subdeps(name, manifest, resolver, opts, env_lockfile).await?
         }
@@ -275,8 +275,11 @@ fn pin_integrity(resolution: &mut LockfileResolution, pinned: Option<&Integrity>
 
 pub(crate) fn resolve_options(root_dir: &std::path::Path) -> ResolveOptions {
     ResolveOptions {
-        project_dir: root_dir.to_path_buf(),
-        lockfile_dir: root_dir.to_path_buf(),
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: root_dir.to_path_buf(),
+            lockfile_dir: root_dir.to_path_buf(),
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     }
 }

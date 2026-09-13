@@ -238,13 +238,20 @@ pub(in super::super) struct WorkspaceResolutionOptionsKey {
 impl WorkspaceResolutionOptionsKey {
     pub(in super::super) fn new(options: &ResolveOptions) -> Self {
         Self {
-            workspace_packages: options.workspace_packages.as_ref().map(WorkspacePackagesKey::new),
-            lockfile_dir: PathKey(options.lockfile_dir.clone()),
-            default_tag: options.default_tag.clone(),
-            inject_workspace_packages: options.inject_workspace_packages,
-            calc_specifier: options.calc_specifier,
-            range_spec_style_discriminant: options.range_spec_style.map(|style| style as u8),
-            save_workspace_protocol_discriminant: options.save_workspace_protocol as u8,
+            workspace_packages: options
+                .project
+                .workspace_packages
+                .as_ref()
+                .map(WorkspacePackagesKey::new),
+            lockfile_dir: PathKey(options.project.lockfile_dir.clone()),
+            default_tag: options.version.default_tag.clone(),
+            inject_workspace_packages: options.project.inject_workspace_packages,
+            calc_specifier: options.specifier.calc_specifier,
+            range_spec_style_discriminant: options
+                .specifier
+                .range_spec_style
+                .map(|style| style as u8),
+            save_workspace_protocol_discriminant: options.specifier.save_workspace_protocol as u8,
         }
     }
 

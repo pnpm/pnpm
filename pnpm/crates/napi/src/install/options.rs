@@ -19,6 +19,13 @@ pub struct NodeApiProject {
 /// ignored so the contract stays forward-compatible.
 #[napi(object)]
 #[derive(Default)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the public JavaScript object exposed by the NAPI addon."
+    )
+)]
 pub struct InstallOptions {
     pub dir: String,
     pub projects: Vec<NodeApiProject>,
@@ -137,6 +144,13 @@ pub struct InstallOptions {
 /// Options for [`get_peer_dependency_issues`](crate::get_peer_dependency_issues). Mirrors the TypeScript
 /// declaration in `index.d.ts`.
 #[napi(object)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the public JavaScript object exposed by the NAPI addon."
+    )
+)]
 pub struct PeerIssuesOptions {
     pub dir: String,
     pub projects: Vec<NodeApiProject>,
@@ -163,6 +177,13 @@ pub struct ProxyConfigInput {
 }
 
 #[napi(object)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the public JavaScript object exposed by the NAPI addon."
+    )
+)]
 pub struct NetworkConfigInput {
     pub ca: Option<serde_json::Value>,
     pub cert: Option<serde_json::Value>,

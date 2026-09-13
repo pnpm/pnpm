@@ -70,10 +70,14 @@ pub(crate) struct DefaultReporterSetup<'a> {
     pub(crate) reports_scope: bool,
     pub(crate) hide_added_pkgs_progress: bool,
     pub(crate) is_recursive: bool,
+    pub(crate) lifecycle: LifecycleReporterSetup,
+}
+
+pub(crate) struct LifecycleReporterSetup {
     pub(crate) use_stderr: bool,
-    pub(crate) stream_lifecycle_output: bool,
+    pub(crate) stream_output: bool,
     pub(crate) aggregate_output: bool,
-    pub(crate) hide_lifecycle_prefix: bool,
+    pub(crate) hide_prefix: bool,
 }
 
 /// Seed the process-global default-reporter state that can't be recovered
@@ -81,16 +85,16 @@ pub(crate) struct DefaultReporterSetup<'a> {
 /// anything can emit.
 pub(crate) fn configure_default_reporter(setup: &DefaultReporterSetup<'_>) {
     pnpm_default_reporter::set_cwd(setup.dir.to_string_lossy().into_owned());
-    if setup.use_stderr {
+    if setup.lifecycle.use_stderr {
         pnpm_default_reporter::use_stderr();
     }
-    if setup.stream_lifecycle_output {
+    if setup.lifecycle.stream_output {
         pnpm_default_reporter::stream_lifecycle_output();
     }
-    if setup.aggregate_output {
+    if setup.lifecycle.aggregate_output {
         pnpm_default_reporter::aggregate_output();
     }
-    if setup.hide_lifecycle_prefix {
+    if setup.lifecycle.hide_prefix {
         pnpm_default_reporter::hide_lifecycle_prefix();
     }
     pnpm_default_reporter::set_summary_scope(setup.summary_scope);

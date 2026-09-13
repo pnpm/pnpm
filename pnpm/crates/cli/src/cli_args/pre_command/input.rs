@@ -79,28 +79,34 @@ pub(super) struct PinFlags {
 impl PinFlags {
     pub(super) fn of(command: &CliCommand) -> Self {
         match command {
-            CliCommand::Add(args) => Self::of_lockfile_dir(&args.lockfile_dir),
+            CliCommand::Add(args) => Self::of_lockfile_dir(&args.install.lockfile_dir),
             CliCommand::Ci(args) => Self::of_install(&args.install_args),
             CliCommand::Dedupe(args) => Self {
                 lockfile_dir: None,
-                offline: typed_flag(args.offline, args.no_offline),
-                prefer_offline: typed_flag(args.prefer_offline, args.no_prefer_offline),
+                offline: typed_flag(args.network_cache.offline, args.network_cache.no_offline),
+                prefer_offline: typed_flag(
+                    args.network_cache.prefer_offline,
+                    args.network_cache.no_prefer_offline,
+                ),
             },
             CliCommand::Deploy(args) => Self::of_install(&args.install_args),
             CliCommand::Install(args) => Self::of_install(args),
             CliCommand::InstallTest(args) => Self::of_install(&args.install_args),
             CliCommand::Pipeline(args) => Self::of_install(&args.install_args),
             CliCommand::Remove(args) => Self::of_lockfile_dir(&args.lockfile_dir),
-            CliCommand::Update(args) => Self::of_lockfile_dir(&args.lockfile_dir),
+            CliCommand::Update(args) => Self::of_lockfile_dir(&args.install.lockfile_dir),
             _ => Self::default(),
         }
     }
 
     fn of_install(args: &InstallArgs) -> Self {
         Self {
-            lockfile_dir: args.lockfile_dir.lockfile_dir.clone(),
-            offline: typed_flag(args.offline, args.no_offline),
-            prefer_offline: typed_flag(args.prefer_offline, args.no_prefer_offline),
+            lockfile_dir: args.lockfile.directory.lockfile_dir.clone(),
+            offline: typed_flag(args.network_cache.offline, args.network_cache.no_offline),
+            prefer_offline: typed_flag(
+                args.network_cache.prefer_offline,
+                args.network_cache.no_prefer_offline,
+            ),
         }
     }
 
@@ -145,7 +151,7 @@ fn typed_flag(on: bool, off: bool) -> Option<bool> {
 /// and runtime pins — a global install does not belong to the project.
 pub(super) fn is_global(command: &CliCommand) -> bool {
     match command {
-        CliCommand::Add(args) => args.global,
+        CliCommand::Add(args) => args.target.global,
         CliCommand::ApproveBuilds(args) => args.global,
         CliCommand::Bin(args) => args.global,
         CliCommand::Config(args) => args.flags.global,
@@ -158,7 +164,7 @@ pub(super) fn is_global(command: &CliCommand) -> bool {
         CliCommand::Remove(args) => args.global,
         CliCommand::Root(args) => args.global,
         CliCommand::Runtime(args) => args.global,
-        CliCommand::Update(args) => args.global,
+        CliCommand::Update(args) => args.selection.global,
         // `pnpm link` with no arguments links the current project into the
         // global directory.
         CliCommand::Link(args) => args.package_paths.is_empty(),
@@ -267,13 +273,17 @@ pub(super) struct SwitchInput {
 impl SwitchInput {
     pub(super) fn from_cli_args(args: &CliArgs) -> Self {
         Self {
-            dir: args.dir.clone(),
-            state_dir: args.state_dir.clone(),
-            npmrc_auth_file: args.npmrc_auth_file.clone(),
+            dir: args.paths.dir.clone(),
+            state_dir: args.paths.state_dir.clone(),
+            npmrc_auth_file: args.paths.npmrc_auth_file.clone(),
             command: Some(command_name(&args.command).to_string()),
             frozen_lockfile: frozen_lockfile_flag(&args.command),
             pin_flags: PinFlags::of(&args.command),
-            color: args.color.or_else(|| args.no_color.then_some(ColorMode::Never)),
+            color: args
+                .output
+                .presentation
+                .color
+                .or_else(|| args.output.presentation.no_color.then_some(ColorMode::Never)),
         }
     }
 

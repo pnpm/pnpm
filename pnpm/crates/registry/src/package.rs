@@ -12,6 +12,13 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror npm registry package metadata."
+    )
+)]
 pub struct Package {
     pub name: String,
     #[serde(rename = "dist-tags")]

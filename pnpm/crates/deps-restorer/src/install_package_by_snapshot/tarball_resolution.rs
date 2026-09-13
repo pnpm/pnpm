@@ -35,7 +35,7 @@ pub(crate) fn local_file_tarball_install_url<'a>(
 /// recorded integrity pins nothing (absent, or the empty SRI string an
 /// edited lockfile can carry) is refused here rather than fetched
 /// unchecked. See
-/// [`pnpm_tarball::IngestTarballToStore::package_integrity`] for
+/// [`pnpm_tarball::TarballPackage::integrity`] for
 /// what an unverified fetch does.
 ///
 /// # Panics

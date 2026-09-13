@@ -25,7 +25,7 @@ async fn stale_packument_is_served_when_upstream_refetch_fails() {
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.packument_ttl = Duration::from_millis(50);
+    config.http.packument_ttl = Duration::from_millis(50);
     let app = router(config);
 
     // Prime the cache with a fresh fetch.
@@ -71,7 +71,7 @@ async fn a_4xx_upstream_does_not_serve_stale_cache() {
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.packument_ttl = Duration::from_millis(50);
+    config.http.packument_ttl = Duration::from_millis(50);
     let app = router(config);
 
     let r1 = app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
@@ -293,8 +293,8 @@ async fn per_upstream_maxage_overrides_global_packument_ttl() {
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
     // Global TTL stays generous (a minute); the per-upstream maxage of zero
     // is what must take effect and make every read stale.
-    config.packument_ttl = Duration::from_mins(1);
-    config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").maxage =
+    config.http.packument_ttl = Duration::from_mins(1);
+    config.routing.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").maxage =
         Some(Duration::from_millis(0));
     let app = router(config);
 
@@ -329,7 +329,7 @@ async fn cache_false_upstream_streams_tarball_without_mirroring() {
     let tmp = TempDir::new().unwrap();
     let cache_dir = tmp.path().to_path_buf();
     let mut config = config_for(&upstream.url(), cache_dir.clone());
-    config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").cache = false;
+    config.routing.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").cache = false;
     let app = router(config);
 
     for _ in 0..2 {
@@ -371,7 +371,7 @@ async fn upstream_404_purges_cached_packument() {
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.packument_ttl = Duration::from_millis(50);
+    config.http.packument_ttl = Duration::from_millis(50);
     let app = router(config);
 
     let first =

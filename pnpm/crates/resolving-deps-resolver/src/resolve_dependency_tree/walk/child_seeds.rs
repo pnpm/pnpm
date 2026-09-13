@@ -51,14 +51,15 @@ pub(super) fn child_specs_of(
     pending: &PendingNode,
     peer_shadowed: &HashSet<String>,
 ) -> Result<Arc<Vec<ChildSpec>>, ResolveDependencyTreeError> {
-    let cached =
-        lock_recoverable(&ctx.workspace.children_specs_by_id).get(pending.id.as_str()).cloned();
+    let cached = lock_recoverable(&ctx.workspace.children.specs_by_id)
+        .get(pending.identity.id.as_str())
+        .cloned();
     let child_specs = if let Some(specs) = cached {
         specs
     } else {
         let specs = Arc::new(extract_children(&pending.result)?);
-        lock_recoverable(&ctx.workspace.children_specs_by_id)
-            .entry(Arc::from(pending.id.as_str()))
+        lock_recoverable(&ctx.workspace.children.specs_by_id)
+            .entry(Arc::from(pending.identity.id.as_str()))
             .or_insert_with(|| Arc::clone(&specs));
         specs
     };
@@ -110,12 +111,12 @@ impl<'s> ChildSeedScope<'s> {
             prior_children_snapshot: pending
                 .prior_key
                 .as_ref()
-                .filter(|key| landed_on_prior_entry(key, &pending.id))
+                .filter(|key| landed_on_prior_entry(key, &pending.identity.id))
                 .and_then(|key| {
-                    ctx.workspace.wanted_lockfile.as_ref()?.snapshots.as_ref()?.get(key)
+                    ctx.workspace.reuse.lockfile.as_ref()?.snapshots.as_ref()?.get(key)
                 }),
-            direct_versions: lock_recoverable(&ctx.workspace.direct_dep_versions)
-                .get(&ctx.importer_id)
+            direct_versions: lock_recoverable(&ctx.workspace.versions.direct_dep_versions)
+                .get(&ctx.importer.id)
                 .map(Arc::clone),
             declaring_dir: declaring_manifest_dir(ctx, &pending.result),
             parent_is_workspace: pending.result.resolved_via == "workspace",
@@ -139,9 +140,9 @@ where
         resolver,
         wanted,
         ChildEdge {
-            ancestor_ids: &node.pending.next_ancestors,
-            depth: node.pending.depth + 1,
-            parent_optional: node.pending.current_is_optional,
+            ancestor_ids: &node.pending.ancestry.next_ancestors,
+            depth: node.pending.ancestry.depth + 1,
+            parent_optional: node.pending.ancestry.current_is_optional,
             reuse: ReuseSource::Transitive { key: prior },
             pick_overlay: node.children_overlay.clone(),
             parent_dir: scope.declaring_dir.as_deref(),

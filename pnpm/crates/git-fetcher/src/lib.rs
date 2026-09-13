@@ -20,6 +20,7 @@ pub use fetcher::{
     CheckoutOptions, GitFetchOutput, GitFetcher, GitManifestQuery, checkout_commit,
     read_git_manifest,
 };
+pub use options::{GitSource, GitStoreContext, PrepareScriptOptions};
 pub use pnpm_fs_packlist::{PacklistError, packlist};
 pub use preferred_pm::{PreferredPm, WantedPm, detect_preferred_pm, detect_wanted_pm};
 pub use prepare_package::{
@@ -36,3 +37,5 @@ mod preferred_pm;
 mod prepare_package;
 mod source_cache;
 mod tarball_fetcher;
+
+mod options;

@@ -35,10 +35,10 @@ pub(super) fn build_importers(
                 input,
                 opts.graph,
                 &ImporterLockfileFlags {
-                    exclude_links_from_lockfile: opts.exclude_links_from_lockfile,
-                    auto_install_peers: opts.auto_install_peers,
+                    exclude_links_from_lockfile: opts.settings.exclude_links_from_lockfile,
+                    auto_install_peers: opts.settings.auto_install_peers,
                 },
-                opts.previous_importers.and_then(|importers| importers.get(id)),
+                opts.reuse.previous_importers.and_then(|importers| importers.get(id)),
                 effective_update_reuse_scope(opts, id),
             );
             (id, importer)
@@ -61,10 +61,10 @@ pub(super) fn effective_update_reuse_scope<'o>(
     opts: &'o GraphToLockfileOptions<'_>,
     importer_id: &str,
 ) -> &'o UpdateReuseScope {
-    if matches!(opts.update_reuse_scope, UpdateReuseScope::None) {
-        &opts.update_reuse_scope
+    if matches!(opts.reuse.scope, UpdateReuseScope::None) {
+        &opts.reuse.scope
     } else {
-        opts.update_reuse_scopes_by_importer.get(importer_id).unwrap_or(&opts.update_reuse_scope)
+        opts.reuse.scopes_by_importer.get(importer_id).unwrap_or(&opts.reuse.scope)
     }
 }
 /// The concrete version `alias` resolved to in `importer`, read from whichever
@@ -438,16 +438,16 @@ pub(super) fn previous_importer_dep<'a>(
 /// whose `name_ver` is unset). Used to match a workspace dependency
 /// against an `update <name>` scope in [`build_importer`].
 pub(super) fn node_pkg_name(node: &DependenciesGraphNode) -> Option<String> {
-    if let Some(name_ver) = node.resolve_result.name_ver.as_ref() {
+    if let Some(name_ver) = node.resolve_result.package.name_ver.as_ref() {
         return Some(name_ver.name.to_string());
     }
-    node.resolve_result.manifest.as_ref()?.get("name")?.as_str().map(str::to_string)
+    node.resolve_result.package.manifest.as_ref()?.get("name")?.as_str().map(str::to_string)
 }
 /// `Some(real_name)` when the resolver produced a structured name; `None`
 /// for resolvers that learn the name from the fetched manifest (git,
 /// tarball, file).
 pub(super) fn real_name(result: &ResolveResult) -> Option<String> {
-    if let Some(name_ver) = result.name_ver.as_ref() {
+    if let Some(name_ver) = result.package.name_ver.as_ref() {
         return Some(name_ver.name.to_string());
     }
     // `name_ver` is unset for resolutions that learn the canonical name
@@ -472,7 +472,7 @@ pub(super) fn real_name(result: &ResolveResult) -> Option<String> {
     if !reads_name_from_manifest {
         return None;
     }
-    result.manifest.as_ref()?.get("name")?.as_str().map(str::to_string)
+    result.package.manifest.as_ref()?.get("name")?.as_str().map(str::to_string)
 }
 /// `true` for an `http(s)://` tarball URL — the remote tarball deps
 /// covered by <https://github.com/pnpm/pnpm/issues/12053>. Excludes

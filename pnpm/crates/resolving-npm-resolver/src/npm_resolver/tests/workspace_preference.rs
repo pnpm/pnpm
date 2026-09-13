@@ -45,8 +45,8 @@ async fn revision_refresh_does_not_replace_a_registry_resolution_with_a_workspac
 
     let packages = build_workspace_packages("acme", &["1.0.0"]);
     let mut opts = workspace_resolve_options(packages);
-    opts.update = UpdateBehavior::Patches;
-    opts.current_pkg = Some(CurrentPkg {
+    opts.refresh.update = UpdateBehavior::Patches;
+    opts.refresh.current_pkg = Some(CurrentPkg {
         id: PkgResolutionId::from("acme@1.0.0"),
         name: Some("acme".to_string()),
         version: Some("1.0.0".to_string()),
@@ -87,7 +87,7 @@ async fn link_workspace_packages_off_skips_workspace_match() {
 
     let packages = build_workspace_packages("acme", &["1.0.0"]);
     let mut opts = workspace_resolve_options(packages);
-    opts.link_workspace_packages = pnpm_config::LinkWorkspacePackages::Off;
+    opts.project.link_workspace_packages = pnpm_config::LinkWorkspacePackages::Off;
 
     let wanted = WantedDependency {
         alias: Some("acme".to_string()),
@@ -116,7 +116,7 @@ async fn prefer_workspace_packages_keeps_workspace_over_newer_registry() {
 
     let packages = build_workspace_packages("acme", &["1.0.0"]);
     let mut opts = workspace_resolve_options(packages);
-    opts.prefer_workspace_packages = true;
+    opts.project.prefer_workspace_packages = true;
 
     let wanted = WantedDependency {
         alias: Some("acme".to_string()),
@@ -137,7 +137,7 @@ async fn prefer_workspace_packages_skips_the_registry_entirely() {
 
     let packages = build_workspace_packages("acme", &["1.0.0"]);
     let mut opts = workspace_resolve_options(packages);
-    opts.prefer_workspace_packages = true;
+    opts.project.prefer_workspace_packages = true;
 
     let wanted = WantedDependency {
         alias: Some("acme".to_string()),
@@ -147,7 +147,7 @@ async fn prefer_workspace_packages_skips_the_registry_entirely() {
     let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace pick");
     assert_eq!(result.resolved_via, "workspace");
     assert_eq!(result.id.as_str(), "link:../acme");
-    assert_eq!(result.latest, None);
+    assert_eq!(result.package.latest, None);
     mock.assert_async().await;
 }
 
@@ -171,7 +171,7 @@ async fn prefer_workspace_packages_still_consults_registry_for_several_local_cop
         &[("1.0.0", "/repo/packages/acme-1"), ("1.1.0", "/repo/packages/acme-11")],
     );
     let mut opts = workspace_resolve_options(packages);
-    opts.prefer_workspace_packages = true;
+    opts.project.prefer_workspace_packages = true;
 
     let wanted = WantedDependency {
         alias: Some("acme".to_string()),
@@ -182,7 +182,7 @@ async fn prefer_workspace_packages_still_consults_registry_for_several_local_cop
     mock.assert_async().await;
     assert_eq!(result.resolved_via, "workspace");
     assert_eq!(result.id.as_str(), "link:../acme-11");
-    assert_eq!(result.latest.as_deref(), Some("1.1.0"));
+    assert_eq!(result.package.latest.as_deref(), Some("1.1.0"));
 }
 
 #[tokio::test]
@@ -202,7 +202,7 @@ async fn prefer_workspace_packages_still_consults_registry_for_injected_deps() {
 
     let packages = build_workspace_packages("acme", &["1.0.0"]);
     let mut opts = workspace_resolve_options(packages);
-    opts.prefer_workspace_packages = true;
+    opts.project.prefer_workspace_packages = true;
 
     let wanted = WantedDependency {
         alias: Some("acme".to_string()),
@@ -213,7 +213,7 @@ async fn prefer_workspace_packages_still_consults_registry_for_injected_deps() {
     let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace pick");
     mock.assert_async().await;
     assert_eq!(result.resolved_via, "workspace");
-    assert_eq!(result.latest.as_deref(), Some("1.1.0"));
+    assert_eq!(result.package.latest.as_deref(), Some("1.1.0"));
 }
 
 #[tokio::test]
@@ -233,7 +233,7 @@ async fn prefer_workspace_packages_does_not_engage_without_a_matching_local_vers
 
     let packages = build_workspace_packages("acme", &["1.0.0"]);
     let mut opts = workspace_resolve_options(packages);
-    opts.prefer_workspace_packages = true;
+    opts.project.prefer_workspace_packages = true;
 
     let wanted = WantedDependency {
         alias: Some("acme".to_string()),
@@ -263,8 +263,8 @@ async fn prefer_workspace_packages_still_consults_registry_under_no_downgrade() 
 
     let packages = build_workspace_packages("acme", &["1.0.0"]);
     let mut opts = workspace_resolve_options(packages);
-    opts.prefer_workspace_packages = true;
-    opts.trust_policy = Some(TrustPolicy::NoDowngrade);
+    opts.project.prefer_workspace_packages = true;
+    opts.policy.trust_policy = Some(TrustPolicy::NoDowngrade);
 
     let wanted = WantedDependency {
         alias: Some("acme".to_string()),
@@ -274,7 +274,7 @@ async fn prefer_workspace_packages_still_consults_registry_under_no_downgrade() 
     let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace pick");
     assert_eq!(result.resolved_via, "workspace");
     assert_eq!(result.id.as_str(), "link:../acme");
-    assert_eq!(result.latest.as_deref(), Some("1.1.0"));
+    assert_eq!(result.package.latest.as_deref(), Some("1.1.0"));
     mock.assert_async().await;
 }
 
@@ -295,8 +295,8 @@ async fn prefer_workspace_packages_still_consults_registry_when_updating_checksu
 
     let packages = build_workspace_packages("acme", &["1.0.0"]);
     let mut opts = workspace_resolve_options(packages);
-    opts.prefer_workspace_packages = true;
-    opts.update_checksums = true;
+    opts.project.prefer_workspace_packages = true;
+    opts.refresh.update_checksums = true;
 
     let wanted = WantedDependency {
         alias: Some("acme".to_string()),
@@ -306,7 +306,7 @@ async fn prefer_workspace_packages_still_consults_registry_when_updating_checksu
     let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace pick");
     assert_eq!(result.resolved_via, "workspace");
     assert_eq!(result.id.as_str(), "link:../acme");
-    assert_eq!(result.latest.as_deref(), Some("1.1.0"));
+    assert_eq!(result.package.latest.as_deref(), Some("1.1.0"));
     mock.assert_async().await;
 }
 
@@ -327,8 +327,8 @@ async fn prefer_workspace_packages_still_consults_registry_when_injecting_worksp
 
     let packages = build_workspace_packages("acme", &["1.0.0"]);
     let mut opts = workspace_resolve_options(packages);
-    opts.prefer_workspace_packages = true;
-    opts.inject_workspace_packages = true;
+    opts.project.prefer_workspace_packages = true;
+    opts.project.inject_workspace_packages = true;
 
     let wanted = WantedDependency {
         alias: Some("acme".to_string()),
@@ -337,7 +337,7 @@ async fn prefer_workspace_packages_still_consults_registry_when_injecting_worksp
     };
     let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace pick");
     assert_eq!(result.resolved_via, "workspace");
-    assert_eq!(result.latest.as_deref(), Some("1.1.0"));
+    assert_eq!(result.package.latest.as_deref(), Some("1.1.0"));
     mock.assert_async().await;
 }
 

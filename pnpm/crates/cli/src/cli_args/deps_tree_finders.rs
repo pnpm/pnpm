@@ -108,10 +108,10 @@ pub(crate) fn finder_candidates(
 fn link_base_dir(env: &PkgInfoEnv<'_>, parent_id: &TreeNodeId) -> std::path::PathBuf {
     match parent_id {
         TreeNodeId::Importer(importer_id) => {
-            pnpm_deps_inspection::build::safe_importer_dir(&env.lockfile_dir, importer_id)
-                .unwrap_or_else(|| env.lockfile_dir.clone())
+            pnpm_deps_inspection::build::safe_importer_dir(&env.layout.lockfile_dir, importer_id)
+                .unwrap_or_else(|| env.layout.lockfile_dir.clone())
         }
-        TreeNodeId::Package(_) => env.lockfile_dir.clone(),
+        TreeNodeId::Package(_) => env.layout.lockfile_dir.clone(),
     }
 }
 
@@ -130,8 +130,10 @@ fn edge_candidate<'a>(
             Some((Some(target), source.clone()))
         }
         Some(target @ TreeNodeId::Importer(importer_id)) => {
-            let importer_dir =
-                pnpm_deps_inspection::build::safe_importer_dir(&env.lockfile_dir, importer_id)?;
+            let importer_dir = pnpm_deps_inspection::build::safe_importer_dir(
+                &env.layout.lockfile_dir,
+                importer_id,
+            )?;
             Some((
                 Some(target),
                 ManifestSource {
@@ -165,8 +167,11 @@ pub(crate) async fn evaluate_finders(
     finders: &[FinderHandle],
     candidates: Vec<(String, Option<TreeNodeId>, ManifestSource)>,
 ) -> miette::Result<HashMap<(String, Option<TreeNodeId>), SearchMatch>> {
-    let store_index =
-        env.store_dir.as_ref().and_then(|store_dir| StoreIndex::open_readonly(store_dir).ok());
+    let store_index = env
+        .layout
+        .store_dir
+        .as_ref()
+        .and_then(|store_dir| StoreIndex::open_readonly(store_dir).ok());
 
     let mut results = HashMap::new();
     for (alias, node_id, source) in candidates {
@@ -251,7 +256,7 @@ fn read_manifest_from_cafs(
 ) -> Option<serde_json::Value> {
     let store_index = store_index?;
     let integrity = source.integrity.as_deref()?;
-    let store_dir = StoreDir::new(env.store_dir.as_ref()?.clone());
+    let store_dir = StoreDir::new(env.layout.store_dir.as_ref()?.clone());
     let pkg_id = format!("{}@{}", source.name, source.version);
     let index = store_index.get(&store_index_key(integrity, &pkg_id)).ok()??;
     let manifest_entry = index.files.get("package.json")?;

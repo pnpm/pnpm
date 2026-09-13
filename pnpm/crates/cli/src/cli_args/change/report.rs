@@ -79,9 +79,9 @@ pub fn render_release_plan(plan: &ReleasePlan) -> String {
             output,
             "  {}: {} → {} ({}, via {})",
             release.name,
-            release.current_version,
-            release.new_version,
-            release.bump_type,
+            release.version.current,
+            release.version.next,
+            release.version.bump,
             causes.join("+"),
         )
         .expect("write to string");

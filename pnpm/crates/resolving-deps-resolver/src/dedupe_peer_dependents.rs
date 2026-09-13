@@ -90,7 +90,7 @@ fn deduplicate_all(
         return dep_paths_map;
     }
     for node in graph.values_mut() {
-        for child_dep_path in node.children.values_mut() {
+        for child_dep_path in node.edges.children.values_mut() {
             if let Some(target) = dep_paths_map.get(child_dep_path) {
                 *child_dep_path = target.clone();
             }

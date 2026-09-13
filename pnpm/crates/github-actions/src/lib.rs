@@ -52,15 +52,20 @@ pub fn selector_matcher(selectors: &[String]) -> Option<Matcher> {
 
 #[derive(Clone)]
 struct ActionReference {
-    comment_version: Option<String>,
     file: PathBuf,
-    flow_style: bool,
-    indentation: String,
     name: String,
-    original_value: String,
-    range: Range<usize>,
     ref_: String,
     repo: String,
+    source: WorkflowValue,
+}
+
+#[derive(Clone)]
+struct WorkflowValue {
+    comment_version: Option<String>,
+    flow_style: bool,
+    indentation: String,
+    original_value: String,
+    range: Range<usize>,
 }
 
 #[derive(Clone)]
@@ -142,7 +147,7 @@ fn plan_is_outdated(plan: &PlannedUpdate, latest: bool) -> bool {
     let target = update_target(plan, latest);
     plan.current.version <= target.version
         && (plan.action.ref_ != target.commit
-            || plan.action.comment_version.as_deref() != Some(&target.tag))
+            || plan.action.source.comment_version.as_deref() != Some(&target.tag))
 }
 
 /// The version this update moves to: the newest release under `latest`,
@@ -265,7 +270,7 @@ fn repo_versions(refs: &HashMap<String, String>) -> Vec<RepoVersion> {
 
 fn find_current(action: &ActionReference, versions: &[RepoVersion]) -> Option<RepoVersion> {
     if is_sha(&action.ref_)
-        && let Some(comment) = &action.comment_version
+        && let Some(comment) = &action.source.comment_version
         && let Some(version) = parse_version(comment)
         && let Some(current) = versions
             .iter()
@@ -301,22 +306,28 @@ fn is_sha(value: &str) -> bool {
 fn render_target_value(action: &ActionReference, target: &RepoVersion) -> String {
     let old_reference = format!("{}@{}", action.name, action.ref_);
     let new_reference = format!("{}@{}", action.name, render_target_ref(target));
-    let mut value = action.original_value.replacen(&old_reference, &new_reference, 1);
-    if let Some(comment_version) = &action.comment_version {
-        value = value.replacen(comment_version, &target.tag, 1);
-    } else if let Some(comment) = value.find(" #") {
-        value.insert_str(comment + 2, &format!("{} ", target.tag));
-    } else if action.flow_style {
-        value.truncate(value.trim_end().len());
-        value.push_str(" # ");
-        value.push_str(&target.tag);
-        value.push('\n');
-        value.push_str(&action.indentation);
-    } else {
-        value.push_str(" # ");
-        value.push_str(&target.tag);
+    action.source.replace_reference(&old_reference, &new_reference, &target.tag)
+}
+
+impl WorkflowValue {
+    fn replace_reference(&self, old_reference: &str, new_reference: &str, tag: &str) -> String {
+        let mut value = self.original_value.replacen(old_reference, new_reference, 1);
+        if let Some(comment_version) = &self.comment_version {
+            value = value.replacen(comment_version, tag, 1);
+        } else if let Some(comment) = value.find(" #") {
+            value.insert_str(comment + 2, &format!("{tag} "));
+        } else if self.flow_style {
+            value.truncate(value.trim_end().len());
+            value.push_str(" # ");
+            value.push_str(tag);
+            value.push('\n');
+            value.push_str(&self.indentation);
+        } else {
+            value.push_str(" # ");
+            value.push_str(tag);
+        }
+        value
     }
-    value
 }
 
 fn parse_version(input: &str) -> Option<Version> {

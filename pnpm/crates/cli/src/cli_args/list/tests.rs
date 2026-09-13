@@ -20,9 +20,12 @@ fn parse_depth_accepts_infinity_and_minus_one() {
 fn dep(alias: &str, name: &str, version: &str, path: &str) -> DependencyNode {
     DependencyNode {
         alias: alias.to_string(),
-        name: name.to_string(),
-        version: version.to_string(),
-        path: path.to_string(),
+        package: pnpm_deps_inspection::DependencyPackage {
+            name: name.to_string(),
+            version: version.to_string(),
+            path: path.to_string(),
+            ..Default::default()
+        },
         ..DependencyNode::default()
     }
 }

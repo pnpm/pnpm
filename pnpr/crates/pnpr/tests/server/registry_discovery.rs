@@ -92,7 +92,7 @@ async fn opt_in_upstream_discovery_serves_search_and_organization_packages() {
         .await;
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.upstreams.get_mut("npmjs").unwrap().search = true;
+    config.routing.upstreams.get_mut("npmjs").unwrap().search = true;
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(config, auth);
@@ -164,7 +164,7 @@ async fn upstream_search_exhausts_results_to_return_an_exact_total() {
         .await;
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.upstreams.get_mut("npmjs").unwrap().search = true;
+    config.routing.upstreams.get_mut("npmjs").unwrap().search = true;
     let app = router(config);
 
     let response = app
@@ -194,7 +194,7 @@ async fn upstream_search_rejects_unbounded_offsets_and_result_sets() {
         .await;
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.upstreams.get_mut("npmjs").unwrap().search = true;
+    config.routing.upstreams.get_mut("npmjs").unwrap().search = true;
     let app = router(config);
 
     let offset = app
@@ -232,7 +232,7 @@ async fn upstream_search_rejects_more_than_eight_short_pages() {
         .await;
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.upstreams.get_mut("npmjs").unwrap().search = true;
+    config.routing.upstreams.get_mut("npmjs").unwrap().search = true;
     let app = router(config);
 
     let response = app
@@ -248,14 +248,15 @@ async fn upstream_search_rejects_more_than_eight_short_pages() {
 async fn registry_directory_hides_upstream_access_and_package_rule_metadata() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://example.invalid", tmp.path().to_path_buf());
-    config.upstreams.get_mut("npmjs").unwrap().access = Some(AccessList::from_tokens(["alice"]));
+    config.routing.upstreams.get_mut("npmjs").unwrap().access =
+        Some(AccessList::from_tokens(["alice"]));
     let mut hosted = hosted_with_access("public", "$all");
     hosted.rules = PackageRules::new(
         vec![access_rule("secret-package", "alice")],
         Some(AccessList::from_tokens(["$all"])),
     );
-    config.hosted.insert("public".to_string(), hosted);
-    config.registries = Registries::new(
+    config.routing.hosted.insert("public".to_string(), hosted);
+    config.routing.registries = Registries::new(
         [
             (
                 "public".to_string(),

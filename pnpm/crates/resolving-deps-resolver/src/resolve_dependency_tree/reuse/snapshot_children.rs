@@ -13,6 +13,10 @@ pub(super) struct ReusedChildren<'a> {
     pub(super) key: &'a PkgNameVerPeer,
     pub(super) snapshot: Option<&'a SnapshotEntry>,
     pub(super) child_refs: &'a [(String, PkgNameVerPeer)],
+    pub(super) ancestry: ReusedNodeAncestry<'a>,
+}
+
+pub(super) struct ReusedNodeAncestry<'a> {
     pub(super) ancestor_ids: &'a Arc<Vec<String>>,
     pub(super) next_ancestors: &'a Arc<Vec<String>>,
     pub(super) depth: i32,
@@ -32,11 +36,11 @@ where
     Chain: Resolver + ?Sized,
 {
     if !claim.owns_children {
-        return Ok((lazy_children(context.ancestor_ids), false));
+        return Ok((lazy_children(context.ancestry.ancestor_ids), false));
     }
     let child_results = resolve_snapshot_children(ctx, resolver, &context).await?;
     if !is_current_children_owner(ctx, context.id, &claim.owner) {
-        return Ok((lazy_children(context.ancestor_ids), false));
+        return Ok((lazy_children(context.ancestry.ancestor_ids), false));
     }
     Ok(record_reused_children(ctx, claim, &context, child_results))
 }
@@ -62,7 +66,7 @@ where
                 bare_specifier: Some(child_key.suffix.without_peer().to_string()),
                 ..WantedDependency::default()
             };
-            let next_ancestors = Arc::clone(context.next_ancestors);
+            let next_ancestors = Arc::clone(context.ancestry.next_ancestors);
             let child_key = child_key.clone();
             async move {
                 resolve_node(
@@ -70,10 +74,10 @@ where
                     resolver,
                     child_wanted,
                     &next_ancestors,
-                    context.depth + 1,
-                    context.current_is_optional,
+                    context.ancestry.depth + 1,
+                    context.ancestry.current_is_optional,
                     ReuseSource::Transitive { key: Some(child_key) },
-                    context.parent_pkg_aliases,
+                    context.ancestry.parent_pkg_aliases,
                 )
                 .await
             }
@@ -115,7 +119,7 @@ pub(super) fn record_reused_children(
             update_active: !matches!(ctx.update_reuse_scope(), UpdateReuseScope::All),
         },
     );
-    recording.into_children(realized, context.ancestor_ids)
+    recording.into_children(realized, context.ancestry.ancestor_ids)
 }
 
 /// `(install_alias, resolved_snapshot_key)` for every non-`link:` child

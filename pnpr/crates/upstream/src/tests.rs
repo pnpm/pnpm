@@ -57,9 +57,11 @@ fn breaking_upstream(url: String, max_fails: u32) -> Upstream {
             url,
             headers: HeaderMap::new(),
             maxage: None,
-            timeout: UpstreamConfig::DEFAULT_TIMEOUT,
-            max_fails,
-            fail_timeout: Duration::from_mins(5),
+            requests: pnpr_config::UpstreamRequestPolicy {
+                timeout: UpstreamConfig::DEFAULT_TIMEOUT,
+                max_fails,
+                fail_timeout: Duration::from_mins(5),
+            },
             cache: true,
             search: false,
             access: None,
@@ -90,7 +92,7 @@ async fn assert_redirect_timeout(delay_body: bool) {
         second.write_all(b"body").await.unwrap();
     });
     let mut config = UpstreamConfig::with_defaults(url.clone(), HeaderMap::new());
-    config.timeout = Duration::from_millis(600);
+    config.requests.timeout = Duration::from_millis(600);
     let upstream = Upstream::new("test", &config);
     let result = upstream.fetch_artifact_response(&url).await;
     if delay_body {

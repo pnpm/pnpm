@@ -1,5 +1,5 @@
 use super::{
-    AddError, AddResolution, AddResolveInputs, AddView,
+    AddError, AddOptions, AddResolution, AddResolveInputs,
     aliasless::{AliaslessDependency, resolve_aliasless_specifier},
     manifest::apply_catalog_decision,
     registry::{pick_latest_range, resolve_explicit_registry_spec},
@@ -387,7 +387,7 @@ pub(super) fn protocol_package_name(name: &str, selector: &str) -> Result<String
 /// argument verbatim, as it does for any other unresolvable specifier.
 pub(super) async fn resolve_jsr_save_specifier(
     spec: &JsrSpec,
-    add: AddView<'_>,
+    add: AddOptions<'_>,
     manifest: &PackageManifest,
     resolution: &AddResolution<'_>,
 ) -> Result<Option<String>, AddError> {

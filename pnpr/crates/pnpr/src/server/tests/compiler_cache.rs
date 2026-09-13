@@ -166,7 +166,7 @@ async fn unauthorized_or_readonly_publishers_are_rejected_before_reading_bodies(
 async fn disabled_artifacts_and_undeclared_caches_are_not_served() {
     let directory = TempDir::new().unwrap();
     let mut config = config(&directory);
-    config.artifacts.compiler_caches.clear();
+    config.features.artifacts.compiler_caches.clear();
     assert_eq!(
         app(config.clone(), "ci", false)
             .oneshot(request(Method::GET, ENTRY, Body::empty()))
@@ -175,8 +175,8 @@ async fn disabled_artifacts_and_undeclared_caches_are_not_served() {
             .status(),
         StatusCode::NOT_FOUND,
     );
-    config.artifacts.enabled = false;
-    config.resolver.enabled = true;
+    config.features.artifacts.enabled = false;
+    config.features.resolver.enabled = true;
     assert_eq!(
         app(config, "ci", false)
             .oneshot(request(Method::PUT, ENTRY, Body::empty()))

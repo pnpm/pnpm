@@ -12,8 +12,8 @@ resolver:
   enabled: false
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    assert!(config.registry.enabled);
-    assert!(!config.resolver.enabled);
+    assert!(config.features.registry.enabled);
+    assert!(!config.features.resolver.enabled);
 }
 
 #[test]
@@ -32,9 +32,9 @@ registries:
     timeout: 45
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    let upstream = &config.upstreams["npmjs"];
+    let upstream = &config.routing.upstreams["npmjs"];
     assert_eq!(upstream.maxage, Some(Duration::from_mins(10)));
-    assert_eq!(upstream.timeout, Duration::from_secs(45));
+    assert_eq!(upstream.requests.timeout, Duration::from_secs(45));
 }
 
 #[test]
@@ -44,29 +44,29 @@ storage: ${PNPR_UNSET_VAR_FOR_TEST}./store
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
         .expect("an unresolved ${VAR} is replaced with empty, not an error");
-    assert!(config.storage.ends_with("store"));
+    assert!(config.storage.hosted_dir.ends_with("store"));
 }
 
 #[test]
 fn from_default_yaml_parses_bundled_file() {
     use pnpr_registry::{ConcreteKind, Resolved};
     let config = Config::from_default_yaml(Path::new("/tmp"), listen(), None);
-    assert!(config.upstreams.contains_key("npmjs"));
-    assert_eq!(config.upstreams["npmjs"].url, "https://registry.npmjs.org/");
-    assert_eq!(config.auth.htpasswd.max_users, super::super::MaxUsers::Disabled);
+    assert!(config.routing.upstreams.contains_key("npmjs"));
+    assert_eq!(config.routing.upstreams["npmjs"].url, "https://registry.npmjs.org/");
+    assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Disabled);
     // The bundled file routes fixture scopes, the fixture packages living in
     // real npm scopes, and test-published names to the local hosted org, and
     // everything else — including the rest of those real scopes — to npmjs.
     for local in ["@pnpm.e2e/foo", "@pnpm/y", "test-publish-tarball", "project-100"] {
         assert_eq!(
-            config.registries.resolve_default(Ecosystem::Npm, local),
+            config.routing.registries.resolve_default(Ecosystem::Npm, local),
             Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
             "{local} must be hosted",
         );
     }
     for upstream in ["react", "lodash", "test-exclude", "@pnpm/error"] {
         assert_eq!(
-            config.registries.resolve_default(Ecosystem::Npm, upstream),
+            config.routing.registries.resolve_default(Ecosystem::Npm, upstream),
             Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
             "{upstream} must proxy npm",
         );
@@ -101,14 +101,14 @@ upstreams:
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     // The unimplemented sections parse silently and the config is usable.
-    assert_eq!(config.auth.htpasswd.max_users, super::super::MaxUsers::Disabled);
+    assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Disabled);
 }
 
 #[test]
 fn from_yaml_str_public_url_defaults_to_listen_when_none_passed() {
     let yaml = "storage: ./s\n";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    assert_eq!(config.public_url, format!("http://{}", listen()));
+    assert_eq!(config.http.public_url, format!("http://{}", listen()));
 }
 
 #[test]
@@ -121,7 +121,7 @@ fn from_yaml_str_public_url_override_wins() {
         Some("http://override.test".to_string()),
     )
     .unwrap();
-    assert_eq!(config.public_url, "http://override.test");
+    assert_eq!(config.http.public_url, "http://override.test");
 }
 
 #[test]
@@ -133,7 +133,7 @@ fn from_yaml_path_round_trips_through_tempfile() {
     let config_path = dir.path().join("registry.yml");
     std::fs::write(&config_path, "storage: ./store\n").unwrap();
     let config = Config::from_yaml(&config_path, listen(), None).unwrap();
-    assert_eq!(config.storage, dir.path().join("./store"));
+    assert_eq!(config.storage.hosted_dir, dir.path().join("./store"));
 }
 
 #[test]
@@ -237,7 +237,7 @@ log:
     std::fs::write(dir.path().join("config.yaml"), yaml).unwrap();
     let path = config_file_in(Some(dir.path().to_path_buf())).unwrap();
     let config = Config::from_yaml(&path, listen(), None).unwrap();
-    assert_eq!(config.storage, storage);
+    assert_eq!(config.storage.hosted_dir, storage);
     assert_eq!(config.logs.format, LogFormat::Json);
     assert_eq!(config.logs.level, LogLevel::Info);
 }
@@ -328,13 +328,13 @@ routes:
     - package: '@types/*'
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    assert_eq!(config.route_policy.public.len(), 2);
+    assert_eq!(config.routing.route_policy.public.len(), 2);
     assert_eq!(
-        config.route_policy.public[0].registry.as_deref(),
+        config.routing.route_policy.public[0].registry.as_deref(),
         Some("https://registry.npmjs.org/"),
     );
-    assert_eq!(config.route_policy.public[0].package.as_deref(), Some("@babel/*"));
-    assert_eq!(config.route_policy.public[1].registry, None);
+    assert_eq!(config.routing.route_policy.public[0].package.as_deref(), Some("@babel/*"));
+    assert_eq!(config.routing.route_policy.public[1].registry, None);
 }
 
 #[test]

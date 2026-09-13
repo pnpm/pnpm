@@ -6,9 +6,9 @@ use super::{
 async fn artifacts_only_advertises_and_mounts_only_the_artifact_protocol() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://upstream.invalid", tmp.path().to_path_buf());
-    config.registry.enabled = false;
-    config.resolver.enabled = false;
-    config.artifacts.enabled = true;
+    config.features.registry.enabled = false;
+    config.features.resolver.enabled = false;
+    config.features.artifacts.enabled = true;
     let app = router(config);
 
     let handshake =

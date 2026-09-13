@@ -31,6 +31,7 @@ pub(super) async fn serve_publish_pipeline_run(
     private_no_cache(
         match state
             .inner
+            .builds
             .pipeline_runs
             .as_ref()
             .expect("pipeline routes require a run store")
@@ -57,10 +58,12 @@ pub(super) async fn serve_list_pipeline_runs(
     {
         return private_no_cache(error.into_response());
     }
-    let store = state.inner.pipeline_runs.as_ref().expect("pipeline routes require a run store");
+    let store =
+        state.inner.builds.pipeline_runs.as_ref().expect("pipeline routes require a run store");
     let visible: Vec<&str> = state
         .inner
         .config
+        .features
         .pipeline
         .workspaces
         .iter()
@@ -102,7 +105,8 @@ pub(super) async fn serve_get_pipeline_run(
     if let Err(error) = authorize_pipeline_workspace(&state, &identity, &workspace, false) {
         return private_no_cache(error.into_response());
     }
-    let store = state.inner.pipeline_runs.as_ref().expect("pipeline routes require a run store");
+    let store =
+        state.inner.builds.pipeline_runs.as_ref().expect("pipeline routes require a run store");
     private_no_cache(match store.get(&workspace, &run_id).await {
         Ok(Some(run)) => axum::Json(run).into_response(),
         Ok(None) => not_found(),
@@ -117,7 +121,7 @@ pub(super) fn authorize_pipeline_workspace(
     publish: bool,
 ) -> Result<(), RegistryError> {
     let username = require_caller(identity, "pipeline runs")?;
-    let policy = state.inner.config.pipeline.workspaces.get(workspace);
+    let policy = state.inner.config.features.pipeline.workspaces.get(workspace);
     if !policy.is_some_and(|policy| policy.access.allows(identity)) {
         return Err(RegistryError::NotFound);
     }

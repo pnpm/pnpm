@@ -12,10 +12,18 @@ pub(super) struct RecursivePack<'a, 'graph> {
     pub(super) graph:
         &'a pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'graph>>,
     pub(super) catalogs: Catalogs,
-    pub(super) out: Option<String>,
-    pub(super) pack_destination: Option<String>,
     pub(super) before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
-    pub(super) output_locks: Arc<PackOutputLocks>,
+    pub(super) output: PackOutput,
+    pub(super) results: PackResults,
+}
+
+pub(crate) struct PackOutput {
+    pub(super) out: Option<String>,
+    pub(super) destination: Option<String>,
+    pub(super) locks: Arc<PackOutputLocks>,
+}
+
+pub(crate) struct PackResults {
     /// Each project's position in dependency order, which the results are
     /// listed in.
     pub(super) order_index: HashMap<PathBuf, usize>,
@@ -175,13 +183,13 @@ impl PackArgs {
             config,
             graph,
             catalogs: configured_catalogs(config)?,
-            out,
-            pack_destination,
             before_packing_hooks,
-            output_locks: Arc::new(PackOutputLocks::default()),
-            order_index: order_index(dependency_order),
-            packed: Mutex::new(Vec::new()),
-            first_error: Mutex::new(None),
+            output: PackOutput {
+                out,
+                destination: pack_destination,
+                locks: Arc::new(PackOutputLocks::default()),
+            },
+            results: PackResults::new(dependency_order),
         };
         pack.execute::<Reporter>(self, &project_dependencies).await;
         let packed = pack.finish()?;
@@ -205,6 +213,16 @@ impl PackArgs {
             (None, Some(absolute_against(dir, destination)))
         } else {
             (None, Some(dir.to_string_lossy().into_owned()))
+        }
+    }
+}
+
+impl PackResults {
+    fn new(dependency_order: Vec<PathBuf>) -> Self {
+        Self {
+            order_index: order_index(dependency_order),
+            packed: Mutex::new(Vec::new()),
+            first_error: Mutex::new(None),
         }
     }
 }

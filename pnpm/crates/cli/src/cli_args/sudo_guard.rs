@@ -69,11 +69,11 @@ fn sudo_blocked_operation(command: &CliCommand) -> Option<String> {
     match command {
         CliCommand::Setup(_) => Some("pnpm setup".to_string()),
         CliCommand::SelfUpdate(_) => Some("pnpm self-update".to_string()),
-        CliCommand::Add(args) => global_write(args.global, "add"),
+        CliCommand::Add(args) => global_write(args.target.global, "add"),
         CliCommand::ApproveBuilds(args) => global_write(args.global, "approve-builds"),
         CliCommand::Remove(args) => global_write(args.global, "remove"),
         CliCommand::Runtime(args) => global_write(args.global, "runtime"),
-        CliCommand::Update(args) => global_write(args.global, "update"),
+        CliCommand::Update(args) => global_write(args.selection.global, "update"),
         // `pnpm link` with no arguments links the current project into the
         // global directory.
         CliCommand::Link(args) if args.package_paths.is_empty() => {

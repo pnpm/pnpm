@@ -263,17 +263,19 @@ impl<'a> InitialKeyWalk<'a> {
         let FollowLink { importer, importer_dir, alias, linked, parents, issues } = inputs;
         if let Some(manifest) = &linked.manifest {
             check_linked_package_peers(LinkedPackagePeers {
-                lockfile: self.context.lockfile,
-                importer,
-                linked_importer: self.context.lockfile.importers.get(&linked.importer_id),
-                importer_dir,
-                linked_importer_dir: &linked.dir,
-                lockfile_dir: self.context.lockfile_dir,
                 manifest,
                 alias,
                 linked_version: &linked.version,
                 catalogs: self.context.catalogs,
                 issues,
+                providers: crate::linked::PeerProviders {
+                    lockfile: self.context.lockfile,
+                    importer,
+                    linked_importer: self.context.lockfile.importers.get(&linked.importer_id),
+                    importer_dir,
+                    linked_importer_dir: &linked.dir,
+                    lockfile_dir: self.context.lockfile_dir,
+                },
             })?;
         }
         let mut next_parents = parents.to_owned();

@@ -7,8 +7,8 @@ pub(in super::super) fn patch<'a>(
     ctx: &RunCtx<'a>,
     args: PatchArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let command_state = (ctx.state)(false)?;
-    let dir = ctx.dir;
+    let command_state = (ctx.loaders.state)(false)?;
+    let dir = ctx.locations.dir;
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
             args.run::<DefaultReporter>(dir, command_state).await?;
@@ -29,8 +29,8 @@ pub(in super::super) fn patch_commit<'a>(
     ctx: &RunCtx<'a>,
     args: PatchCommitArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let dir = ctx.dir;
-    let state = ctx.state;
+    let dir = ctx.locations.dir;
+    let state = ctx.loaders.state;
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
             if Box::pin(args.run::<DefaultReporter>(dir, state(false)?)).await? {
@@ -66,8 +66,8 @@ pub(in super::super) fn patch_remove<'a>(
     ctx: &RunCtx<'a>,
     args: PatchRemoveArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let dir = ctx.dir;
-    let state = ctx.state;
+    let dir = ctx.locations.dir;
+    let state = ctx.loaders.state;
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
             Box::pin(args.run(dir, state(false)?)).await?;

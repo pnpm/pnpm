@@ -278,27 +278,35 @@ fn failing_fetcher<'a>(
     git_bin: &'a Path,
 ) -> GitFetcher<'a> {
     GitFetcher {
-        source_cache,
-        repo,
-        commit: "c9b30e71d704cd30fa71f2edd1ecc7dcc4985493",
-        path: None,
-        git_shallow_hosts: &[],
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        source: crate::GitSource {
+            cache: source_cache,
+            repo,
+            commit: "c9b30e71d704cd30fa71f2edd1ecc7dcc4985493",
+            path: None,
+            shallow_hosts: &[],
+            git_bin: Some(git_bin),
+        },
+        store: crate::GitStoreContext {
+            dir: store_dir,
+            index_writer: None,
+            files_index_file: "@scope/pkg@1.0.0\tbuilt",
+        },
+
         allow_build: deny_all_builds(),
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir,
+
         package_id: "git+ssh://git@github.com/acme/widget.git#c9b30e71d704cd30fa71f2edd1ecc7dcc4985493",
         package_name: "@scope/pkg",
         requester: "/test",
-        store_index_writer: None,
-        files_index_file: "@scope/pkg@1.0.0\tbuilt",
-        git_bin: Some(git_bin),
     }
 }
 

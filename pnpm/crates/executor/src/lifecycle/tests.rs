@@ -87,21 +87,27 @@ fn lifecycle_emits_script_stdio_and_exit_in_order() {
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
     let opts = RunPostinstallHooks {
+        environment: crate::ScriptEnvironment {
+            init_cwd: pkg_root,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env: &extra_env,
+        },
+        execution: crate::ScriptExecutionOptions {
+            extra_bin_paths: &extra_bin_paths,
+            node_gyp_bin: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            shell_emulator: false,
+        },
         dep_path: "/x@1.0.0",
         pkg_root,
         root_modules_dir: pkg_root,
-        init_cwd: pkg_root,
-        extra_bin_paths: &extra_bin_paths,
-        extra_env: &extra_env,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: None,
+
         unsafe_perm: true,
-        node_gyp_bin: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        shell_emulator: false,
+
         optional: false,
     };
 
@@ -195,21 +201,27 @@ fn lifecycle_events_carry_optional_flag() {
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
     let opts = RunPostinstallHooks {
+        environment: crate::ScriptEnvironment {
+            init_cwd: pkg_root,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env: &extra_env,
+        },
+        execution: crate::ScriptExecutionOptions {
+            extra_bin_paths: &extra_bin_paths,
+            node_gyp_bin: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            shell_emulator: false,
+        },
         dep_path: "/opt@1.0.0",
         pkg_root,
         root_modules_dir: pkg_root,
-        init_cwd: pkg_root,
-        extra_bin_paths: &extra_bin_paths,
-        extra_env: &extra_env,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: None,
+
         unsafe_perm: true,
-        node_gyp_bin: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        shell_emulator: false,
+
         optional: true,
     };
 
@@ -266,21 +278,27 @@ fn lifecycle_emits_exit_with_nonzero_code_on_failure() {
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
     let opts = RunPostinstallHooks {
+        environment: crate::ScriptEnvironment {
+            init_cwd: pkg_root,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env: &extra_env,
+        },
+        execution: crate::ScriptExecutionOptions {
+            extra_bin_paths: &extra_bin_paths,
+            node_gyp_bin: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            shell_emulator: false,
+        },
         dep_path: "/y@1.0.0",
         pkg_root,
         root_modules_dir: pkg_root,
-        init_cwd: pkg_root,
-        extra_bin_paths: &extra_bin_paths,
-        extra_env: &extra_env,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: None,
+
         unsafe_perm: true,
-        node_gyp_bin: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        shell_emulator: false,
+
         optional: false,
     };
 
@@ -314,21 +332,27 @@ fn lifecycle_runs_under_silent_reporter() {
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
     let opts = RunPostinstallHooks {
+        environment: crate::ScriptEnvironment {
+            init_cwd: pkg_root,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env: &extra_env,
+        },
+        execution: crate::ScriptExecutionOptions {
+            extra_bin_paths: &extra_bin_paths,
+            node_gyp_bin: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            shell_emulator: false,
+        },
         dep_path: "/z@1.0.0",
         pkg_root,
         root_modules_dir: pkg_root,
-        init_cwd: pkg_root,
-        extra_bin_paths: &extra_bin_paths,
-        extra_env: &extra_env,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: None,
+
         unsafe_perm: true,
-        node_gyp_bin: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        shell_emulator: false,
+
         optional: false,
     };
 
@@ -344,21 +368,27 @@ fn missing_manifest_returns_false() {
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
     let opts = RunPostinstallHooks {
+        environment: crate::ScriptEnvironment {
+            init_cwd: pkg_root,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env: &extra_env,
+        },
+        execution: crate::ScriptExecutionOptions {
+            extra_bin_paths: &extra_bin_paths,
+            node_gyp_bin: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            shell_emulator: false,
+        },
         dep_path: "/missing@1.0.0",
         pkg_root,
         root_modules_dir: pkg_root,
-        init_cwd: pkg_root,
-        extra_bin_paths: &extra_bin_paths,
-        extra_env: &extra_env,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: None,
+
         unsafe_perm: true,
-        node_gyp_bin: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        shell_emulator: false,
+
         optional: false,
     };
 
@@ -430,21 +460,27 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
     let opts = RunPostinstallHooks {
+        environment: crate::ScriptEnvironment {
+            init_cwd: pkg_root,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env: &extra_env,
+        },
+        execution: crate::ScriptExecutionOptions {
+            extra_bin_paths: &extra_bin_paths,
+            node_gyp_bin: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            shell_emulator: false,
+        },
         dep_path: "/stamp-target@9.9.9",
         pkg_root,
         root_modules_dir: pkg_root,
-        init_cwd: pkg_root,
-        extra_bin_paths: &extra_bin_paths,
-        extra_env: &extra_env,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: None,
+
         unsafe_perm: true,
-        node_gyp_bin: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        shell_emulator: false,
+
         optional: false,
     };
 
@@ -480,21 +516,27 @@ fn malformed_manifest_propagates_error() {
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
     let opts = RunPostinstallHooks {
+        environment: crate::ScriptEnvironment {
+            init_cwd: pkg_root,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env: &extra_env,
+        },
+        execution: crate::ScriptExecutionOptions {
+            extra_bin_paths: &extra_bin_paths,
+            node_gyp_bin: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            shell_emulator: false,
+        },
         dep_path: "/malformed@1.0.0",
         pkg_root,
         root_modules_dir: pkg_root,
-        init_cwd: pkg_root,
-        extra_bin_paths: &extra_bin_paths,
-        extra_env: &extra_env,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: None,
+
         unsafe_perm: true,
-        node_gyp_bin: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        shell_emulator: false,
+
         optional: false,
     };
 
@@ -537,21 +579,27 @@ fn shell_emulator_lifecycle_emits_stdio_and_a_failing_exit() {
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
     let opts = RunPostinstallHooks {
+        environment: crate::ScriptEnvironment {
+            init_cwd: pkg_root,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env: &extra_env,
+        },
+        execution: crate::ScriptExecutionOptions {
+            extra_bin_paths: &extra_bin_paths,
+            node_gyp_bin: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            shell_emulator: true,
+        },
         dep_path: "/emulated@1.0.0",
         pkg_root,
         root_modules_dir: pkg_root,
-        init_cwd: pkg_root,
-        extra_bin_paths: &extra_bin_paths,
-        extra_env: &extra_env,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: None,
+
         unsafe_perm: true,
-        node_gyp_bin: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        shell_emulator: true,
+
         optional: false,
     };
 

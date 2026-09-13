@@ -51,6 +51,13 @@ where
 /// workspace dir.
 #[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror pnpm-workspace.yaml configuration keys."
+    )
+)]
 pub struct WorkspaceSettings {
     pub bail: Option<bool>,
     pub ci: Option<bool>,

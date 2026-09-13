@@ -1,5 +1,5 @@
 use super::{
-    UpdateError, UpdateOwned, UpdateSeed, UpdateView,
+    UpdateError, UpdateOptions, UpdateResources, UpdateSeed,
     catalogs::{
         CatalogCtx, merge_catalogs, read_catalog_ctx_with_catalogs, reconcile_catalog_rewrites,
     },
@@ -20,9 +20,7 @@ use crate::{
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
-use pnpm_resolving_deps_resolver::UpdateDepth;
 use pnpm_resolving_resolver_base::PreferredVersions;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -68,12 +66,12 @@ pub(super) struct SelectedUpdatePreparation {
     pub(super) any_work: bool,
 }
 impl SelectedUpdatePreparation {
-    pub(super) fn take_seed(&mut self, update: UpdateView<'_>) -> UpdateSeed {
+    pub(super) fn take_seed(&mut self, update: UpdateOptions<'_>) -> UpdateSeed {
         UpdateSeed {
             policy: selected_seed_policy(
-                update.patches,
+                update.version.patches,
                 std::mem::take(&mut self.seed_policies),
-                update.depth,
+                update.selection.depth,
             ),
             preferred_versions_override: std::mem::take(&mut self.preferred_versions_override),
             catalogs_override: self.catalogs_override.take(),
@@ -146,8 +144,8 @@ pub(super) async fn apply_read_package_hook_to_update_manifest(
 }
 pub(super) async fn prepare_manifest<Reporter: self::Reporter>(
     manifest: &mut PackageManifest,
-    update: UpdateView<'_>,
-    owned: &UpdateOwned,
+    update: UpdateOptions<'_>,
+    owned: &UpdateResources,
     catalogs_seed: Option<&Catalogs>,
     latest_chain: &mut Option<LatestResolverChain>,
 ) -> Result<Option<UpdatePreparation>, UpdateError> {
@@ -168,14 +166,14 @@ pub(super) struct UpdateDecision {
 }
 pub(super) async fn decide_update<Reporter: self::Reporter>(
     manifest: &PackageManifest,
-    update: UpdateView<'_>,
-    owned: &UpdateOwned,
+    update: UpdateOptions<'_>,
+    owned: &UpdateResources,
     catalogs_seed: Option<&Catalogs>,
     latest_chain: &mut Option<LatestResolverChain>,
 ) -> Result<Option<UpdateDecision>, UpdateError> {
-    let selectors = parse_selectors(update.packages);
-    if update.latest {
-        reject_versioned_latest_selectors(update.packages, &selectors)?;
+    let selectors = parse_selectors(update.selection.packages);
+    if update.version.latest {
+        reject_versioned_latest_selectors(update.selection.packages, &selectors)?;
     }
     // Snapshot direct dependencies before mutation so matching and rewrites
     // both see the original manifest shape.
@@ -195,12 +193,12 @@ pub(super) async fn decide_update<Reporter: self::Reporter>(
             config: update.config,
             http_client_arc: &owned.http_client_arc,
             resolution_observer: owned.resolution_observer.as_ref(),
-            range_spec_style: scope.range_spec_style,
+            range_spec_style: scope.range_spec_style(),
             lockfile_only: update.lockfile_only,
         },
         latest_chain,
         &mut catalog_ctx,
-        (update.workspace_packages, workspace_targets(update, &selectors, &direct)?),
+        (update.selection.workspace_packages, workspace_targets(update, &selectors, &direct)?),
     )
     .await?
     else {
@@ -209,8 +207,8 @@ pub(super) async fn decide_update<Reporter: self::Reporter>(
     Ok(Some(UpdateDecision { plan, seed_policy, direct, catalog_ctx }))
 }
 pub(super) fn update_scope<'a>(
-    update: UpdateView<'a>,
-    owned: &UpdateOwned,
+    update: UpdateOptions<'a>,
+    owned: &UpdateResources,
     selectors: &'a [ParsedSelector],
     direct: &'a [(String, DependencyGroup, String)],
 ) -> UpdateScope<'a> {
@@ -219,19 +217,9 @@ pub(super) fn update_scope<'a>(
         direct,
         lockfile: update.lockfile,
         config: update.config,
-        latest: update.latest,
-        save: update.save,
-        depth: update.depth,
-        max_depth: UpdateDepth::new(update.depth),
-        // `pacquet update` has no `--save-prefix` flag yet, so `save_exact`
-        // selects between an exact pin and the default caret range.
-        range_spec_style: RangeSpecStyle::from_save_options(update.save_exact, None),
+        version: update.version,
+        depth: update.selection.depth,
         updates_all_groups: updates_all_groups(&owned.include_direct),
-        // Bare-name selectors with depth update matching names at any depth.
-        use_name_matcher: !selectors.is_empty()
-            && selectors.iter().all(|selector| selector.version.is_none())
-            && update.depth > 0
-            && !update.latest,
     }
 }
 /// The direct dependencies of the groups the update covers, as
@@ -254,7 +242,7 @@ pub(super) fn updates_all_groups(include_direct: &[DependencyGroup]) -> bool {
 }
 pub(super) fn apply_update_decision<Reporter: self::Reporter>(
     manifest: &mut PackageManifest,
-    update: UpdateView<'_>,
+    update: UpdateOptions<'_>,
     decision: UpdateDecision,
 ) -> Result<UpdatePreparation, UpdateError> {
     let UpdateDecision { mut plan, seed_policy, direct, mut catalog_ctx } = decision;
@@ -264,7 +252,7 @@ pub(super) fn apply_update_decision<Reporter: self::Reporter>(
     let workspace_dir_for_catalogs = reconcile_catalog_rewrites::<Reporter>(
         manifest,
         update.config,
-        update.latest,
+        update.version.latest,
         &direct,
         &mut plan.rewrites,
         &mut catalog_ctx,
@@ -272,7 +260,7 @@ pub(super) fn apply_update_decision<Reporter: self::Reporter>(
     )?;
     // `--no-save` still mutates the in-memory manifest used for resolution,
     // while leaving package.json and reporter manifest events untouched.
-    let persist_manifest = update.save && !plan.rewrites.is_empty();
+    let persist_manifest = update.version.save && !plan.rewrites.is_empty();
     if persist_manifest {
         emit_initial_package_manifest::<Reporter>(manifest);
     }
@@ -312,8 +300,8 @@ pub(super) async fn prepare_selected_manifests<Reporter: self::Reporter>(
     projects: &mut [pnpm_workspace::Project],
     selected_indices: &[usize],
     workspace_root: &Path,
-    update: UpdateView<'_>,
-    owned: &UpdateOwned,
+    update: UpdateOptions<'_>,
+    owned: &UpdateResources,
 ) -> Result<SelectedUpdatePreparation, UpdateError> {
     // One picker across every selected project: it is created on first
     // use, so a selection that resolves no `latest` tag never builds one.
@@ -325,8 +313,8 @@ pub(super) async fn prepare_selected_manifests<Reporter: self::Reporter>(
     // sibling only reaches it transitively. `--depth 0` reports
     // `NoPackageInDependencies` instead, and `--latest` rejects versioned
     // selectors outright.
-    if !update.latest && update.depth > 0 {
-        let selectors = parse_selectors(update.packages);
+    if !update.version.latest && update.selection.depth > 0 {
+        let selectors = parse_selectors(update.selection.packages);
         let manifests =
             selected_indices.iter().map(|&index| &projects[index].manifest).collect::<Vec<_>>();
         reject_versions_of_indirect_update_specs::<Reporter>(
@@ -357,7 +345,10 @@ pub(super) async fn prepare_selected_manifests<Reporter: self::Reporter>(
     // A recursive `--latest` that matches nothing is an error, unlike the
     // single-project one that quietly returns: with no project left to
     // mutate there is nothing for the run to have meant.
-    if update.depth == 0 && !update.packages.is_empty() && !prepared_all.any_work {
+    if update.selection.depth == 0
+        && !update.selection.packages.is_empty()
+        && !prepared_all.any_work
+    {
         return Err(UpdateError::NoPackageInDependencies);
     }
 

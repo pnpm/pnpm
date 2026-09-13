@@ -101,13 +101,15 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
         .resolve_artifacts(ResolveArtifactsOptions {
             candidates: vec![candidate.clone()],
             supported_tags: vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()],
-            eligible_packages: HashSet::from([package_name.clone()]),
-            allowed_builds: HashSet::from([package_name.clone()]),
-            ignore_scripts: false,
             trusted_keys: BTreeMap::from([("acme-2026".to_string(), untrusted_public_key)]),
             quarantined_envelope_digests: BTreeMap::new(),
             on_rejected_artifact: None,
             authorization: Some(pnpr_auth.clone()),
+            build_policy: pnpm_pnpr_client::ArtifactBuildPolicy {
+                eligible_packages: HashSet::from([package_name.clone()]),
+                allowed_builds: HashSet::from([package_name.clone()]),
+                ignore_scripts: false,
+            },
         })
         .await
         .expect("an invalid signature is a cache miss");
@@ -123,13 +125,15 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
         .resolve_artifacts(ResolveArtifactsOptions {
             candidates: vec![mismatched_candidate],
             supported_tags: vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()],
-            eligible_packages: HashSet::from([package_name.clone()]),
-            allowed_builds: HashSet::from([package_name.clone()]),
-            ignore_scripts: false,
             trusted_keys: BTreeMap::from([("acme-2026".to_string(), public_key.clone())]),
             quarantined_envelope_digests: BTreeMap::new(),
             on_rejected_artifact: None,
             authorization: Some(pnpr_auth.clone()),
+            build_policy: pnpm_pnpr_client::ArtifactBuildPolicy {
+                eligible_packages: HashSet::from([package_name.clone()]),
+                allowed_builds: HashSet::from([package_name.clone()]),
+                ignore_scripts: false,
+            },
         })
         .await
         .expect("a mismatched signed package identity is a cache miss");
@@ -139,13 +143,15 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
         .resolve_artifacts(ResolveArtifactsOptions {
             candidates: vec![candidate.clone()],
             supported_tags: vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()],
-            eligible_packages: HashSet::from([package_name.clone()]),
-            allowed_builds: HashSet::from([package_name.clone()]),
-            ignore_scripts: false,
             trusted_keys: BTreeMap::from([("acme-2026".to_string(), public_key.clone())]),
             quarantined_envelope_digests: BTreeMap::new(),
             on_rejected_artifact: None,
             authorization: Some(pnpr_auth.clone()),
+            build_policy: pnpm_pnpr_client::ArtifactBuildPolicy {
+                eligible_packages: HashSet::from([package_name.clone()]),
+                allowed_builds: HashSet::from([package_name.clone()]),
+                ignore_scripts: false,
+            },
         })
         .await
         .expect("resolve signed artifact");
@@ -157,9 +163,6 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
         .resolve_artifacts(ResolveArtifactsOptions {
             candidates: vec![candidate.clone()],
             supported_tags: vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()],
-            eligible_packages: HashSet::from([package_name.clone()]),
-            allowed_builds: HashSet::from([package_name.clone()]),
-            ignore_scripts: false,
             trusted_keys: BTreeMap::from([("acme-2026".to_string(), public_key.clone())]),
             quarantined_envelope_digests: BTreeMap::from([(
                 candidate.key.clone(),
@@ -167,6 +170,11 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
             )]),
             on_rejected_artifact: None,
             authorization: Some(pnpr_auth.clone()),
+            build_policy: pnpm_pnpr_client::ArtifactBuildPolicy {
+                eligible_packages: HashSet::from([package_name.clone()]),
+                allowed_builds: HashSet::from([package_name.clone()]),
+                ignore_scripts: false,
+            },
         })
         .await
         .expect("a quarantined variant is a cache miss");
@@ -209,13 +217,15 @@ async fn artifact_lookup_preserves_script_eligibility_and_allow_build_policy() {
             .resolve_artifacts(ResolveArtifactsOptions {
                 candidates: vec![candidate.clone()],
                 supported_tags: supported_tags.clone(),
-                eligible_packages,
-                allowed_builds,
-                ignore_scripts,
                 trusted_keys: trusted_keys.clone(),
                 quarantined_envelope_digests: BTreeMap::new(),
                 on_rejected_artifact: None,
                 authorization: None,
+                build_policy: pnpm_pnpr_client::ArtifactBuildPolicy {
+                    eligible_packages,
+                    allowed_builds,
+                    ignore_scripts,
+                },
             })
             .await
             .expect("a denied remote build must not contact pnpr");
@@ -322,13 +332,15 @@ async fn organization_artifact_existence_is_not_exposed_to_another_owner() {
                 owner: OwnerScope::organization("another-owner"),
             }],
             supported_tags: vec!["pnpm:v1:linux-x64-node22-glibc2.17".to_string()],
-            eligible_packages: HashSet::from(["native-addon".to_string()]),
-            allowed_builds: HashSet::from(["native-addon".to_string()]),
-            ignore_scripts: false,
             trusted_keys: BTreeMap::from([("acme-2026".to_string(), public_key)]),
             quarantined_envelope_digests: BTreeMap::new(),
             on_rejected_artifact: None,
             authorization: Some(pnpr_auth),
+            build_policy: pnpm_pnpr_client::ArtifactBuildPolicy {
+                eligible_packages: HashSet::from(["native-addon".to_string()]),
+                allowed_builds: HashSet::from(["native-addon".to_string()]),
+                ignore_scripts: false,
+            },
         })
         .await
         .expect("cross-owner lookup is a masked miss");
@@ -352,7 +364,7 @@ async fn resolves_a_scope_from_the_registry_declared_for_it() {
             .await;
 
     let mut opts = options(dead_default, &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
-    opts.registries = BTreeMap::from([(
+    opts.routing.registries = BTreeMap::from([(
         registry.url(),
         RegistryDeclaration {
             scopes: Some(vec!["@foo".to_string()]),
@@ -379,7 +391,7 @@ async fn a_declared_registry_the_resolve_never_reaches_is_not_rejected() {
     let (pnpr_url, pnpr_auth, _storage) = start_pnpr(&registry.url()).await;
 
     let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
-    opts.registries = BTreeMap::from([(
+    opts.routing.registries = BTreeMap::from([(
         "http://169.254.169.254/".to_string(),
         RegistryDeclaration {
             scopes: Some(vec!["@never-resolved".to_string()]),
@@ -400,7 +412,7 @@ async fn a_declared_registry_the_resolve_reaches_is_refused() {
     let (pnpr_url, pnpr_auth, _storage) = start_pnpr(&registry.url()).await;
 
     let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
-    opts.registries = BTreeMap::from([(
+    opts.routing.registries = BTreeMap::from([(
         "http://169.254.169.254/".to_string(),
         RegistryDeclaration {
             scopes: Some(vec!["@foo".to_string()]),

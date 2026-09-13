@@ -23,7 +23,10 @@ async fn catalog_protocol_on_direct_dep_is_rewritten() {
         std::iter::once(("foo".to_string(), "^1.0.0".to_string())).collect(),
     );
 
-    let opts = ResolveImporterOptions { catalogs, ..default_opts() };
+    let opts = ResolveImporterOptions {
+        resolution: crate::ImporterResolutionInputs { catalogs, ..default_opts().resolution },
+        ..default_opts()
+    };
     let result =
         resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
     assert_eq!(result.resolved_tree.direct.len(), 1);

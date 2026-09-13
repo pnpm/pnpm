@@ -66,7 +66,7 @@ async fn workspace_root_direct_deps_resolve_child_importer_peers() {
         WorkspaceImporter { id: "packages/app".to_string(), manifest: &app_manifest },
     ];
     let mut opts = workspace_opts(false, false);
-    opts.resolve_peers_from_workspace_root = true;
+    opts.peers.resolve_peers_from_workspace_root = true;
 
     let result =
         resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
@@ -106,7 +106,7 @@ async fn local_workspace_package_version_can_satisfy_another_importers_optional_
     let mut local_opt =
         fake_result("opt", "1.0.0", None, serde_json::json!({ "name": "opt", "version": "1.0.0" }));
     local_opt.id = PkgResolutionId::from("link:packages/opt".to_string());
-    local_opt.name_ver = None;
+    local_opt.package.name_ver = None;
     local_opt.resolution = LockfileResolution::Directory(DirectoryResolution {
         directory: "packages/opt".to_string(),
     });
@@ -126,13 +126,13 @@ async fn local_workspace_package_version_can_satisfy_another_importers_optional_
     let dirs = [tmp_root.path(), tmp_a.path()];
 
     let mut opts = workspace_opts(false, false);
-    opts.auto_install_peers = true;
+    opts.peers.auto_install_peers = true;
     let mut next = 0;
     let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
         let dir = dirs[next].to_path_buf();
         next += 1;
         let mut opts = importer_opts(dir, None);
-        opts.auto_install_peers = true;
+        opts.peers.auto_install_peers = true;
         opts
     })
     .await
@@ -256,13 +256,13 @@ async fn non_root_importer_hoists_the_root_importers_peer_provider() {
         seen: Mutex::new(HashMap::default()),
     };
     let mut opts = workspace_opts(false, false);
-    opts.auto_install_peers = true;
-    opts.resolve_peers_from_workspace_root = true;
+    opts.peers.auto_install_peers = true;
+    opts.peers.resolve_peers_from_workspace_root = true;
     let result =
         resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
             let mut importer_opts =
                 importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None);
-            importer_opts.resolve_peers_from_workspace_root = true;
+            importer_opts.peers.resolve_peers_from_workspace_root = true;
             importer_opts
         })
         .await
@@ -291,7 +291,7 @@ async fn root_dep_named_only_by_its_manifest_still_provides_the_peer() {
         None,
         serde_json::json!({ "name": "real-peer", "version": "1.0.0" }),
     );
-    unnamed.name_ver = None;
+    unnamed.package.name_ver = None;
     unnamed.id = pnpm_resolving_resolver_base::PkgResolutionId::from(TARBALL.to_string());
     unnamed.alias = Some("aliased".to_string());
     let resolver = RecordingResolver {
@@ -324,13 +324,13 @@ async fn root_dep_named_only_by_its_manifest_still_provides_the_peer() {
         seen: Mutex::new(HashMap::default()),
     };
     let mut opts = workspace_opts(false, false);
-    opts.auto_install_peers = true;
-    opts.resolve_peers_from_workspace_root = true;
+    opts.peers.auto_install_peers = true;
+    opts.peers.resolve_peers_from_workspace_root = true;
     let result =
         resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
             let mut importer_opts =
                 importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None);
-            importer_opts.resolve_peers_from_workspace_root = true;
+            importer_opts.peers.resolve_peers_from_workspace_root = true;
             importer_opts
         })
         .await
@@ -417,7 +417,7 @@ async fn a_workspace_range_root_dep_is_offered_as_a_peer_provider() {
         None,
         serde_json::json!({ "name": "real-peer", "version": "1.0.0" }),
     );
-    linked.name_ver = None;
+    linked.package.name_ver = None;
     linked.normalized_bare_specifier = Some(WORKSPACE_RANGE.to_string());
     linked.id = pnpm_resolving_resolver_base::PkgResolutionId::from(LINK.to_string());
     linked.resolution = LockfileResolution::Directory(DirectoryResolution {
@@ -453,13 +453,13 @@ async fn a_workspace_range_root_dep_is_offered_as_a_peer_provider() {
         seen: Mutex::new(HashMap::default()),
     };
     let mut opts = workspace_opts(false, false);
-    opts.auto_install_peers = true;
-    opts.resolve_peers_from_workspace_root = true;
+    opts.peers.auto_install_peers = true;
+    opts.peers.resolve_peers_from_workspace_root = true;
     let result =
         resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
             let mut importer_opts =
                 importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None);
-            importer_opts.resolve_peers_from_workspace_root = true;
+            importer_opts.peers.resolve_peers_from_workspace_root = true;
             importer_opts
         })
         .await
@@ -608,15 +608,15 @@ async fn importer_sharing_foreign_subtrees_binds_peers_from_workspace_root() {
     let dirs = [tmp_root.path(), tmp_a.path(), tmp_a2.path(), tmp_b.path()];
 
     let mut opts = workspace_opts(false, false);
-    opts.auto_install_peers = true;
-    opts.resolve_peers_from_workspace_root = true;
+    opts.peers.auto_install_peers = true;
+    opts.peers.resolve_peers_from_workspace_root = true;
     let mut next = 0;
     let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
         let dir = dirs[next].to_path_buf();
         next += 1;
         let mut opts = importer_opts(dir, None);
-        opts.auto_install_peers = true;
-        opts.resolve_peers_from_workspace_root = true;
+        opts.peers.auto_install_peers = true;
+        opts.peers.resolve_peers_from_workspace_root = true;
         opts
     })
     .await
@@ -719,7 +719,7 @@ async fn warm_up_skips_dependencies_a_package_declares_as_its_own_peers() {
         ),
     ]));
     let mut opts = workspace_opts(false, false);
-    opts.auto_install_peers = true;
+    opts.peers.auto_install_peers = true;
     let result =
         resolve_single_importer(&resolver, serde_json::json!({ "a": "^1.0.0" }), opts, None)
             .await

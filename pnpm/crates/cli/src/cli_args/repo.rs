@@ -115,12 +115,14 @@ async fn get_repo_url_from_registry(
         resolved_name,
         &FetchFullMetadataOptions {
             registry: &registry,
-            http_client,
-            auth_headers: &config.auth_headers,
             full_metadata: true,
             etag: None,
             modified: None,
-            retry_opts: *retry_opts,
+            http: pnpm_resolving_npm_resolver::MetadataHttpClient {
+                http_client,
+                auth_headers: &config.auth_headers,
+                retry_opts: *retry_opts,
+            },
         },
     )
     .await

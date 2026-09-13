@@ -383,22 +383,19 @@ pub(in super::super) fn run_stage(
     }
 
     let status = run_script(&RunScript {
+        environment: super::script_environment(ctx.config, ctx.init_cwd, ctx.extra_env),
+        execution: pnpm_executor::ScriptExecutionOptions {
+            extra_bin_paths: &pnpm_python_installer::execution_paths(ctx.config, ctx.dir),
+            node_gyp_bin: None,
+            prepend_node_path: exec_scripts_prepend_node_path(ctx.config.scripts_prepend_node_path),
+            shell: ctx.config.script_shell.as_deref().map(Path::new),
+            shell_emulator: ctx.config.shell_emulator,
+        },
+        invocation: pnpm_executor::ScriptInvocation { stage, script, args },
         manifest: ctx.manifest.value(),
-        stage,
-        script,
-        args,
+
         pkg_root: ctx.dir,
-        init_cwd: ctx.init_cwd,
-        extra_bin_paths: &pnpm_python_installer::execution_paths(ctx.config, ctx.dir),
-        script_shell: ctx.config.script_shell.as_deref().map(Path::new),
-        shell_emulator: ctx.config.shell_emulator,
-        scripts_prepend_node_path: exec_scripts_prepend_node_path(
-            ctx.config.scripts_prepend_node_path,
-        ),
-        node_execpath: None,
-        npm_execpath: None,
-        user_agent: Some(&ctx.config.user_agent),
-        extra_env: ctx.extra_env,
+
         silent: ctx.silent,
         output: ctx.output,
         process_tracker: ctx.process_tracker,

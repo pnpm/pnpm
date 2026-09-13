@@ -241,7 +241,7 @@ pub fn load_osv_index(config: &Config) -> Result<Option<Arc<OsvIndex>>, Registry
 }
 
 fn default_osv_path(config: &Config) -> PathBuf {
-    config.cache_storage.join("osv").join("npm").join("all.zip")
+    config.storage.cache_dir.join("osv").join("npm").join("all.zip")
 }
 
 fn load_from_zip(path: &Path) -> Result<OsvIndex, RegistryError> {

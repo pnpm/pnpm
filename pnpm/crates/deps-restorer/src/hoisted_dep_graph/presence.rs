@@ -62,7 +62,8 @@ pub(super) fn resolution_changed_at(
     dir: &Path,
     wanted: &LockfileResolution,
 ) -> bool {
-    prev_graph.is_some_and(|graph| graph.get(dir).is_some_and(|node| &node.resolution != wanted))
+    prev_graph
+        .is_some_and(|graph| graph.get(dir).is_some_and(|node| &node.package.resolution != wanted))
 }
 /// Whether the installability filter rules this package out on this
 /// host. Applied only when `!opts.force`. An optional dep on an
@@ -79,14 +80,14 @@ pub(super) fn installability_skip(
     }
     let manifest = manifest_for_installability(pkg_key, metadata);
     let install_opts = InstallabilityOptions {
-        engine_strict: state.opts.engine_strict,
+        engine_strict: state.opts.installability.engine_strict,
         optional,
-        current_node_version: &state.opts.current_node_version,
+        current_node_version: &state.opts.installability.current_node_version,
         pnpm_version: None,
-        current_os: &state.opts.current_os,
-        current_cpu: &state.opts.current_cpu,
-        current_libc: &state.opts.current_libc,
-        supported_architectures: state.opts.supported_architectures.as_ref(),
+        current_os: &state.opts.installability.current_os,
+        current_cpu: &state.opts.installability.current_cpu,
+        current_libc: &state.opts.installability.current_libc,
+        supported_architectures: state.opts.installability.supported_architectures.as_ref(),
     };
     match package_is_installable(&pkg_key.to_string(), &manifest, &install_opts) {
         Ok(

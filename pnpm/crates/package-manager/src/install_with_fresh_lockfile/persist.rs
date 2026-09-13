@@ -183,15 +183,11 @@ pub(super) fn linked_target_may_declare_peers(
         || !scan.importer_manifests.contains_key(&linked_id)
 }
 pub(super) struct LockfileOnlyOptions<'a> {
+    pub write:
+        crate::install_with_fresh_lockfile::resolution_inputs::LockfilePersistenceOptions<'a>,
     pub(super) built_lockfile: Lockfile,
     pub(super) peer_issue_importer_ids: HashSet<String>,
-    pub(super) config: &'a Config,
-    pub(super) lockfile_dir: &'a Path,
     pub(super) requester: &'a str,
-    pub(super) dry_run: bool,
-    pub(super) save_lockfile: bool,
-    pub(super) after_all_resolved_hook: Option<&'a Arc<dyn pnpm_hooks::PnpmfileHooks>>,
-    pub(super) after_all_resolved_log: Option<pnpm_hooks::LogFn>,
     pub(super) store_index_writer: Arc<pnpm_store_dir::StoreIndexWriter>,
     pub(super) writer_task: tokio::task::JoinHandle<Result<(), pnpm_store_dir::StoreIndexError>>,
 }
@@ -217,21 +213,21 @@ pub(super) async fn verify_merged_repair<Reporter: self::Reporter>(
 pub(super) async fn finish_lockfile_only<Reporter: self::Reporter>(
     opts: LockfileOnlyOptions<'_>,
 ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError> {
-    let (wanted_lockfile, can_record_lockfile_verification) = if opts.dry_run || !opts.save_lockfile
-    {
-        (Some(opts.built_lockfile), false)
-    } else if opts.config.lockfile {
-        let can_record_lockfile_verification = save_wanted_lockfile(
-            &opts.built_lockfile,
-            &opts.lockfile_dir.join(opts.config.wanted_lockfile_name()),
-            opts.after_all_resolved_hook,
-            opts.after_all_resolved_log,
-        )
-        .await?;
-        (Some(opts.built_lockfile), can_record_lockfile_verification)
-    } else {
-        (None, false)
-    };
+    let (wanted_lockfile, can_record_lockfile_verification) =
+        if opts.write.dry_run || !opts.write.save {
+            (Some(opts.built_lockfile), false)
+        } else if opts.write.config.lockfile {
+            let can_record_lockfile_verification = save_wanted_lockfile(
+                &opts.built_lockfile,
+                &opts.write.dir.join(opts.write.config.wanted_lockfile_name()),
+                opts.write.hook,
+                opts.write.log,
+            )
+            .await?;
+            (Some(opts.built_lockfile), can_record_lockfile_verification)
+        } else {
+            (None, false)
+        };
 
     // Close the writer cleanly even though no rows were written,
     // mirroring the materializing path: drop closes the channel, the
@@ -244,9 +240,12 @@ pub(super) async fn finish_lockfile_only<Reporter: self::Reporter>(
         stage: Stage::ImportingDone,
     }));
     Ok(InstallWithFreshLockfileResult {
-        hoisted_dependencies: HoistedDependencies::new(),
-        hoisted_locations: BTreeMap::new(),
-        injected_deps: BTreeMap::new(),
+        hoisted: pnpm_deps_restorer::InstalledHoistedState {
+            dependencies: HoistedDependencies::new(),
+            locations: BTreeMap::new(),
+            injected_deps: BTreeMap::new(),
+        },
+
         peer_issue_importer_ids: opts.peer_issue_importer_ids,
         wanted_lockfile,
         can_record_lockfile_verification,

@@ -1,3 +1,4 @@
+pub(crate) use environment::script_environment;
 pub(crate) use execution::exec_scripts_prepend_node_path;
 pub(super) use execution::{RunContext, get_run_script_commands, run_stages};
 pub(super) use listing::ScriptSelector;
@@ -39,6 +40,7 @@ use std::{
     sync::Mutex,
 };
 
+mod environment;
 mod recursive;
 
 #[derive(Debug, Args)]
@@ -55,56 +57,23 @@ pub struct RunArgs {
     /// (pnpm/pnpm#13295). `exec` / `dlx` / `with` take the same shape.
     #[clap(trailing_var_arg = true, allow_hyphen_values = true)]
     pub script: Vec<String>,
-
     /// Avoid exiting with a non-zero exit code when the script is undefined.
     #[clap(long)]
     pub if_present: bool,
-
-    /// Run the script starting from the given package, skipping every
-    /// package that sorts before it. Only meaningful together with the
-    /// global `-r` / `--recursive` flag (the `--resume-from` flag).
-    #[clap(skip)]
-    pub resume_from: Option<String>,
-
-    /// Save the execution result of every package to
-    /// `pnpm-exec-summary.json`. Only meaningful together with the
-    /// global `-r` / `--recursive` flag (the `--report-summary` flag).
-    #[clap(skip)]
-    pub report_summary: bool,
-
-    /// Keep running the remaining scripts after one fails instead of
-    /// aborting on the first failure (the global `--no-bail` flag).
-    /// Applies to a recursive run and to a `/pattern/` run that selects
-    /// several scripts; both bail by default.
-    #[clap(skip)]
-    pub no_bail: bool,
-
-    /// Sort recursive workspace projects topologically before running.
-    #[clap(skip = true)]
-    pub sort: bool,
-
-    /// Reverse the project order of a recursive run.
-    #[clap(skip = true)]
-    pub reverse: bool,
-
-    /// Start scripts in all selected projects concurrently.
-    #[clap(skip = true)]
-    pub parallel: bool,
-
     /// Run the specified scripts one by one.
     #[clap(long, short = 's')]
     pub sequential: bool,
-
     /// Print the task graph a recursive run would execute, without
     /// running anything. Only meaningful together with the global `-r` /
     /// `--recursive` flag.
     #[clap(long = "dry-run")]
     pub dry_run: bool,
-
     /// With `--dry-run`, print the tasks and their resolved dependency
     /// edges as JSON.
     #[clap(long)]
     pub json: bool,
+    #[clap(flatten)]
+    pub workspace: super::recursive::RecursiveExecutionArgs,
 }
 
 /// Errors from `pacquet run`, including the hidden-script rejections from
@@ -264,13 +233,13 @@ impl RunArgs {
         let extra_env = script_extra_env(config, dir);
         let init_cwd: PathBuf = env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
         let concurrency =
-            script_concurrency(config, specified.len(), self.parallel, self.sequential);
+            script_concurrency(config, specified.len(), self.workspace.parallel, self.sequential);
         // Several scripts running at once share this process's terminal,
         // so their output is prefixed. Their children are tracked only
         // when a failure should cancel the siblings still running, which
         // `--no-bail` rules out.
         let interleaved = specified.len() > 1 && concurrency > 1;
-        let bail = !self.no_bail;
+        let bail = !self.workspace.no_bail;
         let process_tracker = (interleaved && bail).then(ProcessTracker::foreground);
         let dep_path = dir.to_string_lossy().into_owned();
         let ctx = RunContext {
@@ -332,12 +301,14 @@ fn exec_fallback(
     ExecArgs {
         command: RunArgs::script(script_name, args.iter().cloned()),
         shell_mode: false,
-        resume_from: None,
-        report_summary: false,
-        no_bail: false,
-        sort: true,
-        reverse: false,
-        parallel: false,
+        workspace: crate::cli_args::recursive::RecursiveExecutionArgs {
+            resume_from: None,
+            report_summary: false,
+            no_bail: false,
+            sort: true,
+            reverse: false,
+            parallel: false,
+        },
     }
     .run(dirs, config, reporter)
 }

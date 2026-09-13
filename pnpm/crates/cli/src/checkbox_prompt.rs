@@ -57,15 +57,19 @@ pub(crate) struct CheckboxPrompt<Value> {
     message: String,
     items: Vec<CheckboxItem<Value>>,
     checked: Vec<bool>,
+    required: bool,
+    theme: CheckboxTheme,
+    error: Option<&'static str>,
+    viewport: PromptViewport,
+}
+
+struct PromptViewport {
     active: usize,
     /// The first item on screen.
     top: usize,
     /// Lines of the list shown at once; `0` until the terminal is measured,
     /// which shows the whole list.
     page_size: usize,
-    required: bool,
-    theme: CheckboxTheme,
-    error: Option<&'static str>,
 }
 
 /// What a key did, beyond changing the screen.
@@ -76,7 +80,7 @@ pub(crate) enum KeyOutcome {
     Cancel,
 }
 
-/// The [`CheckboxPrompt::page_size`] `@inquirer/checkbox` is given when the
+/// The [`PromptViewport::page_size`] `@inquirer/checkbox` is given when the
 /// terminal height is unknown, and the least it is given otherwise.
 const MIN_PAGE_SIZE: usize = 7;
 /// The lines of a frame that are not the list: the message and the
@@ -91,12 +95,10 @@ impl<Value> CheckboxPrompt<Value> {
             message: message.into(),
             items,
             checked,
-            active,
-            top: 0,
-            page_size: 0,
             required: false,
             theme: CheckboxTheme::default(),
             error: None,
+            viewport: PromptViewport { active, top: 0, page_size: 0 },
         }
     }
 
@@ -129,8 +131,8 @@ impl<Value> CheckboxPrompt<Value> {
                     "the checkbox prompt needs a terminal on stdout or stderr",
                 )
             })?;
-        if self.page_size == 0 {
-            self.page_size = page_size_for(&term);
+        if self.viewport.page_size == 0 {
+            self.viewport.page_size = page_size_for(&term);
         }
         term.hide_cursor()?;
         let answer = self.interact_on(&term);
@@ -176,7 +178,9 @@ impl<Value> CheckboxPrompt<Value> {
             Key::CtrlC => return KeyOutcome::Cancel,
             Key::ArrowUp | Key::Char('k') => self.move_active(-1),
             Key::ArrowDown | Key::Char('j') => self.move_active(1),
-            Key::Char(' ') => self.checked[self.active] = !self.checked[self.active],
+            Key::Char(' ') => {
+                self.checked[self.viewport.active] = !self.checked[self.viewport.active];
+            }
             Key::Char('a') => {
                 let select_all = self
                     .items
@@ -205,7 +209,7 @@ impl<Value> CheckboxPrompt<Value> {
             .nth(nth)
             .map(|(index, _)| index)
         {
-            self.active = index;
+            self.viewport.active = index;
             self.checked[index] = !self.checked[index];
         }
     }
@@ -214,14 +218,14 @@ impl<Value> CheckboxPrompt<Value> {
     /// stepping over separators.
     fn move_active(&mut self, offset: isize) {
         let len = self.items.len();
-        let mut next = self.active;
+        let mut next = self.viewport.active;
         loop {
             next = (next as isize + offset).rem_euclid(len as isize) as usize;
             if is_choice(&self.items[next]) {
                 break;
             }
         }
-        self.active = next;
+        self.viewport.active = next;
     }
 
     fn check_every_choice(&mut self, checked: impl Fn(bool) -> bool) {
@@ -236,19 +240,19 @@ impl<Value> CheckboxPrompt<Value> {
     /// directly above it — a group's heading and column header — when
     /// they fit.
     fn scroll_into_view(&mut self) {
-        if self.page_size == 0 {
+        if self.viewport.page_size == 0 {
             return;
         }
-        if self.active < self.top {
-            self.top = self.active;
-        } else if self.active >= self.top + self.page_size {
-            self.top = self.active + 1 - self.page_size;
+        if self.viewport.active < self.viewport.top {
+            self.viewport.top = self.viewport.active;
+        } else if self.viewport.active >= self.viewport.top + self.viewport.page_size {
+            self.viewport.top = self.viewport.active + 1 - self.viewport.page_size;
         }
-        while self.top > 0
-            && !is_choice(&self.items[self.top - 1])
-            && self.active + 1 - (self.top - 1) <= self.page_size
+        while self.viewport.top > 0
+            && !is_choice(&self.items[self.viewport.top - 1])
+            && self.viewport.active + 1 - (self.viewport.top - 1) <= self.viewport.page_size
         {
-            self.top -= 1;
+            self.viewport.top -= 1;
         }
     }
 
@@ -269,12 +273,12 @@ impl<Value> CheckboxPrompt<Value> {
     }
 
     fn render_page(&self) -> Vec<String> {
-        let end = if self.page_size == 0 {
+        let end = if self.viewport.page_size == 0 {
             self.items.len()
         } else {
-            (self.top + self.page_size).min(self.items.len())
+            (self.viewport.top + self.viewport.page_size).min(self.items.len())
         };
-        (self.top..end).map(|index| self.render_item(index)).collect()
+        (self.viewport.top..end).map(|index| self.render_item(index)).collect()
     }
 
     fn render_item(&self, index: usize) -> String {
@@ -285,7 +289,7 @@ impl<Value> CheckboxPrompt<Value> {
     }
 
     fn render_choice(&self, index: usize, choice: &CheckboxChoice<Value>) -> String {
-        let active = index == self.active;
+        let active = index == self.viewport.active;
         let cursor = if active { "❯" } else { " " };
         let checkbox =
             if self.checked[index] { &self.theme.checked } else { &self.theme.unchecked };

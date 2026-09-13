@@ -19,21 +19,26 @@ fn publish_args_with(flags: PublishFlags) -> PublishArgs {
 fn publish_flags() -> PublishFlags {
     PublishFlags {
         dry_run: false,
-        json: false,
-        tag: None,
-        access: None,
-        provenance: false,
         ignore_scripts: false,
-        embed_readme: false,
-        no_embed_readme: false,
-        skip_manifest_obfuscation: false,
-        no_skip_manifest_obfuscation: false,
-        otp: None,
-        publish_branch: None,
-        no_git_checks: false,
         force: false,
         batch: false,
-        report_summary: false,
+        registry: crate::cli_args::publish::PublishRegistryArgs {
+            tag: None,
+            access: None,
+            provenance: false,
+            otp: None,
+        },
+        manifest: crate::cli_args::publish::PublishManifestArgs {
+            embed_readme: false,
+            no_embed_readme: false,
+            skip_manifest_obfuscation: false,
+            no_skip_manifest_obfuscation: false,
+        },
+        git: crate::cli_args::publish::PublishGitArgs {
+            publish_branch: None,
+            no_git_checks: false,
+        },
+        output: crate::cli_args::publish::PublishOutputArgs { json: false, report_summary: false },
     }
 }
 
@@ -53,10 +58,10 @@ fn should_ignore_scripts_ors_the_flag_with_the_config() {
 fn publish_options_defaults_the_tag_to_latest_and_carries_the_otp() {
     let options =
         publish_args().publish_options(&Config::default(), Some("246810".to_owned()), false);
-    assert_eq!(options.tag, "latest");
-    assert_eq!(options.otp, Some("246810".to_owned()));
-    assert_eq!(options.provenance, None);
-    assert_eq!(options.access, None);
+    assert_eq!(options.registry.tag, "latest");
+    assert_eq!(options.registry.otp, Some("246810".to_owned()));
+    assert_eq!(options.registry.provenance, None);
+    assert_eq!(options.registry.access, None);
     assert!(!options.dry_run);
     assert!(!options.stage);
 }
@@ -64,18 +69,21 @@ fn publish_options_defaults_the_tag_to_latest_and_carries_the_otp() {
 #[test]
 fn publish_options_applies_tag_access_provenance_and_dry_run() {
     let args = publish_args_with(PublishFlags {
-        tag: Some("next".to_owned()),
-        access: Some("restricted".to_owned()),
-        provenance: true,
         dry_run: true,
+        registry: crate::cli_args::publish::PublishRegistryArgs {
+            tag: Some("next".to_owned()),
+            access: Some("restricted".to_owned()),
+            provenance: true,
+            ..publish_flags().registry
+        },
         ..publish_flags()
     });
     let options = args.publish_options(&Config::default(), None, false);
-    assert_eq!(options.tag, "next");
-    assert_eq!(options.access, Some(Access::Restricted));
-    assert_eq!(options.provenance, Some(true));
+    assert_eq!(options.registry.tag, "next");
+    assert_eq!(options.registry.access, Some(Access::Restricted));
+    assert_eq!(options.registry.provenance, Some(true));
     assert!(options.dry_run);
-    assert_eq!(options.otp, None);
+    assert_eq!(options.registry.otp, None);
 }
 
 #[tokio::test]

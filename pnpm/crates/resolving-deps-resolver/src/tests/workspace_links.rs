@@ -22,15 +22,6 @@ async fn workspace_link_node_is_short_circuited_in_tree() {
         ("shared".to_string(), "workspace:*".to_string()),
         ResolveResult {
             id: PkgResolutionId::from(link_id.to_string()),
-            name_ver: None,
-            latest: None,
-            published_at: None,
-            manifest: Some(std::sync::Arc::new(serde_json::json!({
-                "name": "shared",
-                "version": "1.0.0",
-                "peerDependencies": { "react": "^18.0.0" },
-                "dependencies": { "lodash": "^4.0.0" },
-            }))),
             resolution: LockfileResolution::Directory(DirectoryResolution {
                 directory: "../shared".to_string(),
             }),
@@ -38,6 +29,17 @@ async fn workspace_link_node_is_short_circuited_in_tree() {
             normalized_bare_specifier: None,
             alias: Some("shared".to_string()),
             policy_violation: None,
+            package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                name_ver: None,
+                latest: None,
+                published_at: None,
+                manifest: Some(std::sync::Arc::new(serde_json::json!({
+                    "name": "shared",
+                    "version": "1.0.0",
+                    "peerDependencies": { "react": "^18.0.0" },
+                    "dependencies": { "lodash": "^4.0.0" },
+                }))),
+            },
         },
     );
     let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };

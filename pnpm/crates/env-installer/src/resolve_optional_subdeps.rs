@@ -119,7 +119,7 @@ async fn resolve_subdep(
             error,
         })?
         .ok_or_else(no_integrity)?;
-    let version = result.name_ver.as_ref().ok_or_else(no_integrity)?.suffix.to_string();
+    let version = result.package.name_ver.as_ref().ok_or_else(no_integrity)?.suffix.to_string();
     if !resolution_has_integrity(&result.resolution) {
         return Err(no_integrity());
     }

@@ -165,9 +165,10 @@ impl RouteContext {
     /// Resolve route-classification inputs from the server config.
     #[must_use]
     pub fn from_config(config: &Config) -> Self {
-        let hosted_origin = nerf_prefix(&config.public_url);
-        let mut registries = config.registries.clone();
-        for name in config.upstreams.keys() {
+        let routing = &config.routing;
+        let hosted_origin = nerf_prefix(&config.http.public_url);
+        let mut registries = routing.registries.clone();
+        for name in routing.upstreams.keys() {
             registries.ensure_upstream(name);
         }
         // The registries pnpm itself routes to without configuration are
@@ -176,24 +177,24 @@ impl RouteContext {
         // credential for the same origin — public wins).
         let public_routes = [RouteMatcher::npmjs(), RouteMatcher::jsr()]
             .into_iter()
-            .chain(config.route_policy.public.iter().filter_map(RouteMatcher::from_public_route))
+            .chain(routing.route_policy.public.iter().filter_map(RouteMatcher::from_public_route))
             .collect();
         // Proxied-route credentials come from `upstreams:` entries that declare
         // an `access:` policy. They are matched by registry origin and exposed
         // to clients at `/~<name>/`.
-        let aliases = config
+        let aliases = routing
             .upstreams
             .iter()
             .filter_map(|(name, upstream)| ResolvedAlias::from_upstream(name, upstream))
             .collect();
         let upstream_origins =
-            config.upstreams.values().filter_map(|upstream| nerf_prefix(&upstream.url)).collect();
-        let hosted_rules = config
+            routing.upstreams.values().filter_map(|upstream| nerf_prefix(&upstream.url)).collect();
+        let hosted_rules = routing
             .hosted
             .iter()
             .map(|(name, hosted)| (name.clone(), hosted.rules.clone()))
             .collect();
-        let upstream_rules = config
+        let upstream_rules = routing
             .upstreams
             .iter()
             .map(|(name, upstream)| (name.clone(), upstream.rules.clone()))

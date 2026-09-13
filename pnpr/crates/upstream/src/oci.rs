@@ -49,12 +49,13 @@ impl Upstream {
         for _ in 0..8 {
             self.ensure_allowed_url(url.as_str())?;
             let guard = self
+                .http
                 .client
                 .acquire_for_url_without_redirects_with_priority(url.as_str(), UNPRIORITIZED)
                 .await;
             let request = guard
                 .request(method.clone(), url.clone())
-                .timeout(self.timeout.saturating_sub(started.elapsed()))
+                .timeout(self.http.timeout.saturating_sub(started.elapsed()))
                 .header(header::ACCEPT, accept);
             let request = self.with_oci_credentials(request, &url, &base, bearer.as_deref());
             let response = self.run(request, url.as_str()).await?;
@@ -92,7 +93,7 @@ impl Upstream {
         let response = self.checked(response, url.as_str()).await?;
         self.breaker.record_success();
         Ok(FetchOutcome::Ok(
-            guard.retain_for_body(response, self.timeout.saturating_sub(started.elapsed())),
+            guard.retain_for_body(response, self.http.timeout.saturating_sub(started.elapsed())),
         ))
     }
 
@@ -178,19 +179,14 @@ impl Upstream {
             .append_pair("service", &challenge.service)
             .append_pair("scope", &format!("repository:{repository}:pull"));
         let guard = self
+            .http
             .client
             .acquire_for_url_without_redirects_with_priority(realm.as_str(), UNPRIORITIZED)
             .await;
-        let mut headers = self.request_headers(realm.as_str());
-        if realm.origin() != base.origin()
-            && is_url_secure_for_credentials(realm.as_str())
-            && let Some(authorization) = self.headers.get(header::AUTHORIZATION)
-        {
-            headers.insert(header::AUTHORIZATION, authorization.clone());
-        }
+        let headers = self.oci_token_headers(base, &realm);
         let response = guard
             .get(realm.clone())
-            .timeout(self.timeout)
+            .timeout(self.http.timeout)
             .headers(headers)
             .send()
             .await
@@ -207,6 +203,17 @@ impl Upstream {
         let token: TokenResponse = serde_json::from_slice(&body.bytes)
             .map_err(|_| self.oci_error("invalid OCI token response"))?;
         self.cache_oci_token(repository, token)
+    }
+
+    fn oci_token_headers(&self, base: &Url, realm: &Url) -> header::HeaderMap {
+        let mut headers = self.request_headers(realm.as_str());
+        if realm.origin() != base.origin()
+            && is_url_secure_for_credentials(realm.as_str())
+            && let Some(authorization) = self.http.headers.get(header::AUTHORIZATION)
+        {
+            headers.insert(header::AUTHORIZATION, authorization.clone());
+        }
+        headers
     }
 
     fn cache_oci_token(&self, repository: &str, token: TokenResponse) -> Result<String> {

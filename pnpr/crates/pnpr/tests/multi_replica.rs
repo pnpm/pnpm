@@ -41,9 +41,9 @@ impl Replica {
         let storage = TempDir::new().unwrap();
         let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
         let mut config = Config::static_serve(listen, storage.path().to_path_buf());
-        config.public_url = "http://example.test".to_string();
-        config.auth.htpasswd.max_users = MaxUsers::Unlimited;
-        config.hosted_store =
+        config.http.public_url = "http://example.test".to_string();
+        config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+        config.storage.hosted_backend =
             HostedStoreConfig::ObjectStore { store: Arc::clone(store), prefix: String::new() };
         let app = router(config);
         // Accounts are per-replica state, so every replica registers the

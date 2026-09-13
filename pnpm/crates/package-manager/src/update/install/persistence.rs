@@ -1,5 +1,5 @@
 use super::super::{
-    UpdateError, UpdateSite, UpdateView,
+    UpdateError, UpdateOptions, UpdateSite,
     prepare::{SelectedUpdatePreparation, UpdatePreparation},
 };
 use crate::{
@@ -17,7 +17,7 @@ use pnpm_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessa
 use std::{collections::BTreeMap, path::Path};
 
 pub(in super::super) fn finish_single_update<Reporter: self::Reporter>(
-    update: UpdateView<'_>,
+    update: UpdateOptions<'_>,
     manifest: &mut PackageManifest,
     prepared: &UpdatePreparation,
     importer_id: &str,
@@ -29,7 +29,7 @@ pub(in super::super) fn finish_single_update<Reporter: self::Reporter>(
         manifest,
         update.config,
         SettleUpdate {
-            save: update.save,
+            save: update.version.save,
             should_persist_manifest: prepared.persist_manifest,
             importer_id,
             applied: applied.as_ref(),
@@ -45,7 +45,7 @@ pub(in super::super) fn finish_single_update<Reporter: self::Reporter>(
 /// Write back the manifests the update rewrote and the catalogs the install
 /// settled on, then prune the workspace manifest.
 pub(in super::super) fn settle_selected_update<Reporter: self::Reporter>(
-    update: UpdateView<'_>,
+    update: UpdateOptions<'_>,
     site: &UpdateSite,
     projects: &mut [pnpm_workspace::Project],
     manifest: &PackageManifest,
@@ -61,7 +61,7 @@ pub(in super::super) fn settle_selected_update<Reporter: self::Reporter>(
     );
     persist_selected_manifests::<Reporter>(projects, &persist_indices)?;
     let workspace_dir = site.catalogs_dir(prepared.workspace_dir_for_catalogs.as_deref());
-    if update.save
+    if update.version.save
         && let Some(applied) = applied.as_ref().filter(|applied| !applied.catalogs.is_empty())
     {
         write_workspace_catalogs_selected(
@@ -72,7 +72,7 @@ pub(in super::super) fn settle_selected_update<Reporter: self::Reporter>(
         )
         .map_err(UpdateError::WriteWorkspaceManifest)?;
     }
-    if update.save {
+    if update.version.save {
         post_install_prune(update.config, Some(workspace_dir), manifest)
             .map_err(UpdateError::WriteWorkspaceManifest)?;
     }

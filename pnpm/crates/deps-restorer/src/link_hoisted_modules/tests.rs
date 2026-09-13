@@ -29,21 +29,23 @@ fn sample_resolution() -> LockfileResolution {
 fn make_node(alias: &str, dep_path: &str, pkg_id: &str, dir: PathBuf) -> DependenciesGraphNode {
     let modules = dir.parent().expect("dir has parent").to_path_buf();
     DependenciesGraphNode {
+        package: crate::HoistedPackageMetadata {
+            dep_path: DepPath::from(dep_path.to_string()),
+            pkg_id_with_patch_hash: PkgIdWithPatchHash::from(pkg_id),
+            name: alias.to_string(),
+            version: "1.0.0".to_string(),
+            has_bin: false,
+            has_bundled_dependencies: false,
+            patch: None,
+            resolution: sample_resolution(),
+        },
         alias: Some(alias.to_string()),
-        dep_path: DepPath::from(dep_path.to_string()),
-        pkg_id_with_patch_hash: PkgIdWithPatchHash::from(pkg_id),
         dir,
         modules,
-        children: BTreeMap::new(),
-        name: alias.to_string(),
-        version: "1.0.0".to_string(),
         optional: false,
         optional_dependencies: BTreeSet::new(),
-        has_bin: false,
-        has_bundled_dependencies: false,
-        patch: None,
-        resolution: sample_resolution(),
         present: false,
+        children: BTreeMap::new(),
     }
 }
 
@@ -125,13 +127,16 @@ fn import_pass_creates_package_directory() {
 
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Auto,
+            logged_methods: &logged,
+            requester: lockfile_dir.to_str().expect("requester"),
+        },
         graph: &graph,
         prev_graph: None,
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
-        import_method: PackageImportMethod::Auto,
-        logged_methods: &logged,
-        requester: lockfile_dir.to_str().expect("requester"),
+
         link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
@@ -169,13 +174,16 @@ fn orphan_directory_is_removed() {
 
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Auto,
+            logged_methods: &logged,
+            requester: lockfile_dir.to_str().expect("requester"),
+        },
         graph: &graph,
         prev_graph: Some(&prev_graph),
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
-        import_method: PackageImportMethod::Auto,
-        logged_methods: &logged,
-        requester: lockfile_dir.to_str().expect("requester"),
+
         link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
@@ -224,13 +232,16 @@ fn nested_hierarchy_materializes_inner_node_modules() {
 
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Auto,
+            logged_methods: &logged,
+            requester: lockfile_dir.to_str().expect("requester"),
+        },
         graph: &graph,
         prev_graph: None,
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
-        import_method: PackageImportMethod::Auto,
-        logged_methods: &logged,
-        requester: lockfile_dir.to_str().expect("requester"),
+
         link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
@@ -259,13 +270,16 @@ fn missing_cas_for_required_dep_errors() {
 
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Auto,
+            logged_methods: &logged,
+            requester: lockfile_dir.to_str().expect("requester"),
+        },
         graph: &graph,
         prev_graph: None,
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
-        import_method: PackageImportMethod::Auto,
-        logged_methods: &logged,
-        requester: lockfile_dir.to_str().expect("requester"),
+
         link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
@@ -299,13 +313,16 @@ fn missing_cas_for_optional_dep_skips_silently() {
 
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Auto,
+            logged_methods: &logged,
+            requester: lockfile_dir.to_str().expect("requester"),
+        },
         graph: &graph,
         prev_graph: None,
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
-        import_method: PackageImportMethod::Auto,
-        logged_methods: &logged,
-        requester: lockfile_dir.to_str().expect("requester"),
+
         link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
@@ -328,13 +345,16 @@ fn no_prev_graph_skips_orphan_pass() {
 
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Auto,
+            logged_methods: &logged,
+            requester: lockfile_dir.to_str().expect("requester"),
+        },
         graph: &graph,
         prev_graph: None,
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
-        import_method: PackageImportMethod::Auto,
-        logged_methods: &logged,
-        requester: lockfile_dir.to_str().expect("requester"),
+
         link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
@@ -370,13 +390,16 @@ fn orphan_already_removed_is_tolerated() {
 
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Auto,
+            logged_methods: &logged,
+            requester: lockfile_dir.to_str().expect("requester"),
+        },
         graph: &graph,
         prev_graph: Some(&prev_graph),
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
-        import_method: PackageImportMethod::Auto,
-        logged_methods: &logged,
-        requester: lockfile_dir.to_str().expect("requester"),
+
         link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
@@ -402,13 +425,16 @@ fn hierarchy_entry_missing_from_graph_errors() {
     let cas_paths = CasPathsByPkgId::new();
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Auto,
+            logged_methods: &logged,
+            requester: lockfile_dir.to_str().expect("requester"),
+        },
         graph: &graph,
         prev_graph: None,
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
-        import_method: PackageImportMethod::Auto,
-        logged_methods: &logged,
-        requester: lockfile_dir.to_str().expect("requester"),
+
         link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
@@ -449,13 +475,16 @@ fn import_pass_emits_one_imported_event_per_node() {
 
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Hardlink,
+            logged_methods: &logged,
+            requester: lockfile_dir.to_str().expect("requester"),
+        },
         graph: &graph,
         prev_graph: None,
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
-        import_method: PackageImportMethod::Hardlink,
-        logged_methods: &logged,
-        requester: lockfile_dir.to_str().expect("requester"),
+
         link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };

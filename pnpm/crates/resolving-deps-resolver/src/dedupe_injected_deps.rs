@@ -77,7 +77,7 @@ fn build_dedupe_map(
                 continue;
             };
             let target_direct = direct_by_importer.get(&target_project_id);
-            let children_match = node.children.iter().all(|(child_alias, child_dep_path)| {
+            let children_match = node.edges.children.iter().all(|(child_alias, child_dep_path)| {
                 child_matches_target(graph, target_direct, child_alias, child_dep_path)
             });
             if !children_match {
@@ -206,7 +206,7 @@ pub(crate) fn prune_unreachable(
             continue;
         }
         let Some(node) = graph.get(&dep_path) else { continue };
-        for child in node.children.values() {
+        for child in node.edges.children.values() {
             if !reachable.contains(child) {
                 stack.push(child.clone());
             }

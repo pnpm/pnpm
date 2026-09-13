@@ -55,7 +55,7 @@ pub(super) struct ParentRef {
 /// the real name.
 pub(super) type ParentRefs = HashMap<String, ParentRef>;
 
-/// Per-peer-name snapshot stored on [`Walker::parent_pkgs_of_node`].
+/// Per-peer-name snapshot stored on [`crate::resolve_peers::discovery::PeerDiscoveryCaches::parent_pkgs_of_node`].
 ///
 /// `pkg_id` is `None` for parents that came in without a real
 /// `NodeId` (the importer-level `topParents` path); those
@@ -194,7 +194,7 @@ pub(super) struct CurrentProviderSource {
 
 impl Walker<'_> {
     /// Build the `(peer_name → ParentPkgInfo)` snapshot that gets
-    /// stored on [`Self::parent_pkgs_of_node`] for each child the
+    /// stored on [`crate::resolve_peers::discovery::PeerDiscoveryCaches::parent_pkgs_of_node`] for each child the
     /// caller is about to descend into.
     ///
     /// `link:` parents don't have a real tree entry; pacquet's
@@ -266,7 +266,7 @@ impl Walker<'_> {
         if inherited_node_id == own_child_node_id {
             return false;
         }
-        let Some(inherited_context) = self.parent_pkgs_of_node.get(inherited_node_id) else {
+        let Some(inherited_context) = self.caches.parent_pkgs_of_node.get(inherited_node_id) else {
             return false;
         };
         let Some(parent_pkg) = self

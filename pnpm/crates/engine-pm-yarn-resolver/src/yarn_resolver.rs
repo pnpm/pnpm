@@ -112,15 +112,17 @@ impl YarnResolver {
         });
         Ok(Some(ResolveResult {
             id: format!("yarn@runtime:{version}").into(),
-            name_ver: None,
-            latest: None,
-            published_at: None,
-            manifest: Some(Arc::new(manifest)),
             resolution: LockfileResolution::Variations(VariationsResolution { variants }),
             resolved_via: RESOLVED_VIA.to_string(),
             normalized_bare_specifier: Some(format!("runtime:{version_spec}")),
             alias: wanted_dependency.alias.clone(),
             policy_violation: None,
+            package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                name_ver: None,
+                latest: None,
+                published_at: None,
+                manifest: Some(Arc::new(manifest)),
+            },
         }))
     }
 

@@ -21,8 +21,8 @@ use tower::ServiceExt;
 fn static_config(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage);
-    config.public_url = "http://example.test".to_string();
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.http.public_url = "http://example.test".to_string();
+    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     config
 }
 
@@ -410,7 +410,7 @@ async fn an_approval_that_reports_a_conflict_still_consumes_the_stage() {
     let tmp = TempDir::new().unwrap();
     let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
     let mut config = static_config(tmp.path().to_path_buf());
-    config.hosted_store =
+    config.storage.hosted_backend =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&store), prefix: String::new() };
     let app = router(config);
     let token = add_user_and_get_token(app.clone(), "alice", "secret").await;

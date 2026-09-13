@@ -133,7 +133,7 @@ async fn bearer_token_identity(
     let Some(parent) = claims.parent.as_ref() else {
         return Ok(Some(Identity::Anonymous));
     };
-    match state.inner.auth.tokens.find_by_key(parent).await {
+    match state.inner.identity.auth.tokens.find_by_key(parent).await {
         Ok(Some(record)) => {
             check_token_restrictions(&record, method, path, peer)
                 .map_err(axum::response::IntoResponse::into_response)?;
@@ -163,17 +163,17 @@ async fn resolve_caller(
     peer: Option<SocketAddr>,
 ) -> Result<Identity, RegistryError> {
     if let Some(raw_token) = header.and_then(token_credentials) {
-        if let Some(username) = state.inner.oidc.session(&raw_token)? {
+        if let Some(username) = state.inner.identity.oidc.session(&raw_token)? {
             return Ok(Identity::user(username));
         }
         if let Some(jwt) = raw_token.strip_prefix("pnpr_workload_") {
-            let workload = state.inner.oidc.workload(jwt).await?.ok_or_else(|| {
+            let workload = state.inner.identity.oidc.workload(jwt).await?.ok_or_else(|| {
                 RegistryError::Unauthenticated { resource: "OIDC workload credentials".to_string() }
             })?;
             super::oidc::check_workload_request(&state.inner.config, &workload, method, path)?;
             return Ok(Identity::user(workload.identity.username));
         }
-        if let Some(record) = state.inner.auth.tokens.lookup_record(&raw_token).await? {
+        if let Some(record) = state.inner.identity.auth.tokens.lookup_record(&raw_token).await? {
             check_token_restrictions(&record, method, path, peer)?;
             return Ok(Identity::user(record.username));
         }
@@ -255,10 +255,10 @@ fn source_rules<'a>(state: &'a AppState, source: &RegistrySource) -> &'a Package
     static SAFE_DEFAULTS: LazyLock<PackageRules> = LazyLock::new(PackageRules::default);
     match source {
         RegistrySource::Hosted(name) => {
-            state.inner.config.hosted.get(name).map(|hosted| &hosted.rules)
+            state.inner.config.routing.hosted.get(name).map(|hosted| &hosted.rules)
         }
         RegistrySource::Upstream(name) => {
-            state.inner.config.upstreams.get(name).map(|upstream| &upstream.rules)
+            state.inner.config.routing.upstreams.get(name).map(|upstream| &upstream.rules)
         }
         RegistrySource::Unclaimed | RegistrySource::NotFound => None,
     }

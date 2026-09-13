@@ -29,38 +29,12 @@ pub struct ExecArgs {
     /// The command to run, followed by its arguments.
     #[clap(trailing_var_arg = true, allow_hyphen_values = true)]
     pub command: Vec<String>,
-
     /// Run the command inside of a shell. Uses `/bin/sh` on UNIX and
     /// `cmd.exe` on Windows.
     #[clap(long, short = 'c')]
     pub shell_mode: bool,
-
-    /// Recursive only: resume execution from the given package, skipping
-    /// every earlier project in the topological order.
-    #[clap(skip)]
-    pub resume_from: Option<String>,
-
-    /// Recursive only: write a `pnpm-exec-summary.json` execution report
-    /// to the workspace root.
-    #[clap(skip)]
-    pub report_summary: bool,
-
-    /// Recursive only: keep going after a project fails instead of
-    /// stopping at the first failure.
-    #[clap(skip)]
-    pub no_bail: bool,
-
-    /// Sort recursive workspace projects topologically before running.
-    #[clap(skip = true)]
-    pub sort: bool,
-
-    /// Reverse the project order of a recursive exec.
-    #[clap(skip = true)]
-    pub reverse: bool,
-
-    /// Run every selected project concurrently, without a concurrency cap.
-    #[clap(skip = true)]
-    pub parallel: bool,
+    #[clap(flatten)]
+    pub workspace: crate::cli_args::recursive::RecursiveExecutionArgs,
 }
 
 /// Errors from `pacquet exec`.

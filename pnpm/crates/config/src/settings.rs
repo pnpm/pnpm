@@ -46,6 +46,13 @@ pub struct HoistPatterns {
 /// `.npmrc` (auth/registry/network) and `pnpm-workspace.yaml`
 /// (project-structural settings).
 #[derive(Debug, Clone, SmartDefault)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror pnpm configuration keys."
+    )
+)]
 pub struct Config {
     /// Whether recursive commands stop after the first failure.
     #[default = true]

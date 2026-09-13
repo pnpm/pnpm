@@ -1,5 +1,4 @@
 use super::super::{ImporterUpdateSeedPolicy, UpdateSeedPolicy};
-use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
@@ -144,21 +143,10 @@ pub(super) fn withheld_pin(
     |key| targets.covers(key.name.to_string().as_str(), key.suffix.version_semver())
 }
 pub(in super::super) struct ReuseSeedInputs<'a> {
+    pub hooks: pnpm_resolving_deps_resolver::ManifestTransformHooks,
+    pub lockfile: crate::install_with_fresh_lockfile::resolution_inputs::ReuseLockfileInputs<'a>,
     pub config: &'a Config,
     pub catalogs: &'a Catalogs,
-    /// The previous run's lockfile, the only reuse candidate.
-    pub wanted_lockfile: Option<&'a Lockfile>,
-    /// An `Arc` handle to the same document, when the loader holds one;
-    /// the reuse-verbatim path shares it instead of deep-copying.
-    pub wanted_lockfile_shared: Option<&'a Arc<Lockfile>>,
-    pub package_extensions_checksum: Option<&'a str>,
-    pub parsed_overrides: Option<&'a [pnpm_config_parse_overrides::VersionOverride]>,
-    pub resolved_overrides: Option<&'a IndexMap<String, String>>,
-    /// The extensions and overrides halves of the read-package chain.
-    /// This path has no pnpmfile hook (see [`Self::fast_override_eligible`]),
-    /// so they compose back into one hook.
-    pub manifest_hook: Option<ManifestHook>,
-    pub overrides_hook: Option<ManifestHook>,
     /// Whether the cheap override-rewrite pre-pass may run at all: it
     /// rewrites resolutions without consulting a hook, a custom
     /// resolver, or a patch, so any of those present rules it out. The
@@ -171,7 +159,7 @@ pub(in super::super) struct ReuseSeedInputs<'a> {
 }
 impl ReuseSeedInputs<'_> {
     fn package_settings_match(&self, lockfile: &Lockfile) -> bool {
-        lockfile.package_extensions_checksum.as_deref() == self.package_extensions_checksum
+        lockfile.package_extensions_checksum.as_deref() == self.lockfile.extensions_checksum
             && super::super::ignored_optional_dependencies_match(
                 lockfile.ignored_optional_dependencies.as_deref(),
                 self.config.ignored_optional_dependencies.as_deref(),
@@ -212,7 +200,7 @@ pub(in super::super) async fn lockfile_reuse_seed(
 
     let overrides_use_catalogs = overrides_use_catalogs(inputs.config);
     let (catalogs_match, fast_catalog_seed) =
-        match inputs.wanted_lockfile.map_or(FastCatalogUpdate::Unchanged, |lockfile| {
+        match inputs.lockfile.wanted.map_or(FastCatalogUpdate::Unchanged, |lockfile| {
             try_fast_update_catalogs(lockfile, inputs.catalogs, overrides_use_catalogs)
         }) {
             FastCatalogUpdate::Unchanged => (true, None),
@@ -221,13 +209,15 @@ pub(in super::super) async fn lockfile_reuse_seed(
         };
 
     let lockfile =
-        inputs.wanted_lockfile.filter(|lockfile| inputs.package_settings_match(lockfile))?;
-    let override_settings_match =
-        super::super::overrides_match(lockfile.overrides.as_ref(), inputs.resolved_overrides);
+        inputs.lockfile.wanted.filter(|lockfile| inputs.package_settings_match(lockfile))?;
+    let override_settings_match = super::super::overrides_match(
+        lockfile.overrides.as_ref(),
+        inputs.lockfile.resolved_overrides,
+    );
 
     let rewrite_manifest_hook = super::super::compose_manifest_hooks(
-        inputs.manifest_hook.clone(),
-        inputs.overrides_hook.clone(),
+        inputs.hooks.manifest_hook.clone(),
+        inputs.hooks.overrides_hook.clone(),
     );
     // A catalog move can change the effective value of an override whose
     // configured value is a `catalog:` reference — an effect no catalog
@@ -273,9 +263,7 @@ pub(super) async fn reuse_or_rewrite_overrides(
             // `lockfile` is `wanted_lockfile` narrowed by the filter
             // above, so the loader's handle to it reuses the parsed
             // document verbatim.
-            None => {
-                inputs.wanted_lockfile_shared.map_or_else(|| Arc::new(lockfile.clone()), Arc::clone)
-            }
+            None => inputs.lockfile.shared.map_or_else(|| Arc::new(lockfile.clone()), Arc::clone),
         });
     }
     if !inputs.fast_override_eligible {
@@ -284,8 +272,8 @@ pub(super) async fn reuse_or_rewrite_overrides(
     let seed = try_fast_update_overrides(FastOverrideOptions {
         context: inputs
             .rewrite_context(catalog_rewrite.as_ref().unwrap_or(lockfile), rewrite_manifest_hook),
-        parsed_overrides: inputs.parsed_overrides?,
-        resolved_overrides: inputs.resolved_overrides?,
+        parsed_overrides: inputs.lockfile.parsed_overrides?,
+        resolved_overrides: inputs.lockfile.resolved_overrides?,
     })
     .await?;
     Some(Arc::new(seed))

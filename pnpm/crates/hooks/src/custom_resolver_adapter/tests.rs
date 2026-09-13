@@ -84,7 +84,7 @@ async fn returns_typed_result_for_valid_response() {
     assert_eq!(result.id, PkgResolutionId::from("foo@1.0.0"));
     assert_eq!(result.resolved_via, "custom-resolver");
     assert_eq!(result.alias.as_deref(), Some("foo"));
-    assert!(result.manifest.is_none());
+    assert!(result.package.manifest.is_none());
 }
 
 #[tokio::test]
@@ -170,7 +170,7 @@ async fn manifest_passes_through() {
         .unwrap()
         .expect("resolved");
 
-    let manifest = result.manifest.expect("manifest survives the adapter");
+    let manifest = result.package.manifest.expect("manifest survives the adapter");
     assert_eq!(*manifest, json!({ "name": "foo", "version": "1.0.0" }));
 }
 
@@ -186,18 +186,24 @@ async fn sends_upstream_payload_shapes() {
         ..WantedDependency::default()
     };
     let opts = ResolveOptions {
-        project_dir: "/repo/pkg".into(),
-        lockfile_dir: "/repo".into(),
-        current_pkg: Some(CurrentPkg {
-            id: PkgResolutionId::from("foo@1.0.0"),
-            name: Some("foo".to_string()),
-            version: Some("1.0.0".to_string()),
-            resolution: serde_json::from_value(
-                json!({ "tarball": "https://example.com/foo-1.0.0.tgz" }),
-            )
-            .unwrap(),
-            published_at: None,
-        }),
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: "/repo/pkg".into(),
+            lockfile_dir: "/repo".into(),
+            ..Default::default()
+        },
+        refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
+            current_pkg: Some(CurrentPkg {
+                id: PkgResolutionId::from("foo@1.0.0"),
+                name: Some("foo".to_string()),
+                version: Some("1.0.0".to_string()),
+                resolution: serde_json::from_value(
+                    json!({ "tarball": "https://example.com/foo-1.0.0.tgz" }),
+                )
+                .unwrap(),
+                published_at: None,
+            }),
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     };
 

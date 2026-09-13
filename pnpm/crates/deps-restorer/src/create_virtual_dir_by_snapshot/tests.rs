@@ -153,21 +153,25 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
     );
     let skipped = crate::SkippedSnapshots::default();
     CreateVirtualDirBySnapshot {
+        dependencies: crate::SnapshotDependencyLinks {
+            package_key: &package_key,
+            snapshot: &snapshot,
+            skipped: &skipped,
+            include_optional: true,
+            removed_aliases: &[],
+            symlink: true,
+        },
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Hardlink,
+            logged_methods: &logged_methods,
+            requester: "/proj",
+        },
+        source: crate::SlotImportSource { is_mutable: false, force: false, build_marker: None },
         layout: &layout,
         cas_paths: &cas_paths,
-        import_method: PackageImportMethod::Hardlink,
-        logged_methods: &logged_methods,
-        requester: "/proj",
+
         package_id: "react@18.0.0",
-        package_key: &package_key,
-        snapshot: &snapshot,
-        source_is_mutable: false,
-        force_import: false,
-        include_optional_dependencies: true,
-        symlink: true,
-        skipped: &skipped,
-        removed_aliases: &[],
-        needs_build_marker_source: None,
+
         dir_clone_cache: None,
         link_concurrency_probe: None,
     }
@@ -218,21 +222,29 @@ fn run_imports_needs_build_marker_with_a_fresh_package() {
     let skipped = crate::SkippedSnapshots::default();
 
     CreateVirtualDirBySnapshot {
+        dependencies: crate::SnapshotDependencyLinks {
+            package_key: &package_key,
+            snapshot: &snapshot,
+            skipped: &skipped,
+            include_optional: true,
+            removed_aliases: &[],
+            symlink: true,
+        },
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Copy,
+            logged_methods: &logged_methods,
+            requester: "/proj",
+        },
+        source: crate::SlotImportSource {
+            is_mutable: false,
+            force: false,
+            build_marker: Some(&marker_source),
+        },
         layout: &layout,
         cas_paths: &cas_paths,
-        import_method: PackageImportMethod::Copy,
-        logged_methods: &logged_methods,
-        requester: "/proj",
+
         package_id: "react@18.0.0",
-        package_key: &package_key,
-        snapshot: &snapshot,
-        source_is_mutable: false,
-        force_import: false,
-        include_optional_dependencies: true,
-        symlink: true,
-        skipped: &skipped,
-        removed_aliases: &[],
-        needs_build_marker_source: Some(&marker_source),
+
         dir_clone_cache: None,
         link_concurrency_probe: None,
     }
@@ -264,21 +276,25 @@ fn force_import_replaces_an_existing_package_at_the_same_snapshot_key() {
     std::fs::write(package_dir.join("removed.js"), "old only\n").expect("write removed file");
 
     CreateVirtualDirBySnapshot {
+        dependencies: crate::SnapshotDependencyLinks {
+            package_key: &package_key,
+            snapshot: &SnapshotEntry::default(),
+            skipped: &crate::SkippedSnapshots::default(),
+            include_optional: true,
+            removed_aliases: &[],
+            symlink: true,
+        },
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Copy,
+            logged_methods: &AtomicU8::new(0),
+            requester: "/proj",
+        },
+        source: crate::SlotImportSource { is_mutable: false, force: true, build_marker: None },
         layout: &layout,
         cas_paths: &HashMap::from([("index.js".to_string(), source)]),
-        import_method: PackageImportMethod::Copy,
-        logged_methods: &AtomicU8::new(0),
-        requester: "/proj",
+
         package_id: "revision-pkg@1.0.0",
-        package_key: &package_key,
-        snapshot: &SnapshotEntry::default(),
-        source_is_mutable: false,
-        force_import: true,
-        include_optional_dependencies: true,
-        symlink: true,
-        skipped: &crate::SkippedSnapshots::default(),
-        removed_aliases: &[],
-        needs_build_marker_source: None,
+
         dir_clone_cache: None,
         link_concurrency_probe: None,
     }
@@ -311,21 +327,25 @@ fn run_rejects_traversal_package_name() {
     );
     let skipped = crate::SkippedSnapshots::default();
     let result = CreateVirtualDirBySnapshot {
+        dependencies: crate::SnapshotDependencyLinks {
+            package_key: &package_key,
+            snapshot: &snapshot,
+            skipped: &skipped,
+            include_optional: true,
+            removed_aliases: &[],
+            symlink: true,
+        },
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Hardlink,
+            logged_methods: &logged_methods,
+            requester: "/proj",
+        },
+        source: crate::SlotImportSource { is_mutable: false, force: false, build_marker: None },
         layout: &layout,
         cas_paths: &cas_paths,
-        import_method: PackageImportMethod::Hardlink,
-        logged_methods: &logged_methods,
-        requester: "/proj",
+
         package_id: "../../escaped@1.0.0",
-        package_key: &package_key,
-        snapshot: &snapshot,
-        source_is_mutable: false,
-        force_import: false,
-        include_optional_dependencies: true,
-        symlink: true,
-        skipped: &skipped,
-        removed_aliases: &[],
-        needs_build_marker_source: None,
+
         dir_clone_cache: None,
         link_concurrency_probe: None,
     }
@@ -366,21 +386,25 @@ async fn run_removes_obsolete_child_links() {
     let removed_aliases =
         [PkgName::parse("is-positive").unwrap(), PkgName::parse("@scope/old").unwrap()];
     CreateVirtualDirBySnapshot {
+        dependencies: crate::SnapshotDependencyLinks {
+            package_key: &package_key,
+            snapshot: &snapshot,
+            skipped: &skipped,
+            include_optional: true,
+            removed_aliases: &removed_aliases,
+            symlink: true,
+        },
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Hardlink,
+            logged_methods: &logged_methods,
+            requester: "/proj",
+        },
+        source: crate::SlotImportSource { is_mutable: false, force: false, build_marker: None },
         layout: &layout,
         cas_paths: &cas_paths,
-        import_method: PackageImportMethod::Hardlink,
-        logged_methods: &logged_methods,
-        requester: "/proj",
+
         package_id: "react@18.0.0",
-        package_key: &package_key,
-        snapshot: &snapshot,
-        source_is_mutable: false,
-        force_import: false,
-        include_optional_dependencies: true,
-        symlink: true,
-        skipped: &skipped,
-        removed_aliases: &removed_aliases,
-        needs_build_marker_source: None,
+
         dir_clone_cache: None,
         link_concurrency_probe: None,
     }

@@ -1,6 +1,6 @@
 use super::{
-    Arc, AuthEntry, AuthHeaders, DEFAULT_REGISTRY_SCOPE, ParsedUrl, execute_token_helper,
-    is_url_secure_for_credentials, package_scope, run_token_helper_command,
+    Arc, AuthEntry, AuthHeaders, DEFAULT_REGISTRY_SCOPE, ParsedUrl, TokenHelpers,
+    execute_token_helper, is_url_secure_for_credentials, package_scope, run_token_helper_command,
 };
 
 impl AuthHeaders {
@@ -85,7 +85,7 @@ impl AuthHeaders {
         for i in (3..upper).rev() {
             let key = format!("{}/", parts[..i].join("/"));
             if let Some(entry) = scoped_by_uri.get(&key) {
-                return Some(self.resolve_entry(&key, scope, entry));
+                return Some(self.token_helpers.resolve_entry(&key, scope, entry));
             }
         }
         None
@@ -109,12 +109,14 @@ impl AuthHeaders {
         for i in (3..upper).rev() {
             let key = format!("{}/", parts[..i].join("/"));
             if let Some(entry) = self.by_uri.get(&key) {
-                return Some(self.resolve_entry(&key, DEFAULT_REGISTRY_SCOPE, entry));
+                return Some(self.token_helpers.resolve_entry(&key, DEFAULT_REGISTRY_SCOPE, entry));
             }
         }
         None
     }
+}
 
+impl TokenHelpers {
     /// Resolve a matched [`AuthEntry`] to a header value. A baked header
     /// is cloned; a `tokenHelper` is executed once and memoized (keyed by
     /// `scope` + map key so the same command at two registries still runs

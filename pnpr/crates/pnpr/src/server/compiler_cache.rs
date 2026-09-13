@@ -20,6 +20,7 @@ pub(super) async fn read(
         let key = CompilerCacheKey::try_from(key)?;
         state
             .inner
+            .builds
             .artifacts
             .as_ref()
             .expect("compiler cache routes require an artifact store")
@@ -45,6 +46,7 @@ pub(super) async fn write(
         let key = CompilerCacheKey::try_from(key)?;
         state
             .inner
+            .builds
             .artifacts
             .as_ref()
             .expect("compiler cache routes require an artifact store")
@@ -67,6 +69,7 @@ pub(super) async fn head(
         let key = CompilerCacheKey::try_from(key)?;
         state
             .inner
+            .builds
             .artifacts
             .as_ref()
             .expect("compiler cache routes require an artifact store")
@@ -106,7 +109,7 @@ pub(super) async fn authorize_request(
         return private_no_cache(error.into_response());
     }
     let _upload = if request.method() == Method::PUT {
-        match state.inner.compiler_cache_uploads.try_acquire() {
+        match state.inner.builds.compiler_cache_uploads.try_acquire() {
             Ok(permit) => Some(permit),
             Err(_) => {
                 return private_no_cache(
@@ -164,7 +167,7 @@ fn authorize(
     publish: bool,
 ) -> Result<(), RegistryError> {
     let username = require_caller(identity, "compiler cache")?;
-    let policy = state.inner.config.artifacts.compiler_caches.get(cache);
+    let policy = state.inner.config.features.artifacts.compiler_caches.get(cache);
     if !policy.is_some_and(|policy| policy.access.allows(identity)) {
         return Err(RegistryError::NotFound);
     }

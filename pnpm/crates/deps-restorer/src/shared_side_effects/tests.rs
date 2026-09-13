@@ -432,6 +432,15 @@ mod restore {
         let (store_index_writer, store_index_writer_task) =
             pnpm_store_dir::StoreIndexWriter::spawn_disabled();
         super::super::apply_shared_side_effects(super::super::ApplySharedSideEffectsOptions {
+            cached: crate::shared_side_effects::SharedSideEffectsCacheRows {
+                base_cas_paths: &HashMap::from([(snapshot_key.clone(), HashMap::new())]),
+                by_snapshot: &HashMap::new(),
+                quarantine_by_snapshot: &HashMap::new(),
+                store_index_keys_by_snapshot: &HashMap::from([(
+                    snapshot_key.clone(),
+                    "row".to_string(),
+                )]),
+            },
             config: &config(&server.url(), store_dir),
             snapshots: &snapshots,
             packages: &packages,
@@ -444,14 +453,9 @@ mod restore {
                 HashSet::new(),
                 false,
             ),
-            base_cas_paths: &HashMap::from([(snapshot_key.clone(), HashMap::new())]),
+
             side_effects_maps_by_snapshot: &mut side_effects,
-            side_effects_by_snapshot: &HashMap::new(),
-            remote_side_effects_quarantine_by_snapshot: &HashMap::new(),
-            store_index_keys_by_snapshot: &HashMap::from([(
-                snapshot_key.clone(),
-                "row".to_string(),
-            )]),
+
             store_index_writer: &store_index_writer,
         })
         .await;

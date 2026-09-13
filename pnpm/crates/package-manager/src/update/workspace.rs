@@ -1,5 +1,5 @@
 use super::{
-    UpdateError, UpdateView,
+    UpdateError, UpdateOptions,
     selectors::{ParsedSelector, matcher_one},
 };
 use pnpm_config::{Config, SaveWorkspaceProtocol};
@@ -15,11 +15,12 @@ use pnpm_workspace_range_resolver::resolve_workspace_range;
 /// updates that name deeper in the graph, and an empty selector list
 /// still updates every direct dependency.
 pub(super) fn workspace_targets(
-    update: UpdateView<'_>,
+    update: UpdateOptions<'_>,
     selectors: &[ParsedSelector],
     direct: &[(String, DependencyGroup, String)],
 ) -> Result<Vec<WorkspaceLinkTarget>, UpdateError> {
     Ok(update
+        .selection
         .workspace_packages
         .map(|packages| workspace_link_targets(selectors, direct, packages, update.config))
         .transpose()?

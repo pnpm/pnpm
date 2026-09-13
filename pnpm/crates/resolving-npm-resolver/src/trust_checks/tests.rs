@@ -485,7 +485,7 @@ mod get_trust_evidence {
         assert!(matches!(
             get_trust_evidence(&parse(version)),
             Some(TrustEvidence::TrustedPublisher)
-        ));
+        ),);
     }
 
     #[test]

@@ -1,7 +1,6 @@
 use super::{
-    BenchId, BenchmarkScenario, HyperfineCommand, PEER_HEAVY_DEPTH, PEER_HEAVY_PROVIDER,
-    PEER_HEAVY_WIDTH, WorkEnv, collect_pnpr_direct_ratios, create_install_script,
-    create_package_json, create_pnpm_workspace,
+    BenchId, HyperfineCommand, PEER_HEAVY_DEPTH, PEER_HEAVY_PROVIDER, PEER_HEAVY_WIDTH, WorkEnv,
+    collect_pnpr_direct_ratios, create_install_script, create_package_json, create_pnpm_workspace,
     fixtures::peer_heavy_package_name,
     measurements::PhaseEvent,
     non_trivial_cold_batch, read_phase_events, render_diagnostics_markdown,
@@ -9,6 +8,7 @@ use super::{
     server_config::{pnpr_auth_config_key, pnpr_benchmark_config_yaml},
     summarize_phase_events,
 };
+use crate::cli_args::BenchmarkScenario;
 use std::{collections::HashMap, fs};
 
 #[test]

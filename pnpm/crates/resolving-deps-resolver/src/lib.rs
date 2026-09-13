@@ -66,7 +66,7 @@
 
 pub use dependencies_graph::{
     DependenciesGraph, DependenciesGraphNode, MissingPeer, ParentChain, ParentPackageRef,
-    PeerDependencyIssue, PeerDependencyIssues,
+    PeerDependencyIssue, PeerDependencyIssues, ResolvedDependencyEdges,
 };
 pub use hoist_peers::{
     DependencyOverrider, HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep,
@@ -84,15 +84,18 @@ pub use resolve_dependency_tree::{
     real_package_name_of, resolve_dependency_tree,
 };
 pub use resolve_importer::{
+    ImporterPeerOptions, ImporterResolutionInputs, ManifestTransformHooks, PeerLinkOptions,
     ResolveImporterError, ResolveImporterOptions, ResolveImporterResult, resolve_importer,
     resolve_importer_with_workspace,
 };
 pub use resolve_peers::{
-    HoistMissingScope, ImporterPeerInput, ResolvePeersOptions, ResolvePeersResult,
-    WorkspaceResolvePeersResult, resolve_peers, resolve_peers_workspace,
+    HoistMissingScope, ImporterPeerInput, PeerResolutionScope, ResolvePeersOptions,
+    ResolvePeersResult, WorkspaceResolvePeersResult, resolve_peers, resolve_peers_workspace,
 };
 pub use resolve_workspace::{
-    ResolveWorkspaceResult, WorkspaceImporter, WorkspaceResolveOptions, resolve_workspace,
+    ResolveWorkspaceResult, WorkspaceImporter, WorkspaceLockfileReuse,
+    WorkspacePeerResolutionOptions, WorkspaceResolveHooks, WorkspaceResolveOptions,
+    WorkspaceVersionResolution, resolve_workspace,
 };
 pub use resolved_tree::{
     AncestorIds, ChildEdge, DependenciesTree, DependenciesTreeNode, DirectDep, PeerDep,

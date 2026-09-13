@@ -675,15 +675,17 @@ async fn publish_packed_pkg_dry_run_returns_the_summary_without_publishing() {
         unpacked_size: 42,
     };
     let opts = PublishPackedPkgOptions {
-        default_registry: "https://registry.example/".to_owned(),
-        scoped_registries: std::collections::BTreeMap::new(),
-        access: None,
-        tag: "latest".to_owned(),
-        otp: None,
-        provenance: None,
         dry_run: true,
         stage: false,
-        http: OidcHttpOptions::default(),
+        registry: crate::PublishRegistryOptions {
+            default: "https://registry.example/".to_owned(),
+            scoped: std::collections::BTreeMap::new(),
+            access: None,
+            tag: "latest".to_owned(),
+            otp: None,
+            provenance: None,
+            http: OidcHttpOptions::default(),
+        },
     };
     let client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
@@ -772,15 +774,17 @@ async fn publish_packed_pkg_attaches_signed_provenance_to_the_document() {
         unpacked_size: 0,
     };
     let opts = PublishPackedPkgOptions {
-        default_registry: format!("{}/", server.url()),
-        scoped_registries: std::collections::BTreeMap::new(),
-        access: None,
-        tag: "latest".to_owned(),
-        otp: None,
-        provenance: Some(true),
         dry_run: false,
         stage: false,
-        http: OidcHttpOptions::default(),
+        registry: crate::PublishRegistryOptions {
+            default: format!("{}/", server.url()),
+            scoped: std::collections::BTreeMap::new(),
+            access: None,
+            tag: "latest".to_owned(),
+            otp: None,
+            provenance: Some(true),
+            http: OidcHttpOptions::default(),
+        },
     };
     let mock = server
         .mock("PUT", "/pkg")

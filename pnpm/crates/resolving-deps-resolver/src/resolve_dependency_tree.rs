@@ -154,13 +154,13 @@ pub struct SkippedOptionalDependencyParent {
 
 /// Sink for [`SkippedOptionalDependency`] notifications, pre-bound to
 /// the install's reporter so the resolver stays reporter-agnostic. See
-/// [`crate::WorkspaceResolveOptions::skipped_optional_log`].
+/// [`crate::WorkspaceResolveHooks::skipped_optional_log`].
 pub type SkippedOptionalLogFn = Arc<dyn Fn(SkippedOptionalDependency) + Send + Sync>;
 
 /// A package whose resolution and whole dependency subtree are settled
 /// and carry no `peerDependencies`, so its lockfile dep path is its
 /// package id and its child edges are known before peers resolve. See
-/// [`crate::WorkspaceResolveOptions::finalized_package`].
+/// [`crate::WorkspaceResolveHooks::finalized_package`].
 #[derive(Debug, Clone)]
 pub struct FinalizedPackage {
     /// The package id with its patch hash: the snapshot key the
@@ -204,7 +204,7 @@ pub struct Deprecation {
 
 /// Sink for [`Deprecation`] notifications, pre-bound to the install's
 /// reporter so the resolver stays reporter-agnostic. See
-/// [`crate::WorkspaceResolveOptions::deprecation_log`].
+/// [`crate::WorkspaceResolveHooks::deprecation_log`].
 pub type DeprecationLogFn = Arc<dyn Fn(Deprecation) + Send + Sync>;
 
 /// Error envelope returned by the tree walker.
@@ -494,7 +494,7 @@ where
 /// reflects the importer manifest's `dependenciesMeta[alias].injected`
 /// flag, threaded onto [`WantedDependency::injected`] so the workspace
 /// resolver branch picks the `file:` resolution shape for that one
-/// dep even when the global [`ResolveOptions::inject_workspace_packages`]
+/// dep even when the global [`pnpm_resolving_resolver_base::ResolverProjectOptions::inject_workspace_packages`]
 /// is off. Hoisted-peer arms in
 /// [`fn@crate::resolve_importer::resolve_importer`] default this to
 /// `false` — peers picked up via auto-install don't carry per-dep
@@ -543,10 +543,10 @@ pub async fn extend_tree<Chain>(
 where
     Chain: Resolver + ?Sized,
 {
-    ctx.workspace.bump_revision();
+    ctx.workspace.tree.bump_revision();
     // Direct deps reuse via the importer's recorded resolution when a
     // prior lockfile exists; without one the gate is a no-op.
-    let reuse = if ctx.workspace.wanted_lockfile.is_some() {
+    let reuse = if ctx.workspace.reuse.lockfile.is_some() {
         ReuseSource::Importer { importer_id: importer_id.to_string() }
     } else {
         ReuseSource::Off
@@ -560,7 +560,7 @@ where
         reuse,
         ancestors: Arc::new(Vec::new()),
         parent_pkg_aliases,
-        base_overlay: &ctx.base_opts.preferred_versions_overlay,
+        base_overlay: &ctx.options.base.version.preferred_versions_overlay,
     };
     let seeds = wanted
         .into_iter()
@@ -574,7 +574,7 @@ where
     // sees the resolved direct-dep versions.
     record_direct_dep_versions(ctx, importer_id, &direct_versions);
     let children_overlay = PreferredVersionsOverlay::layer(
-        ctx.base_opts.preferred_versions_overlay.clone(),
+        ctx.options.base.version.preferred_versions_overlay.clone(),
         direct_versions,
     );
     let children_pkg_aliases = parent_pkg_aliases.extend(level_aliases(&seeds));
@@ -582,12 +582,12 @@ where
     // below it a level at a time.
     let direct =
         walk_from_seeds(ctx, resolver, seeds, children_overlay, children_pkg_aliases).await?;
-    ctx.workspace.record_preferred_version_roots(direct.iter().map(|dep| dep.id.as_str()));
+    ctx.workspace.versions.record_preferred_version_roots(direct.iter().map(|dep| dep.id.as_str()));
     // Second bump, after every write of this wave (including the roots
     // above) has landed: a `run_preferred_versions` read racing with
     // this call could bind the entry bump's revision to a partial
     // closure, and without a completion bump it would never refresh.
-    ctx.workspace.bump_revision();
+    ctx.workspace.tree.bump_revision();
     Ok(direct)
 }
 

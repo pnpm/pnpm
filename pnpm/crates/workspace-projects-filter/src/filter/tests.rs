@@ -132,8 +132,11 @@ fn select_only_package_dependencies() {
     let result = selected(
         &graph,
         &[ProjectSelector {
-            exclude_self: true,
-            include_dependencies: true,
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                exclude_self: true,
+                include_dependencies: true,
+                ..Default::default()
+            },
             ..selector(Some("project-1"))
         }],
     );
@@ -145,7 +148,13 @@ fn select_package_with_dependencies() {
     let graph = projects_graph();
     let result = selected(
         &graph,
-        &[ProjectSelector { include_dependencies: true, ..selector(Some("project-1")) }],
+        &[ProjectSelector {
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                include_dependencies: true,
+                ..Default::default()
+            },
+            ..selector(Some("project-1"))
+        }],
     );
     assert_eq!(result, ["/packages/project-1", "/project-2", "/project-4"]);
 }
@@ -163,7 +172,13 @@ fn shared_dependency_in_diamond_is_walked_once() {
     }
     let result = selected(
         &graph,
-        &[ProjectSelector { include_dependencies: true, ..selector(Some("top")) }],
+        &[ProjectSelector {
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                include_dependencies: true,
+                ..Default::default()
+            },
+            ..selector(Some("top"))
+        }],
     );
     assert_eq!(result, ["/top", "/left", "/shared", "/right"]);
 }
@@ -174,9 +189,11 @@ fn select_package_with_dependencies_and_dependents() {
     let result = selected(
         &graph,
         &[ProjectSelector {
-            exclude_self: true,
-            include_dependencies: true,
-            include_dependents: true,
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                exclude_self: true,
+                include_dependencies: true,
+                include_dependents: true,
+            },
             ..selector(Some("project-1"))
         }],
     );
@@ -191,7 +208,13 @@ fn select_package_with_dependents() {
     let graph = projects_graph();
     let result = selected(
         &graph,
-        &[ProjectSelector { include_dependents: true, ..selector(Some("project-2")) }],
+        &[ProjectSelector {
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                include_dependents: true,
+                ..Default::default()
+            },
+            ..selector(Some("project-2"))
+        }],
     );
     assert_eq!(result, ["/project-2", "/packages/project-1", "/packages/project-0"]);
 }
@@ -202,8 +225,11 @@ fn select_dependents_excluding_self() {
     let result = selected(
         &graph,
         &[ProjectSelector {
-            exclude_self: true,
-            include_dependents: true,
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                exclude_self: true,
+                include_dependents: true,
+                ..Default::default()
+            },
             ..selector(Some("project-2"))
         }],
     );
@@ -217,13 +243,19 @@ fn two_selectors_dependencies_and_dependents() {
         &graph,
         &[
             ProjectSelector {
-                exclude_self: true,
-                include_dependents: true,
+                traversal: crate::parse_project_selector::DependencyTraversal {
+                    exclude_self: true,
+                    include_dependents: true,
+                    ..Default::default()
+                },
                 ..selector(Some("project-2"))
             },
             ProjectSelector {
-                exclude_self: true,
-                include_dependencies: true,
+                traversal: crate::parse_project_selector::DependencyTraversal {
+                    exclude_self: true,
+                    include_dependencies: true,
+                    ..Default::default()
+                },
                 ..selector(Some("project-1"))
             },
         ],
@@ -348,8 +380,11 @@ fn returns_unmatched_filters() {
     let result = filter_workspace_projects(
         &graph,
         &[ProjectSelector {
-            exclude_self: true,
-            include_dependencies: true,
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                exclude_self: true,
+                include_dependencies: true,
+                ..Default::default()
+            },
             ..selector(Some("project-7"))
         }],
         &FilterWorkspaceProjectsOptions::default(),
@@ -420,7 +455,13 @@ fn selector_without_name_dir_or_diff_is_unsupported() {
     let graph = projects_graph();
     let error = filter_workspace_projects(
         &graph,
-        &[ProjectSelector { include_dependencies: true, ..Default::default() }],
+        &[ProjectSelector {
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                include_dependencies: true,
+                ..Default::default()
+            },
+            ..Default::default()
+        }],
         &FilterWorkspaceProjectsOptions::default(),
     )
     .unwrap_err();
@@ -572,7 +613,13 @@ mod changed_packages {
         assert_eq!(
             selected(
                 &graph,
-                &[ProjectSelector { include_dependents: true, ..diff_selector("HEAD~1") }],
+                &[ProjectSelector {
+                    traversal: crate::parse_project_selector::DependencyTraversal {
+                        include_dependents: true,
+                        ..Default::default()
+                    },
+                    ..diff_selector("HEAD~1")
+                }],
                 &FilterWorkspaceProjectsOptions {
                     test_pattern: vec!["*/file2.js".to_string()],
                     ..opts.clone()

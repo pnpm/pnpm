@@ -85,14 +85,15 @@ async fn start_pnpr_inner(
     let addr = listener.local_addr().expect("pnpr addr");
 
     let mut config = pnpr::Config::proxy(addr, storage.path().to_path_buf());
-    config.artifacts.enabled = artifacts_enabled;
-    config.public_url = public_url.unwrap_or_else(|| format!("http://{addr}"));
-    config.auth.htpasswd.max_users = pnpr::MaxUsers::Unlimited;
+    config.features.artifacts.enabled = artifacts_enabled;
+    config.http.public_url = public_url.unwrap_or_else(|| format!("http://{addr}"));
+    config.identity.auth.htpasswd.max_users = pnpr::MaxUsers::Unlimited;
     for (name, upstream) in upstreams {
-        config.upstreams.insert(name, upstream);
+        config.routing.upstreams.insert(name, upstream);
     }
     for registry in public_registries {
         config
+            .routing
             .route_policy
             .public
             .push(pnpr::PublicRoute { registry: Some(registry), package: None });
@@ -124,16 +125,8 @@ fn registry_upstream(registry_url: &str, token: &str) -> (String, pnpr::Upstream
     (
         "test-registry".to_string(),
         pnpr::UpstreamConfig {
-            url: registry_url.to_string(),
-            headers,
-            maxage: None,
-            timeout: pnpr::UpstreamConfig::DEFAULT_TIMEOUT,
-            max_fails: pnpr::UpstreamConfig::DEFAULT_MAX_FAILS,
-            fail_timeout: pnpr::UpstreamConfig::DEFAULT_FAIL_TIMEOUT,
-            cache: true,
-            search: false,
             access: Some(pnpr::AccessList::from_tokens(["$authenticated"])),
-            rules: pnpr::PackageRules::default(),
+            ..pnpr::UpstreamConfig::with_defaults(registry_url.to_string(), headers)
         },
     )
 }
@@ -225,30 +218,40 @@ fn options(
         dependencies,
         dev_dependencies: BTreeMap::new(),
         optional_dependencies: BTreeMap::new(),
-        registry: registry.to_string(),
-        registries: BTreeMap::new(),
-        authorization: Some(authorization.to_string()),
-        overrides: None,
-        patched_dependencies: None,
-        package_extensions: None,
-        allow_unused_patches: false,
-        catalogs: None,
-        auto_install_peers: None,
-        dedupe_peers: None,
-        exclude_links_from_lockfile: None,
-        lockfile: None,
-        frozen_lockfile: false,
-        prefer_frozen_lockfile: None,
-        update_patches: false,
-        ignore_manifest_check: false,
-        trust_lockfile: false,
-        resolution_mode: pnpm_config::ResolutionMode::default(),
-        minimum_release_age: None,
-        minimum_release_age_exclude: None,
-        minimum_release_age_ignore_missing_time: true,
-        trust_policy: pnpm_config::TrustPolicy::Off,
-        trust_policy_exclude: None,
-        trust_policy_ignore_after: None,
+        routing: pnpm_pnpr_client::RegistryRouting {
+            registry: registry.to_string(),
+            registries: BTreeMap::new(),
+            authorization: Some(authorization.to_string()),
+        },
+        transforms: pnpm_pnpr_client::ManifestTransforms {
+            overrides: None,
+            patched_dependencies: None,
+            package_extensions: None,
+            allow_unused_patches: false,
+            catalogs: None,
+        },
+        resolution: pnpm_pnpr_client::ResolutionSettings {
+            auto_install_peers: None,
+            dedupe_peers: None,
+            exclude_links_from_lockfile: None,
+            resolution_mode: pnpm_config::ResolutionMode::default(),
+        },
+        reuse: pnpm_pnpr_client::LockfileReuseOptions {
+            lockfile: None,
+            frozen_lockfile: false,
+            prefer_frozen_lockfile: None,
+            update_patches: false,
+            ignore_manifest_check: false,
+            trust_lockfile: false,
+        },
+        verification: pnpm_pnpr_client::VerificationPolicy {
+            minimum_release_age: None,
+            minimum_release_age_exclude: None,
+            minimum_release_age_ignore_missing_time: true,
+            trust_policy: pnpm_config::TrustPolicy::Off,
+            trust_policy_exclude: None,
+            trust_policy_ignore_after: None,
+        },
     }
 }
 

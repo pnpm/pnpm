@@ -26,27 +26,35 @@ async fn fetcher_rejects_option_shaped_commit() {
     let store_root = tempdir().unwrap();
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
     let err = GitFetcher {
-        source_cache: &crate::GitSourceCache::default(),
-        repo: "file:///tmp/githost",
-        commit: "--upload-pack=touch /tmp/pwned",
-        path: None,
-        git_shallow_hosts: &[],
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        source: crate::GitSource {
+            cache: &crate::GitSourceCache::default(),
+            repo: "file:///tmp/githost",
+            commit: "--upload-pack=touch /tmp/pwned",
+            path: None,
+            shallow_hosts: &[],
+            git_bin: None,
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: None,
+            files_index_file: "pkg@1.0.0\tbuilt",
+        },
+
         allow_build: deny_all_builds(),
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "pkg@1.0.0",
         package_name: "pkg",
         requester: "/test",
-        store_index_writer: None,
-        files_index_file: "pkg@1.0.0\tbuilt",
-        git_bin: None,
     }
     .run::<SilentReporter>()
     .await
@@ -62,27 +70,35 @@ async fn fetcher_rejects_partial_commit_before_running_git() {
     let store_root = tempdir().unwrap();
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
     let err = GitFetcher {
-        source_cache: &crate::GitSourceCache::default(),
-        repo: "file:///tmp/githost",
-        commit: "deadbeef",
-        path: None,
-        git_shallow_hosts: &[],
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        source: crate::GitSource {
+            cache: &crate::GitSourceCache::default(),
+            repo: "file:///tmp/githost",
+            commit: "deadbeef",
+            path: None,
+            shallow_hosts: &[],
+            git_bin: Some(Path::new("/definitely/missing/git")),
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: None,
+            files_index_file: "pkg@1.0.0\tbuilt",
+        },
+
         allow_build: deny_all_builds(),
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "pkg@1.0.0",
         package_name: "pkg",
         requester: "/test",
-        store_index_writer: None,
-        files_index_file: "pkg@1.0.0\tbuilt",
-        git_bin: Some(Path::new("/definitely/missing/git")),
     }
     .run::<SilentReporter>()
     .await
@@ -104,27 +120,35 @@ async fn fetcher_imports_package_into_cas() {
 
     let repo_url = format!("file://{}", bare.display());
     let received = GitFetcher {
-        source_cache: &crate::GitSourceCache::default(),
-        repo: &repo_url,
-        commit: &commit,
-        path: None,
-        git_shallow_hosts: &[],
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        source: crate::GitSource {
+            cache: &crate::GitSourceCache::default(),
+            repo: &repo_url,
+            commit: &commit,
+            path: None,
+            shallow_hosts: &[],
+            git_bin: None,
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: None,
+            files_index_file: "pkg@1.0.0\tbuilt",
+        },
+
         allow_build: deny_all_builds(),
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "pkg@1.0.0",
         package_name: "pkg",
         requester: "/test",
-        store_index_writer: None,
-        files_index_file: "pkg@1.0.0\tbuilt",
-        git_bin: None,
     }
     .run::<SilentReporter>()
     .await
@@ -152,27 +176,35 @@ async fn fetcher_rejects_commit_mismatch() {
     // commit.
     let bogus = "0000000000000000000000000000000000000000";
     let err = GitFetcher {
-        source_cache: &crate::GitSourceCache::default(),
-        repo: &repo_url,
-        commit: bogus,
-        path: None,
-        git_shallow_hosts: &[],
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        source: crate::GitSource {
+            cache: &crate::GitSourceCache::default(),
+            repo: &repo_url,
+            commit: bogus,
+            path: None,
+            shallow_hosts: &[],
+            git_bin: None,
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: None,
+            files_index_file: "pkg@1.0.0\tbuilt",
+        },
+
         allow_build: deny_all_builds(),
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "pkg@1.0.0",
         package_name: "pkg",
         requester: "/test",
-        store_index_writer: None,
-        files_index_file: "pkg@1.0.0\tbuilt",
-        git_bin: None,
     }
     .run::<SilentReporter>()
     .await
@@ -211,27 +243,35 @@ async fn fetcher_blocks_build_when_not_allowed() {
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
     let repo_url = format!("file://{}", bare.display());
     let err = GitFetcher {
-        source_cache: &crate::GitSourceCache::default(),
-        repo: &repo_url,
-        commit: &commit,
-        path: None,
-        git_shallow_hosts: &[],
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        source: crate::GitSource {
+            cache: &crate::GitSourceCache::default(),
+            repo: &repo_url,
+            commit: &commit,
+            path: None,
+            shallow_hosts: &[],
+            git_bin: None,
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: None,
+            files_index_file: "naughty@2.0.0\tbuilt",
+        },
+
         allow_build: deny_all_builds(),
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "naughty@2.0.0",
         package_name: "pkg",
         requester: "/test",
-        store_index_writer: None,
-        files_index_file: "naughty@2.0.0\tbuilt",
-        git_bin: None,
     }
     .run::<SilentReporter>()
     .await
@@ -267,27 +307,35 @@ async fn fetcher_runs_prepare_script_when_allowed() {
     let repo_url = format!("file://{}", bare.display());
 
     let received = GitFetcher {
-        source_cache: &crate::GitSourceCache::default(),
-        repo: &repo_url,
-        commit: &commit,
-        path: None,
-        git_shallow_hosts: &[],
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        source: crate::GitSource {
+            cache: &crate::GitSourceCache::default(),
+            repo: &repo_url,
+            commit: &commit,
+            path: None,
+            shallow_hosts: &[],
+            git_bin: None,
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: None,
+            files_index_file: "x@1.0.0\tbuilt",
+        },
+
         allow_build: allow_all_builds(),
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "x@1.0.0",
         package_name: "pkg",
         requester: "/test",
-        store_index_writer: None,
-        files_index_file: "x@1.0.0\tbuilt",
-        git_bin: None,
     }
     .run::<SilentReporter>()
     .await
@@ -318,27 +366,35 @@ async fn fetcher_surfaces_prepare_failure() {
     let repo_url = format!("file://{}", bare.display());
 
     let err = GitFetcher {
-        source_cache: &crate::GitSourceCache::default(),
-        repo: &repo_url,
-        commit: &commit,
-        path: None,
-        git_shallow_hosts: &[],
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        source: crate::GitSource {
+            cache: &crate::GitSourceCache::default(),
+            repo: &repo_url,
+            commit: &commit,
+            path: None,
+            shallow_hosts: &[],
+            git_bin: None,
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: None,
+            files_index_file: "x@1.0.0\tbuilt",
+        },
+
         allow_build: allow_all_builds(),
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "x@1.0.0",
         package_name: "pkg",
         requester: "/test",
-        store_index_writer: None,
-        files_index_file: "x@1.0.0\tbuilt",
-        git_bin: None,
     }
     .run::<SilentReporter>()
     .await
@@ -389,27 +445,35 @@ async fn fetcher_runs_prepare_when_allow_build_returns_true() {
         &|dep_path| dep_path == "x@git+file:///tmp/repo.git#abc123";
 
     let received = GitFetcher {
-        source_cache: &crate::GitSourceCache::default(),
-        repo: &repo_url,
-        commit: &commit,
-        path: None,
-        git_shallow_hosts: &[],
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        source: crate::GitSource {
+            cache: &crate::GitSourceCache::default(),
+            repo: &repo_url,
+            commit: &commit,
+            path: None,
+            shallow_hosts: &[],
+            git_bin: None,
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: None,
+            files_index_file: "git+file:///tmp/repo.git#abc123\tbuilt",
+        },
+
         allow_build: allow_x_only,
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "git+file:///tmp/repo.git#abc123",
         package_name: "pkg",
         requester: "/test",
-        store_index_writer: None,
-        files_index_file: "git+file:///tmp/repo.git#abc123\tbuilt",
-        git_bin: None,
     }
     .run::<SilentReporter>()
     .await
@@ -481,27 +545,35 @@ async fn fetcher_uses_shallow_fetch_for_allowed_hosts() {
     env.set("PACQUET_GIT_SHIM_FAKE_COMMIT", fake_commit);
 
     GitFetcher {
-        source_cache: &crate::GitSourceCache::default(),
-        repo: repo_url,
-        commit: fake_commit,
-        path: None,
-        git_shallow_hosts: &shallow_hosts,
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        source: crate::GitSource {
+            cache: &crate::GitSourceCache::default(),
+            repo: repo_url,
+            commit: fake_commit,
+            path: None,
+            shallow_hosts: &shallow_hosts,
+            git_bin: Some(&shim_path),
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: None,
+            files_index_file: "x@1.0.0\tbuilt",
+        },
+
         allow_build: deny_all_builds(),
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "x@1.0.0",
         package_name: "pkg",
         requester: "/test",
-        store_index_writer: None,
-        files_index_file: "x@1.0.0\tbuilt",
-        git_bin: Some(&shim_path),
     }
     .run::<SilentReporter>()
     .await
@@ -564,27 +636,35 @@ async fn fetcher_clones_when_host_not_in_shallow_list() {
     env.set("PACQUET_GIT_SHIM_FAKE_COMMIT", fake_commit);
 
     GitFetcher {
-        source_cache: &crate::GitSourceCache::default(),
-        repo: repo_url,
-        commit: fake_commit,
-        path: None,
-        git_shallow_hosts: &shallow_hosts,
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        source: crate::GitSource {
+            cache: &crate::GitSourceCache::default(),
+            repo: repo_url,
+            commit: fake_commit,
+            path: None,
+            shallow_hosts: &shallow_hosts,
+            git_bin: Some(&shim_path),
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: None,
+            files_index_file: "x@1.0.0\tbuilt",
+        },
+
         allow_build: deny_all_builds(),
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "x@1.0.0",
         package_name: "pkg",
         requester: "/test",
-        store_index_writer: None,
-        files_index_file: "x@1.0.0\tbuilt",
-        git_bin: Some(&shim_path),
     }
     .run::<SilentReporter>()
     .await

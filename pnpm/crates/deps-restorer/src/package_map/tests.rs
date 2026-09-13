@@ -484,26 +484,28 @@ fn empty_lockfile() -> Lockfile {
 fn graph_node(name: &str, version: &str, dir: &Path) -> DependenciesGraphNode {
     let key: PackageKey = format!("{name}@{version}").parse().unwrap();
     DependenciesGraphNode {
+        package: crate::HoistedPackageMetadata {
+            dep_path: DepPath::from(key.to_string()),
+            pkg_id_with_patch_hash: PkgIdWithPatchHash::from(key.to_string()),
+            name: name.to_string(),
+            version: version.to_string(),
+            has_bin: false,
+            has_bundled_dependencies: false,
+            patch: None,
+            resolution: LockfileResolution::Tarball(TarballResolution {
+                tarball: String::new(),
+                integrity: None,
+                revision: None,
+                git_hosted: None,
+                path: None,
+            }),
+        },
         alias: Some(name.to_string()),
-        dep_path: DepPath::from(key.to_string()),
-        pkg_id_with_patch_hash: PkgIdWithPatchHash::from(key.to_string()),
         dir: dir.to_path_buf(),
         modules: dir.parent().expect("package dir has parent").to_path_buf(),
-        children: BTreeMap::new(),
-        name: name.to_string(),
-        version: version.to_string(),
         optional: false,
         optional_dependencies: BTreeSet::new(),
-        has_bin: false,
-        has_bundled_dependencies: false,
-        patch: None,
-        resolution: LockfileResolution::Tarball(TarballResolution {
-            tarball: String::new(),
-            integrity: None,
-            revision: None,
-            git_hosted: None,
-            path: None,
-        }),
         present: false,
+        children: BTreeMap::new(),
     }
 }

@@ -62,13 +62,16 @@ fn moving_skips_separators_and_wraps_around() {
     let mut prompt = grouped_prompt();
 
     press(&mut prompt, &[Key::ArrowDown, Key::ArrowDown]);
-    assert_eq!(prompt.active, 6, "the second move steps over the devDependencies headings");
+    assert_eq!(
+        prompt.viewport.active, 6,
+        "the second move steps over the devDependencies headings",
+    );
 
     press(&mut prompt, &[Key::ArrowDown]);
-    assert_eq!(prompt.active, 2, "moving past the end wraps to the first choice");
+    assert_eq!(prompt.viewport.active, 2, "moving past the end wraps to the first choice");
 
     press(&mut prompt, &[Key::Char('k')]);
-    assert_eq!(prompt.active, 6, "moving before the start wraps to the last choice");
+    assert_eq!(prompt.viewport.active, 6, "moving before the start wraps to the last choice");
 }
 
 #[test]
@@ -104,7 +107,7 @@ fn a_digit_toggles_that_choice_counting_choices_only() {
     press(&mut prompt, &[Key::Char('3')]);
 
     assert_eq!(selected(&prompt), ["baz"]);
-    assert_eq!(prompt.active, 6);
+    assert_eq!(prompt.viewport.active, 6);
 }
 
 #[test]
@@ -181,7 +184,7 @@ fn the_theme_picks_the_icons() {
 #[test]
 fn the_page_follows_the_cursor_and_keeps_the_headings_above_it() {
     let mut prompt = grouped_prompt();
-    prompt.page_size = 3;
+    prompt.viewport.page_size = 3;
 
     let page = |prompt: &CheckboxPrompt<&'static str>| frame_lines(prompt)[1..4].to_vec();
     assert_eq!(page(&prompt), [" ── dependencies ──", "   Package", "❯◯ foo 1.0.0 ❯ 2.0.0"]);

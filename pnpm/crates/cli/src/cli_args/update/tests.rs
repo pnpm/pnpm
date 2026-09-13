@@ -159,7 +159,7 @@ fn pnpr_server_flag_applies_to_config() {
 #[test]
 fn patches_is_a_selectorless_update_mode() {
     let patches = update_args(&["--patches"]);
-    assert!(patches.patches);
+    assert!(patches.selection.patches);
     patches.check_patches_options().expect("standalone --patches");
 
     for args in [

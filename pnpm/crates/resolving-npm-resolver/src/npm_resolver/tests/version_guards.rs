@@ -13,7 +13,10 @@ async fn package_version_guard_excludes_rejected_versions_and_repicks() {
     let (resolver, _tempdir) = build_resolver(&registry);
 
     let opts = ResolveOptions {
-        package_version_guard: Some(reject_versions(&["1.1.0"])),
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            package_version_guard: Some(reject_versions(&["1.1.0"])),
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     };
     let wanted = WantedDependency {
@@ -23,9 +26,9 @@ async fn package_version_guard_excludes_rejected_versions_and_repicks() {
     };
 
     let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
-    let name_ver = result.name_ver.as_ref().expect("name_ver");
+    let name_ver = result.package.name_ver.as_ref().expect("name_ver");
     assert_eq!(name_ver.suffix.to_string(), "1.0.0");
-    assert_eq!(result.latest.as_deref(), Some("1.0.0"));
+    assert_eq!(result.package.latest.as_deref(), Some("1.0.0"));
 }
 
 #[tokio::test]
@@ -37,15 +40,18 @@ async fn package_version_guard_repopulates_latest_tag() {
     let (resolver, _tempdir) = build_resolver(&registry);
 
     let opts = ResolveOptions {
-        package_version_guard: Some(reject_versions(&["1.1.0"])),
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            package_version_guard: Some(reject_versions(&["1.1.0"])),
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     };
     let wanted =
         WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
 
     let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
-    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.0.0");
-    assert_eq!(result.latest.as_deref(), Some("1.0.0"));
+    assert_eq!(result.package.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.0.0");
+    assert_eq!(result.package.latest.as_deref(), Some("1.0.0"));
 }
 
 #[tokio::test]
@@ -57,7 +63,10 @@ async fn package_version_guard_blocking_every_version_errors() {
     let (resolver, _tempdir) = build_resolver(&registry);
 
     let opts = ResolveOptions {
-        package_version_guard: Some(reject_versions(&["1.0.0", "1.1.0"])),
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            package_version_guard: Some(reject_versions(&["1.0.0", "1.1.0"])),
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     };
     let wanted = WantedDependency {
@@ -84,10 +93,13 @@ async fn package_version_guard_accepting_rejected_falls_back_to_the_unguarded_pi
     let (resolver, _tempdir) = build_resolver(&registry);
 
     let opts = ResolveOptions {
-        package_version_guard: Some(guard_rejecting(
-            &["1.0.0", "1.1.0"],
-            GuardExhaustionPolicy::AcceptRejected,
-        )),
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            package_version_guard: Some(guard_rejecting(
+                &["1.0.0", "1.1.0"],
+                GuardExhaustionPolicy::AcceptRejected,
+            )),
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     };
     let wanted = WantedDependency {
@@ -99,7 +111,7 @@ async fn package_version_guard_accepting_rejected_falls_back_to_the_unguarded_pi
     // The guard states a preference, so the request resolves to the version
     // it would have picked with no guard at all.
     let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
-    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.1.0");
+    assert_eq!(result.package.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.1.0");
 }
 
 #[tokio::test]
@@ -117,10 +129,13 @@ async fn package_version_guard_accepting_rejected_falls_back_at_the_repick_limit
 
     let blocked: Vec<String> = (0..VERSION_COUNT).map(|patch| format!("1.0.{patch}")).collect();
     let opts = ResolveOptions {
-        package_version_guard: Some(guard_rejecting(
-            &blocked.iter().map(String::as_str).collect::<Vec<_>>(),
-            GuardExhaustionPolicy::AcceptRejected,
-        )),
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            package_version_guard: Some(guard_rejecting(
+                &blocked.iter().map(String::as_str).collect::<Vec<_>>(),
+                GuardExhaustionPolicy::AcceptRejected,
+            )),
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     };
     let wanted = WantedDependency {
@@ -134,7 +149,7 @@ async fn package_version_guard_accepting_rejected_falls_back_at_the_repick_limit
     // there, not lose the whole resolve to the cap.
     let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
     assert_eq!(
-        result.name_ver.as_ref().expect("name_ver").suffix.to_string(),
+        result.package.name_ver.as_ref().expect("name_ver").suffix.to_string(),
         format!("1.0.{}", VERSION_COUNT - 1),
     );
 }
@@ -156,7 +171,10 @@ async fn package_version_guard_blocks_the_packument_key_not_the_parsed_version()
     // entry and fall back to `1.0.0`, rather than wrongly reporting that
     // every version is blocked.
     let opts = ResolveOptions {
-        package_version_guard: Some(reject_versions(&["1.5.0"])),
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            package_version_guard: Some(reject_versions(&["1.5.0"])),
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     };
     let wanted = WantedDependency {
@@ -166,5 +184,5 @@ async fn package_version_guard_blocks_the_packument_key_not_the_parsed_version()
     };
 
     let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
-    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.0.0");
+    assert_eq!(result.package.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.0.0");
 }

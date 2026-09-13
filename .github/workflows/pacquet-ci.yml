@@ -487,26 +487,13 @@ jobs:
       # Two caches with disjoint scopes:
       #
       #   1. Workspace cache — `~/.cargo`, `~/.dylint_drivers`, and the
-      #      workspace `target/` directory minus `target/dylint`. Keyed
-      #      loosely on `Cargo.lock` with a `rust-toolchain.toml`-only
-      #      fallback so a lockfile-only change still benefits from a
-      #      warm registry and a warm workspace build cache. The
-      #      `!target/dylint` negation excludes the lint library from
-      #      this snapshot so it cannot leak across `dylint.toml`
-      #      changes.
+      #      workspace debug/release artifacts. Cache the build directories
+      #      explicitly: archiving their parent `target/` recursively also
+      #      captures `target/dylint`, even with a glob exclusion.
       #
-      #   2. Dylint-library cache — `target/dylint`, where cargo-dylint
-      #      builds `libperfectionist.so`. Keyed strictly on
-      #      `dylint.toml` with no looser restore-keys, so a hit
-      #      guarantees the cached `.so` was built against the
-      #      in-tree config. On a miss cargo-dylint rebuilds the
-      #      library from scratch.
-      #
-      # Splitting the caches this way removes the need for a separate
-      # "invalidate stale dylint artifacts" step: the workspace cache
-      # never holds a `target/dylint` snapshot to invalidate, and the
-      # dylint-library cache can never be restored from a mismatched
-      # `dylint.toml`.
+      #   2. Dylint-library cache — `target/dylint`, keyed strictly on
+      #      `dylint.toml` with no looser restore-keys. Only this cache may
+      #      restore the lint library, so a pin change rebuilds it.
       - name: Cache workspace artifacts
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         timeout-minutes: 2
@@ -515,12 +502,12 @@ jobs:
           path: |
             ~/.cargo
             ~/.dylint_drivers
-            target
-            !target/dylint
-          key: ${{ github.job }}-workspace-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('**/Cargo.lock') }}
+            target/debug
+            target/release
+          key: ${{ github.job }}-workspace-v2-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ github.job }}-workspace-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('**/Cargo.lock') }}
-            ${{ github.job }}-workspace-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-
+            ${{ github.job }}-workspace-v2-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('**/Cargo.lock') }}
+            ${{ github.job }}-workspace-v2-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-
 
       - name: Cache dylint lint library
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

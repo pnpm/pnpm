@@ -46,7 +46,7 @@ impl InstallPipeline {
             .then(|| State::lazy_lockfile(self.cfg, &self.manifest_path, self.require_lockfile));
         let certain_full_install = self.certain_full_install();
         if let Some(lockfile) = lockfile.as_ref()
-            && !self.args.fix_lockfile
+            && !self.args.lockfile.only
             && certain_full_install
         {
             lockfile.prefetch();
@@ -95,7 +95,7 @@ impl InstallPipeline {
             ecosystem_install::InstallContext {
                 config: self.cfg,
                 http_client: Arc::clone(&http_client),
-                lockfile_only: self.args.lockfile_only,
+                lockfile_only: self.args.lockfile.only,
                 frozen_lockfile: self.frozen_lockfile,
             },
             self.config_root,

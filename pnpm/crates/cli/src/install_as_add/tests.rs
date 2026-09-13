@@ -117,7 +117,7 @@ fn install_with_offline_after_the_package_parses_as_add() {
         panic!("expected add");
     };
     assert_eq!(add.package_names, ["valibot"]);
-    assert!(add.ignore_scripts);
+    assert!(add.scripts.ignore);
     let mut config = Config::default();
     overrides.apply(&mut config, Path::new("/workspace"));
     assert!(config.offline);

@@ -1,3 +1,6 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
+
 //! Read and write pnpm's `node_modules/.modules.yaml` manifest.
 //!
 //! The manifest is stored at `<modules_dir>/.modules.yaml`, where
@@ -128,6 +131,13 @@ impl DepPath {
 /// the read path then fills in the modern shape from the legacy fields.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the node_modules/.modules.yaml format."
+    )
+)]
 pub struct Modules {
     /// Legacy: the v5-era flat alias map, kept for read-side
     /// compatibility. Replaced by [`Self::hoisted_dependencies`].
@@ -225,6 +235,13 @@ pub struct Modules {
 /// amounts of memory.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the node_modules/.modules.yaml format."
+    )
+)]
 pub struct ModulesLayout {
     #[serde(default)]
     pub hoist_pattern: Option<Vec<String>>,

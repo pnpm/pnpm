@@ -29,7 +29,7 @@ fn strips_the_resolved_id_patch_suffix() {
     assert!(landed_on_prior_entry(
         &key("foo@1.0.0(patch_hash=0000)"),
         "foo@1.0.0(patch_hash=0000)"
-    ));
+    ),);
     assert!(landed_on_prior_entry(&key("foo@1.0.0"), "foo@1.0.0(patch_hash=0000)"));
 }
 
@@ -57,7 +57,7 @@ fn conflicting_registry_revisions_are_detected() {
             2,
             "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=="
         ),
-    ));
+    ),);
 }
 
 #[test]

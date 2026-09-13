@@ -145,7 +145,7 @@ fn route_maintenance<'a>(
 
 pub(super) fn prints_json_errors(command: &CliCommand) -> bool {
     match command {
-        CliCommand::Publish(args) => args.flags.json,
+        CliCommand::Publish(args) => args.flags.output.json,
         CliCommand::View(args) => args.json,
         CliCommand::Pack(args) => args.json,
         _ => false,

@@ -145,7 +145,7 @@ pub(super) fn readable_here(
 }
 
 pub(super) fn hosted_revision_sources(state: &AppState, registry: &str) -> Vec<String> {
-    let registries = &state.inner.config.registries;
+    let registries = &state.inner.config.routing.registries;
     registries
         .sources(registry, Ecosystem::Npm)
         .into_iter()

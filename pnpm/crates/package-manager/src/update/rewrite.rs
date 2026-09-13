@@ -62,10 +62,10 @@ pub(super) async fn matched_direct_rewrite<Reporter: self::Reporter>(
     let MatchedRewriteInputs { rewrite_ctx, latest_chain, catalog_ctx, .. } = inputs;
     // The two sources are exclusive: `--latest` rejects versioned selectors
     // above, so under it no selector carries a version.
-    if scope.latest {
+    if scope.version.latest {
         // `--latest` reaches past the declared range by design, which a
         // manifest that keeps its specifiers can't record.
-        if !scope.save {
+        if !scope.version.save {
             return Ok(MatchedRewrite::Target(None));
         }
         let specifier =
@@ -80,7 +80,7 @@ pub(super) async fn matched_direct_rewrite<Reporter: self::Reporter>(
     if let Some(version) = requested.as_deref() {
         seed_requested_version(&mut plan.preferred_versions_override, name, previous, version);
     }
-    if !scope.save {
+    if !scope.version.save {
         // An update that doesn't save keeps the manifest's specifier, and
         // whatever resolution settles on has to satisfy it — a frozen install
         // rejects the lockfile otherwise.
@@ -97,7 +97,7 @@ pub(super) async fn matched_direct_rewrite<Reporter: self::Reporter>(
             rewrite_ctx,
             latest_chain,
             &mut plan.preferred_versions_override,
-            scope.range_spec_style,
+            scope.range_spec_style(),
             (name, previous, tag),
             requested.clone(),
         )
@@ -120,7 +120,7 @@ pub(super) fn requested_direct_rewrite(
     MatchedRewrite::Target(Some(requested_version_rewrite(
         &requested,
         previous,
-        scope.range_spec_style,
+        scope.range_spec_style(),
     )))
 }
 /// Seed `version` for the dependency declared as `previous` under `name`, so

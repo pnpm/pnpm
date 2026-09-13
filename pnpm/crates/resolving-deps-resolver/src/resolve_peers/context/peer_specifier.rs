@@ -14,7 +14,7 @@ pub(super) fn version_gte(left: &str, right: &str) -> bool {
 ///
 /// Linked top-parent `NodeIds` (whether the workspace-link arm or the
 /// `excludeLinksFromLockfile` remap) never enter the dependency tree,
-/// so [`Walker::node_dep_paths`](crate::resolve_peers::walker::Walker::node_dep_paths) never maps them. The `link:<rel>`
+/// so [`crate::resolve_peers::discovery::PeerDiscoveryCaches::node_dep_paths`](crate::resolve_peers::discovery::PeerDiscoveryCaches::node_dep_paths) never maps them. The `link:<rel>`
 /// `NodeId` is itself a well-formed pnpm `DepPath`, so the snapshot
 /// child edge can use it verbatim.
 pub(in super::super) fn link_node_id_as_dep_path(node_id: &NodeId) -> Option<DepPath> {
@@ -56,7 +56,7 @@ pub(in super::super) fn importer_relative_link_dep_path(
 
 /// Compute the `link:` [`NodeId`] under which a workspace-link parent
 /// should appear in [`ParentRefs`](super::ParentRefs) when
-/// [`ResolvePeersOptions::exclude_links_from_lockfile`] is on.
+/// [`crate::PeerLinkOptions::exclude_links_from_lockfile`] is on.
 ///
 /// Returns `None` when:
 ///
@@ -74,11 +74,11 @@ pub(in super::super) fn remap_link_node_id(
     alias: &str,
     result: &ResolveResult,
 ) -> Option<NodeId> {
-    if !opts.exclude_links_from_lockfile {
+    if !opts.links.exclude_links_from_lockfile {
         return None;
     }
-    let lockfile_dir = opts.lockfile_dir.as_ref()?;
-    let modules_dir = opts.modules_dir.as_ref()?;
+    let lockfile_dir = opts.links.lockfile_dir.as_ref()?;
+    let modules_dir = opts.links.modules_dir.as_ref()?;
     let directory = match &result.resolution {
         pnpm_lockfile::LockfileResolution::Directory(dir) => &dir.directory,
         _ => return None,
@@ -105,7 +105,7 @@ pub(in super::super) fn remap_link_node_id(
 /// Pull `(name, version)` out of a `ResolveResult` the peer-resolution
 /// stage can hash and compare on.
 ///
-/// The npm-registry resolver always fills [`ResolveResult::name_ver`],
+/// The npm-registry resolver always fills [`pnpm_resolving_resolver_base::ResolvedPackageInfo::name_ver`],
 /// so the fast path lifts it straight out. The git / tarball / local
 /// resolvers leave it `None` (their canonical name lives in the
 /// fetched manifest, which the resolver doesn't read at resolve
@@ -118,6 +118,7 @@ pub(in super::super) fn remap_link_node_id(
 /// `name_ver = None`.
 pub(in super::super) fn pkg_name_version(result: &ResolveResult) -> (String, String) {
     let version = result
+        .package
         .name_ver
         .as_ref()
         .map_or_else(|| result.id.as_str().to_string(), |name_ver| name_ver.suffix.to_string());
@@ -128,7 +129,7 @@ pub(in super::super) fn pkg_name_version(result: &ResolveResult) -> (String, Str
 /// discard the version. `PkgName` holds scope and bare name separately,
 /// so rendering either half allocates.
 pub(in super::super) fn pkg_name(result: &ResolveResult) -> String {
-    if let Some(name_ver) = result.name_ver.as_ref() {
+    if let Some(name_ver) = result.package.name_ver.as_ref() {
         return name_ver.name.to_string();
     }
     result.alias.clone().unwrap_or_else(|| result.id.as_str().to_string())

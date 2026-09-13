@@ -27,11 +27,11 @@ pub(in super::super) async fn warm_children_resolutions<Chain>(
     // manifest hook (packageExtensions / overrides) is idempotent and
     // cache-deduped, indistinguishable from a first-caller win in the
     // pre-existing concurrent-miss race.
-    if ctx.workspace.pnpmfile_hook.is_some() {
+    if ctx.workspace.hooks.manifests.pnpmfile_hook.is_some() {
         return;
     }
     let NodeSeed::Pending(pending) = seed else { return };
-    if pending.is_link || !claim_children_warmup(ctx, &pending.id) {
+    if pending.is_link || !claim_children_warmup(ctx, &pending.identity.id) {
         return;
     }
     warm_result_children(
@@ -40,7 +40,7 @@ pub(in super::super) async fn warm_children_resolutions<Chain>(
         &pending.result,
         &pending.peer_shadowed,
         pending.resolves_children_through_catalogs,
-        pending.depth,
+        pending.ancestry.depth,
     )
     .await;
 }
@@ -123,8 +123,8 @@ pub(super) async fn warm_child<Chain>(
         wanted.bare_specifier.clone(),
         wanted.optional,
         wanted.injected,
-        opts.pick_lowest_version,
-        opts.published_by,
+        opts.version.pick_lowest_version,
+        opts.policy.published_by,
         project_scope,
         // No prior-lockfile key: a warm entry must only be
         // reused by edges that carry no currentPkg either.
@@ -148,9 +148,9 @@ pub(super) async fn warm_child<Chain>(
     // with `autoInstallPeers` off nothing is shadowed and
     // the real walk drops the edge instead.
     let child_peer_shadowed = peer_shadowed_dependencies(
-        child.manifest.as_deref(),
+        child.package.manifest.as_deref(),
         &ParentPkgAliases::root(HashSet::default()),
-        ctx.workspace.auto_install_peers,
+        ctx.workspace.policy.auto_install_peers,
     );
     warm_result_children(
         ctx,

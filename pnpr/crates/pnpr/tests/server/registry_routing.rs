@@ -148,9 +148,9 @@ async fn router_not_found_does_not_fall_through_to_public() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     let mut corp_upstream =
-        config.upstreams.get("npmjs").expect("default `npmjs` upstream").clone();
+        config.routing.upstreams.get("npmjs").expect("default `npmjs` upstream").clone();
     corp_upstream.url = corp.url();
-    config.upstreams.insert("corp".to_string(), corp_upstream);
+    config.routing.upstreams.insert("corp".to_string(), corp_upstream);
     let graph = vec![
         (
             "corp".to_string(),
@@ -160,7 +160,8 @@ async fn router_not_found_does_not_fall_through_to_public() {
         ),
         ("main".to_string(), Registry::Router { sources: vec!["corp".to_string()] }),
     ];
-    config.registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
+    config.routing.registries =
+        Registries::new(graph.into_iter().collect(), Some("main".to_string()));
     let app = router_with_auth(config, AuthState::in_memory());
 
     // The claimed private scope still serves.
@@ -196,9 +197,9 @@ async fn router_unavailable_source_errors_not_404() {
     // Point `corp` at a closed port so every fetch is a transport failure.
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     let mut corp_upstream =
-        config.upstreams.get("npmjs").expect("default `npmjs` upstream").clone();
+        config.routing.upstreams.get("npmjs").expect("default `npmjs` upstream").clone();
     corp_upstream.url = "http://127.0.0.1:1".to_string();
-    config.upstreams.insert("corp".to_string(), corp_upstream);
+    config.routing.upstreams.insert("corp".to_string(), corp_upstream);
     let graph = vec![
         (
             "corp".to_string(),
@@ -208,7 +209,8 @@ async fn router_unavailable_source_errors_not_404() {
         ),
         ("main".to_string(), Registry::Router { sources: vec!["corp".to_string()] }),
     ];
-    config.registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
+    config.routing.registries =
+        Registries::new(graph.into_iter().collect(), Some("main".to_string()));
     let app = router_with_auth(config, AuthState::in_memory());
 
     let response = app
@@ -226,7 +228,7 @@ async fn router_unavailable_source_errors_not_404() {
 async fn building_the_server_rejects_an_invalid_programmatic_registry_graph() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.registries = Registries::new(
+    config.routing.registries = Registries::new(
         vec![("main".to_string(), Registry::Router { sources: vec!["ghost".to_string()] })]
             .into_iter()
             .collect(),
@@ -246,7 +248,7 @@ async fn building_the_server_rejects_a_concrete_registry_without_serving_config(
 
     // A hosted graph entry with no hosted-table row.
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.registries = Registries::new(
+    config.routing.registries = Registries::new(
         vec![("ghost-org".to_string(), Registry::Hosted { patterns: vec![] })]
             .into_iter()
             .collect(),
@@ -257,7 +259,7 @@ async fn building_the_server_rejects_a_concrete_registry_without_serving_config(
 
     // An upstream graph entry with no upstream serving config.
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.registries = Registries::new(
+    config.routing.registries = Registries::new(
         vec![("phantom".to_string(), Registry::Upstream { patterns: vec![] })]
             .into_iter()
             .collect(),
@@ -276,7 +278,7 @@ async fn building_the_server_rejects_a_name_shared_by_two_registry_kinds() {
 
     // Upstream serving config under a name the graph declares as hosted.
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.registries = Registries::new(
+    config.routing.registries = Registries::new(
         vec![("npmjs".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         None,
     );
@@ -285,8 +287,8 @@ async fn building_the_server_rejects_a_name_shared_by_two_registry_kinds() {
 
     // A hosted serving row under a name the graph declares as a router.
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.hosted.insert("corp".to_string(), hosted_with_access("corp", "$all"));
-    config.registries = Registries::new(
+    config.routing.hosted.insert("corp".to_string(), hosted_with_access("corp", "$all"));
+    config.routing.registries = Registries::new(
         vec![("corp".to_string(), Registry::Router { sources: vec!["npmjs".to_string()] })]
             .into_iter()
             .collect(),
@@ -308,7 +310,7 @@ async fn building_the_server_rejects_a_name_shared_by_two_registry_kinds() {
 async fn identity_endpoints_are_served_under_any_registry_prefix() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
     // Login against a registry prefix that is NOT a defined registry.
@@ -416,7 +418,7 @@ async fn identity_endpoints_are_served_under_any_registry_prefix() {
 async fn a_first_segment_that_is_not_a_tilde_prefix_does_not_reach_the_account_endpoints() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
     for path in ["/~/-/whoami", "/corp/-/npm/v1/tokens", "/~/-/npm/v1/user"] {
@@ -442,7 +444,7 @@ async fn a_first_segment_that_is_not_a_tilde_prefix_does_not_reach_the_account_e
 async fn a_scoped_address_whose_first_segment_is_not_a_scope_is_not_found() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
     for (method, path) in [
@@ -468,7 +470,7 @@ async fn a_scoped_address_whose_first_segment_is_not_a_scope_is_not_found() {
 async fn a_method_the_address_does_not_serve_is_method_not_allowed() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
     for (method, path) in [
@@ -496,7 +498,7 @@ async fn a_method_the_address_does_not_serve_is_method_not_allowed() {
 async fn a_prefix_that_is_not_valid_utf8_is_not_found() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
     let response =

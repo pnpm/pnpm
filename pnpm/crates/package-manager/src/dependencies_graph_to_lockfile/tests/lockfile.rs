@@ -151,28 +151,36 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         ImporterLockfileInput { manifest: &manifest, direct_dependencies_by_alias: direct.clone() },
     );
     let on = dependencies_graph_to_lockfile(GraphToLockfileOptions {
-        registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
-        registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
         importers,
         graph: &graph,
-        auto_install_peers: false,
-        dedupe_peers: true,
-        exclude_links_from_lockfile: false,
-        inject_workspace_packages: false,
-        peers_suffix_max_length: None,
-        overrides: None,
-        ignored_optional_dependencies: None,
-        patched_dependencies: None,
-        package_extensions_checksum: None,
-        pnpmfile_checksum: None,
         catalogs: &EMPTY_CATALOGS,
-        registry: "https://registry.npmjs.org",
-        lockfile_include_tarball_url: false,
-        previous_importers: None,
-        previous_packages: None,
-        update_reuse_scope: UpdateReuseScope::All,
-        update_reuse_scopes_by_importer: BTreeMap::new(),
         time: BTreeMap::new(),
+        settings: pnpm_lockfile::LockfileSettings {
+            auto_install_peers: false,
+            dedupe_peers: Some(true),
+            exclude_links_from_lockfile: false,
+            inject_workspace_packages: false,
+            peers_suffix_max_length: None,
+        },
+        metadata_sources: crate::PackageMetadataSources {
+            registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
+            registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
+            registry: "https://registry.npmjs.org",
+            lockfile_include_tarball_url: false,
+            previous_packages: None,
+        },
+        manifest_settings: crate::LockfileManifestSettings {
+            overrides: None,
+            ignored_optional_dependencies: None,
+            patched_dependencies: None,
+            package_extensions_checksum: None,
+            pnpmfile_checksum: None,
+        },
+        reuse: crate::LockfileImporterReuse {
+            previous_importers: None,
+            scope: UpdateReuseScope::All,
+            scopes_by_importer: BTreeMap::new(),
+        },
     });
     let on_settings = on.settings.as_ref().expect("settings written");
     assert_eq!(on_settings.dedupe_peers, Some(true));
@@ -185,28 +193,36 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
         ImporterLockfileInput { manifest: &manifest, direct_dependencies_by_alias: direct },
     );
     let off = dependencies_graph_to_lockfile(GraphToLockfileOptions {
-        registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
-        registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
         importers,
         graph: &graph,
-        auto_install_peers: false,
-        dedupe_peers: false,
-        exclude_links_from_lockfile: false,
-        inject_workspace_packages: false,
-        peers_suffix_max_length: None,
-        overrides: None,
-        ignored_optional_dependencies: None,
-        patched_dependencies: None,
-        package_extensions_checksum: None,
-        pnpmfile_checksum: None,
         catalogs: &EMPTY_CATALOGS,
-        registry: "https://registry.npmjs.org",
-        lockfile_include_tarball_url: false,
-        previous_importers: None,
-        previous_packages: None,
-        update_reuse_scope: UpdateReuseScope::All,
-        update_reuse_scopes_by_importer: BTreeMap::new(),
         time: BTreeMap::new(),
+        settings: pnpm_lockfile::LockfileSettings {
+            auto_install_peers: false,
+            dedupe_peers: None,
+            exclude_links_from_lockfile: false,
+            inject_workspace_packages: false,
+            peers_suffix_max_length: None,
+        },
+        metadata_sources: crate::PackageMetadataSources {
+            registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
+            registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
+            registry: "https://registry.npmjs.org",
+            lockfile_include_tarball_url: false,
+            previous_packages: None,
+        },
+        manifest_settings: crate::LockfileManifestSettings {
+            overrides: None,
+            ignored_optional_dependencies: None,
+            patched_dependencies: None,
+            package_extensions_checksum: None,
+            pnpmfile_checksum: None,
+        },
+        reuse: crate::LockfileImporterReuse {
+            previous_importers: None,
+            scope: UpdateReuseScope::All,
+            scopes_by_importer: BTreeMap::new(),
+        },
     });
     let off_settings = off.settings.as_ref().expect("settings written");
     assert_eq!(off_settings.dedupe_peers, None);
@@ -271,28 +287,36 @@ fn patched_dependencies_flow_into_lockfile_and_empty_is_omitted() {
             },
         );
         dependencies_graph_to_lockfile(GraphToLockfileOptions {
-            registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
-            registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
             importers,
             graph: &graph,
-            auto_install_peers: false,
-            dedupe_peers: false,
-            exclude_links_from_lockfile: false,
-            inject_workspace_packages: false,
-            peers_suffix_max_length: None,
-            overrides: None,
-            ignored_optional_dependencies: None,
-            patched_dependencies: patched,
-            package_extensions_checksum: None,
-            pnpmfile_checksum: None,
             catalogs: &EMPTY_CATALOGS,
-            registry: "https://registry.npmjs.org",
-            lockfile_include_tarball_url: false,
-            previous_importers: None,
-            previous_packages: None,
-            update_reuse_scope: UpdateReuseScope::All,
-            update_reuse_scopes_by_importer: BTreeMap::new(),
             time: BTreeMap::new(),
+            settings: pnpm_lockfile::LockfileSettings {
+                auto_install_peers: false,
+                dedupe_peers: None,
+                exclude_links_from_lockfile: false,
+                inject_workspace_packages: false,
+                peers_suffix_max_length: None,
+            },
+            metadata_sources: crate::PackageMetadataSources {
+                registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
+                registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
+                registry: "https://registry.npmjs.org",
+                lockfile_include_tarball_url: false,
+                previous_packages: None,
+            },
+            manifest_settings: crate::LockfileManifestSettings {
+                overrides: None,
+                ignored_optional_dependencies: None,
+                patched_dependencies: patched,
+                package_extensions_checksum: None,
+                pnpmfile_checksum: None,
+            },
+            reuse: crate::LockfileImporterReuse {
+                previous_importers: None,
+                scope: UpdateReuseScope::All,
+                scopes_by_importer: BTreeMap::new(),
+            },
         })
     };
 
@@ -350,7 +374,7 @@ fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
         HashSet::default(),
     );
     consumer.dep_path = DepPath::from("consumer@1.0.0(peer@packages+peer)");
-    consumer.resolved_peer_names.insert("peer".to_string());
+    consumer.edges.resolved_peer_names.insert("peer".to_string());
 
     let mut graph = DependenciesGraph::default();
     for node in [shared, peer, wrapper, consumer] {
@@ -368,28 +392,36 @@ fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
     )]);
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
-        registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
-        registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
         importers,
         graph: &graph,
-        auto_install_peers: false,
-        dedupe_peers: false,
-        exclude_links_from_lockfile: false,
-        inject_workspace_packages: false,
-        peers_suffix_max_length: None,
-        overrides: None,
-        ignored_optional_dependencies: None,
-        patched_dependencies: None,
-        package_extensions_checksum: None,
-        pnpmfile_checksum: None,
         catalogs: &EMPTY_CATALOGS,
-        registry: "https://registry.npmjs.org",
-        lockfile_include_tarball_url: false,
-        previous_importers: None,
-        previous_packages: None,
-        update_reuse_scope: UpdateReuseScope::All,
-        update_reuse_scopes_by_importer: BTreeMap::new(),
         time: BTreeMap::new(),
+        settings: pnpm_lockfile::LockfileSettings {
+            auto_install_peers: false,
+            dedupe_peers: None,
+            exclude_links_from_lockfile: false,
+            inject_workspace_packages: false,
+            peers_suffix_max_length: None,
+        },
+        metadata_sources: crate::PackageMetadataSources {
+            registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
+            registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
+            registry: "https://registry.npmjs.org",
+            lockfile_include_tarball_url: false,
+            previous_packages: None,
+        },
+        manifest_settings: crate::LockfileManifestSettings {
+            overrides: None,
+            ignored_optional_dependencies: None,
+            patched_dependencies: None,
+            package_extensions_checksum: None,
+            pnpmfile_checksum: None,
+        },
+        reuse: crate::LockfileImporterReuse {
+            previous_importers: None,
+            scope: UpdateReuseScope::All,
+            scopes_by_importer: BTreeMap::new(),
+        },
     });
 
     let importer = lockfile.importers.get("apps/nested/app").expect("nested importer");
@@ -461,28 +493,36 @@ fn multi_importer_workspace_writes_per_project_lockfile_entries() {
     );
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
-        registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
-        registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
         importers,
         graph: &graph,
-        auto_install_peers: false,
-        dedupe_peers: false,
-        exclude_links_from_lockfile: false,
-        inject_workspace_packages: false,
-        peers_suffix_max_length: None,
-        overrides: None,
-        ignored_optional_dependencies: None,
-        patched_dependencies: None,
-        package_extensions_checksum: None,
-        pnpmfile_checksum: None,
         catalogs: &EMPTY_CATALOGS,
-        registry: "https://registry.npmjs.org",
-        lockfile_include_tarball_url: false,
-        previous_importers: None,
-        previous_packages: None,
-        update_reuse_scope: UpdateReuseScope::All,
-        update_reuse_scopes_by_importer: BTreeMap::new(),
         time: BTreeMap::new(),
+        settings: pnpm_lockfile::LockfileSettings {
+            auto_install_peers: false,
+            dedupe_peers: None,
+            exclude_links_from_lockfile: false,
+            inject_workspace_packages: false,
+            peers_suffix_max_length: None,
+        },
+        metadata_sources: crate::PackageMetadataSources {
+            registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
+            registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
+            registry: "https://registry.npmjs.org",
+            lockfile_include_tarball_url: false,
+            previous_packages: None,
+        },
+        manifest_settings: crate::LockfileManifestSettings {
+            overrides: None,
+            ignored_optional_dependencies: None,
+            patched_dependencies: None,
+            package_extensions_checksum: None,
+            pnpmfile_checksum: None,
+        },
+        reuse: crate::LockfileImporterReuse {
+            previous_importers: None,
+            scope: UpdateReuseScope::All,
+            scopes_by_importer: BTreeMap::new(),
+        },
     });
 
     let a_snap = lockfile.importers.get("packages/a").expect("importer a");

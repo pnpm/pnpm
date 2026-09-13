@@ -133,7 +133,7 @@ pub fn normalize_key_prefix(prefix: Option<&str>) -> String {
 /// about the lifetime of. `Storage::new` builds the client.
 #[derive(Debug, Clone)]
 pub enum HostedStoreConfig {
-    /// Local directory — [`crate::Config::storage`].
+    /// Local directory — [`crate::StorageConfig::hosted_dir`].
     Fs,
     /// S3-compatible bucket, as declared by the YAML `s3:` block.
     S3(S3Settings),

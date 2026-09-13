@@ -8,6 +8,13 @@ use crate::{NetworkError, PackageTag, RegistryError, package_distribution::Packa
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror npm registry version metadata."
+    )
+)]
 pub struct PackageVersion {
     pub name: String,
     pub version: node_semver::Version,

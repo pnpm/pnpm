@@ -49,14 +49,14 @@ use std::path::{Path, PathBuf};
 pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFuture<'a>> {
     let package_specifier_plan = PackageSpecifierPlan::parse(&args.package_names)?;
     check_specifier_combination(&args, &package_specifier_plan)?;
-    if args.global {
+    if args.target.global {
         return add_global(ctx, args);
     }
     let config_dependencies = args.parse_config_dependencies()?;
-    let dir = ctx.dir;
-    let manifest_path = ctx.manifest_path;
+    let dir = ctx.locations.dir;
+    let manifest_path = ctx.locations.manifest_path;
     let reporter = ctx.reporter;
-    let config = ctx.config;
+    let config = ctx.loaders.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
         let (config_root, recursive_sort) =
@@ -96,12 +96,12 @@ fn prepare_add_config(
 ) -> miette::Result<(PathBuf, bool)> {
     // Before `apply_allow_build` persists anything: a `--workspace` add
     // that cannot run must leave `pnpm-workspace.yaml` untouched.
-    workspace_link_root(args.workspace, cfg.workspace_dir.as_deref())?;
+    workspace_link_root(args.target.workspace, cfg.workspace_dir.as_deref())?;
     let recursive_sort = cfg.sort;
     if plain_dependencies {
         args.check_workspace_root(cfg, dir)?;
     }
-    args.lockfile_dir.apply_to(cfg, dir);
+    args.install.lockfile_dir.apply_to(cfg, dir);
     args.apply_cli_config(cfg);
     let config_root = derive_config_root(cfg, dir, reporter)
         .wrap_err("derive workspace root and package manager policy")?;
@@ -109,15 +109,15 @@ fn prepare_add_config(
     // at the workspace root even when `lockfileDir` moved the config
     // root elsewhere.
     let allow_build_root = cfg.workspace_dir.clone().unwrap_or_else(|| config_root.clone());
-    apply_allow_build(cfg, &args.allow_build, &allow_build_root)?;
+    apply_allow_build(cfg, &args.install.allow_build, &allow_build_root)?;
     Ok((config_root, recursive_sort))
 }
 
 fn add_global<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFuture<'a>> {
-    let config = (ctx.global_config)()?;
-    args.lockfile_dir.apply_to_global(config)?;
+    let config = (ctx.loaders.global_config)()?;
+    args.install.lockfile_dir.apply_to_global(config)?;
     args.apply_cli_config(config);
-    let dir = ctx.dir;
+    let dir = ctx.locations.dir;
     let update_check = update_notifier::spawn(config, reporter_emit(ctx.reporter));
     let install: CommandFuture<'a> = match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => {
@@ -142,12 +142,12 @@ fn check_specifier_combination(args: &AddArgs, plan: &PackageSpecifierPlan) -> m
     if args.dependency_options.save_build() && !plan.has_cargo() {
         return Err(miette::miette!("--save-build requires at least one crate: dependency"));
     }
-    if args.workspace && (plan.has_cargo() || plan.has_python()) {
+    if args.target.workspace && (plan.has_cargo() || plan.has_python()) {
         return Err(miette::miette!(
             "--workspace cannot be combined with crate: or pypi: dependencies"
         ));
     }
-    if args.workspace && args.config {
+    if args.target.workspace && args.target.config {
         return Err(miette::miette!("`pnpm add --config` cannot be combined with --workspace."));
     }
     check_non_npm_targets(args, plan)
@@ -156,7 +156,7 @@ fn check_specifier_combination(args: &AddArgs, plan: &PackageSpecifierPlan) -> m
 /// A `crate:` or `pypi:` specifier has no global install and no
 /// configuration-dependency form.
 fn check_non_npm_targets(args: &AddArgs, plan: &PackageSpecifierPlan) -> miette::Result<()> {
-    if args.global {
+    if args.target.global {
         if plan.has_cargo() {
             return Err(miette::miette!("crate: dependencies cannot be installed globally"));
         }
@@ -164,7 +164,7 @@ fn check_non_npm_targets(args: &AddArgs, plan: &PackageSpecifierPlan) -> miette:
             return Err(miette::miette!("pypi: dependencies cannot be installed globally"));
         }
     }
-    if args.config {
+    if args.target.config {
         if plan.has_cargo() {
             return Err(miette::miette!(
                 "crate: dependencies cannot be configuration dependencies"
@@ -178,9 +178,9 @@ fn check_non_npm_targets(args: &AddArgs, plan: &PackageSpecifierPlan) -> miette:
 }
 
 pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<CommandFuture<'a>> {
-    if args.global {
-        let config = (ctx.global_config)()?;
-        args.lockfile_dir.apply_to_global(config)?;
+    if args.selection.global {
+        let config = (ctx.loaders.global_config)()?;
+        args.install.lockfile_dir.apply_to_global(config)?;
         args.apply_cli_config(config);
         return Ok(match ctx.reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
@@ -190,14 +190,14 @@ pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<C
             ReporterType::Silent => Box::pin(args.run_global::<SilentReporter>(config)),
         });
     }
-    let dir = ctx.dir;
-    let manifest_path = ctx.manifest_path;
+    let dir = ctx.locations.dir;
+    let manifest_path = ctx.locations.manifest_path;
     let reporter = ctx.reporter;
-    let config = ctx.config;
+    let config = ctx.loaders.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
         let recursive_sort = cfg.sort;
-        args.lockfile_dir.apply_to(cfg, dir);
+        args.install.lockfile_dir.apply_to(cfg, dir);
         args.apply_cli_config(cfg);
         let config_root = derive_config_root(cfg, dir, reporter)
             .wrap_err("derive workspace root and package manager policy")?;
@@ -225,10 +225,10 @@ pub(super) fn remove<'a>(ctx: &RunCtx<'a>, args: RemoveArgs) -> miette::Result<C
         remove_global(ctx, &args)?;
         return Ok(Box::pin(std::future::ready(Ok(()))));
     }
-    let dir = ctx.dir;
-    let manifest_path = ctx.manifest_path;
+    let dir = ctx.locations.dir;
+    let manifest_path = ctx.locations.manifest_path;
     let reporter = ctx.reporter;
-    let config = ctx.config;
+    let config = ctx.loaders.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
         let recursive_sort = cfg.sort;
@@ -284,10 +284,10 @@ fn install_with_config<'a>(
     args: InstallArgs,
     update_check_policy: UpdateCheckPolicy,
 ) -> miette::Result<CommandFuture<'a, &'static Config>> {
-    let dir = ctx.dir;
-    let manifest_path = ctx.manifest_path;
+    let dir = ctx.locations.dir;
+    let manifest_path = ctx.locations.manifest_path;
     let reporter = ctx.reporter;
-    let config = ctx.config;
+    let config = ctx.loaders.config;
     Ok(Box::pin(async move {
         // Boxed for `clippy::large_stack_frames`: the three
         // monomorphized install futures would otherwise each reserve
@@ -300,7 +300,7 @@ fn install_with_config<'a>(
             // value is `resolve_bool_override`'s contract.
             let cfg = config()?;
             let recursive_sort = cfg.sort;
-            args.lockfile_dir.apply_to(cfg, dir);
+            args.lockfile.directory.apply_to(cfg, dir);
             apply_install_cli_config(cfg, &args);
             let frozen_lockfile = args.effective_frozen_lockfile(cfg);
             let require_lockfile = frozen_lockfile;
@@ -345,7 +345,7 @@ fn install_with_config<'a>(
 pub(super) fn ci<'a>(ctx: &RunCtx<'a>, args: CiArgs) -> miette::Result<CommandFuture<'a>> {
     let clean_args = args.clean_args;
     let mut install_args = args.install_args;
-    install_args.frozen_lockfile = true;
+    install_args.lockfile.frozen = true;
 
     // Run clean eagerly before the async future so errors surface immediately. Pass the command name so a package.json script can override the built-in.
     clean_args.run(ctx, "clean")?;
@@ -354,29 +354,29 @@ pub(super) fn ci<'a>(ctx: &RunCtx<'a>, args: CiArgs) -> miette::Result<CommandFu
 }
 
 pub(super) fn dlx<'a>(ctx: &RunCtx<'a>, args: DlxArgs) -> miette::Result<CommandFuture<'a>> {
-    let dir = ctx.dir;
+    let dir = ctx.locations.dir;
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => {
-            Box::pin(args.run::<DefaultReporter>(dir, (ctx.config)()?))
+            Box::pin(args.run::<DefaultReporter>(dir, (ctx.loaders.config)()?))
         }
-        ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(dir, (ctx.config)()?)),
-        ReporterType::Silent => Box::pin(args.run::<SilentReporter>(dir, (ctx.config)()?)),
+        ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(dir, (ctx.loaders.config)()?)),
+        ReporterType::Silent => Box::pin(args.run::<SilentReporter>(dir, (ctx.loaders.config)()?)),
     })
 }
 
 pub(super) fn create<'a>(ctx: &RunCtx<'a>, args: CreateArgs) -> miette::Result<CommandFuture<'a>> {
-    let dir = ctx.dir;
+    let dir = ctx.locations.dir;
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => {
-            Box::pin(args.run::<DefaultReporter>(dir, (ctx.config)()?))
+            Box::pin(args.run::<DefaultReporter>(dir, (ctx.loaders.config)()?))
         }
-        ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(dir, (ctx.config)()?)),
-        ReporterType::Silent => Box::pin(args.run::<SilentReporter>(dir, (ctx.config)()?)),
+        ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(dir, (ctx.loaders.config)()?)),
+        ReporterType::Silent => Box::pin(args.run::<SilentReporter>(dir, (ctx.loaders.config)()?)),
     })
 }
 
 fn remove_global(ctx: &RunCtx<'_>, args: &RemoveArgs) -> miette::Result<()> {
-    let config = (ctx.global_config)()?;
+    let config = (ctx.loaders.global_config)()?;
     args.lockfile_dir.apply_to_global(config)?;
     match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => {

@@ -29,7 +29,7 @@ fn patched_dependency_noops_when_unchanged() {
         !edit::add_patched_dependencies(&mut manifest, &deps).unwrap(),
         "re-adding the same patch entry should report no change",
     );
-    assert_eq!(manifest.into_text(), original);
+    assert_eq!(manifest.document.into_text(), original);
 }
 
 #[test]
@@ -82,7 +82,7 @@ fn patched_dependency_missing_decoded_block_returns_original_text_when_removing_
     )]));
 
     assert!(edit::add_patched_dependencies(&mut manifest, &IndexMap::new()).unwrap());
-    assert_eq!(manifest.into_text(), original);
+    assert_eq!(manifest.document.into_text(), original);
 }
 
 #[test]
@@ -99,7 +99,7 @@ fn patched_dependency_missing_decoded_mapping_keeps_text_before_inserting_new_bl
 
     assert!(edit::add_patched_dependencies(&mut manifest, &deps).unwrap());
 
-    let text = manifest.into_text();
+    let text = manifest.document.into_text();
     assert!(text.contains("packages:\n  - '*'\n"), "text: {text}");
     assert!(text.contains("is-positive: patches/is-positive.patch"), "text: {text}");
     assert!(!text.contains("is-negative"), "text: {text}");

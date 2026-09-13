@@ -123,7 +123,7 @@ pub(super) fn osv_hides_version(
 /// held across an `await` without borrowing the config.
 pub(super) enum RegistrySource {
     /// An upstream registry (public or private), served via its `/~<source>/`
-    /// upstream machinery. The id is a key in [`Config::upstreams`](pnpr_config::Config::upstreams).
+    /// upstream machinery. The id is a key in [`pnpr_config::RoutingConfig::upstreams`](pnpr_config::RoutingConfig::upstreams).
     Upstream(String),
     /// A hosted registry, served from the hosted store.
     Hosted(String),
@@ -142,7 +142,7 @@ pub(super) enum RegistrySource {
 /// address a `/~<name>/`. There is no legacy hosted-then-proxy path: a
 /// path-less request resolves through the registry graph or it does not resolve.
 pub(super) fn default_registry_target(state: &AppState, ecosystem: Ecosystem) -> Option<String> {
-    state.inner.config.registries.default_for(ecosystem).map(str::to_string)
+    state.inner.config.routing.registries.default_for(ecosystem).map(str::to_string)
 }
 
 /// Resolve an npm request; see [`resolve_ecosystem_source`].
@@ -162,7 +162,7 @@ pub(super) fn resolve_ecosystem_source(
     ecosystem: Ecosystem,
     package: &str,
 ) -> RegistrySource {
-    match state.inner.config.registries.resolve(registry, ecosystem, package) {
+    match state.inner.config.routing.registries.resolve(registry, ecosystem, package) {
         Resolved::Concrete { registry, kind: ConcreteKind::Upstream } => {
             RegistrySource::Upstream(registry.to_string())
         }
@@ -193,7 +193,7 @@ pub(super) fn resolves_to_private_source(
 ) -> bool {
     match resolve_ecosystem_source(state, registry, ecosystem, package) {
         RegistrySource::Hosted(source) => {
-            state.inner.config.hosted.get(&source).is_some_and(|hosted| {
+            state.inner.config.routing.hosted.get(&source).is_some_and(|hosted| {
                 !hosted.rules.for_package(package).access.allows(&Identity::Anonymous)
             })
         }
@@ -206,7 +206,7 @@ pub(super) fn resolves_to_private_source(
         // upstream can still gate individual names through a per-package
         // `access` rule.
         RegistrySource::Upstream(source) => {
-            state.inner.config.upstreams.get(&source).is_some_and(|upstream| {
+            state.inner.config.routing.upstreams.get(&source).is_some_and(|upstream| {
                 upstream.access.is_some()
                     || !upstream.rules.for_package(package).access.allows(&Identity::Anonymous)
             })
@@ -330,7 +330,7 @@ pub(super) fn hosted_gate(
     source: &str,
     package: &str,
 ) -> HostedGate {
-    let Some(hosted) = state.inner.config.hosted.get(source) else {
+    let Some(hosted) = state.inner.config.routing.hosted.get(source) else {
         return HostedGate::MaskNotFound;
     };
     let effective = hosted.rules.for_package(package);

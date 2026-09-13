@@ -1,7 +1,7 @@
 use super::{
-    AtomicU8, BTreeMap, ConfigDepError, ConfigDepsInstallOptions, EnvLockfile,
-    InstallabilityOptions, Integrity, LockfileResolution, LogEvent, LogLevel, NormalizedConfigDep,
-    NormalizedSubdep, PackageInstallabilityManifest, Path, Reporter, SkippedOptionalDependencyLog,
+    AtomicU8, BTreeMap, ConfigDepError, ConfigDepsInstallOptions, EnvLockfile, Integrity,
+    LockfileResolution, LogEvent, LogLevel, NormalizedConfigDep, NormalizedSubdep,
+    PackageInstallabilityManifest, Path, Reporter, SkippedOptionalDependencyLog,
     SkippedOptionalPackage, SkippedOptionalReason, StartedGate, TarballUrlOptions,
     calc_leaf_global_virtual_store_path, check_package, force_symlink, full_pkg_id,
     join_global_virtual_store_path, materialize, npm_tarball_url, prune_unexpected_siblings,
@@ -82,15 +82,8 @@ fn is_compatible<Reporter: self::Reporter>(
     }
     let manifest = subdep_installability_manifest(subdep);
     let id = format!("{}@{}", subdep.name, subdep.version);
-    let options = InstallabilityOptions {
-        current_node_version: opts.current_node_version,
-        current_os: opts.current_os,
-        current_cpu: opts.current_cpu,
-        current_libc: opts.current_libc,
-        supported_architectures: opts.supported_architectures,
-        ..InstallabilityOptions::default()
-    };
-    match check_package(&id, &manifest, &options) {
+
+    match check_package(&id, &manifest, &opts.platform) {
         Ok(None) => true,
         Ok(Some(error)) => {
             Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {

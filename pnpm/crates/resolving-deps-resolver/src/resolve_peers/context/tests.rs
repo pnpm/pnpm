@@ -98,10 +98,12 @@ fn injected_workspace_dep_is_not_remapped() {
 
 fn exclude_links_opts() -> ResolvePeersOptions {
     ResolvePeersOptions {
-        exclude_links_from_lockfile: true,
-        lockfile_dir: Some(PathBuf::from("/ws")),
         project_dir: Some(PathBuf::from("/ws/packages/app")),
-        modules_dir: Some(PathBuf::from("/ws/packages/app/node_modules")),
+        links: crate::PeerLinkOptions {
+            exclude_links_from_lockfile: true,
+            lockfile_dir: Some(PathBuf::from("/ws")),
+            modules_dir: Some(PathBuf::from("/ws/packages/app/node_modules")),
+        },
         ..ResolvePeersOptions::default()
     }
 }
@@ -174,7 +176,7 @@ fn a_match_in_a_shared_suffix_answers_every_chain_built_on_it() {
         assert!(branch.any_memoized(&mut memo, |value| {
             visits += 1;
             value == "needle"
-        }));
+        }),);
     }
 
     assert_eq!(
@@ -196,7 +198,7 @@ fn an_unmatched_shared_suffix_is_still_evaluated_only_once() {
         assert!(!branch.any_memoized(&mut memo, |value| {
             visits += 1;
             value == "needle"
-        }));
+        }),);
     }
 
     assert_eq!(visits, 5, "two shared links once, plus each branch's own tip");

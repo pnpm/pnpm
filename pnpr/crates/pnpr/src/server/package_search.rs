@@ -228,13 +228,13 @@ pub(super) async fn append_upstream_source(
     page: &mut SearchPage<Value>,
     budget: &mut UpstreamSearchBudget,
 ) -> Result<(), RegistryError> {
-    let Some(config) = state.inner.config.upstreams.get(search.source) else {
+    let Some(config) = state.inner.config.routing.upstreams.get(search.source) else {
         return Ok(());
     };
     if search.browse || !config.search || !upstream_search_admits(config, identity) {
         return Ok(());
     }
-    let Some(upstream) = state.inner.upstreams.get(search.source) else {
+    let Some(upstream) = state.inner.proxy.upstreams.get(search.source) else {
         return Ok(());
     };
     if search.from > page.total().saturating_add(budget.remaining_results()) {
@@ -276,7 +276,7 @@ pub(super) async fn hosted_search_names(
     ecosystem: Ecosystem,
     text: &pnpr_search::SearchText,
 ) -> Result<Option<(Storage, Vec<String>)>, RegistryError> {
-    let Some(hosted) = state.inner.config.hosted.get(source) else {
+    let Some(hosted) = state.inner.config.routing.hosted.get(source) else {
         return Ok(None);
     };
     if !hosted.rules.any_access_admits(identity) {
@@ -361,7 +361,7 @@ pub(super) fn discovery_sources(
     registry: &str,
     ecosystem: Ecosystem,
 ) -> Vec<DiscoverySource> {
-    let registries = &state.inner.config.registries;
+    let registries = &state.inner.config.routing.registries;
     registries
         .sources(registry, ecosystem)
         .into_iter()

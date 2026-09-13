@@ -121,8 +121,14 @@ fn run_resolve_blocking(
         prev_specifier: None,
         optional: None,
     };
-    let resolve_options =
-        ResolveOptions { project_dir: dir.clone(), lockfile_dir: dir, ..ResolveOptions::default() };
+    let resolve_options = ResolveOptions {
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: dir.clone(),
+            lockfile_dir: dir,
+            ..Default::default()
+        },
+        ..ResolveOptions::default()
+    };
 
     // A single dependency resolve is one packument fetch — no task parallelism
     // to exploit — and this already runs on a dedicated worker thread. Use a
@@ -151,10 +157,10 @@ fn run_resolve_blocking(
 
     Ok(ResolveDependencyResult {
         id: resolved.id.to_string(),
-        manifest: resolved.manifest.map(|manifest| (*manifest).clone()),
+        manifest: resolved.package.manifest.map(|manifest| (*manifest).clone()),
         resolved_via: resolved.resolved_via,
         normalized_bare_specifier: resolved.normalized_bare_specifier,
-        latest: resolved.latest,
+        latest: resolved.package.latest,
     })
 }
 

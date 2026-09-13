@@ -21,19 +21,23 @@ pub async fn collect_oci_blobs(
     min_age: Duration,
     dry_run: bool,
 ) -> Result<(usize, u64)> {
-    if config.registries.ecosystem(registry) != Some(Ecosystem::Oci) {
+    if config.routing.registries.ecosystem(registry) != Some(Ecosystem::Oci) {
         return Err(RegistryError::BadRequest {
             reason: format!("{registry:?} is not a concrete OCI registry"),
         });
     }
-    let hosted = config.hosted.get(registry).ok_or_else(|| RegistryError::BadRequest {
+    let hosted = config.routing.hosted.get(registry).ok_or_else(|| RegistryError::BadRequest {
         reason: format!("{registry:?} is not a hosted registry"),
     })?;
-    let storage =
-        Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone())?
-            .for_hosted(&hosted.org);
+    let storage = Storage::new(
+        &config.storage.hosted_backend,
+        config.storage.hosted_dir.clone(),
+        config.storage.cache_dir.clone(),
+    )?
+    .for_hosted(&hosted.org);
     let excluded: HashSet<&str> = if hosted.org.is_empty() {
         config
+            .routing
             .hosted
             .values()
             .map(|hosted| hosted.org.as_str())
@@ -42,7 +46,7 @@ pub async fn collect_oci_blobs(
     } else {
         HashSet::new()
     };
-    collect(&storage, min_age, dry_run, &excluded, config.oci.max_manifest_bytes).await
+    collect(&storage, min_age, dry_run, &excluded, config.http.oci.max_manifest_bytes).await
 }
 
 async fn collect(

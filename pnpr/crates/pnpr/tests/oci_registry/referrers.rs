@@ -14,11 +14,11 @@ async fn referrer_pages_bound_migration_and_keep_filter_and_registry() {
     ] {
         let tmp = TempDir::new().unwrap();
         let mut config = oci_config(tmp.path().to_path_buf(), "$all");
-        config.hosted_store = hosted_store;
+        config.storage.hosted_backend = hosted_store;
         let storage = pnpr_storage::Storage::new(
-            &config.hosted_store,
-            config.storage.clone(),
-            config.cache_storage.clone(),
+            &config.storage.hosted_backend,
+            config.storage.hosted_dir.clone(),
+            config.storage.cache_dir.clone(),
         )
         .unwrap()
         .for_hosted("images");
@@ -97,9 +97,9 @@ async fn large_referrer_annotations_stay_out_of_repository_documents() {
     let tmp = TempDir::new().unwrap();
     let config = oci_config(tmp.path().to_path_buf(), "$all");
     let storage = pnpr_storage::Storage::new(
-        &config.hosted_store,
-        config.storage.clone(),
-        config.cache_storage.clone(),
+        &config.storage.hosted_backend,
+        config.storage.hosted_dir.clone(),
+        config.storage.cache_dir.clone(),
     )
     .unwrap()
     .for_hosted("images");

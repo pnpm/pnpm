@@ -39,6 +39,13 @@ pub struct ResolvedRegistry {
 }
 
 #[napi(object)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the public JavaScript object exposed by the NAPI addon."
+    )
+)]
 pub struct ResolvedConfig {
     pub registries: Vec<ResolvedRegistry>,
     /// Static `Authorization` headers keyed by nerf-darted registry URI

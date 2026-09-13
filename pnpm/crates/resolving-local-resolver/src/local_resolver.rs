@@ -79,20 +79,22 @@ impl From<LocalResolveResult> for ResolveResult {
     fn from(result: LocalResolveResult) -> Self {
         ResolveResult {
             id: result.id,
-            // Local resolutions don't have a `name@version` shape —
-            // the canonical name lives in the fetched manifest, not
-            // the resolver-time signal. Leave `name_ver` empty so
-            // downstream consumers fall back to reading
-            // `result.manifest`.
-            name_ver: None,
-            latest: None,
-            published_at: None,
-            manifest: result.manifest,
             resolution: result.resolution,
             resolved_via: result.resolved_via.to_string(),
             normalized_bare_specifier: result.normalized_bare_specifier,
             alias: None,
             policy_violation: None,
+            package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                // Local resolutions don't have a `name@version` shape —
+                // the canonical name lives in the fetched manifest, not
+                // the resolver-time signal. Leave `name_ver` empty so
+                // downstream consumers fall back to reading
+                // `result.manifest`.
+                name_ver: None,
+                latest: None,
+                published_at: None,
+                manifest: result.manifest,
+            },
         }
     }
 }

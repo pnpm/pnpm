@@ -123,7 +123,7 @@ pub(super) async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     let inputs = pnpr_request_inputs(state, &link, lockfile_dir).await?;
 
     if (session.satisfied_without_server
-        || (link.frozen_lockfile && (selection.is_some() || !link.lockfile_only)))
+        || (link.lockfile.frozen && (selection.is_some() || !link.lockfile.only)))
         && let Some(lockfile) = session.previous_wanted
     {
         return install_from_local_lockfile::<Reporter>(
@@ -302,10 +302,10 @@ fn load_previous_wanted<'a, Reporter: self::Reporter + 'static>(
         return Ok(None);
     }
     let loaded =
-        if link.fix_lockfile { state.lockfile.get_for_fix() } else { state.lockfile.get() };
+        if link.lockfile.fix { state.lockfile.get_for_fix() } else { state.lockfile.get() };
     match loaded {
         Ok(lockfile) => Ok(lockfile),
-        Err(error) if !link.frozen_lockfile => {
+        Err(error) if !link.lockfile.frozen => {
             <Reporter as pnpm_reporter::Reporter>::emit(&pnpm_reporter::LogEvent::Pnpm(
                 pnpm_reporter::PnpmLog {
                     level: pnpm_reporter::LogLevel::Warn,
@@ -333,7 +333,7 @@ fn merge_source<'a>(
     if previous_wanted.is_none() {
         return Ok(None);
     }
-    if !(link.fix_lockfile && link.use_state_lockfile) {
+    if !(link.lockfile.fix && link.use_state_lockfile) {
         return Ok(previous_wanted);
     }
     MaybeLazyLockfile::Repair(&state.lockfile)
@@ -354,11 +354,11 @@ async fn satisfied_without_server(
     catalogs: Option<&Catalogs>,
     partial_selection: bool,
 ) -> bool {
-    let exchange_free = !link.frozen_lockfile
-        && !link.update_patches
-        && !link.fix_lockfile
-        && !link.lockfile_only
-        && link.prefer_frozen_lockfile
+    let exchange_free = !link.lockfile.frozen
+        && !link.lockfile.update_patches
+        && !link.lockfile.fix
+        && !link.lockfile.only
+        && link.lockfile.prefer_frozen
         && !partial_selection;
     let Some(lockfile) = previous_wanted.filter(|_| exchange_free) else {
         return false;
@@ -368,7 +368,7 @@ async fn satisfied_without_server(
         manifest: &state.manifest,
         catalogs: &catalogs.cloned().unwrap_or_default(),
         lockfile,
-        ignore_manifest_check: link.ignore_manifest_check,
+        ignore_manifest_check: link.lockfile.ignore_manifest_check,
     })
     .await
 }
@@ -390,7 +390,7 @@ async fn resolve_and_link_pnpr<Reporter: self::Reporter + 'static>(
         inputs.benchmark_registry_override.as_ref(),
         ResolveStreaming {
             lockfile_dir,
-            lockfile_only: link.lockfile_only,
+            lockfile_only: link.lockfile.only,
             partial_selection: session.partial_selection,
             prefetch_allowed: inputs.prefetch_allowed,
         },
@@ -411,7 +411,7 @@ async fn resolve_and_link_pnpr<Reporter: self::Reporter + 'static>(
     // but fetched nothing; pnpm links nothing in this mode, so stop after
     // writing the lockfile rather than running the materialization pass.
     // See [pnpm/pnpm#12146](https://github.com/pnpm/pnpm/issues/12146).
-    if link.lockfile_only {
+    if link.lockfile.only {
         return Ok(());
     }
 

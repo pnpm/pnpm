@@ -88,8 +88,7 @@ pub(super) struct SideEffectsCacheGate {
     pub(super) has_publisher: bool,
     pub(super) frozen_store: bool,
     pub(super) has_engine_name: bool,
-    pub(super) has_store_writer: bool,
-    pub(super) has_store_dir: bool,
+    pub(super) can_write_store: bool,
     pub(super) has_packages: bool,
     pub(super) has_cache_rows: bool,
 }
@@ -100,8 +99,7 @@ pub(super) fn side_effects_cache_gate_active(gate: &SideEffectsCacheGate) -> boo
     let read_gate_active = gate.side_effects_cache && gate.has_cache_rows;
     let write_gate_active = (gate.side_effects_cache_write || gate.has_publisher)
         && !gate.frozen_store
-        && gate.has_store_writer
-        && gate.has_store_dir;
+        && gate.can_write_store;
     read_gate_active || write_gate_active
 }
 pub(super) fn patch_added_build_by_package(

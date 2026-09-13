@@ -1,3 +1,5 @@
+use crate::model::CatalogEntries;
+
 use super::{
     Component, DEFAULT_CATALOG_NAME, Document, IndexMap, Inline, Manifest, Op, Patch, Route,
     comment_start, flow, insert_top_level_block, locate, locate_mapping, render, render_bool,
@@ -33,14 +35,19 @@ pub(super) fn upsert(
     let is_default = catalog_name == DEFAULT_CATALOG_NAME;
 
     let existing_target = if is_default {
-        if manifest.catalog.is_some() {
+        if manifest.catalogs.default.is_some() {
             Some(Target::Shorthand)
-        } else if manifest.catalogs.as_ref().is_some_and(|c| c.contains_key(DEFAULT_CATALOG_NAME)) {
+        } else if manifest
+            .catalogs
+            .named
+            .as_ref()
+            .is_some_and(|c| c.contains_key(DEFAULT_CATALOG_NAME))
+        {
             Some(Target::Named(DEFAULT_CATALOG_NAME.to_string()))
         } else {
             None
         }
-    } else if manifest.catalogs.as_ref().is_some_and(|c| c.contains_key(catalog_name)) {
+    } else if manifest.catalogs.named.as_ref().is_some_and(|c| c.contains_key(catalog_name)) {
         Some(Target::Named(catalog_name.to_string()))
     } else {
         None
@@ -59,19 +66,21 @@ fn upsert_existing(
     dep: &str,
     specifier: &str,
 ) -> Result<bool, Box<yamlpatch::Error>> {
-    let current = target_map(manifest, target).get(dep).cloned();
+    let current = target_map(&manifest.catalogs, target).get(dep).cloned();
     match current {
         Some(existing) if existing == specifier => Ok(false),
         Some(_) => {
-            let new_text = replace_value(manifest.text(), target, dep, specifier)?;
-            manifest.set_text(new_text);
-            target_map_mut(manifest, target).insert(dep.to_string(), specifier.to_string());
+            let new_text = replace_value(manifest.document.text(), target, dep, specifier)?;
+            manifest.document.set_text(new_text);
+            target_map_mut(&mut manifest.catalogs, target)
+                .insert(dep.to_string(), specifier.to_string());
             Ok(true)
         }
         None => {
-            let new_text = write_entry(manifest.text(), target, dep, specifier);
-            manifest.set_text(new_text);
-            target_map_mut(manifest, target).insert(dep.to_string(), specifier.to_string());
+            let new_text = write_entry(manifest.document.text(), target, dep, specifier);
+            manifest.document.set_text(new_text);
+            target_map_mut(&mut manifest.catalogs, target)
+                .insert(dep.to_string(), specifier.to_string());
             Ok(true)
         }
     }
@@ -92,15 +101,16 @@ fn create_target(
         // shorthand.
         let block = format!("catalog:\n  {dep_key}: {value}\n");
         let new_text = insert_top_level_block(manifest, "catalog", &block);
-        manifest.set_text(new_text);
-        manifest.top_level_keys =
-            render::target_order(&manifest.top_level_keys, &["catalog".to_string()]);
-        manifest.catalog = Some(IndexMap::from([(dep.to_string(), specifier.to_string())]));
-    } else if manifest.catalogs.is_some() {
+        manifest.document.set_text(new_text);
+        manifest.document.keys =
+            render::target_order(&manifest.document.keys, &["catalog".to_string()]);
+        manifest.catalogs.default =
+            Some(IndexMap::from([(dep.to_string(), specifier.to_string())]));
+    } else if manifest.catalogs.named.is_some() {
         // `catalogs:` exists but lacks this name — add a named sub-block.
         let new_text = write_named_subblock(manifest, catalog_name, dep, &value);
-        manifest.set_text(new_text);
-        manifest.catalogs.as_mut().expect("catalogs present").insert(
+        manifest.document.set_text(new_text);
+        manifest.catalogs.named.as_mut().expect("catalogs present").insert(
             catalog_name.to_string(),
             IndexMap::from([(dep.to_string(), specifier.to_string())]),
         );
@@ -110,10 +120,10 @@ fn create_target(
             render::render_value(catalog_name),
         );
         let new_text = insert_top_level_block(manifest, "catalogs", &block);
-        manifest.set_text(new_text);
-        manifest.top_level_keys =
-            render::target_order(&manifest.top_level_keys, &["catalogs".to_string()]);
-        manifest.catalogs = Some(IndexMap::from([(
+        manifest.document.set_text(new_text);
+        manifest.document.keys =
+            render::target_order(&manifest.document.keys, &["catalogs".to_string()]);
+        manifest.catalogs.named = Some(IndexMap::from([(
             catalog_name.to_string(),
             IndexMap::from([(dep.to_string(), specifier.to_string())]),
         )]));
@@ -121,11 +131,11 @@ fn create_target(
     true
 }
 
-fn target_map<'a>(manifest: &'a Manifest, target: &Target) -> &'a IndexMap<String, String> {
+fn target_map<'a>(catalogs: &'a CatalogEntries, target: &Target) -> &'a IndexMap<String, String> {
     match target {
-        Target::Shorthand => manifest.catalog.as_ref().expect("catalog shorthand present"),
-        Target::Named(name) => manifest
-            .catalogs
+        Target::Shorthand => catalogs.default.as_ref().expect("catalog shorthand present"),
+        Target::Named(name) => catalogs
+            .named
             .as_ref()
             .expect("catalogs present")
             .get(name)
@@ -134,13 +144,13 @@ fn target_map<'a>(manifest: &'a Manifest, target: &Target) -> &'a IndexMap<Strin
 }
 
 fn target_map_mut<'a>(
-    manifest: &'a mut Manifest,
+    catalogs: &'a mut CatalogEntries,
     target: &Target,
 ) -> &'a mut IndexMap<String, String> {
     match target {
-        Target::Shorthand => manifest.catalog.as_mut().expect("catalog shorthand present"),
-        Target::Named(name) => manifest
-            .catalogs
+        Target::Shorthand => catalogs.default.as_mut().expect("catalog shorthand present"),
+        Target::Named(name) => catalogs
+            .named
             .as_mut()
             .expect("catalogs present")
             .get_mut(name)
@@ -257,7 +267,7 @@ pub(super) fn write_rendered_entry_at(
 /// Write a new named catalog (`<name>:` + its first entry) into an existing
 /// top-level `catalogs:` block, at the position the reorder pass would choose.
 fn write_named_subblock(manifest: &Manifest, name: &str, dep: &str, value: &str) -> String {
-    let text = manifest.text();
+    let text = manifest.document.text();
     if let Inline::Flow(collection) = locate_mapping(text, &["catalogs"]) {
         let entry = format!("{{ {}: {value} }}", render::render_value(dep));
         return flow::upsert(text, &collection, name, &entry);

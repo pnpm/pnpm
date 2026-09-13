@@ -24,23 +24,29 @@ fn fixture(manifest: &Value) -> (TempDir, PackOptions) {
     .unwrap();
     let opts = PackOptions {
         dir: dir.path().to_path_buf(),
-        catalogs: BTreeMap::new(),
-        ignore_scripts: true,
-        unsafe_perm: true,
-        embed_readme: false,
-        pack_gzip_level: None,
-        node_linker: NodeLinker::Isolated,
-        skip_manifest_obfuscation: false,
-        user_agent: "pacquet".to_string(),
-        extra_bin_paths: Vec::new(),
-        extra_env: HashMap::new(),
         workspace_dir: None,
-        dry_run: false,
-        pack_destination: None,
-        out: None,
-        before_packing_hooks: Vec::new(),
-        injected_files: Vec::new(),
-        output_locks: None,
+        scripts: crate::PackScripts {
+            ignore: true,
+            unsafe_perm: true,
+            user_agent: "pacquet".to_string(),
+            extra_bin_paths: Vec::new(),
+            extra_env: HashMap::new(),
+        },
+        manifest: crate::PackManifestOptions {
+            catalogs: BTreeMap::new(),
+            embed_readme: false,
+            node_linker: NodeLinker::Isolated,
+            skip_obfuscation: false,
+            before_packing_hooks: Vec::new(),
+        },
+        output: crate::PackOutputOptions {
+            gzip_level: None,
+            dry_run: false,
+            destination: None,
+            out: None,
+            injected_files: Vec::new(),
+            locks: None,
+        },
     };
     (dir, opts)
 }
@@ -116,7 +122,8 @@ fn injected_files_are_packed_and_supersede_an_on_disk_entry() {
     // A stale committed CHANGELOG.md that the composed entry must replace.
     touch(dir.path(), "CHANGELOG.md", "# foo\n\nstale committed changelog\n");
     let composed = "# foo\n\n## 1.1.0\n\n### Minor Changes\n\n- A feature.\n";
-    opts.injected_files = vec![("package/CHANGELOG.md".to_string(), composed.as_bytes().to_vec())];
+    opts.output.injected_files =
+        vec![("package/CHANGELOG.md".to_string(), composed.as_bytes().to_vec())];
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();
     assert!(result.contents.contains(&"CHANGELOG.md".to_string()));
@@ -291,7 +298,7 @@ fn readme_is_reported_for_the_registry_but_kept_out_of_the_tarball_manifest() {
 fn dry_run_reports_without_writing_a_tarball() {
     let (dir, mut opts) = fixture(&json!({ "name": "foo", "version": "1.0.0" }));
     touch(dir.path(), "index.js", "x\n");
-    opts.dry_run = true;
+    opts.output.dry_run = true;
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();
 
@@ -398,8 +405,8 @@ fn version_with_path_separator_is_rejected() {
 #[test]
 fn out_and_pack_destination_together_is_rejected() {
     let (_dir, mut opts) = fixture(&json!({ "name": "foo", "version": "1.0.0" }));
-    opts.out = Some("%s.tgz".to_string());
-    opts.pack_destination = Some("dest".to_string());
+    opts.output.out = Some("%s.tgz".to_string());
+    opts.output.destination = Some("dest".to_string());
     assert!(matches!(api::<SilentReporter, Host>(&opts), Err(PackError::OutAndPackDestination)));
 }
 
@@ -433,7 +440,7 @@ fn bundle_dependencies_false_is_allowed_without_hoisted() {
 #[test]
 fn out_template_substitutes_name_and_version_and_directory() {
     let (dir, mut opts) = fixture(&json!({ "name": "@scope/foo", "version": "2.0.0" }));
-    opts.out = Some("artifacts/%s-%v.tgz".to_string());
+    opts.output.out = Some("artifacts/%s-%v.tgz".to_string());
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();
 
@@ -462,23 +469,29 @@ fn workspace_license_is_injected_into_a_sub_package() {
 
     let opts = PackOptions {
         dir: pkg_dir.clone(),
-        catalogs: BTreeMap::new(),
-        ignore_scripts: true,
-        unsafe_perm: true,
-        embed_readme: false,
-        pack_gzip_level: None,
-        node_linker: NodeLinker::Isolated,
-        skip_manifest_obfuscation: false,
-        user_agent: "pacquet".to_string(),
-        extra_bin_paths: Vec::new(),
-        extra_env: HashMap::new(),
         workspace_dir: Some(workspace.path().to_path_buf()),
-        dry_run: false,
-        pack_destination: None,
-        out: None,
-        before_packing_hooks: Vec::new(),
-        injected_files: Vec::new(),
-        output_locks: None,
+        scripts: crate::PackScripts {
+            ignore: true,
+            unsafe_perm: true,
+            user_agent: "pacquet".to_string(),
+            extra_bin_paths: Vec::new(),
+            extra_env: HashMap::new(),
+        },
+        manifest: crate::PackManifestOptions {
+            catalogs: BTreeMap::new(),
+            embed_readme: false,
+            node_linker: NodeLinker::Isolated,
+            skip_obfuscation: false,
+            before_packing_hooks: Vec::new(),
+        },
+        output: crate::PackOutputOptions {
+            gzip_level: None,
+            dry_run: false,
+            destination: None,
+            out: None,
+            injected_files: Vec::new(),
+            locks: None,
+        },
     };
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();
@@ -513,23 +526,29 @@ fn symlinked_workspace_license_is_not_injected() {
 
     let opts = PackOptions {
         dir: pkg_dir.clone(),
-        catalogs: BTreeMap::new(),
-        ignore_scripts: true,
-        unsafe_perm: true,
-        embed_readme: false,
-        pack_gzip_level: None,
-        node_linker: NodeLinker::Isolated,
-        skip_manifest_obfuscation: false,
-        user_agent: "pacquet".to_string(),
-        extra_bin_paths: Vec::new(),
-        extra_env: HashMap::new(),
         workspace_dir: Some(workspace.path().to_path_buf()),
-        dry_run: false,
-        pack_destination: None,
-        out: None,
-        before_packing_hooks: Vec::new(),
-        injected_files: Vec::new(),
-        output_locks: None,
+        scripts: crate::PackScripts {
+            ignore: true,
+            unsafe_perm: true,
+            user_agent: "pacquet".to_string(),
+            extra_bin_paths: Vec::new(),
+            extra_env: HashMap::new(),
+        },
+        manifest: crate::PackManifestOptions {
+            catalogs: BTreeMap::new(),
+            embed_readme: false,
+            node_linker: NodeLinker::Isolated,
+            skip_obfuscation: false,
+            before_packing_hooks: Vec::new(),
+        },
+        output: crate::PackOutputOptions {
+            gzip_level: None,
+            dry_run: false,
+            destination: None,
+            out: None,
+            injected_files: Vec::new(),
+            locks: None,
+        },
     };
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();
@@ -554,23 +573,29 @@ fn workspace_root_gitignore_excludes_workspace_package_files() {
 
     let opts = PackOptions {
         dir: pkg_dir.clone(),
-        catalogs: BTreeMap::new(),
-        ignore_scripts: true,
-        unsafe_perm: true,
-        embed_readme: false,
-        pack_gzip_level: None,
-        node_linker: NodeLinker::Isolated,
-        skip_manifest_obfuscation: false,
-        user_agent: "pacquet".to_string(),
-        extra_bin_paths: Vec::new(),
-        extra_env: HashMap::new(),
         workspace_dir: Some(workspace.path().to_path_buf()),
-        dry_run: false,
-        pack_destination: None,
-        out: None,
-        before_packing_hooks: Vec::new(),
-        injected_files: Vec::new(),
-        output_locks: None,
+        scripts: crate::PackScripts {
+            ignore: true,
+            unsafe_perm: true,
+            user_agent: "pacquet".to_string(),
+            extra_bin_paths: Vec::new(),
+            extra_env: HashMap::new(),
+        },
+        manifest: crate::PackManifestOptions {
+            catalogs: BTreeMap::new(),
+            embed_readme: false,
+            node_linker: NodeLinker::Isolated,
+            skip_obfuscation: false,
+            before_packing_hooks: Vec::new(),
+        },
+        output: crate::PackOutputOptions {
+            gzip_level: None,
+            dry_run: false,
+            destination: None,
+            out: None,
+            injected_files: Vec::new(),
+            locks: None,
+        },
     };
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();
@@ -660,7 +685,7 @@ fn format_pack_output_json_single_vs_multiple() {
 fn out_resolving_to_no_filename_is_rejected() {
     for out in [".", "..", ""] {
         let (_dir, mut opts) = fixture(&json!({ "name": "foo", "version": "1.0.0" }));
-        opts.out = Some(out.to_string());
+        opts.output.out = Some(out.to_string());
         assert!(
             matches!(api::<SilentReporter, Host>(&opts), Err(PackError::InvalidOut { .. })),
             "--out {out:?} should be rejected",
@@ -716,7 +741,7 @@ fn runs_prepack_prepare_and_postpack() {
             "postpack": "touch postpack.ran",
         },
     }));
-    opts.ignore_scripts = false;
+    opts.scripts.ignore = false;
 
     api::<SilentReporter, Host>(&opts).unwrap();
 
@@ -743,7 +768,7 @@ fn includes_prepack_generated_files_removed_by_postpack() {
             "postpack": "rm -f generated.txt",
         },
     }));
-    opts.ignore_scripts = false;
+    opts.scripts.ignore = false;
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();
 
@@ -780,7 +805,7 @@ fn pack_succeeds_when_scripts_enabled_but_absent() {
         "version": "1.0.0",
         "scripts": { "prepack": "" },
     }));
-    opts.ignore_scripts = false;
+    opts.scripts.ignore = false;
 
     let result = api::<RecordingReporter, Host>(&opts).unwrap();
 
@@ -820,7 +845,7 @@ fn bundles_dependencies_listed_in_bundle_dependencies() {
         "version": "0.0.0",
         "bundleDependencies": ["bundled-dep"],
     }));
-    opts.node_linker = NodeLinker::Hoisted;
+    opts.manifest.node_linker = NodeLinker::Hoisted;
     install_module(dir.path(), "bundled-dep", "1.0.0", &[("index.js", "module.exports = 42")]);
     install_module(dir.path(), "not-bundled", "1.0.0", &[]);
 
@@ -842,7 +867,7 @@ fn bundles_every_dependency_when_bundle_dependencies_is_true() {
         "dependencies": { "bundled-dep": "1.0.0" },
         "bundleDependencies": true,
     }));
-    opts.node_linker = NodeLinker::Hoisted;
+    opts.manifest.node_linker = NodeLinker::Hoisted;
     install_module(dir.path(), "bundled-dep", "1.0.0", &[("index.js", "module.exports = 42")]);
     install_module(dir.path(), "not-a-dep", "1.0.0", &[]);
 
@@ -866,7 +891,7 @@ fn bundles_transitive_dependencies_of_bundled_dependencies() {
         "version": "0.0.0",
         "bundledDependencies": ["top"],
     }));
-    opts.node_linker = NodeLinker::Hoisted;
+    opts.manifest.node_linker = NodeLinker::Hoisted;
     // `top` (directly bundled) depends on `nested`, hoisted to the root.
     let top = dir.path().join("node_modules").join("top");
     std::fs::create_dir_all(&top).unwrap();

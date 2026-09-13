@@ -7,7 +7,10 @@
 //! command-specific error codes) live in `run/recursive.rs` and
 //! `exec/recursive.rs`.
 
+pub use execution_args::RecursiveExecutionArgs;
 pub use summary::{ExecutionStatus, Status, count_failures, write_recursive_summary};
+
+mod execution_args;
 
 use derive_more::{Display, Error};
 use indexmap::IndexMap;

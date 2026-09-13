@@ -54,6 +54,13 @@ use std::time::Duration;
 /// routing state rather than metadata).
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "persisted staged publication record format is flat"
+    )
+)]
 struct StagedRecord {
     id: String,
     package_name: String,

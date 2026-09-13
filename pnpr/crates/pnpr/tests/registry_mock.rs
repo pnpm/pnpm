@@ -27,7 +27,7 @@ const PUBLIC_URL: &str = "http://example.test";
 fn static_config(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage);
-    config.public_url = PUBLIC_URL.to_string();
+    config.http.public_url = PUBLIC_URL.to_string();
     config
 }
 

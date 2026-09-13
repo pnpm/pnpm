@@ -33,14 +33,17 @@ async fn compiler_cache_failed_writes_reconcile_quota_even_after_remote_commit()
             inner: InMemory::new(),
             commit_before_error,
             fail_deletes: false,
-            fail_next_quota_write: None,
-            claim_slot_first: None,
-            fail_slot_read_after_first: None,
             publish_overlapping_after_create: None,
             fail_reads_of: None,
             fail_scope_writes: false,
             fail_only: None,
-            usage_writes: None,
+
+            quota: super::QuotaFaults {
+                fail_next_write: None,
+                claim_slot_first: None,
+                fail_slot_read_after_first: None,
+                usage_writes: None,
+            },
         });
         let hosted = HostedStoreConfig::ObjectStore { store: backend, prefix: String::new() };
         let directory = TempDir::new().unwrap();
@@ -187,14 +190,17 @@ async fn failed_object_writes_reconcile_quota_to_physical_storage() {
         inner: InMemory::new(),
         commit_before_error: false,
         fail_deletes: false,
-        fail_next_quota_write: None,
-        claim_slot_first: None,
-        fail_slot_read_after_first: None,
         publish_overlapping_after_create: None,
         fail_reads_of: None,
         fail_scope_writes: false,
         fail_only: None,
-        usage_writes: None,
+
+        quota: super::QuotaFaults {
+            fail_next_write: None,
+            claim_slot_first: None,
+            fail_slot_read_after_first: None,
+            usage_writes: None,
+        },
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -217,14 +223,17 @@ async fn publication_finish_retries_a_transient_quota_write_failure() {
         inner: InMemory::new(),
         commit_before_error: false,
         fail_deletes: false,
-        fail_next_quota_write: Some(Arc::clone(&fail_next_quota_write)),
-        claim_slot_first: None,
-        fail_slot_read_after_first: None,
         publish_overlapping_after_create: None,
         fail_reads_of: None,
         fail_scope_writes: false,
         fail_only: None,
-        usage_writes: None,
+
+        quota: super::QuotaFaults {
+            fail_next_write: Some(Arc::clone(&fail_next_quota_write)),
+            claim_slot_first: None,
+            fail_slot_read_after_first: None,
+            usage_writes: None,
+        },
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -258,17 +267,20 @@ async fn a_failed_reread_after_a_lost_race_still_releases_the_quota() {
         inner: InMemory::new(),
         commit_before_error: true,
         fail_deletes: false,
-        fail_next_quota_write: None,
-        claim_slot_first: Some((
-            format!(".pnpr-artifacts/v0/{owner}/entries/{entry}/{slot}.json"),
-            serde_json::to_vec(&winner.envelope).unwrap(),
-        )),
-        fail_slot_read_after_first: Some(Arc::new(AtomicUsize::new(0))),
         publish_overlapping_after_create: None,
         fail_reads_of: None,
         fail_scope_writes: false,
         fail_only: None,
-        usage_writes: None,
+
+        quota: super::QuotaFaults {
+            fail_next_write: None,
+            claim_slot_first: Some((
+                format!(".pnpr-artifacts/v0/{owner}/entries/{entry}/{slot}.json"),
+                serde_json::to_vec(&winner.envelope).unwrap(),
+            )),
+            fail_slot_read_after_first: Some(Arc::new(AtomicUsize::new(0))),
+            usage_writes: None,
+        },
     });
     let store = SharedArtifactStore::new(
         &HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() },

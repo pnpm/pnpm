@@ -21,6 +21,13 @@ pub enum PublishBodyError {
 
 /// One dependency as `cargo publish` sends it.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "Cargo publish dependency format is flat"
+    )
+)]
 pub struct PublishDependency {
     /// The dependency's package name.
     pub name: String,
@@ -46,6 +53,13 @@ pub struct PublishDependency {
 /// a registry's web UI (description, license, links, badges, ...) are
 /// accepted and retained but do not reach the index.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "Cargo publish metadata format is flat"
+    )
+)]
 pub struct PublishMetadata {
     pub name: String,
     pub vers: String,

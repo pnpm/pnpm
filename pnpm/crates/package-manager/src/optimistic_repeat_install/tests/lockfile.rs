@@ -143,13 +143,15 @@ fn returns_up_to_date_in_workspace_mode_without_lockfile() {
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        node_linker: pnpm_config::NodeLinker::Isolated,
-        included: isolated_included(),
-        supported_architectures: None,
         project_manifests: &[(dir.path().to_path_buf(), &manifest)],
         is_workspace_install: true,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
     });
     assert_eq!(decision, Decision::UpToDate);
 }
@@ -187,13 +189,15 @@ fn run_status_reports_wanted_lockfile_merge_conflicts() {
         &OptimisticRepeatInstallCheck {
             workspace_root: dir.path(),
             config,
-            node_linker: pnpm_config::NodeLinker::Isolated,
-            included: isolated_included(),
-            supported_architectures: None,
             project_manifests: &[(dir.path().to_path_buf(), &manifest)],
             is_workspace_install: false,
             lockfile: MaybeLazyLockfile::Loaded(None),
             catalogs: &BTreeMap::default(),
+            layout: crate::RepeatInstallLayout {
+                node_linker: pnpm_config::NodeLinker::Isolated,
+                included: isolated_included(),
+                supported_architectures: None,
+            },
         },
         &state,
     );

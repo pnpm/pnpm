@@ -12,8 +12,8 @@ async fn hosted_registry_serves_only_what_it_hosts() {
     seed_hosted(&tmp.path().join("acme"), "@acme/widget");
 
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.hosted.insert("acme".to_string(), hosted_with_access("acme", "$all"));
-    config.registries = Registries::new(
+    config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "$all"));
+    config.routing.registries = Registries::new(
         vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         None,
     );
@@ -43,8 +43,8 @@ async fn private_hosted_hides_existence_from_unauthorized_caller() {
     seed_hosted(&tmp.path().join("acme"), "@acme/widget");
 
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.hosted.insert("acme".to_string(), hosted_with_access("acme", "alice"));
-    config.registries = Registries::new(
+    config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "alice"));
+    config.routing.registries = Registries::new(
         vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         None,
     );
@@ -83,8 +83,8 @@ async fn private_hosted_org_masks_before_the_package_acl() {
     seed_hosted(&tmp.path().join("acme"), "@acme/widget");
 
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.hosted.insert("acme".to_string(), hosted_with_access("acme", "alice"));
-    config.registries = Registries::new(
+    config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "alice"));
+    config.routing.registries = Registries::new(
         vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         None,
     );
@@ -93,6 +93,7 @@ async fn private_hosted_org_masks_before_the_package_acl() {
     // leak: a caller the registry-level default denies is masked as
     // not-found for every name, explicitly ruled or not.
     config
+        .routing
         .hosted
         .get_mut("acme")
         .expect("hosted acme")
@@ -119,14 +120,15 @@ async fn private_hosted_org_masks_dist_tags_before_the_package_acl() {
     seed_hosted(&tmp.path().join("acme"), "@acme/widget");
 
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.hosted.insert("acme".to_string(), hosted_with_access("acme", "alice"));
+    config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "alice"));
     // The path-less base aliases the "acme" hosted registry, so `/-/package/...`
     // resolves to it.
-    config.registries = Registries::new(
+    config.routing.registries = Registries::new(
         vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("acme".to_string()),
     );
     config
+        .routing
         .hosted
         .get_mut("acme")
         .expect("hosted acme")
@@ -147,7 +149,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.hosted.insert("acme".to_string(), hosted_with_access("acme", "$authenticated"));
+    config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "$authenticated"));
     // npmjs already exists (from config_for); add a hosted org claiming
     // `@acme/*` + a router over it and the pattern-less npmjs catch-all,
     // aliased path-less.
@@ -164,7 +166,8 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
             Registry::Router { sources: vec!["acme".to_string(), "npmjs".to_string()] },
         ),
     ];
-    config.registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
+    config.routing.registries =
+        Registries::new(graph.into_iter().collect(), Some("main".to_string()));
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(config, auth);
@@ -281,7 +284,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
 async fn hosted_original_is_served_by_digest_after_restart_and_through_a_router() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.hosted.insert("acme".to_string(), hosted_with_access("acme", "$all"));
+    config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "$all"));
     let graph = vec![
         (
             "acme".to_string(),
@@ -291,7 +294,8 @@ async fn hosted_original_is_served_by_digest_after_restart_and_through_a_router(
         ),
         ("main".to_string(), Registry::Router { sources: vec!["acme".to_string()] }),
     ];
-    config.registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
+    config.routing.registries =
+        Registries::new(graph.into_iter().collect(), Some("main".to_string()));
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let tarball = b"public-hosted-original";
@@ -348,8 +352,8 @@ async fn hosted_original_is_served_by_digest_after_restart_and_through_a_router(
 async fn hosted_publish_rejects_digest_reference_overflow_without_disabling_existing_refs() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.hosted.insert("acme".to_string(), hosted_with_access("acme", "$authenticated"));
-    config.registries = Registries::new(
+    config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "$authenticated"));
+    config.routing.registries = Registries::new(
         vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("acme".to_string()),
     );
@@ -420,8 +424,8 @@ async fn hosted_publish_rejects_digest_reference_overflow_without_disabling_exis
 async fn hosted_digest_route_rechecks_package_access() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.hosted.insert("corp".to_string(), hosted_with_access("corp", "alice"));
-    config.registries = Registries::new(
+    config.routing.hosted.insert("corp".to_string(), hosted_with_access("corp", "alice"));
+    config.routing.registries = Registries::new(
         vec![("corp".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("corp".to_string()),
     );
@@ -477,7 +481,7 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.hosted.insert("acme".to_string(), hosted_with_access("acme", "$authenticated"));
+    config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "$authenticated"));
     // `acme` claims only `@acme/*`; the router has no other source, and the
     // path-less base aliases the router.
     let graph = vec![
@@ -491,7 +495,7 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
     ];
     let registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
     registries.validate().expect("patterned hosted config is valid");
-    config.registries = registries;
+    config.routing.registries = registries;
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(config, auth);
@@ -566,8 +570,8 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
 async fn off_pattern_publish_is_masked_for_callers_the_registry_denies() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.hosted.insert("corp".to_string(), hosted_with_access("corp", "alice"));
-    config.registries = Registries::new(
+    config.routing.hosted.insert("corp".to_string(), hosted_with_access("corp", "alice"));
+    config.routing.registries = Registries::new(
         vec![(
             "corp".to_string(),
             Registry::Hosted {
@@ -606,7 +610,7 @@ async fn off_pattern_publish_is_masked_for_callers_the_registry_denies() {
 async fn building_the_server_rejects_an_unsafe_programmatic_hosted_org() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.hosted.insert("evil".to_string(), hosted_with_access("../escape", "$all"));
+    config.routing.hosted.insert("evil".to_string(), hosted_with_access("../escape", "$all"));
     let err = pnpr::try_router(config).expect_err("a path-escaping org must fail startup");
     assert!(err.to_string().contains("org"), "unexpected error: {err}");
 }
@@ -618,9 +622,9 @@ async fn building_the_server_rejects_an_unsafe_programmatic_hosted_org() {
 async fn publish_to_a_private_upstream_is_denied_before_the_upstream_rejection() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    let mut corp = config.upstreams.get("npmjs").expect("default `npmjs` upstream").clone();
+    let mut corp = config.routing.upstreams.get("npmjs").expect("default `npmjs` upstream").clone();
     corp.access = Some(AccessList::from_tokens(["alice"]));
-    config.upstreams.insert("corp".to_string(), corp);
+    config.routing.upstreams.insert("corp".to_string(), corp);
     let auth = AuthState::in_memory();
     let member = auth.tokens.issue("alice").await.unwrap();
     let outsider = auth.tokens.issue("mallory").await.unwrap();
@@ -655,10 +659,10 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.hosted.insert("corp".to_string(), hosted_with_access("corp", "alice"));
+    config.routing.hosted.insert("corp".to_string(), hosted_with_access("corp", "alice"));
     // `/~corp/` addresses the registry directly; the path-less base aliases it,
     // so the path-less dist-tag and unpublish writes route there too.
-    config.registries = Registries::new(
+    config.routing.registries = Registries::new(
         vec![("corp".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("corp".to_string()),
     );
@@ -754,9 +758,9 @@ async fn search_does_not_enumerate_a_private_flat_root_registry() {
 
         let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
         // A surviving public flat-root registry would defeat this access check.
-        config.hosted.clear();
-        config.hosted.insert("corp".to_string(), hosted_with_access("", "alice"));
-        config.registries = Registries::new(
+        config.routing.hosted.clear();
+        config.routing.hosted.insert("corp".to_string(), hosted_with_access("", "alice"));
+        config.routing.registries = Registries::new(
             vec![("corp".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
             Some("corp".to_string()),
         );

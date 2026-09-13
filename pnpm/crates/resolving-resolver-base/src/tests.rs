@@ -140,15 +140,17 @@ impl Resolver for StubResolver {
             let name_ver: PkgNameVer = "lodash@4.17.21".parse().expect("parse fake PkgNameVer");
             Ok(Some(ResolveResult {
                 id: (&name_ver).into(),
-                name_ver: Some(name_ver),
-                latest: None,
-                published_at: None,
-                manifest: None,
                 resolution: fake_resolution(),
                 resolved_via: "stub".to_string(),
                 normalized_bare_specifier: None,
                 alias: wanted_dependency.alias.clone(),
                 policy_violation: None,
+                package: crate::ResolvedPackageInfo {
+                    name_ver: Some(name_ver),
+                    latest: None,
+                    published_at: None,
+                    manifest: None,
+                },
             }))
         })
     }

@@ -213,20 +213,18 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
 
     let dependency_groups = rebuild_dependency_groups(config)?;
 
-    let install = Install {
-        lockfile_path: Some(&lockfile_path),
-        frozen_lockfile: true,
-        mutation: ProjectMutation::NoInstall,
-        ..Install::new(
-            std::sync::Arc::clone(tarball_mem_cache),
-            resolved_packages,
-            (http_client, std::sync::Arc::clone(http_client)),
-            config,
-            manifest,
-            MaybeLazyLockfile::Lazy(lockfile),
-            dependency_groups,
-        )
-    };
+    let mut install = Install::new(
+        std::sync::Arc::clone(tarball_mem_cache),
+        resolved_packages,
+        (http_client, std::sync::Arc::clone(http_client)),
+        config,
+        manifest,
+        MaybeLazyLockfile::Lazy(lockfile),
+        dependency_groups,
+    );
+    install.lockfile_policy.frozen = true;
+    install.execution.mutation = ProjectMutation::NoInstall;
+    install.context.lockfile_path = Some(&lockfile_path);
     match workspace_selection.as_ref() {
         Some(selection) => {
             install

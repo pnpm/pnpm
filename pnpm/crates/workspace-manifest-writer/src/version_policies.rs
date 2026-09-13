@@ -26,7 +26,8 @@ pub fn set_config_dependencies<'a>(
 
     let entries: Vec<(&str, &str)> = entries.into_iter().collect();
     if !entries.is_empty()
-        && let Some(key) = unsupported_inline_key(manifest.text(), &[&["configDependencies"]])
+        && let Some(key) =
+            unsupported_inline_key(manifest.document.text(), &[&["configDependencies"]])
     {
         return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
     }
@@ -62,7 +63,8 @@ pub fn set_patched_dependencies(
         .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
 
     if !patched_dependencies.is_empty()
-        && let Some(key) = unsupported_inline_key(manifest.text(), &[&["patchedDependencies"]])
+        && let Some(key) =
+            unsupported_inline_key(manifest.document.text(), &[&["patchedDependencies"]])
     {
         return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
     }
@@ -106,7 +108,7 @@ where
 
     let entries: Vec<(&str, &str)> = entries.into_iter().collect();
     if !entries.is_empty()
-        && let Some(key) = unsupported_inline_key(manifest.text(), &[&["overrides"]])
+        && let Some(key) = unsupported_inline_key(manifest.document.text(), &[&["overrides"]])
     {
         return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
     }
@@ -181,7 +183,7 @@ pub fn set_audit_ignore_ghsas(
     }
 
     if let Some(key) = unsupported_inline_key(
-        manifest.text(),
+        manifest.document.text(),
         &[&["auditConfig"], &["auditConfig", "ignoreGhsas"], &["audit"], &["audit", "ignore"]],
     ) {
         return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
@@ -224,7 +226,9 @@ pub fn set_minimum_release_age_excludes(
     let mut manifest = Manifest::parse(original.as_deref())
         .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
 
-    if let Some(key) = unsupported_inline_key(manifest.text(), &[&["minimumReleaseAgeExclude"]]) {
+    if let Some(key) =
+        unsupported_inline_key(manifest.document.text(), &[&["minimumReleaseAgeExclude"]])
+    {
         return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
     }
 

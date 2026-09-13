@@ -21,7 +21,13 @@ async fn calculated_specifier_keeps_the_operator_the_previous_specifier_declared
         prev_specifier: Some("~1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let opts = ResolveOptions { calc_specifier: true, ..ResolveOptions::default() };
+    let opts = ResolveOptions {
+        specifier: pnpm_resolving_resolver_base::ResolverSpecifierOptions {
+            calc_specifier: true,
+            ..Default::default()
+        },
+        ..ResolveOptions::default()
+    };
     let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
     assert_eq!(result.normalized_bare_specifier.as_deref(), Some("~1.1.0"));
 }
@@ -47,12 +53,12 @@ async fn jsr_specifier_routes_through_jsr_registry() {
         ..WantedDependency::default()
     };
     let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
-    let name_ver = result.name_ver.as_ref().expect("npm resolver fills name_ver");
+    let name_ver = result.package.name_ver.as_ref().expect("npm resolver fills name_ver");
     assert_eq!(name_ver.name.to_string(), "@jsr/foo__bar");
     assert_eq!(name_ver.suffix.to_string(), "1.1.0");
     assert_eq!(result.resolved_via, "jsr-registry");
     assert_eq!(result.alias.as_deref(), Some("@foo/bar"));
-    assert_eq!(result.latest.as_deref(), Some("1.1.0"));
+    assert_eq!(result.package.latest.as_deref(), Some("1.1.0"));
     assert!(matches!(result.resolution, LockfileResolution::Tarball(_)));
 }
 
@@ -77,13 +83,19 @@ async fn jsr_calculated_specifier_keeps_the_operator_the_previous_specifier_decl
         prev_specifier: Some("jsr:@foo/bar@~1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let opts = ResolveOptions { calc_specifier: true, ..ResolveOptions::default() };
+    let opts = ResolveOptions {
+        specifier: pnpm_resolving_resolver_base::ResolverSpecifierOptions {
+            calc_specifier: true,
+            ..Default::default()
+        },
+        ..ResolveOptions::default()
+    };
     let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
     assert_eq!(result.normalized_bare_specifier.as_deref(), Some("jsr:~1.1.0"));
 }
 
 /// `optionalDependencies` and `peerDependenciesMeta` round-trip from the
-/// registry's per-version manifest into [`ResolveResult::manifest`]
+/// registry's per-version manifest into [`ResolvedPackageInfo::manifest`]
 /// (a [`serde_json::Value`]). Downstream
 /// `extract_children` reads the optional-dep edges and
 /// `extract_peer_dependencies` reads the per-peer `optional` flag;
@@ -132,7 +144,7 @@ async fn resolved_manifest_carries_optional_dependencies_and_peer_dependencies_m
         ..WantedDependency::default()
     };
     let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
-    let manifest = result.manifest.as_ref().expect("npm resolver populates manifest");
+    let manifest = result.package.manifest.as_ref().expect("npm resolver populates manifest");
 
     let optional = manifest
         .get("optionalDependencies")
@@ -202,7 +214,7 @@ async fn explicit_current_revision_accepts_its_matching_history_record() {
     };
     assert_eq!(resolution.revision.map(TarballRevision::get), Some(2));
     assert_eq!(
-        result.manifest.as_ref().expect("manifest")["dependencies"],
+        result.package.manifest.as_ref().expect("manifest")["dependencies"],
         json!({
             "selected-current": "1.0.0",
         }),
@@ -231,7 +243,7 @@ async fn explicit_original_revision_omits_the_lockfile_revision() {
     };
     assert_eq!(resolution.revision, None);
     assert_eq!(
-        result.manifest.as_ref().expect("manifest")["dependencies"],
+        result.package.manifest.as_ref().expect("manifest")["dependencies"],
         json!({
             "original": "1.0.0",
         }),

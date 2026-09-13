@@ -259,28 +259,43 @@ impl InstallShape {
         lockfile_path: &'a Path,
     ) -> Install<'a, Vec<DependencyGroup>> {
         Install {
-            lockfile_path: Some(lockfile_path),
-            frozen_lockfile: self.frozen_lockfile,
-            prefer_frozen_lockfile: self.prefer_frozen_lockfile,
-            ignore_manifest_check: options.ignore_package_manifest == Some(true),
-            skip_runtimes: false,
-            mutation: self.mutation,
-            supported_architectures: None,
-            lockfile_only: self.lockfile_only,
-            // A peer-issue query resolves without writing anything;
-            // the sink presence suppresses the CLI dry-run report.
-            dry_run: matches!(mode, EngineMode::PeerIssues(_)),
-            update_seed_policy: self.update_seed_policy,
-            peer_issues_sink: mode.peer_issues_sink(),
-            deps_requiring_build_sink: mode.deps_requiring_build_sink(),
-            // The optimistic repeat-install fast path uses on-disk
-            // manifest mtimes as its freshness signal. NAPI installs use
-            // caller-supplied manifests that can change without touching
-            // package.json, so they must continue to the lockfile
-            // freshness check. Peer-issue queries must always resolve too.
-            disable_optimistic_repeat_install: mode.disable_optimistic_repeat_install(),
-            pnpmfile_hook_override: pnpmfile_hook,
-            workspace_projects_override: build_workspace_projects_override(&options.projects),
+            lockfile_policy: pnpm_package_manager::InstallLockfilePolicy {
+                frozen: self.frozen_lockfile,
+                prefer_frozen: self.prefer_frozen_lockfile,
+                ignore_manifest_check: options.ignore_package_manifest == Some(true),
+                // The optimistic repeat-install fast path uses on-disk
+                // manifest mtimes as its freshness signal. NAPI installs use
+                // caller-supplied manifests that can change without touching
+                // package.json, so they must continue to the lockfile
+                // freshness check. Peer-issue queries must always resolve too.
+                disable_optimistic_repeat: mode.disable_optimistic_repeat_install(),
+                ..install.lockfile_policy
+            },
+            execution: pnpm_package_manager::InstallExecution {
+                skip_runtimes: false,
+                mutation: self.mutation,
+                lockfile_only: self.lockfile_only,
+                // A peer-issue query resolves without writing anything;
+                // the sink presence suppresses the CLI dry-run report.
+                dry_run: matches!(mode, EngineMode::PeerIssues(_)),
+                ..install.execution
+            },
+            resolution: pnpm_package_manager::ResolutionInputs {
+                update_seed_policy: self.update_seed_policy,
+                peer_issues_sink: mode.peer_issues_sink(),
+                deps_requiring_build_sink: mode.deps_requiring_build_sink(),
+                ..install.resolution
+            },
+            context: pnpm_package_manager::InstallInvocation {
+                lockfile_path: Some(lockfile_path),
+                ..install.context
+            },
+            projects: pnpm_package_manager::InstallProjects {
+                supported_architectures: None,
+                pnpmfile_hook_override: pnpmfile_hook,
+                workspace_projects_override: build_workspace_projects_override(&options.projects),
+                ..install.projects
+            },
             ..install
         }
     }

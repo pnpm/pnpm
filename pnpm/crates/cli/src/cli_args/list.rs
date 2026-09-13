@@ -58,61 +58,66 @@ impl RecursionLimit {
 #[derive(Debug, Args)]
 pub struct ListArgs {
     pub packages: Vec<String>,
-
     #[clap(short = 'g', long)]
     pub global: bool,
+    /// Exclude peer dependencies.
+    #[clap(long)]
+    pub exclude_peers: bool,
+    /// Search by a finder function declared in `.pnpmfile.cjs`.
+    #[clap(long = "find-by")]
+    pub find_by: Vec<String>,
+    #[clap(flatten)]
+    pub output: TreeOutputArgs,
+    #[clap(flatten)]
+    pub dependencies: TreeDependencyArgs,
+    #[clap(flatten)]
+    pub graph: ListGraphArgs,
+}
 
+#[derive(Debug, Clone, clap::Args)]
+pub struct TreeOutputArgs {
     /// Show extended information.
     #[clap(long)]
     pub long: bool,
-
     /// Show information in JSON format.
     #[clap(long)]
     pub json: bool,
-
     /// Show parseable output instead of tree view.
     #[clap(long)]
     pub parseable: bool,
+}
 
-    /// Max display depth of the dependency tree. `0` lists direct
-    /// dependencies only; `-1` lists projects only.
-    #[clap(long, default_value = "0", value_parser = parse_depth, allow_hyphen_values = true)]
-    pub(crate) depth: RecursionLimit,
-
+#[derive(Debug, Clone, clap::Args)]
+pub struct TreeDependencyArgs {
     /// Display only the dependency graph for packages in `dependencies`
     /// and `optionalDependencies`.
     #[clap(short = 'P', long = "prod", visible_alias = "production")]
     pub production: bool,
-
     /// Display only the dependency graph for packages in `devDependencies`.
     #[clap(short = 'D', long)]
     pub dev: bool,
-
     /// Don't display packages from `optionalDependencies`.
     #[clap(long, overrides_with = "optional")]
     pub no_optional: bool,
-
     /// Include packages from `optionalDependencies`.
     #[clap(long, overrides_with = "no_optional")]
     pub optional: bool,
+}
 
-    /// Exclude peer dependencies.
-    #[clap(long)]
-    pub exclude_peers: bool,
-
+#[derive(Debug, Clone, clap::Args)]
+pub struct ListGraphArgs {
+    /// Max display depth of the dependency tree. `0` lists direct
+    /// dependencies only; `-1` lists projects only.
+    #[clap(long, default_value = "0", value_parser = parse_depth, allow_hyphen_values = true)]
+    pub(crate) depth: RecursionLimit,
     /// Display only dependencies that are also projects within the
     /// workspace.
     #[clap(long)]
     pub only_projects: bool,
-
     /// List packages from the lockfile only, without checking
     /// `node_modules`.
     #[clap(long)]
     pub lockfile_only: bool,
-
-    /// Search by a finder function declared in `.pnpmfile.cjs`.
-    #[clap(long = "find-by")]
-    pub find_by: Vec<String>,
 }
 
 impl ListArgs {
@@ -138,8 +143,8 @@ impl ListArgs {
             )
         })?;
 
-        if (matches!(self.depth, RecursionLimit::Levels(n) if n > 0)
-            || self.depth == RecursionLimit::Unlimited)
+        if (matches!(self.graph.depth, RecursionLimit::Levels(n) if n > 0)
+            || self.graph.depth == RecursionLimit::Unlimited)
             && let Some(output) = self.render_global_tree(config, &global_pkg_dir).await?
         {
             return Ok(output);
@@ -150,7 +155,7 @@ impl ListArgs {
             &global_pkg_dir,
             &self.packages,
             global_report_as(report_as),
-            self.long,
+            self.output.long,
         )
         .into_diagnostic()
     }
@@ -211,7 +216,7 @@ impl ListArgs {
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
         let project_dirs: Vec<PathBuf> = selection.selected.keys().cloned().collect();
 
-        let always_print_root_package = self.depth == RecursionLimit::ProjectsOnly;
+        let always_print_root_package = self.graph.depth == RecursionLimit::ProjectsOnly;
 
         if config.shares_one_lockfile() {
             return self
@@ -242,14 +247,14 @@ impl ListArgs {
                 outputs.push(output);
             }
         }
-        let joiner = if self.depth == RecursionLimit::ProjectsOnly { "\n" } else { "\n\n" };
+        let joiner = if self.graph.depth == RecursionLimit::ProjectsOnly { "\n" } else { "\n\n" };
         Ok(outputs.join(joiner))
     }
 
     fn report_as(&self) -> ReportAs {
-        if self.parseable {
+        if self.output.parseable {
             ReportAs::Parseable
-        } else if self.json {
+        } else if self.output.json {
             ReportAs::Json
         } else {
             ReportAs::Tree
@@ -257,13 +262,13 @@ impl ListArgs {
     }
 
     fn include(&self, include_optional: bool) -> IncludedDependencies {
-        let has_both = self.production == self.dev;
+        let has_both = self.dependencies.production == self.dependencies.dev;
         IncludedDependencies {
-            dependencies: has_both || self.production,
-            dev_dependencies: has_both || self.dev,
+            dependencies: has_both || self.dependencies.production,
+            dev_dependencies: has_both || self.dependencies.dev,
             optional_dependencies: resolve_bool_override(
-                self.optional,
-                self.no_optional,
+                self.dependencies.optional,
+                self.dependencies.no_optional,
                 include_optional,
             ),
         }
@@ -280,7 +285,7 @@ impl ListArgs {
         let state = LoadedState::load(
             lockfile_dir,
             Some(config.modules_dir.as_path()),
-            self.lockfile_only,
+            self.graph.lockfile_only,
         )?;
         let env = state.env(
             lockfile_dir,
@@ -289,20 +294,20 @@ impl ListArgs {
             config.registry_options_by_url.clone(),
         );
 
-        let hierarchies = match env.as_ref().filter(|_| self.depth != RecursionLimit::ProjectsOnly)
-        {
-            Some(env) => {
-                self.build_hierarchies(config, &state, env, project_dirs, lockfile_dir, params)
-                    .await?
-            }
-            // Without a materialized `node_modules` there is no tree to
-            // walk; every project reports its own line and nothing under
-            // it.
-            None => project_dirs
-                .iter()
-                .map(|project_dir| (project_dir.clone(), DependenciesHierarchy::default()))
-                .collect(),
-        };
+        let hierarchies =
+            match env.as_ref().filter(|_| self.graph.depth != RecursionLimit::ProjectsOnly) {
+                Some(env) => {
+                    self.build_hierarchies(config, &state, env, project_dirs, lockfile_dir, params)
+                        .await?
+                }
+                // Without a materialized `node_modules` there is no tree to
+                // walk; every project reports its own line and nothing under
+                // it.
+                None => project_dirs
+                    .iter()
+                    .map(|project_dir| (project_dir.clone(), DependenciesHierarchy::default()))
+                    .collect(),
+            };
 
         let projects: Vec<ProjectHierarchy> = hierarchies
             .into_iter()
@@ -331,17 +336,17 @@ impl ListArgs {
                 projects,
                 &RenderTreeOptions {
                     always_print_root_package,
-                    depth_above_projects_only: self.depth != RecursionLimit::ProjectsOnly,
-                    long: self.long,
+                    depth_above_projects_only: self.graph.depth != RecursionLimit::ProjectsOnly,
+                    long: self.output.long,
                     show_extraneous: false,
                     show_summary: true,
                 },
             ),
             ReportAs::Parseable => render::render_parseable(
                 projects,
-                &RenderParseableOptions { long: self.long, always_print_root_package },
+                &RenderParseableOptions { long: self.output.long, always_print_root_package },
             ),
-            ReportAs::Json => render::render_json(projects, self.long),
+            ReportAs::Json => render::render_json(projects, self.output.long),
         })
     }
 
@@ -363,7 +368,7 @@ impl ListArgs {
             &BuildGraphOptions {
                 lockfile: env.current_lockfile,
                 include,
-                only_projects: self.only_projects,
+                only_projects: self.graph.only_projects,
             },
         );
         let searcher = self.build_searcher(config, env, &graph, lockfile_dir, params).await?;
@@ -374,10 +379,10 @@ impl ListArgs {
             project_dirs,
             &BuildTreeOptions {
                 lockfile_dir,
-                depth: self.depth.max_depth(),
+                depth: self.graph.depth.max_depth(),
                 include,
                 exclude_peer_dependencies: self.exclude_peers,
-                only_projects: self.only_projects,
+                only_projects: self.graph.only_projects,
                 search: searcher.as_ref(),
                 show_deduped_search_matches: searcher.is_some(),
                 modules_dir_opt: Some(config.modules_dir.as_path()),

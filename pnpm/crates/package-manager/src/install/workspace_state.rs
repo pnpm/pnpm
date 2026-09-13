@@ -79,13 +79,15 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     if check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: &state_root,
         config: check.config,
-        node_linker: check.node_linker,
-        included: super::included_dependencies(&check.dependency_groups),
-        supported_architectures: check.supported_architectures.as_ref(),
         project_manifests: &project_manifests,
         is_workspace_install: workspace_manifest.is_some(),
         lockfile: MaybeLazyLockfile::Lazy(&lockfile),
         catalogs: &catalogs,
+        layout: crate::RepeatInstallLayout {
+            node_linker: check.node_linker,
+            included: super::included_dependencies(&check.dependency_groups),
+            supported_architectures: check.supported_architectures.as_ref(),
+        },
     }) != OptimisticRepeatInstallDecision::UpToDate
     {
         return None;

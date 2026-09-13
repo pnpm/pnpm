@@ -53,8 +53,9 @@ fn start_pnpr(registry_url: &str) -> (String, String) {
     });
 
     let addr = server.serve(move |config| {
-        config.auth.tokens.file = Some(tokens_path);
+        config.identity.auth.tokens.file = Some(tokens_path);
         config
+            .routing
             .route_policy
             .public
             .push(pnpr::PublicRoute { registry: Some(registry_url), package: None });
@@ -68,11 +69,11 @@ fn start_pnpr_registry(upstream_url: &str, ecosystem: Ecosystem) -> String {
     let upstream_url = upstream_url.to_string();
     let name = "upstream";
     let addr = PnprServer::bind("pnpr-registry").serve(move |config| {
-        config.upstreams.insert(
+        config.routing.upstreams.insert(
             name.to_string(),
             UpstreamConfig::with_defaults(upstream_url, HeaderMap::new()),
         );
-        config.registries = Registries::new(
+        config.routing.registries = Registries::new(
             indexmap::IndexMap::from([(
                 name.to_string(),
                 Registry::Upstream { patterns: Vec::new() },
@@ -125,7 +126,7 @@ impl PnprServer {
                     .expect("pnpr runtime");
                 runtime.block_on(async move {
                     let mut config = pnpr::Config::proxy(addr, storage);
-                    config.public_url = format!("http://{addr}");
+                    config.http.public_url = format!("http://{addr}");
                     configure(&mut config);
                     let listener =
                         tokio::net::TcpListener::from_std(listener).expect("tokio listener");

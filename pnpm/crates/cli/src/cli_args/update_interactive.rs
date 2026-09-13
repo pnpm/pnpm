@@ -280,7 +280,7 @@ async fn collect_choices(
                 choice.package_name.clone(),
                 choice.current.to_string(),
                 choice.target.to_string(),
-                choice.workspace.clone(),
+                choice.metadata.workspace.clone(),
             );
             if unique.insert(key) {
                 collected.push(choice);

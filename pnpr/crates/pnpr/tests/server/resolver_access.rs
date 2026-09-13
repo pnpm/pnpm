@@ -144,6 +144,7 @@ async fn authenticated_resolve_preserves_git_dependencies() {
     // to reach it; an off-allowlist URL dependency is rejected at the request
     // boundary before any fetch.
     config
+        .routing
         .route_policy
         .public
         .push(PublicRoute { registry: Some(repo_url.clone()), package: None });
@@ -171,7 +172,7 @@ async fn authenticated_resolve_preserves_git_dependencies() {
 async fn building_the_server_rejects_an_ungated_credentialed_upstream() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    let upstream = config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream");
+    let upstream = config.routing.upstreams.get_mut("npmjs").expect("default `npmjs` upstream");
     upstream.headers.insert("x-api-key", "secret".parse().unwrap());
     let err =
         pnpr::try_router(config).expect_err("an ungated credentialed upstream must fail startup");
@@ -182,8 +183,8 @@ async fn building_the_server_rejects_an_ungated_credentialed_upstream() {
 async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://upstream.invalid", tmp.path().to_path_buf());
-    config.registry.enabled = false;
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.features.registry.enabled = false;
+    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
     // The resolver surface stays reachable. `/-/ping` and the capability
@@ -321,7 +322,7 @@ async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.resolver.enabled = false;
+    config.features.resolver.enabled = false;
     let app = router(config);
 
     // The registry surface still works: ping and a proxied packument read.

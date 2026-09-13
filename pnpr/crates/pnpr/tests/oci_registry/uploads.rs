@@ -251,7 +251,7 @@ async fn s3_upload_moves_between_replicas_and_keeps_an_interrupted_chunks_prefix
     let auth_state = AuthState::in_memory();
     let replica = |disk: &TempDir| {
         let mut config = oci_config(disk.path().to_path_buf(), "$all");
-        config.hosted_store = pnpr::HostedStoreConfig::ObjectStore {
+        config.storage.hosted_backend = pnpr::HostedStoreConfig::ObjectStore {
             store: std::sync::Arc::clone(&objects),
             prefix: "shared/".into(),
         };
@@ -325,7 +325,7 @@ async fn mounts_and_discovery_respect_source_read_permissions() {
     push_image(&setup, &auth, "acme/secret", "latest").await;
     push_image(&setup, &auth, "acme/public", "latest").await;
     let mut config = oci_config(tmp.path().to_path_buf(), "$all");
-    config.hosted.get_mut("images").unwrap().rules = PackageRules::new(
+    config.routing.hosted.get_mut("images").unwrap().rules = PackageRules::new(
         vec![PackageRule {
             pattern: PackagePattern::parse("acme/secret", Ecosystem::Oci).unwrap(),
             access: Some(AccessList::from_tokens(["bob"])),
@@ -432,8 +432,8 @@ async fn unreferenced_blobs_can_be_deleted_and_uploaded_again() {
 async fn configured_limits_bound_monolithic_resumable_and_manifest_uploads() {
     let tmp = TempDir::new().unwrap();
     let mut config = oci_config(tmp.path().to_path_buf(), "$all");
-    config.oci.max_blob_bytes = 5;
-    config.oci.max_manifest_bytes = 16;
+    config.http.oci.max_blob_bytes = 5;
+    config.http.oci.max_manifest_bytes = 16;
     let app = router_with_auth(config, AuthState::in_memory());
     let auth = basic(&token(&app).await);
     let response = app
@@ -502,7 +502,7 @@ async fn proxy_verifies_and_caches_manifest_and_blob_content() {
         .await;
     let tmp = TempDir::new().unwrap();
     let mut config = oci_config(tmp.path().to_path_buf(), "$all");
-    config.upstreams.get_mut("dockerhub").unwrap().url = format!("{}/", upstream.url());
+    config.routing.upstreams.get_mut("dockerhub").unwrap().url = format!("{}/", upstream.url());
     let app = router_with_auth(config, AuthState::in_memory());
     for _ in 0..2 {
         let response = get(&app, "/v2/other/app/manifests/latest").await;
@@ -531,16 +531,16 @@ async fn blob_deletion_fences_a_manifest_commit_on_another_replica() {
     let tmp = TempDir::new().unwrap();
     let objects = std::sync::Arc::new(pausing_store::PausingStore::default());
     let mut config = oci_config(tmp.path().to_path_buf(), "$all");
-    config.hosted_store = pnpr::HostedStoreConfig::ObjectStore {
+    config.storage.hosted_backend = pnpr::HostedStoreConfig::ObjectStore {
         store: std::sync::Arc::clone(&objects) as std::sync::Arc<dyn object_store::ObjectStore>,
         prefix: "fenced/".into(),
     };
-    let hosted = config.hosted.get_mut("images").unwrap();
+    let hosted = config.routing.hosted.get_mut("images").unwrap();
     hosted.rules = std::mem::take(&mut hosted.rules)
         .with_default_unpublish(AccessList::from_tokens(["$authenticated"]));
     let auth_state = AuthState::in_memory();
     let first = router_with_auth(config.clone(), auth_state.clone());
-    config.cache_storage = tmp.path().join("second-cache");
+    config.storage.cache_dir = tmp.path().join("second-cache");
     let second = router_with_auth(config, auth_state);
     let auth = basic(&token(&first).await);
     let digest = push_blob(&first, &auth, "acme/app", b"config").await;
@@ -595,7 +595,7 @@ async fn proxy_does_not_cache_corrupt_content_or_download_blob_bodies_for_head()
         .await;
     let tmp = TempDir::new().unwrap();
     let mut config = oci_config(tmp.path().to_path_buf(), "$all");
-    config.upstreams.get_mut("dockerhub").unwrap().url = format!("{}/", upstream.url());
+    config.routing.upstreams.get_mut("dockerhub").unwrap().url = format!("{}/", upstream.url());
     let app = router_with_auth(config, AuthState::in_memory());
     let response =
         app.clone().oneshot(Request::head(&path).body(Body::empty()).unwrap()).await.unwrap();
@@ -627,7 +627,7 @@ async fn proxy_does_not_cache_corrupt_content_or_download_blob_bodies_for_head()
 async fn scoped_mount_without_source_pull_permission_falls_back_to_upload() {
     let tmp = TempDir::new().unwrap();
     let mut config = oci_config(tmp.path().to_path_buf(), "$all");
-    config.oci.bearer_auth = true;
+    config.http.oci.bearer_auth = true;
     let app = router_with_auth(config, AuthState::in_memory());
     let auth = basic(&token(&app).await);
     let digest = push_blob(&app, &auth, "acme/source", b"source layer").await;

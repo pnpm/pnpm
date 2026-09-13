@@ -412,7 +412,7 @@ async fn cache_false_upstream_rejects_tampered_tarball_without_mirroring() {
     let tmp = TempDir::new().unwrap();
     let cache_dir = tmp.path().to_path_buf();
     let mut config = config_for(&upstream.url(), cache_dir.clone());
-    config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").cache = false;
+    config.routing.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").cache = false;
     let app = router(config);
 
     let response = app

@@ -40,7 +40,7 @@ impl PickState<'_> {
         disk_meta: &mut Option<Arc<Package>>,
     ) -> Option<PickPackageResult> {
         if opts.include_latest_tag
-            || opts.update_checksums
+            || opts.request.update_checksums
             || !matches!(spec.spec_type, RegistryPackageSpecType::Version)
         {
             return None;
@@ -108,13 +108,13 @@ impl PickState<'_> {
         opts: &PickPackageOptions<'_>,
     ) -> bool {
         matches!(spec.spec_type, RegistryPackageSpecType::Range)
-            && !ctx.offline
-            && !ctx.prefer_offline
+            && !ctx.cache_policy.offline
+            && !ctx.cache_policy.prefer_offline
             && !opts.pick_lowest_version
             && !opts.include_latest_tag
-            && !opts.update_checksums
-            && opts.published_by.is_none()
-            && opts.trust_policy != Some(TrustPolicy::NoDowngrade)
+            && !opts.request.update_checksums
+            && opts.policy.published_by.is_none()
+            && opts.policy.trust_policy != Some(TrustPolicy::NoDowngrade)
             && opts.blocked_versions.is_none()
     }
 
@@ -131,9 +131,9 @@ impl PickState<'_> {
         opts: &PickPackageOptions<'_>,
         disk_meta: &mut Option<Arc<Package>>,
     ) -> Option<PickPackageResult> {
-        let published_by = opts.published_by?;
+        let published_by = opts.policy.published_by?;
         let fully_excluded = matches!(
-            opts.published_by_exclude.map(|policy| policy.matches(&spec.name)),
+            opts.policy.published_by_exclude.map(|policy| policy.matches(&spec.name)),
             Some(PolicyMatch::AnyVersion),
         );
         if fully_excluded {
@@ -151,8 +151,8 @@ impl PickState<'_> {
         };
         // Same rationale as the version-spec fast path — promote the
         // disk-loaded packument into the install-scoped in-memory cache.
-        if !opts.dry_run {
-            ctx.meta_cache.set(self.cache_key.clone(), meta);
+        if !opts.request.dry_run {
+            ctx.metadata.meta_cache.set(self.cache_key.clone(), meta);
         }
         Some(PickPackageResult { meta: picked_meta, picked_package: Some(picked) })
     }
@@ -170,8 +170,8 @@ impl PickState<'_> {
         opts: &PickPackageOptions<'_>,
         meta: &Arc<Package>,
     ) {
-        if !opts.dry_run {
-            ctx.meta_cache.set_unverified(self.cache_key.clone(), Arc::clone(meta));
+        if !opts.request.dry_run {
+            ctx.metadata.meta_cache.set_unverified(self.cache_key.clone(), Arc::clone(meta));
         }
     }
 
@@ -185,7 +185,7 @@ impl PickState<'_> {
         disk_meta: &mut Option<Arc<Package>>,
     ) -> Result<Option<PickPackageResult>, PickPackageError> {
         let meta = self.mirror_meta(disk_meta).await;
-        if ctx.offline {
+        if ctx.cache_policy.offline {
             let Some(meta) = meta else {
                 return Err(PickPackageError::NoOfflineMeta {
                     spec_name: spec.name.clone(),

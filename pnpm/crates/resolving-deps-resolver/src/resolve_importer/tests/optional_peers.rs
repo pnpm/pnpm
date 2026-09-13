@@ -555,9 +555,15 @@ async fn both_hoist_settings_off_leaves_the_optional_peer_missing() {
     };
 
     let hoisting_off = ResolveImporterOptions {
-        auto_install_peers: false,
-        dedupe_peer_dependents: false,
-        all_preferred_versions: Arc::new(seeded_preferred_versions()),
+        peers: crate::ImporterPeerOptions {
+            auto_install_peers: false,
+            dedupe_peer_dependents: false,
+            ..default_opts().peers
+        },
+        resolution: crate::ImporterResolutionInputs {
+            all_preferred_versions: Arc::new(seeded_preferred_versions()),
+            ..default_opts().resolution
+        },
         ..default_opts()
     };
     let resolver = StubResolver { table: table.clone(), calls: Mutex::new(Vec::new()) };
@@ -575,9 +581,15 @@ async fn both_hoist_settings_off_leaves_the_optional_peer_missing() {
     // `dedupePeerDependents` alone still hoists it, without
     // `autoInstallPeers`.
     let dedupe_only = ResolveImporterOptions {
-        auto_install_peers: false,
-        dedupe_peer_dependents: true,
-        all_preferred_versions: Arc::new(seeded_preferred_versions()),
+        peers: crate::ImporterPeerOptions {
+            auto_install_peers: false,
+            dedupe_peer_dependents: true,
+            ..default_opts().peers
+        },
+        resolution: crate::ImporterResolutionInputs {
+            all_preferred_versions: Arc::new(seeded_preferred_versions()),
+            ..default_opts().resolution
+        },
         ..default_opts()
     };
     let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };

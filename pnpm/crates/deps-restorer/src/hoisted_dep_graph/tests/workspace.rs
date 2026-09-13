@@ -112,8 +112,12 @@ fn walker_hoist_workspace_packages_false_keeps_importer_deps() {
     );
     let lockfile_dir = PathBuf::from("/repo");
     let opts = LockfileToHoistedDepGraphOptions {
+        placement: crate::HoistedPlacementOptions {
+            hoist_workspace_packages: false,
+            ..LockfileToHoistedDepGraphOptions::default().placement
+        },
         lockfile_dir: lockfile_dir.clone(),
-        hoist_workspace_packages: false,
+
         ..LockfileToHoistedDepGraphOptions::default()
     };
     let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
@@ -202,12 +206,12 @@ fn walker_workspace_root_version_wins_root_slot() {
     let nested_webby = lockfile_dir.join("packages/app").join("node_modules").join("webby");
 
     assert_eq!(
-        result.graph[&root_webby].dep_path,
+        result.graph[&root_webby].package.dep_path,
         DepPath::from("webby@5.0.0".to_string()),
         "the root importer's version wins the top-level slot",
     );
     assert_eq!(
-        result.graph[&nested_webby].dep_path,
+        result.graph[&nested_webby].package.dep_path,
         DepPath::from("webby@2.0.0".to_string()),
         "the workspace project's conflicting version nests under the project",
     );

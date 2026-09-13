@@ -52,12 +52,12 @@ fn relocated_deploy_invocation_parses_with_the_flags_applied() {
         "deploy",
         "temp-deploy",
     ]);
-    assert_eq!(args.filter, ["pnpm"]);
+    assert_eq!(args.workspace.selection.filter, ["pnpm"]);
     let crate::cli_args::cli_command::CliCommand::Deploy(deploy) = args.command else {
         panic!("expected deploy");
     };
-    assert!(deploy.install_args.force);
-    assert!(deploy.install_args.ignore_scripts);
+    assert!(deploy.install_args.materialization.force);
+    assert!(deploy.install_args.scripts.ignore);
     assert_eq!(deploy.target_dirs, [std::path::PathBuf::from("temp-deploy")]);
 }
 
@@ -113,7 +113,7 @@ fn mixed_short_cluster_moves_with_its_value() {
 #[test]
 fn relocated_mixed_short_cluster_parses_with_both_options_applied() {
     let args = parse(&["pnpm", "-ro", "dist", "pack-app"]);
-    assert!(args.recursive);
+    assert!(args.workspace.recursive);
     let crate::cli_args::cli_command::CliCommand::PackApp(pack_app) = args.command else {
         panic!("expected pack-app");
     };

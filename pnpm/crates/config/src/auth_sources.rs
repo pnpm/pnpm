@@ -98,7 +98,7 @@ fn env_json_auth_source<Sys: EnvVar>(
         .pipe(NpmrcAuth::from_json_sources::<Sys>)
         .map_err(|source| LoadWorkspaceYamlError::InvalidJsonAuth { source })?;
     let json_auth_has_content =
-        !json_auth.creds_by_scope_by_uri.is_empty() || !json_auth.json_env_registries.is_empty();
+        !json_auth.creds_by_scope_by_uri.is_empty() || !json_auth.routes.json_env.is_empty();
     Ok(json_auth_has_content.then_some(json_auth))
 }
 

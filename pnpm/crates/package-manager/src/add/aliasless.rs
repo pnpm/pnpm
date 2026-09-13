@@ -102,15 +102,19 @@ pub(super) async fn resolve_aliasless_tarball(
     let resolver = TarballResolver {
         http_client: Arc::clone(http_client),
         fetch_context: Some(TarballFetchContext {
-            store_dir: &config.store_dir,
-            store_index_writer: None,
             mem_cache: None,
             auth_headers: Arc::clone(&config.auth_headers),
             retry_opts: crate::retry_config::retry_opts_from_config(config),
-            store_index: None,
-            verify_store_integrity: config.verify_store_integrity,
-            verified_files_cache: SharedVerifiedFilesCache::default(),
             prior_tarball_entries: Arc::new(HashMap::new()),
+            store: pnpm_tarball::ArchiveStoreContext {
+                strict_pkg_content_check: false,
+                prefetched_cas_paths: None,
+                dir: &config.store_dir,
+                index_writer: None,
+                index: None,
+                verify_integrity: config.verify_store_integrity,
+                verified_files_cache: SharedVerifiedFilesCache::default(),
+            },
         }),
     };
     let wanted = pnpm_resolving_resolver_base::WantedDependency {
@@ -133,7 +137,7 @@ pub(super) async fn resolve_aliasless_tarball(
     .ok_or_else(|| AddError::MissingPackageName { specifier: redact_url_for_display(specifier) })?;
     let manifest_specifier =
         result.normalized_bare_specifier.unwrap_or_else(|| normalized_save_specifier(specifier));
-    let package_name = aliasless_package_name(result.manifest.as_deref(), specifier)?;
+    let package_name = aliasless_package_name(result.package.manifest.as_deref(), specifier)?;
     Ok(AliaslessDependency { package_name, manifest_specifier })
 }
 /// Flatten an error chain into one line, with every URL in it cut back to
@@ -273,6 +277,7 @@ pub(super) async fn resolve_aliasless_git(
     })?
     .ok_or_else(|| AddError::GitPackageName { specifier: redact_and_sanitize(specifier) })?;
     let package_name = result
+        .package
         .manifest
         .as_ref()
         .and_then(|manifest| manifest.get("name"))

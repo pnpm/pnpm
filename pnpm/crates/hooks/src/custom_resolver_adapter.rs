@@ -67,10 +67,10 @@ impl CustomResolverAdapter {
 
     fn opts_to_value(opts: &ResolveOptions) -> Value {
         serde_json::json!({
-            "lockfileDir": opts.lockfile_dir.to_string_lossy(),
-            "projectDir": opts.project_dir.to_string_lossy(),
-            "preferredVersions": Self::preferred_versions_to_value(&opts.preferred_versions),
-            "currentPkg": opts.current_pkg,
+            "lockfileDir": opts.project.lockfile_dir.to_string_lossy(),
+            "projectDir": opts.project.project_dir.to_string_lossy(),
+            "preferredVersions": Self::preferred_versions_to_value(&opts.version.preferred_versions),
+            "currentPkg": opts.refresh.current_pkg,
         })
     }
 }
@@ -160,14 +160,16 @@ fn resolved_hook_result(
 
     Ok(ResolveResult {
         id: PkgResolutionId::from(id.to_string()),
-        name_ver: None,
-        latest: None,
-        published_at: None,
-        manifest,
         resolution,
         resolved_via: "custom-resolver".to_string(),
         normalized_bare_specifier: None,
         alias: wanted_dependency.alias.clone(),
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: None,
+            latest: None,
+            published_at: None,
+            manifest,
+        },
     })
 }

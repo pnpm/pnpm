@@ -71,13 +71,15 @@ fn check_with_catalogs(
     check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root,
         config,
-        node_linker,
-        included: isolated_included(),
-        supported_architectures: None,
         project_manifests,
         is_workspace_install,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs,
+        layout: crate::RepeatInstallLayout {
+            node_linker,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
     })
 }
 
@@ -91,13 +93,15 @@ fn check_with_lockfile(
     check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root,
         config,
-        node_linker,
-        included: isolated_included(),
-        supported_architectures: None,
         project_manifests,
         is_workspace_install: false,
         lockfile: MaybeLazyLockfile::Loaded(Some(lockfile)),
         catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
     })
 }
 
@@ -364,13 +368,15 @@ fn content_check_decision(
     check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        node_linker: pnpm_config::NodeLinker::Isolated,
-        included: isolated_included(),
-        supported_architectures: None,
         project_manifests,
         is_workspace_install,
         lockfile: MaybeLazyLockfile::Loaded(lockfile.as_ref()),
         catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
     })
 }
 
@@ -462,13 +468,15 @@ fn workspace_deps_status(
         &OptimisticRepeatInstallCheck {
             workspace_root: dir.path(),
             config,
-            node_linker: pnpm_config::NodeLinker::Isolated,
-            included: isolated_included(),
-            supported_architectures: None,
             project_manifests,
             is_workspace_install: true,
             lockfile: MaybeLazyLockfile::Loaded(lockfile.as_ref()),
             catalogs: &BTreeMap::default(),
+            layout: crate::RepeatInstallLayout {
+                node_linker: pnpm_config::NodeLinker::Isolated,
+                included: isolated_included(),
+                supported_architectures: None,
+            },
         },
         &state,
     )
@@ -593,9 +601,6 @@ importers:
     check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root,
         config,
-        node_linker: pnpm_config::NodeLinker::Isolated,
-        included: isolated_included(),
-        supported_architectures: None,
         project_manifests: &[
             (workspace_root.to_path_buf(), &root_manifest_touched),
             (sibling_dir, &sibling_manifest),
@@ -603,5 +608,10 @@ importers:
         is_workspace_install: true,
         lockfile: MaybeLazyLockfile::Loaded(lockfile.as_ref()),
         catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
     })
 }

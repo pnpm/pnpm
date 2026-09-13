@@ -41,6 +41,13 @@ use crate::error::report_to_napi_error;
 
 /// Inputs for [`get_dependents`]. Mirrors [`DependentsOptions`] in `index.d.ts`.
 #[napi(object)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the public JavaScript object exposed by the NAPI addon."
+    )
+)]
 pub struct DependentsOptions {
     /// Lockfile / workspace root directory.
     pub dir: String,

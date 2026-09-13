@@ -7,10 +7,9 @@ use pnpm_config::Config;
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_python_resolver::{LockedPackage, Packages, candidates_from_page, wheel_identity};
 use pnpm_reporter::Reporter;
-use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndexWriter};
 use pnpm_tarball::{ArchiveStoreProjection, IngestZipArchiveToStore};
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, sync::Arc};
+use std::collections::BTreeMap;
 use tokio::io::AsyncReadExt;
 use url::Url;
 
@@ -29,9 +28,7 @@ pub(super) struct Registry<'a> {
     pub(super) auth: AuthHeaders,
     pub(super) index: Url,
     pub(super) interpreter: &'a Interpreter,
-    pub(super) store_index: Option<SharedReadonlyStoreIndex>,
-    pub(super) writer: Arc<StoreIndexWriter>,
-    pub(super) verified: SharedVerifiedFilesCache,
+    pub(super) store: pnpm_tarball::ArchiveStoreContext<'a>,
     /// What resolution reads: the candidates each distribution offers and
     /// the metadata of the wheels it has looked at.
     pub(super) packages: Packages,
@@ -161,23 +158,24 @@ impl Registry<'_> {
         let integrity = wheel.integrity()?;
         let package_id = format!("python:{}", wheel.name);
         let files = IngestZipArchiveToStore {
-            http_client: self.client,
-            store_dir: &self.config.store_dir,
-            store_index: self.store_index.clone(),
-            store_index_writer: Some(Arc::clone(&self.writer)),
-            verify_store_integrity: self.config.verify_store_integrity,
-            strict_store_pkg_content_check: self.config.strict_store_pkg_content_check,
-            verified_files_cache: Arc::clone(&self.verified),
-            package_integrity: &integrity,
-            package_url: &wheel.url,
-            package_id: &package_id,
+            fetching: pnpm_tarball::ArchiveFetchOptions {
+                http_client: self.client,
+                auth_headers: &self.auth,
+                retry_opts: self.config.retry_opts(),
+                offline: self.config.offline,
+            },
+            package: pnpm_tarball::ZipArchivePackage {
+                integrity: &integrity,
+                url: &wheel.url,
+                id: &package_id,
+            },
+            store: self.store.clone(),
+
             requester: "Python environment",
-            prefetched_cas_paths: None,
-            retry_opts: self.config.retry_opts(),
-            auth_headers: &self.auth,
+
             archive_prefix: None,
             ignore_file_pattern: None,
-            offline: self.config.offline,
+
             store_projection: ArchiveStoreProjection::RawArchive,
         }
         .run_without_mem_cache::<Reporter>()

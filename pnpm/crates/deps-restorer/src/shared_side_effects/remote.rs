@@ -32,7 +32,7 @@ pub(super) async fn fetch_remote_artifacts(
         &client,
         setup,
         groups,
-        options.remote_side_effects_quarantine_by_snapshot,
+        options.cached.quarantine_by_snapshot,
         server,
         authorization.as_deref(),
     )
@@ -52,7 +52,7 @@ pub(super) async fn fetch_remote_artifacts(
                 server,
                 authorization: authorization.as_deref(),
                 groups,
-                base_cas_paths: options.base_cas_paths,
+                base_cas_paths: options.cached.base_cas_paths,
                 store_index_writer: options.store_index_writer,
             },
             &input_key,
@@ -118,8 +118,6 @@ pub(super) async fn resolve_remote_artifacts(
         tracing::warn!(target: "pacquet::install", %error, "remote side-effects cache handshake failed");
         return None;
     }
-    let allowed_builds =
-        groups.values().map(|group| dependency_package(&group.candidate).name.clone()).collect();
     let quarantined_envelope_digests =
         quarantined_digests(groups, remote_side_effects_quarantine_by_snapshot, server);
     let rejected_artifacts = Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -128,15 +126,13 @@ pub(super) async fn resolve_remote_artifacts(
         .resolve_artifacts(ResolveArtifactsOptions {
             candidates: groups.values().map(|group| group.candidate.clone()).collect(),
             supported_tags: setup.supported_tags.clone(),
-            eligible_packages: setup.eligible_packages.clone(),
-            allowed_builds,
-            ignore_scripts: false,
             trusted_keys: setup.trusted_keys.clone(),
             quarantined_envelope_digests,
             on_rejected_artifact: Some(Arc::new(move |rejected| {
                 rejected_artifacts_for_callback.lock().unwrap().push(rejected);
             })),
             authorization: authorization.map(str::to_owned),
+            build_policy: artifact_build_policy(setup, groups),
         })
         .await
     {
@@ -148,6 +144,19 @@ pub(super) async fn resolve_remote_artifacts(
     };
     let rejected_artifacts = std::mem::take(&mut *rejected_artifacts.lock().unwrap());
     Some((resolved, rejected_artifacts))
+}
+fn artifact_build_policy(
+    setup: &RemoteCacheSetup,
+    groups: &BTreeMap<String, CandidateGroup>,
+) -> pnpm_pnpr_client::ArtifactBuildPolicy {
+    pnpm_pnpr_client::ArtifactBuildPolicy {
+        eligible_packages: setup.eligible_packages.clone(),
+        allowed_builds: groups
+            .values()
+            .map(|group| dependency_package(&group.candidate).name.clone())
+            .collect(),
+        ignore_scripts: false,
+    }
 }
 pub(super) fn quarantined_digests(
     groups: &BTreeMap<String, CandidateGroup>,

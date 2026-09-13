@@ -8,7 +8,7 @@ use pnpr_error::RegistryError;
 use serde::Deserialize;
 
 pub(super) async fn login(State(state): State<AppState>, Path(provider): Path<String>) -> Response {
-    let response = match state.inner.oidc.start(&provider).await {
+    let response = match state.inner.identity.oidc.start(&provider).await {
         Ok(start) => {
             let mut response = Redirect::to(&start.url).into_response();
             let cookie = format!(
@@ -56,6 +56,7 @@ pub(super) async fn callback(
     let response = if let Some(secret) = browser_secret(&headers, &cookie_name) {
         match state
             .inner
+            .identity
             .oidc
             .finish(&provider, &query.state, secret, query.code.as_deref().unwrap_or(""))
             .await
@@ -109,11 +110,11 @@ fn protect(response: Response) -> Response {
 }
 
 pub(super) fn validate_workloads(config: &pnpr_config::Config) -> Result<(), RegistryError> {
-    for workload in config.auth.oidc.iter().flat_map(|provider| &provider.workloads) {
+    for workload in config.identity.auth.oidc.iter().flat_map(|provider| &provider.workloads) {
         if !matches!(
-            config.registries.get(&workload.registry),
+            config.routing.registries.get(&workload.registry),
             Some(pnpr_registry::Registry::Hosted { .. }),
-        ) || config.registries.ecosystem(&workload.registry)
+        ) || config.routing.registries.ecosystem(&workload.registry)
             != Some(pnpr_registry::Ecosystem::Npm)
             || workload.packages.is_empty()
         {
@@ -143,7 +144,7 @@ pub(super) fn check_workload_request(
     path: &str,
 ) -> Result<(), RegistryError> {
     let decoded = pnpr_search::percent_decode(path);
-    let base = config.registries.base_path(pnpr_registry::Ecosystem::Npm);
+    let base = config.routing.registries.base_path(pnpr_registry::Ecosystem::Npm);
     if *method == axum::http::Method::PUT
         && workload
             .packages

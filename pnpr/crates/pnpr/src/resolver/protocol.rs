@@ -100,6 +100,13 @@ fn root_dir() -> String {
 /// parse.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "pnpr resolution request wire format is flat"
+    )
+)]
 pub struct ResolveRequest {
     #[serde(default)]
     pub dependencies: Option<DepMap>,

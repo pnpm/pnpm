@@ -366,7 +366,7 @@ pub(super) fn enforce_max_bump(
         return Ok(());
     };
     for release in releases {
-        let effective_bump = effective_bump_class(release);
+        let effective_bump = effective_bump_class(&release.version);
         if effective_bump <= max_bump {
             continue;
         }
@@ -400,11 +400,11 @@ pub(super) fn enforce_max_bump(
 /// and lane escalation can move a version further than the package's own
 /// declared or propagated bump, so the cap compares against the real
 /// distance between the current and the new version as well.
-fn effective_bump_class(release: &PlannedRelease) -> ReleaseBumpType {
+fn effective_bump_class(release: &crate::ReleaseVersion) -> ReleaseBumpType {
     let (Ok(current), Ok(new_version)) =
-        (Version::parse(&release.current_version), Version::parse(&release.new_version))
+        (Version::parse(&release.current), Version::parse(&release.next))
     else {
-        return release.bump_type;
+        return release.bump;
     };
     let diff_class = if new_version.major != current.major {
         Some(ReleaseBumpType::Major)
@@ -415,5 +415,5 @@ fn effective_bump_class(release: &PlannedRelease) -> ReleaseBumpType {
     } else {
         None
     };
-    diff_class.into_iter().chain([release.bump_type]).max().unwrap_or(release.bump_type)
+    diff_class.into_iter().chain([release.bump]).max().unwrap_or(release.bump)
 }

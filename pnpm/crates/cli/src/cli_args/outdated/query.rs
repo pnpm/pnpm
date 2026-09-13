@@ -25,9 +25,15 @@ impl OutdatedRun {
         Ok(Self {
             resolver,
             resolve_options: ResolveOptions {
-                default_tag: Some("latest".to_string()),
-                published_by: policy.published_by,
-                published_by_exclude: policy.published_by_exclude,
+                version: pnpm_resolving_resolver_base::VersionSelectionOptions {
+                    default_tag: Some("latest".to_string()),
+                    ..Default::default()
+                },
+                policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+                    published_by: policy.published_by,
+                    published_by_exclude: policy.published_by_exclude,
+                    ..Default::default()
+                },
                 ..ResolveOptions::default()
             },
             catalogs: configured_catalogs(config)?,
@@ -66,6 +72,11 @@ pub struct OutdatedPackage {
     pub target: Version,
     pub wanted: Version,
     pub github_action: bool,
+    pub metadata: OutdatedMetadata,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct OutdatedMetadata {
     /// Deprecation reason of the `target` version, when the registry
     /// marked it deprecated.
     pub deprecated: Option<String>,
@@ -89,9 +100,11 @@ impl From<github_actions::OutdatedGitHubAction> for OutdatedPackage {
             target: action.latest,
             wanted: action.wanted,
             github_action: true,
-            deprecated: None,
-            homepage: Some(action.homepage),
-            workspace: None,
+            metadata: OutdatedMetadata {
+                deprecated: None,
+                homepage: Some(action.homepage),
+                workspace: None,
+            },
         }
     }
 }
@@ -364,11 +377,13 @@ fn outdated_target(
         current: candidate.current,
         target,
         github_action: false,
-        deprecated,
-        homepage: target_manifest
-            .get("homepage")
-            .and_then(serde_json::Value::as_str)
-            .map(str::to_string),
-        workspace: Some(workspace.to_string()),
+        metadata: OutdatedMetadata {
+            deprecated,
+            homepage: target_manifest
+                .get("homepage")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string),
+            workspace: Some(workspace.to_string()),
+        },
     })
 }

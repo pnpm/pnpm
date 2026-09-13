@@ -68,19 +68,25 @@ async fn shared_manifest_cache_does_not_leak_across_registries() {
         let resolver = NpmResolver {
             registries,
             registries_by_prefix: HashMap::new(),
-            http_client: Arc::new(ThrottledClient::default()),
-            auth_headers: Arc::new(AuthHeaders::default()),
-            meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
-            fetch_locker: Arc::clone(&shared_fetch_locker),
-            picked_manifest_cache: Arc::clone(&shared_picked_cache),
-            cache_dir: Some(cache_dir.path().to_path_buf()),
-            offline: false,
-            prefer_offline: false,
-            ignore_missing_time_field: false,
-            full_metadata: false,
-            needs_full_metadata_for: None,
-            filter_metadata: false,
-            retry_opts: RetryOpts::default(),
+            metadata: crate::RegistryMetadataClient {
+                http_client: Arc::new(ThrottledClient::default()),
+                auth_headers: Arc::new(AuthHeaders::default()),
+                meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
+                fetch_locker: Arc::clone(&shared_fetch_locker),
+                picked_manifest_cache: Arc::clone(&shared_picked_cache),
+                cache_dir: Some(cache_dir.path().to_path_buf()),
+                retry_opts: RetryOpts::default(),
+            },
+            format: crate::RegistryMetadataFormat {
+                full_metadata: false,
+                needs_full_metadata_for: None,
+                filter_metadata: false,
+            },
+            cache_policy: crate::MetadataCachePolicy {
+                offline: false,
+                prefer_offline: false,
+                ignore_missing_time_field: false,
+            },
         };
         (resolver, cache_dir)
     };
@@ -106,12 +112,14 @@ async fn shared_manifest_cache_does_not_leak_across_registries() {
         .expect("resolver B picks");
 
     let deps_a = result_a
+        .package
         .manifest
         .as_ref()
         .and_then(|m| m.get("dependencies"))
         .and_then(|d| d.as_object())
         .expect("resolver A manifest carries dependencies");
     let deps_b = result_b
+        .package
         .manifest
         .as_ref()
         .and_then(|m| m.get("dependencies"))

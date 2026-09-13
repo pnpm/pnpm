@@ -53,9 +53,9 @@ async fn cycle_reentry_does_not_drop_sibling_occurrence_transitive_peers() {
     for name in ["p@1.0.0", "w@1.0.0"] {
         let entry = result.graph.get(&DepPath::from(name.to_string())).expect("entry in graph");
         assert!(
-            entry.transitive_peer_dependencies.contains("e"),
+            entry.edges.transitive_peer_dependencies.contains("e"),
             "{name} should carry transitive peer 'e', got {:?}",
-            entry.transitive_peer_dependencies,
+            entry.edges.transitive_peer_dependencies,
         );
     }
 }
@@ -471,7 +471,7 @@ async fn ancestor_peer_carries_its_own_suffix() {
     // `c` is `a`'s peer, not `b`'s — it must not leak into `b`'s
     // dependencies (only `b`'s own peer `a` is a child of `b`).
     let b_node = &result.graph[&DepPath::from("b@1.0.0(a@1.0.0(c@1.0.0))".to_string())];
-    let b_children: Vec<&str> = b_node.children.keys().map(String::as_str).collect();
+    let b_children: Vec<&str> = b_node.edges.children.keys().map(String::as_str).collect();
     assert_eq!(b_children, vec!["a"]);
 }
 
@@ -531,7 +531,7 @@ async fn peer_edge_is_patched_when_peer_walked_after_consumer() {
     // Without the post-pass, this edge would be missing because
     // `node_dep_paths` doesn't yet contain react when react-dom is
     // being walked.
-    assert_eq!(node.children.get("react"), Some(&DepPath::from("react@18.0.0".to_string())));
+    assert_eq!(node.edges.children.get("react"), Some(&DepPath::from("react@18.0.0".to_string())));
 }
 
 /// Cyclic peer dependencies: `foo` peer-depends on `qar` and `zoo`,

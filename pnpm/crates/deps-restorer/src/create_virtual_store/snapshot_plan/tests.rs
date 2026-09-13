@@ -205,6 +205,13 @@ impl PlanFixture {
             })
             .collect();
         plan_snapshots::<SilentReporter>(SnapshotPlanInputs {
+            policy: crate::create_virtual_store::snapshot_plan::SnapshotReusePolicy {
+                skipped: &SkippedSnapshots::default(),
+                link_dependencies: true,
+                force,
+                is_hoisted: false,
+                include_optional: true,
+            },
             snapshots: &self.snapshots,
             packages: &self.packages,
             current_entries: LockfileEntries {
@@ -213,11 +220,7 @@ impl PlanFixture {
             },
             layout: &self.layout,
             allow_build_policy: &allow_build_policy,
-            skipped: &SkippedSnapshots::default(),
-            link_dependencies: true,
-            force,
-            is_hoisted: false,
-            include_optional_dependencies: true,
+
             cache_keys: &mut cache_keys,
         })
         .expect("plan snapshots")

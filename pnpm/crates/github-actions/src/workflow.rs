@@ -113,15 +113,17 @@ fn action_reference(
         .filter(|candidate| parse_version(candidate).is_some())
         .map(str::to_string);
     Some(ActionReference {
-        comment_version,
         file: real_file.to_path_buf(),
-        flow_style: uses_value.flow_style,
-        indentation: uses_value.indentation,
         name: name.to_string(),
-        original_value: uses_value.value.to_string(),
-        range: uses_value.range,
         ref_: ref_and_comment.to_string(),
         repo: format!("{owner}/{repository}"),
+        source: crate::WorkflowValue {
+            comment_version,
+            flow_style: uses_value.flow_style,
+            indentation: uses_value.indentation,
+            original_value: uses_value.value.to_string(),
+            range: uses_value.range,
+        },
     })
 }
 

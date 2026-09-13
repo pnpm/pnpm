@@ -116,14 +116,14 @@ struct InstallArgsHarness {
 #[test]
 fn node_linker_default_is_none() {
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses");
-    assert!(parsed.args.node_linker.is_none(), "flag absent → field is None");
+    assert!(parsed.args.materialization.node_linker.is_none(), "flag absent → field is None");
 }
 
 #[test]
 fn node_linker_hoisted() {
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test", "--node-linker", "hoisted"])
         .expect("parses --node-linker hoisted");
-    let resolved = parsed.args.node_linker.expect("flag present").into_config();
+    let resolved = parsed.args.materialization.node_linker.expect("flag present").into_config();
     assert_eq!(resolved, NodeLinker::Hoisted);
 }
 
@@ -131,7 +131,7 @@ fn node_linker_hoisted() {
 fn node_linker_isolated() {
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test", "--node-linker", "isolated"])
         .expect("parses --node-linker isolated");
-    let resolved = parsed.args.node_linker.expect("flag present").into_config();
+    let resolved = parsed.args.materialization.node_linker.expect("flag present").into_config();
     assert_eq!(resolved, NodeLinker::Isolated);
 }
 
@@ -139,7 +139,7 @@ fn node_linker_isolated() {
 fn node_linker_pnp() {
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test", "--node-linker", "pnp"])
         .expect("parses --node-linker pnp");
-    let resolved = parsed.args.node_linker.expect("flag present").into_config();
+    let resolved = parsed.args.materialization.node_linker.expect("flag present").into_config();
     assert_eq!(resolved, NodeLinker::Pnp);
 }
 
@@ -154,41 +154,41 @@ fn node_linker_invalid_value_rejected() {
 #[test]
 fn ignore_manifest_check_flag_parses() {
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses");
-    assert!(!parsed.args.ignore_manifest_check, "flag absent → false");
+    assert!(!parsed.args.lockfile.ignore_manifest_check, "flag absent → false");
 
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test", "--ignore-manifest-check"])
         .expect("parses --ignore-manifest-check");
-    assert!(parsed.args.ignore_manifest_check, "flag present → true");
+    assert!(parsed.args.lockfile.ignore_manifest_check, "flag present → true");
 }
 
 #[test]
 fn ignore_pnpmfile_flag_parses() {
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses");
-    assert!(!parsed.args.ignore_pnpmfile, "flag absent → false");
+    assert!(!parsed.args.scripts.ignore_pnpmfile, "flag absent → false");
 
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test", "--ignore-pnpmfile"])
         .expect("parses --ignore-pnpmfile");
-    assert!(parsed.args.ignore_pnpmfile, "flag present → true");
+    assert!(parsed.args.scripts.ignore_pnpmfile, "flag present → true");
 }
 
 #[test]
 fn dry_run_flag_parses() {
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses");
-    assert!(!parsed.args.dry_run, "flag absent → false");
+    assert!(!parsed.args.materialization.dry_run, "flag absent → false");
 
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test", "--dry-run"])
         .expect("parses --dry-run");
-    assert!(parsed.args.dry_run, "flag present → true");
+    assert!(parsed.args.materialization.dry_run, "flag present → true");
 }
 
 #[test]
 fn fix_lockfile_flag_parses() {
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses");
-    assert!(!parsed.args.fix_lockfile, "flag absent → false");
+    assert!(!parsed.args.lockfile.fix, "flag absent → false");
 
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test", "--fix-lockfile"])
         .expect("parses --fix-lockfile");
-    assert!(parsed.args.fix_lockfile, "flag present → true");
+    assert!(parsed.args.lockfile.fix, "flag present → true");
 }
 
 /// `--frozen-store` parses to `true`. Absent → `false`. The flag is
@@ -198,11 +198,11 @@ fn fix_lockfile_flag_parses() {
 #[test]
 fn frozen_store_flag_parses() {
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses");
-    assert!(!parsed.args.frozen_store, "flag absent → false");
+    assert!(!parsed.args.materialization.frozen_store, "flag absent → false");
 
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test", "--frozen-store"])
         .expect("parses --frozen-store");
-    assert!(parsed.args.frozen_store, "flag present → true");
+    assert!(parsed.args.materialization.frozen_store, "flag present → true");
 }
 
 #[test]
@@ -216,8 +216,8 @@ fn slow_fetch_warning_flags_parse() {
     ])
     .expect("slow-fetch warning flags parse");
 
-    assert_eq!(parsed.args.fetch_warn_timeout_ms, Some(2_500));
-    assert_eq!(parsed.args.fetch_min_speed_ki_bps, Some(125));
+    assert_eq!(parsed.args.fetching.warn_timeout_ms, Some(2_500));
+    assert_eq!(parsed.args.fetching.min_speed_ki_bps, Some(125));
 }
 
 /// `NodeLinkerArg::into_config` maps every variant 1:1 to the

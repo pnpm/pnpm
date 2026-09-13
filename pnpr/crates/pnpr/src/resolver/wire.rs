@@ -65,15 +65,15 @@ pub(super) fn package_frame(
     // — route it by the registry, not the tarball host, so a private package
     // never leaks its raw upstream URL. Direct tarball deps keep their own URL.
     let tarball_url = if hint.from_registry {
-        router.route_registry_url(hint.name, hint.version, hint.tarball_url)
+        router.route_registry_url(hint.identity.name, hint.identity.version, hint.tarball_url)
     } else {
-        router.route_url(hint.name, hint.version, hint.tarball_url)
+        router.route_url(hint.identity.name, hint.identity.version, hint.tarball_url)
     };
     let mut frame = serde_json::json!({
         "type": "package",
-        "id": hint.id,
-        "name": hint.name,
-        "version": hint.version,
+        "id": hint.identity.id,
+        "name": hint.identity.name,
+        "version": hint.identity.version,
         "integrity": hint.integrity,
         "tarball": tarball_url,
     });
@@ -170,9 +170,6 @@ fn frozen_package_frame(
     let frame = package_frame(
         inputs.router,
         &ResolvedPackageHint {
-            id: &id,
-            name: &name,
-            version: &version,
             integrity: &integrity,
             tarball_url: &tarball_url,
             unpacked_size: stats.and_then(|stats| stats.unpacked_size),
@@ -182,6 +179,11 @@ fn frozen_package_frame(
             // re-routing by registry would be redundant; route_url is a
             // no-op on an already-routed URL.
             from_registry: false,
+            identity: pnpm_package_manager::ResolvedPackageIdentity {
+                id: &id,
+                name: &name,
+                version: &version,
+            },
         },
     );
     ndjson_line(&frame).ok()

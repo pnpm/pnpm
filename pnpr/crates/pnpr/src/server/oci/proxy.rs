@@ -63,7 +63,7 @@ impl Request {
         let ttl = if Digest::parse(reference).is_ok() {
             Duration::MAX
         } else {
-            upstream.maxage().unwrap_or(self.state.inner.config.packument_ttl)
+            upstream.maxage().unwrap_or(self.state.inner.config.http.packument_ttl)
         };
         if upstream.caches()
             && let Some(bytes) = storage.read_upstream_document(&namespace, key, ttl).await?
@@ -102,7 +102,7 @@ impl Request {
             .headers()
             .get(DOCKER_CONTENT_DIGEST)
             .map(|value| value.to_str().unwrap_or_default().to_string());
-        let limit = self.state.inner.config.oci.max_manifest_bytes;
+        let limit = self.state.inner.config.http.oci.max_manifest_bytes;
         let bytes = read_bounded_manifest(response, limit).await?;
         verify_proxied_manifest(&bytes, reference, declared.as_deref())?;
         Ok(bytes)
@@ -164,7 +164,7 @@ impl Request {
         };
         let write = storage.open_upstream_blob_tmp(namespace, key, &filename).await?;
         let integrity = sha256_integrity(digest.hex()).expect("validated SHA-256 digest");
-        let limit = self.state.inner.config.oci.max_blob_bytes;
+        let limit = self.state.inner.config.http.oci.max_blob_bytes;
         if upstream.caches() {
             let body = streaming::stream_verified_to_cache(response, write, &integrity, limit)
                 .map_err(|err| tarball_stream_error(err, key, &filename))?;

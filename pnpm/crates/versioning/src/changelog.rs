@@ -48,7 +48,7 @@ pub fn compose_changelog_section(release: &PlannedRelease) -> String {
         entries_by_bump[2].1.push(format!("- Updated dependencies:\n{}", dep_lines.join("\n")));
     }
 
-    let mut parts = vec![format!("## {}", release.new_version)];
+    let mut parts = vec![format!("## {}", release.version.next)];
     for (bump_type, entries) in &entries_by_bump {
         if entries.is_empty() {
             continue;

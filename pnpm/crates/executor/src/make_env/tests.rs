@@ -17,17 +17,21 @@ fn base_opts<'a>(
     extra_env: &'a HashMap<String, String>,
 ) -> EnvOptions<'a> {
     EnvOptions {
+        environment: crate::ScriptEnvironment {
+            init_cwd,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env,
+        },
         stage: "postinstall",
         script: "echo hi",
         pkg_root,
-        init_cwd,
+
         script_src_dir: pkg_root,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: None,
+
         unsafe_perm: true,
-        extra_env,
     }
 }
 
@@ -127,17 +131,21 @@ fn make_env_stamps_lifecycle_specific_keys() {
     let extra = empty_extra();
 
     let opts = EnvOptions {
+        environment: crate::ScriptEnvironment {
+            init_cwd,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env: &extra,
+        },
         stage: "preinstall",
         script: "node x.js",
         pkg_root,
-        init_cwd,
+
         script_src_dir: pkg_root,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: None,
+
         unsafe_perm: true,
-        extra_env: &extra,
     };
 
     let built = build_env(&opts, &json!({ "name": "y", "version": "1.0.0" }), HashMap::new());
@@ -215,17 +223,21 @@ fn reserved_stamps_win_over_extra_env_but_custom_keys_apply() {
     extra.insert("CUSTOM".into(), "hello".into());
 
     let opts = EnvOptions {
+        environment: crate::ScriptEnvironment {
+            init_cwd: Path::new("/original"),
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: Some(node_gyp),
+            user_agent: Some("pnpm"),
+            extra_env: &extra,
+        },
         stage: "postinstall",
         script: "REAL",
         pkg_root,
-        init_cwd: Path::new("/original"),
+
         script_src_dir: pkg_root,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: Some(node_gyp),
-        user_agent: Some("pnpm"),
+
         unsafe_perm: true,
-        extra_env: &extra,
     };
 
     let built = build_env(&opts, &json!({"name":"w","version":"0"}), HashMap::new());

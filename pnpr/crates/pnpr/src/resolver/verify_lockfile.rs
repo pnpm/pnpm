@@ -129,7 +129,7 @@ pub(super) async fn verify_input_lockfile(
         .as_ref()
         .map_or_else(Vec::new, |index| osv_violations_for_lockfile(index, lockfile));
     if violations.is_empty() && osv_violations.is_empty() {
-        if let Some(cache) = runtime.verdict_cache.as_ref() {
+        if let Some(cache) = runtime.cache.verdicts.as_ref() {
             cache.record(&hash, &merge_policies(&verifiers, runtime.osv_index.as_ref()));
         }
         return Ok(Some(dist_stats));
@@ -147,7 +147,7 @@ pub(super) fn past_verdict_trusted(
     hash: &str,
     verifiers: &[Arc<dyn ResolutionVerifier>],
 ) -> bool {
-    runtime.verdict_cache.as_ref().is_some_and(|cache| {
+    runtime.cache.verdicts.as_ref().is_some_and(|cache| {
         cache.is_verified(hash, |policy| {
             verifiers.iter().all(|verifier| verifier.can_trust_past_check(policy))
                 && runtime.osv_index.as_ref().is_none_or(|index| index.can_trust_policy(policy))

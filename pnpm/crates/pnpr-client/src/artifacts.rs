@@ -12,6 +12,15 @@ pub struct ResolveArtifactsOptions {
     pub candidates: Vec<ArtifactCandidate>,
     /// Most preferred compatibility tag first.
     pub supported_tags: Vec<String>,
+    /// P-256 `SubjectPublicKeyInfo` DER bytes keyed by the envelope's key id.
+    pub trusted_keys: BTreeMap<String, Vec<u8>>,
+    pub quarantined_envelope_digests: BTreeMap<String, HashSet<String>>,
+    pub on_rejected_artifact: Option<std::sync::Arc<dyn Fn(RejectedArtifact) + Send + Sync>>,
+    pub authorization: Option<String>,
+    pub build_policy: ArtifactBuildPolicy,
+}
+
+pub struct ArtifactBuildPolicy {
     /// Package names that passed the configured remote-artifact eligibility
     /// policy.
     pub eligible_packages: HashSet<String>,
@@ -21,11 +30,12 @@ pub struct ResolveArtifactsOptions {
     /// made because applying build output would violate the same policy that
     /// suppresses a local build.
     pub ignore_scripts: bool,
-    /// P-256 `SubjectPublicKeyInfo` DER bytes keyed by the envelope's key id.
-    pub trusted_keys: BTreeMap<String, Vec<u8>>,
-    pub quarantined_envelope_digests: BTreeMap<String, HashSet<String>>,
-    pub on_rejected_artifact: Option<std::sync::Arc<dyn Fn(RejectedArtifact) + Send + Sync>>,
-    pub authorization: Option<String>,
+}
+
+impl ArtifactBuildPolicy {
+    fn permits(&self, package_name: &str) -> bool {
+        self.eligible_packages.contains(package_name) && self.allowed_builds.contains(package_name)
+    }
 }
 
 #[derive(Clone)]
@@ -231,15 +241,14 @@ impl PnprClient {
     ) -> Result<BTreeMap<String, VerifiedArtifact>, PnprClientError> {
         validate_supported_tags(&opts.supported_tags)
             .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-        if opts.ignore_scripts {
+        if opts.build_policy.ignore_scripts {
             return Ok(BTreeMap::new());
         }
         opts.candidates.retain(|candidate| {
             let ArtifactSubject::DependencySideEffects { package, .. } = &candidate.subject else {
                 return false;
             };
-            opts.eligible_packages.contains(&package.name)
-                && opts.allowed_builds.contains(&package.name)
+            opts.build_policy.permits(&package.name)
         });
         if opts.candidates.is_empty() {
             return Ok(BTreeMap::new());

@@ -260,21 +260,27 @@ pub(super) fn run_dev_preinstall<Reporter: self::Reporter>(
     let extra_env = config.extra_env_with_node_options();
     let dep_path = workspace_root.to_string_lossy();
     run_dev_preinstall_hook::<Reporter>(&RunPostinstallHooks {
+        environment: pnpm_executor::ScriptEnvironment {
+            init_cwd: workspace_root,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: Some(&config.user_agent),
+            extra_env: &extra_env,
+        },
+        execution: pnpm_executor::ScriptExecutionOptions {
+            extra_bin_paths: &config.extra_bin_paths,
+            node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
+            prepend_node_path: exec_scripts_prepend_node_path(config),
+            shell: config.script_shell.as_deref().map(Path::new),
+            shell_emulator: config.shell_emulator,
+        },
         dep_path: &dep_path,
         pkg_root: workspace_root,
         root_modules_dir: &root_modules_dir,
-        init_cwd: workspace_root,
-        extra_bin_paths: &config.extra_bin_paths,
-        extra_env: &extra_env,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: Some(&config.user_agent),
+
         unsafe_perm: config.unsafe_perm,
-        node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
-        scripts_prepend_node_path: exec_scripts_prepend_node_path(config),
-        script_shell: config.script_shell.as_deref().map(Path::new),
-        shell_emulator: config.shell_emulator,
+
         optional: false,
     })
     .map(drop)
@@ -304,21 +310,27 @@ impl ProjectScriptRunner<'_> {
             .map_err(InstallError::ProjectBinLink)?;
         let dep_path = project_dir.to_string_lossy();
         run_project_lifecycle_scripts::<Reporter>(&RunPostinstallHooks {
+            environment: pnpm_executor::ScriptEnvironment {
+                init_cwd: self.workspace_root,
+                node_execpath: None,
+                npm_execpath: None,
+                node_gyp_path: None,
+                user_agent: Some(&self.config.user_agent),
+                extra_env: &self.extra_env,
+            },
+            execution: pnpm_executor::ScriptExecutionOptions {
+                extra_bin_paths: &self.config.extra_bin_paths,
+                node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
+                prepend_node_path: self.scripts_prepend_node_path,
+                shell: self.config.script_shell.as_deref().map(Path::new),
+                shell_emulator: self.config.shell_emulator,
+            },
             dep_path: &dep_path,
             pkg_root: project_dir,
             root_modules_dir: &root_modules_dir,
-            init_cwd: self.workspace_root,
-            extra_bin_paths: &self.config.extra_bin_paths,
-            extra_env: &self.extra_env,
-            node_execpath: None,
-            npm_execpath: None,
-            node_gyp_path: None,
-            user_agent: Some(&self.config.user_agent),
+
             unsafe_perm: self.config.unsafe_perm,
-            node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
-            scripts_prepend_node_path: self.scripts_prepend_node_path,
-            script_shell: self.config.script_shell.as_deref().map(Path::new),
-            shell_emulator: self.config.shell_emulator,
+
             optional: false,
         })
         .map(drop)

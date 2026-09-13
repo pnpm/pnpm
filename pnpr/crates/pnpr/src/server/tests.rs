@@ -344,7 +344,7 @@ async fn team_tokens_reach_package_authorization() {
     let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
     use pnpr_policy::{AccessToken, Identity};
     use pnpr_registry::{Ecosystem, PackagePattern};
-    config.hosted.get_mut("local").unwrap().rules = PackageRules::new(
+    config.routing.hosted.get_mut("local").unwrap().rules = PackageRules::new(
         vec![PackageRule {
             pattern: PackagePattern::parse("@team/*", Ecosystem::Npm).unwrap(),
             access: Some(AccessList::new(vec![AccessToken::Team {
@@ -359,7 +359,7 @@ async fn team_tokens_reach_package_authorization() {
     // Team membership reaches the per-package rule evaluation.
     let alice = Identity::user("alice");
     let carol = Identity::user("carol");
-    let rules = &config.hosted["local"].rules;
+    let rules = &config.routing.hosted["local"].rules;
     assert!(rules.for_package("@team/x").access.allows(&alice));
     assert!(!rules.for_package("@team/x").access.allows(&carol));
 
@@ -477,7 +477,7 @@ fn config_with_teams(tmp: &TempDir) -> Config {
     let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
     let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
     let teams = [("developers", vec!["bob", "alice"]), ("admins", vec!["alice"])];
-    config.hosted.get_mut("local").unwrap().teams = teams
+    config.routing.hosted.get_mut("local").unwrap().teams = teams
         .into_iter()
         .map(|(team, members)| {
             (team.to_string(), members.into_iter().map(str::to_string).collect())
@@ -562,7 +562,7 @@ async fn team_listing_masks_callers_the_registry_denies() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_with_teams(&tmp);
     // Registry-level default access admits only authenticated callers.
-    config.hosted.get_mut("local").unwrap().rules =
+    config.routing.hosted.get_mut("local").unwrap().rules =
         PackageRules::new(Vec::new(), Some(AccessList::from_tokens(["$authenticated"])));
     let app = app_with_config_and_token(config, "tok", record(false, &[]));
     // An anonymous caller gets the not-found mask on reads and mutations
@@ -633,7 +633,7 @@ fn tilde_registry_names_a_registry_only_for_a_leading_tilde_and_a_name() {
 async fn stored_tokens_with_jwt_shape_keep_their_backend_restrictions() {
     let tmp = TempDir::new().unwrap();
     let mut config = Config::static_serve("127.0.0.1:0".parse().unwrap(), tmp.path().to_path_buf());
-    config.auth.oidc = serde_json::from_value(serde_json::json!([{
+    config.identity.auth.oidc = serde_json::from_value(serde_json::json!([{
         "name": "github", "issuer": "https://token.actions.githubusercontent.com", "audience": "pnpr",
         "workloads": [{"identity": {"subject": "repo:org/repo:ref:refs/heads/main", "username": "ci"},
             "registry": "local", "packages": ["foo"]}]

@@ -73,15 +73,20 @@ pub struct PlannedRelease {
     /// Workspace-relative project directory — the engine's unit of identity.
     pub dir: String,
     pub root_dir: PathBuf,
-    pub current_version: String,
-    pub new_version: String,
-    pub bump_type: ReleaseBumpType,
     /// The intent files this release consumes for this package: the pending
     /// ones, plus — when the release graduates the package off a lane — the
     /// ones the ledger recorded against the lane's prerelease versions.
     pub intents: Vec<ChangeIntent>,
     pub dependency_updates: Vec<DependencyUpdate>,
     pub causes: Vec<ReleaseCause>,
+    pub version: ReleaseVersion,
+}
+
+#[derive(Debug, Clone)]
+pub struct ReleaseVersion {
+    pub current: String,
+    pub next: String,
+    pub bump: ReleaseBumpType,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -130,10 +135,7 @@ pub fn assemble_release_plan(
     let consumption = build_consumption_index(ledger, |name| workspace.refs.name_to_dirs(name))?;
 
     let ctx = AssembleContext {
-        participants: &workspace.participants,
-        lanes_by_dir: &workspace.lanes_by_dir,
-        fixed_groups: &workspace.fixed_groups,
-        epics: &workspace.epics,
+        workspace: &workspace,
         intent_bumps: &intent_bumps,
         consumption: &consumption,
         intents,
@@ -307,10 +309,7 @@ struct ResolvedEpic {
 }
 
 struct AssembleContext<'a> {
-    participants: &'a BTreeMap<String, Participant<'a>>,
-    lanes_by_dir: &'a BTreeMap<String, String>,
-    fixed_groups: &'a [Vec<String>],
-    epics: &'a [ResolvedEpic],
+    workspace: &'a ResolvedWorkspace<'a>,
     /// Per intent id: the participant dirs it releases and their bump types.
     intent_bumps: &'a HashMap<String, BTreeMap<String, IntentBumpType>>,
     consumption: &'a HashMap<String, PackageConsumption>,
@@ -348,7 +347,7 @@ fn assemble(
     let releases = planned_releases(ctx, &intents, &state, &new_versions);
     assert_no_duplicate_release_identity(&releases)?;
     if ctx.opts.snapshot_suffix.is_none() {
-        enforce_epic_bands(ctx.epics, ctx.participants, &new_versions)?;
+        enforce_epic_bands(&ctx.workspace.epics, &ctx.workspace.participants, &new_versions)?;
         enforce_max_bump(&releases, ctx.versioning)?;
     }
 

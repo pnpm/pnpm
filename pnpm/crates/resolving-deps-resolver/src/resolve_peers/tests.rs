@@ -134,7 +134,7 @@ fn cyclic_alias_peer_tree(direct_aliases: [&str; 3]) -> ResolvedTree {
 fn assert_cyclic_alias_peer_graph_is_closed(result: &ResolvePeersResult) {
     let vite_core = &result.direct_dependencies_by_alias["vite"];
     let vite_plus_path = &result.direct_dependencies_by_alias["vite-plus"];
-    let nested_core = &result.graph[vite_plus_path].children["core"];
+    let nested_core = &result.graph[vite_plus_path].edges.children["core"];
 
     assert_eq!(nested_core, vite_core);
     assert_eq!(vite_core, &DepPath::from("core@1.0.0(@vitejs/devtools@1.0.0)"));
@@ -143,7 +143,7 @@ fn assert_cyclic_alias_peer_graph_is_closed(result: &ResolvePeersResult) {
         DepPath::from("@vitejs/devtools@1.0.0(core@1.0.0)"),
     );
     for node in result.graph.values() {
-        for (alias, child) in &node.children {
+        for (alias, child) in &node.edges.children {
             assert!(
                 result.graph.contains_key(child),
                 "edge {alias} of {} points at a missing graph node {child}: {:#?}",
@@ -264,7 +264,10 @@ mod locked_peer_provider_preferences {
         let initial = resolve_peers(
             &mut tree,
             ResolvePeersOptions {
-                collect_paths_by_node_id: true,
+                scope: crate::PeerResolutionScope {
+                    collect_paths_by_node_id: true,
+                    ..Default::default()
+                },
                 ..ResolvePeersOptions::default()
             },
         );
@@ -277,7 +280,10 @@ mod locked_peer_provider_preferences {
         let preferred = resolve_peers(
             &mut tree,
             ResolvePeersOptions {
-                resolved_peer_provider_paths: Some(initial.paths_by_node_id),
+                scope: crate::PeerResolutionScope {
+                    resolved_peer_provider_paths: Some(initial.paths_by_node_id),
+                    ..Default::default()
+                },
                 ..ResolvePeersOptions::default()
             },
         );
@@ -297,7 +303,10 @@ mod locked_peer_provider_preferences {
         let initial = resolve_peers(
             &mut tree,
             ResolvePeersOptions {
-                collect_paths_by_node_id: true,
+                scope: crate::PeerResolutionScope {
+                    collect_paths_by_node_id: true,
+                    ..Default::default()
+                },
                 ..ResolvePeersOptions::default()
             },
         );
@@ -305,7 +314,10 @@ mod locked_peer_provider_preferences {
         let preferred = resolve_peers(
             &mut tree,
             ResolvePeersOptions {
-                resolved_peer_provider_paths: Some(initial.paths_by_node_id),
+                scope: crate::PeerResolutionScope {
+                    resolved_peer_provider_paths: Some(initial.paths_by_node_id),
+                    ..Default::default()
+                },
                 ..ResolvePeersOptions::default()
             },
         );
@@ -329,15 +341,17 @@ fn graph_node(dep_path: &DepPath) -> crate::dependencies_graph::DependenciesGrap
         dep_path: dep_path.clone(),
         resolved_package_id: dep_path.to_string(),
         resolve_result: std::sync::Arc::new(resolve_result("parent", "1.0.0")),
-        children: BTreeMap::new(),
-        optional_children: HashSet::default(),
-        peer_dependencies: BTreeMap::new(),
-        transitive_peer_dependencies: HashSet::default(),
-        resolved_peer_names: HashSet::default(),
         depth: 0,
         installable: true,
         is_pure: true,
         optional: false,
+        edges: crate::ResolvedDependencyEdges {
+            children: BTreeMap::new(),
+            optional_children: HashSet::default(),
+            peer_dependencies: BTreeMap::new(),
+            transitive_peer_dependencies: HashSet::default(),
+            resolved_peer_names: HashSet::default(),
+        },
     }
 }
 

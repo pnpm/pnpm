@@ -11,9 +11,7 @@ use crate::{
     pm_shims::{shim_names, write_pm_shims},
     preferred_pm::{PreferredPm, WantedPm, detect_wanted_pm},
 };
-use pnpm_executor::{
-    LifecycleScriptError, RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycle_hook,
-};
+use pnpm_executor::{LifecycleScriptError, RunPostinstallHooks, run_lifecycle_hook};
 use pnpm_network::redact_and_sanitize;
 use pnpm_package_manifest::safe_read_package_json_from_dir;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
@@ -47,23 +45,13 @@ pub type AllowBuildRef<'a> = &'a (dyn Fn(&str) -> bool + Send + Sync);
 
 /// Caller-supplied context for [`prepare_package`].
 pub struct PreparePackageOptions<'a> {
+    pub scripts: crate::PrepareScriptOptions<'a>,
     pub allow_build: AllowBuildFn<'a>,
     /// The package's resolution id — the bare `git+…#<commit>` or
     /// archive URL. The gated dep path is synthesized from it and the
     /// fetched manifest's name, so the policy sees the same
     /// `<name>@<id>` key a lockfile would record.
     pub pkg_resolution_id: &'a str,
-    pub ignore_scripts: bool,
-    pub unsafe_perm: bool,
-    pub user_agent: Option<&'a str>,
-    pub scripts_prepend_node_path: ScriptsPrependNodePath,
-    pub script_shell: Option<&'a Path>,
-    pub node_execpath: Option<&'a Path>,
-    pub npm_execpath: Option<&'a Path>,
-    /// The running pnpm, which the package-manager shims forward to.
-    /// Without it pnpm cannot provide the package manager a dependency
-    /// asks for, and the build falls back to whatever the host has.
-    pub pnpm_execpath: Option<&'a Path>,
     pub extra_bin_paths: &'a [PathBuf],
     pub extra_env: &'a HashMap<String, String>,
 }
@@ -94,7 +82,7 @@ pub fn prepare_package<Reporter: self::Reporter>(
     {
         return Ok(PreparedPackage { pkg_dir, should_be_built: false });
     }
-    if opts.ignore_scripts {
+    if opts.scripts.ignore {
         return Ok(PreparedPackage { pkg_dir, should_be_built: true });
     }
 
@@ -107,7 +95,8 @@ pub fn prepare_package<Reporter: self::Reporter>(
     let mut extra_bin_paths = opts.extra_bin_paths.to_vec();
     // Kept alive until the prepare is over: dropping it takes the shims
     // with it.
-    let shims_dir = provide_wanted_pm::<Reporter>(&wanted_pm, &dep_path, opts.pnpm_execpath)?;
+    let shims_dir =
+        provide_wanted_pm::<Reporter>(&wanted_pm, &dep_path, opts.scripts.pnpm_execpath)?;
     if let Some(dir) = shims_dir.as_ref() {
         extra_bin_paths.insert(0, dir.path().to_path_buf());
     }
@@ -128,21 +117,27 @@ impl PreparePackageOptions<'_> {
         extra_bin_paths: &'a [PathBuf],
     ) -> RunPostinstallHooks<'a> {
         RunPostinstallHooks {
+            environment: pnpm_executor::ScriptEnvironment {
+                init_cwd: pkg_dir,
+                node_execpath: self.scripts.node_execpath,
+                npm_execpath: self.scripts.npm_execpath,
+                node_gyp_path: None,
+                user_agent: self.scripts.user_agent,
+                extra_env: self.extra_env,
+            },
+            execution: pnpm_executor::ScriptExecutionOptions {
+                extra_bin_paths,
+                node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
+                prepend_node_path: self.scripts.prepend_node_path,
+                shell: self.scripts.shell,
+                shell_emulator: false,
+            },
             dep_path,
             pkg_root: pkg_dir,
             root_modules_dir: pkg_dir,
-            init_cwd: pkg_dir,
-            extra_bin_paths,
-            extra_env: self.extra_env,
-            node_execpath: self.node_execpath,
-            npm_execpath: self.npm_execpath,
-            node_gyp_path: None,
-            user_agent: self.user_agent,
-            unsafe_perm: self.unsafe_perm,
-            node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
-            scripts_prepend_node_path: self.scripts_prepend_node_path,
-            script_shell: self.script_shell,
-            shell_emulator: false,
+
+            unsafe_perm: self.scripts.unsafe_perm,
+
             optional: false,
         }
     }

@@ -18,7 +18,10 @@ pub(super) async fn serve_revision_tarball(
     let Some(integrity) = integrity_addressed_tarball_integrity(digest) else {
         return not_found();
     };
-    if matches!(state.inner.config.registries.get(registry), Some(Registry::Upstream { .. })) {
+    if matches!(
+        state.inner.config.routing.registries.get(registry),
+        Some(Registry::Upstream { .. }),
+    ) {
         let response =
             serve_upstream_revision_tarball(state, identity, registry, digest, &integrity).await;
         return if revision_registry_is_private(state, registry) {
@@ -83,7 +86,7 @@ pub(super) async fn serve_hosted_revision_tarball(
 
     let mut scan = RevisionScan::default();
     for source in sources {
-        let Some(hosted) = state.inner.config.hosted.get(&source) else {
+        let Some(hosted) = state.inner.config.routing.hosted.get(&source) else {
             continue;
         };
         let storage = state.inner.storage.for_hosted(&hosted.org);

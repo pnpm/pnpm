@@ -5,6 +5,9 @@ pub use packument::{
 
 pub use oci::oci_download_allowed;
 
+mod http;
+use http::UpstreamHttp;
+
 mod circuit_breaker;
 use circuit_breaker::CircuitBreaker;
 
@@ -55,20 +58,13 @@ pub struct SearchResponse {
 /// or tarball response out of it.
 #[derive(Clone)]
 pub struct Upstream {
-    client: Arc<ThrottledClient>,
-    fetch_guard: Option<RedirectGuard>,
     base: String,
     /// The configured upstream name (the YAML `upstreams:` key). Surfaced in
     /// client-facing errors so an open circuit names the upstream rather
     /// than leaking its upstream URL.
     name: String,
-    /// Resolved per-upstream request headers (auth + custom) attached to
-    /// every fetch. Empty for an upstream with no `auth:`/`headers:`.
-    headers: HeaderMap,
-    /// Per-request deadline (verdaccio's `timeout`).
-    timeout: Duration,
     /// Per-upstream packument freshness window (verdaccio's `maxage`), or
-    /// `None` to defer to the global [`pnpr_config::Config::packument_ttl`].
+    /// `None` to defer to the global [`pnpr_config::HttpConfig::packument_ttl`].
     maxage: Option<Duration>,
     /// Whether tarballs from this upstream are written to the local mirror
     /// (verdaccio's `cache`).
@@ -79,17 +75,18 @@ pub struct Upstream {
     /// and clones it per request) updates the same counters.
     breaker: Arc<CircuitBreaker>,
     oci_tokens: Arc<Mutex<std::collections::HashMap<String, oci::CachedToken>>>,
+    http: UpstreamHttp,
 }
 
 impl fmt::Debug for Upstream {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Upstream")
-            .field("client", &self.client)
-            .field("fetch_guard", &self.fetch_guard.is_some())
+            .field("client", &self.http.client)
+            .field("fetch_guard", &self.http.fetch_guard.is_some())
             .field("base", &self.base)
             .field("name", &self.name)
-            .field("headers", &RedactedHeaders(&self.headers))
-            .field("timeout", &self.timeout)
+            .field("headers", &RedactedHeaders(&self.http.headers))
+            .field("timeout", &self.http.timeout)
             .field("maxage", &self.maxage)
             .field("cache", &self.cache)
             .field("breaker", &self.breaker)
@@ -165,15 +162,15 @@ impl Upstream {
     #[must_use]
     pub fn new(name: &str, config: &UpstreamConfig) -> Self {
         Self {
-            client: Arc::new(ThrottledClient::new_for_installs()),
-            fetch_guard: None,
+            http: UpstreamHttp::new(config),
             base: config.url.clone(),
             name: name.to_string(),
-            headers: config.headers.clone(),
-            timeout: config.timeout,
             maxage: config.maxage,
             cache: config.cache,
-            breaker: Arc::new(CircuitBreaker::new(config.max_fails, config.fail_timeout)),
+            breaker: Arc::new(CircuitBreaker::new(
+                config.requests.max_fails,
+                config.requests.fail_timeout,
+            )),
             oci_tokens: Arc::default(),
         }
     }
@@ -182,15 +179,16 @@ impl Upstream {
     #[must_use]
     pub fn with_fetch_guard(mut self, guard: RedirectGuard) -> Self {
         let redirect_guard = Arc::clone(&guard);
-        self.client = Arc::new(ThrottledClient::new_for_installs_with_redirect_guard(move |url| {
-            redirect_guard(url)
-        }));
-        self.fetch_guard = Some(guard);
+        self.http.client =
+            Arc::new(ThrottledClient::new_for_installs_with_redirect_guard(move |url| {
+                redirect_guard(url)
+            }));
+        self.http.fetch_guard = Some(guard);
         self
     }
 
     /// Per-upstream packument freshness window (`maxage`), or `None` to
-    /// defer to the global [`pnpr_config::Config::packument_ttl`].
+    /// defer to the global [`pnpr_config::HttpConfig::packument_ttl`].
     #[must_use]
     pub fn maxage(&self) -> Option<Duration> {
         self.maxage
@@ -281,7 +279,7 @@ impl Upstream {
         // what verdaccio does too.
         self.breaker.record_success();
         Ok(FetchOutcome::Ok(
-            guard.retain_for_body(response, self.timeout.saturating_sub(started.elapsed())),
+            guard.retain_for_body(response, self.http.timeout.saturating_sub(started.elapsed())),
         ))
     }
 
@@ -355,7 +353,7 @@ impl Upstream {
         let response = self.checked(response, url).await?;
         self.breaker.record_success();
         Ok(FetchOutcome::Ok(
-            guard.retain_for_body(response, self.timeout.saturating_sub(started.elapsed())),
+            guard.retain_for_body(response, self.http.timeout.saturating_sub(started.elapsed())),
         ))
     }
 
@@ -366,9 +364,11 @@ impl Upstream {
     ) -> Result<FetchOutcome<ThrottledResponse>> {
         self.ensure_available()?;
         let url = format!("{}/-/tarballs/sha512/{digest}", self.base.trim_end_matches('/'));
-        let client = self.client.acquire_for_url_without_redirects_with_priority(&url, 0).await;
+        let client =
+            self.http.client.acquire_for_url_without_redirects_with_priority(&url, 0).await;
         let started = Instant::now();
-        let request = client.get(&url).timeout(self.timeout).headers(self.request_headers(&url));
+        let request =
+            client.get(&url).timeout(self.http.timeout).headers(self.request_headers(&url));
         let response = self.run(request, &url).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
@@ -377,7 +377,7 @@ impl Upstream {
         let response = self.checked(response, &url).await?;
         self.breaker.record_success();
         Ok(FetchOutcome::Ok(
-            client.retain_for_body(response, self.timeout.saturating_sub(started.elapsed())),
+            client.retain_for_body(response, self.http.timeout.saturating_sub(started.elapsed())),
         ))
     }
 
@@ -402,9 +402,13 @@ impl Upstream {
     ) -> Result<FetchOutcome<Payload>> {
         self.ensure_available()?;
         let url = format!("{}{path_and_query}", self.base.trim_end_matches('/'));
-        let client =
-            self.client.acquire_for_url_without_redirects_with_priority(&url, UNPRIORITIZED).await;
-        let request = client.get(&url).timeout(self.timeout).headers(self.request_headers(&url));
+        let client = self
+            .http
+            .client
+            .acquire_for_url_without_redirects_with_priority(&url, UNPRIORITIZED)
+            .await;
+        let request =
+            client.get(&url).timeout(self.http.timeout).headers(self.request_headers(&url));
         let response = self.run(request, &url).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
@@ -435,7 +439,7 @@ impl Upstream {
 
     fn request_headers(&self, url: &str) -> HeaderMap {
         if same_origin(&self.base, url) && is_url_secure_for_credentials(url) {
-            return self.headers.clone();
+            return self.http.headers.clone();
         }
         HeaderMap::new()
     }
@@ -467,10 +471,11 @@ impl Upstream {
     ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>)> {
         self.ensure_allowed_url(url)?;
         let started = Instant::now();
-        self.client
+        self.http
+            .client
             .get_response_with_scoped_headers(url, |request, destination| {
                 request
-                    .timeout(self.timeout.saturating_sub(started.elapsed()))
+                    .timeout(self.http.timeout.saturating_sub(started.elapsed()))
                     .headers(self.request_headers(destination))
                     .headers(headers.clone())
             })
@@ -482,7 +487,7 @@ impl Upstream {
     }
 
     fn ensure_allowed_url(&self, url: &str) -> Result<()> {
-        if let Some(guard) = &self.fetch_guard
+        if let Some(guard) = &self.http.fetch_guard
             && !reqwest::Url::parse(url).is_ok_and(|url| guard(&url))
         {
             return Err(RegistryError::UpstreamResponse {

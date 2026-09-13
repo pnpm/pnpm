@@ -103,10 +103,10 @@ fn option_values_are_not_rewritten() {
 #[test]
 fn expanded_silent_parses_to_the_silent_reporter() {
     let args = parse(&["pnpm", "store", "path", "--silent"]);
-    assert!(matches!(args.reporter, ReporterType::Silent));
+    assert!(matches!(args.output.presentation.reporter, ReporterType::Silent));
 
     let args = parse(&["pnpm", "install", "-s"]);
-    assert!(matches!(args.reporter, ReporterType::Silent));
+    assert!(matches!(args.output.presentation.reporter, ReporterType::Silent));
 }
 
 #[test]
@@ -114,8 +114,8 @@ fn later_reporter_overrides_the_silent_shorthand() {
     // nopt takes the last occurrence of a repeated option; `--silent` is
     // sugar for `--reporter=silent`, so an explicit later `--reporter` wins.
     let args = parse(&["pnpm", "install", "--silent", "--reporter=ndjson"]);
-    assert!(matches!(args.reporter, ReporterType::Ndjson));
+    assert!(matches!(args.output.presentation.reporter, ReporterType::Ndjson));
 
     let args = parse(&["pnpm", "install", "--reporter=ndjson", "--silent"]);
-    assert!(matches!(args.reporter, ReporterType::Silent));
+    assert!(matches!(args.output.presentation.reporter, ReporterType::Silent));
 }

@@ -124,12 +124,8 @@ impl LinkArgs {
 /// Install with the linked dependencies' overrides in place.
 async fn install_linked<Reporter: self::Reporter + 'static>(state: &State) -> miette::Result<()> {
     let lockfile_path = state.lockfile_path();
-    Install {
-        lockfile_path: Some(&lockfile_path),
-        prefer_frozen_lockfile: Some(false),
-        mutation: ProjectMutation::NoInstall,
-        installs_only: false,
-        ..Install::new(
+    {
+        let mut base_install = Install::new(
             Arc::clone(&state.tarball_mem_cache),
             &state.resolved_packages,
             (&state.http_client, Arc::clone(&state.http_client)),
@@ -137,7 +133,12 @@ async fn install_linked<Reporter: self::Reporter + 'static>(state: &State) -> mi
             &state.manifest,
             pnpm_lockfile::MaybeLazyLockfile::Lazy(&state.lockfile),
             [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional].into_iter(),
-        )
+        );
+        base_install.lockfile_policy.prefer_frozen = Some(false);
+        base_install.execution.mutation = ProjectMutation::NoInstall;
+        base_install.execution.installs_only = false;
+        base_install.context.lockfile_path = Some(&lockfile_path);
+        base_install
     }
     .run::<Reporter>()
     .await

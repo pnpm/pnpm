@@ -1,3 +1,6 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
+
 pub use catalog_snapshots::*;
 pub use comver::*;
 pub use env_lockfile::*;
@@ -102,6 +105,13 @@ pub type LockfileExtra = IndexMap<String, serde_json::Value>;
 /// A pnpm lockfile using a supported wire format.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the pnpm-lock.yaml format."
+    )
+)]
 pub struct Lockfile {
     pub lockfile_version: LockfileVersion<9>,
 

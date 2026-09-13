@@ -23,14 +23,9 @@ pub struct EnvOptions<'a> {
     pub stage: &'a str,
     pub script: &'a str,
     pub pkg_root: &'a Path,
-    pub init_cwd: &'a Path,
     pub script_src_dir: &'a Path,
-    pub node_execpath: Option<&'a Path>,
-    pub npm_execpath: Option<&'a Path>,
-    pub node_gyp_path: Option<&'a Path>,
-    pub user_agent: Option<&'a str>,
     pub unsafe_perm: bool,
-    pub extra_env: &'a HashMap<String, String>,
+    pub environment: crate::ScriptEnvironment<'a>,
 }
 
 /// The product of [`build_env`]: a ready-to-spawn env map and the
@@ -86,7 +81,7 @@ fn build_env_for_platform(
     // 3. Per-call stamping.
     env.insert("npm_lifecycle_event".into(), opts.stage.to_string());
 
-    stamp_executables(&mut env, opts);
+    stamp_executables(&mut env, &opts.environment, opts.pkg_root);
 
     // 4. `extra_env` (the user's `updateConfig` `extraEnv` plus any
     //    pnpm-controlled keys the caller merged in, such as
@@ -101,17 +96,17 @@ fn build_env_for_platform(
     //    [`filter_parent_env`] dropped it, so it is refused here — under
     //    the same casing rule that filter uses, since on Windows a
     //    differently-cased entry names the same variable.
-    for (k, v) in opts.extra_env {
+    for (k, v) in opts.environment.extra_env {
         if is_dev_preinstall_marker(k, is_windows) {
             continue;
         }
         env.insert(k.clone(), v.clone());
     }
 
-    env.insert("INIT_CWD".into(), opts.init_cwd.to_string_lossy().into_owned());
+    env.insert("INIT_CWD".into(), opts.environment.init_cwd.to_string_lossy().into_owned());
     env.insert("PNPM_SCRIPT_SRC_DIR".into(), opts.script_src_dir.to_string_lossy().into_owned());
 
-    if let Some(ua) = opts.user_agent {
+    if let Some(ua) = opts.environment.user_agent {
         env.insert("npm_config_user_agent".into(), ua.to_string());
     }
 
@@ -285,7 +280,11 @@ fn stamp_package(env: &mut HashMap<String, String>, prefix: &str, value: &Value)
 /// `npm_config_node_gyp` is a default pnpm supplies, not a reserved stamp: TS
 /// `npm-lifecycle` sets it before spreading `extraEnv`, so a user `extraEnv`
 /// overrides it. It is stamped before `extra_env` to match.
-fn stamp_executables(env: &mut HashMap<String, String>, opts: &EnvOptions<'_>) {
+fn stamp_executables(
+    env: &mut HashMap<String, String>,
+    opts: &crate::ScriptEnvironment<'_>,
+    pkg_root: &Path,
+) {
     let parent_path = path_value(env);
     let node_execpath = opts
         .node_execpath
@@ -299,7 +298,7 @@ fn stamp_executables(env: &mut HashMap<String, String>, opts: &EnvOptions<'_>) {
 
     env.insert(
         "npm_package_json".into(),
-        opts.pkg_root.join("package.json").to_string_lossy().into_owned(),
+        pkg_root.join("package.json").to_string_lossy().into_owned(),
     );
 
     let npm_execpath = opts.npm_execpath.map(Path::to_path_buf).or_else(|| env::current_exe().ok());

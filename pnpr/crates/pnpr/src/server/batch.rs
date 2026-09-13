@@ -160,7 +160,7 @@ async fn publish_batch(
     // so concurrent writers of any package in the batch serialize with us
     // just like with a single publish.
     let names: Vec<&str> = validated.iter().map(|entry| entry.key().as_str()).collect();
-    let _guards = state.inner.package_locks.lock_many(&names).await;
+    let _guards = state.inner.locks.packages.lock_many(&names).await;
 
     let now = now_iso();
     let mut staged: Vec<StagedPublish> = Vec::with_capacity(validated.len());
@@ -241,7 +241,7 @@ async fn validate_entry(
                 entry.reference,
                 bytes.into(),
                 entry.content_type.as_deref(),
-                state.inner.config.oci.max_manifest_bytes,
+                state.inner.config.http.oci.max_manifest_bytes,
             )
             .map(ValidatedEntry::Oci)
             .map_err(RegistryError::from)

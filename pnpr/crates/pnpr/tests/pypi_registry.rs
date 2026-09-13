@@ -456,7 +456,7 @@ async fn conflicting_object_store_upload_does_not_publish_metadata_or_leave_stag
     let object = ObjectPath::from(format!("python/demo-pkg/{filename}"));
     store.put(&object, axum::body::Bytes::from_static(b"winning artifact").into()).await.unwrap();
     let mut config = pypi_config(tmp.path().to_path_buf(), "http://upstream.invalid/");
-    config.hosted_store = HostedStoreConfig::ObjectStore {
+    config.storage.hosted_backend = HostedStoreConfig::ObjectStore {
         store: Arc::<InMemory>::clone(&store),
         prefix: String::new(),
     };
@@ -534,7 +534,11 @@ async fn upstream_file_hosts_must_be_approved_by_the_operator() {
     artifact.assert_async().await;
     artifact.remove_async().await;
 
-    config.route_policy.public.push(PublicRoute { registry: Some(files.url()), package: None });
+    config
+        .routing
+        .route_policy
+        .public
+        .push(PublicRoute { registry: Some(files.url()), package: None });
     let app = router_with_auth(config, AuthState::in_memory());
     let artifact = files.mock("GET", "/artifact").with_body(bytes).expect(1).create_async().await;
     let response =

@@ -84,8 +84,9 @@ impl VersionArgs {
     /// Stage the bumped manifest and record the bump as a commit plus an
     /// annotated (or signed) tag, mirroring the TypeScript `commitAndTag`.
     pub(super) fn commit_and_tag(&self, change: &VersionChange, cwd: &Path) -> miette::Result<()> {
-        let message = self.message.as_deref().unwrap_or("%s").replace("%s", &change.new_version);
-        let tag_name = format!("{}{}", self.tag_version_prefix, change.new_version);
+        let message =
+            self.git.message.as_deref().unwrap_or("%s").replace("%s", &change.new_version);
+        let tag_name = format!("{}{}", self.git.tag_version_prefix, change.new_version);
 
         let Ok(relative) = change.manifest_path.strip_prefix(cwd) else {
             return Err(VersionError::InvalidManifestPath {
@@ -102,7 +103,7 @@ impl VersionArgs {
         run_git(cwd, &["add", &manifest_rel])?;
 
         let mut commit_args = vec!["commit", "-m", &message];
-        if self.no_commit_hooks {
+        if self.git.no_commit_hooks {
             commit_args.push("--no-verify");
         }
         // The manifest write can leave nothing staged on an
@@ -113,7 +114,7 @@ impl VersionArgs {
         }
         run_git(cwd, &commit_args)?;
 
-        let mut tag_args = vec!["tag", if self.sign_git_tag { "-s" } else { "-a" }];
+        let mut tag_args = vec!["tag", if self.git.sign_git_tag { "-s" } else { "-a" }];
         tag_args.extend([tag_name.as_str(), "-m", &message]);
         run_git(cwd, &tag_args)
     }

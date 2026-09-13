@@ -10,7 +10,7 @@ use crate::dependencies_graph::{DependenciesGraph, DependenciesGraphNode};
 /// Number of edges a variant carries: its child dependencies plus the
 /// peers it resolved against its ancestors.
 pub(crate) fn node_deps_count(node: &DependenciesGraphNode) -> usize {
-    node.children.len() + node.resolved_peer_names.len()
+    node.edges.children.len() + node.edges.resolved_peer_names.len()
 }
 
 /// Whether `larger` can absorb `smaller`: it must have at least as many
@@ -33,13 +33,14 @@ pub(crate) fn is_compatible_and_has_more_deps(
         return false;
     }
 
-    let larger_children: HashSet<&DepPath> = larger_node.children.values().collect();
-    if !smaller_node.children.values().all(|child| larger_children.contains(child)) {
+    let larger_children: HashSet<&DepPath> = larger_node.edges.children.values().collect();
+    if !smaller_node.edges.children.values().all(|child| larger_children.contains(child)) {
         return false;
     }
 
     smaller_node
+        .edges
         .resolved_peer_names
         .iter()
-        .all(|peer| larger_node.resolved_peer_names.contains(peer))
+        .all(|peer| larger_node.edges.resolved_peer_names.contains(peer))
 }

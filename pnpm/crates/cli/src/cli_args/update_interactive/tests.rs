@@ -137,7 +137,7 @@ importers:
     // Each entry remembers the project it came from, which is what the
     // interactive list's `Workspace` column shows.
     assert_eq!(
-        choices.iter().map(|choice| choice.workspace.as_deref()).collect::<Vec<_>>(),
+        choices.iter().map(|choice| choice.metadata.workspace.as_deref()).collect::<Vec<_>>(),
         vec![Some("packages-a"), Some("packages-b")],
     );
     foo_mock.assert_async().await;
@@ -258,7 +258,7 @@ importers:
     .expect("collect interactive choices");
 
     assert_eq!(
-        choices.iter().map(|choice| choice.workspace.as_deref()).collect::<Vec<_>>(),
+        choices.iter().map(|choice| choice.metadata.workspace.as_deref()).collect::<Vec<_>>(),
         vec![Some("packages-a"), Some("packages-b")],
     );
     // And they render as one row naming both.
@@ -322,7 +322,7 @@ importers:
         .expect("collect interactive choices");
 
         assert_eq!(
-            choices.iter().map(|choice| choice.workspace.as_deref()).collect::<Vec<_>>(),
+            choices.iter().map(|choice| choice.metadata.workspace.as_deref()).collect::<Vec<_>>(),
             vec![Some("packages/a")],
             "a {name:?} name should fall back to the importer path",
         );

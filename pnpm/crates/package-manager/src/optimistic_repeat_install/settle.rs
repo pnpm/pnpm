@@ -49,12 +49,10 @@ pub(super) fn settle_repeat_install(
     let &OptimisticRepeatInstallCheck {
         workspace_root,
         config,
-        node_linker,
-        included,
-        supported_architectures,
         project_manifests,
         is_workspace_install,
         catalogs,
+        layout: crate::RepeatInstallLayout { node_linker, included, supported_architectures, .. },
         ..
     } = check;
     regenerate_wanted_lockfile_if_missing(check, loaded_current)?;

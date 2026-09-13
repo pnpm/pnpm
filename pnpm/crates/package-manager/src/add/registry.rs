@@ -1,4 +1,4 @@
-use super::{AddError, AddResolution, AddResolveInputs, AddView};
+use super::{AddError, AddOptions, AddResolution, AddResolveInputs};
 use crate::{
     resolution_policy::{PickPolicy, pick_package_context},
     resolve_latest::LatestPicker,
@@ -60,7 +60,7 @@ pub(super) async fn resolve_explicit_registry_spec(
     package_name: &str,
     spec: &str,
     prev_specifier: Option<&str>,
-    add: AddView<'_>,
+    add: AddOptions<'_>,
     manifest: &PackageManifest,
     resolution: &AddResolution<'_>,
 ) -> Result<Option<String>, AddError> {
@@ -132,15 +132,19 @@ pub(super) fn explicit_registry_pick_options<'a>(
     PickPackageOptions {
         registry,
         preferred_version_selectors,
-        published_by: policy.published_by,
-        published_by_exclude: policy.published_by_exclude.as_ref(),
         pick_lowest_version: policy.pick_lowest_direct,
         include_latest_tag: false,
-        dry_run: false,
-        optional: false,
-        update_checksums: false,
-        trust_policy: Some(config.trust_policy),
         blocked_versions: None,
+        policy: pnpm_resolving_npm_resolver::PackagePickPolicy {
+            published_by: policy.published_by,
+            published_by_exclude: policy.published_by_exclude.as_ref(),
+            trust_policy: Some(config.trust_policy),
+        },
+        request: pnpm_resolving_npm_resolver::MetadataPickRequest {
+            dry_run: false,
+            optional: false,
+            update_checksums: false,
+        },
     }
 }
 // Only registry specifiers contribute a saved range operator; path versions are incidental.

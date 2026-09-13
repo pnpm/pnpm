@@ -140,20 +140,24 @@ async fn add_reuses_shared_packument_state_for_every_selector_path() {
         "shared-package@^1.0.0".to_string(),
     ];
     Add {
-        tarball_mem_cache: Arc::default(),
-        resolved_packages: &resolved_packages,
-        http_client: &http_client,
-        http_client_arc: Arc::new(ThrottledClient::default()),
-        config,
         manifest: &mut manifest,
-        lockfile: None,
-        lockfile_path: None,
-        dependency_groups: Some([DependencyGroup::Prod]),
-        package_names: &package_names,
-        range_spec_style: RangeSpecStyle::Patch,
-        save_catalog_name: None,
-        supported_architectures: None,
-        lockfile_only: true,
+        options: crate::AddOptions {
+            resolved_packages: &resolved_packages,
+            http_client: &http_client,
+            config,
+            lockfile: None,
+            lockfile_path: None,
+            package_names: &package_names,
+            range_spec_style: RangeSpecStyle::Patch,
+            lockfile_only: true,
+        },
+        resources: crate::AddResources {
+            tarball_mem_cache: Arc::default(),
+            http_client_arc: Arc::new(ThrottledClient::default()),
+            dependency_groups: Some([DependencyGroup::Prod]),
+            save_catalog_name: None,
+            supported_architectures: None,
+        },
     }
     .run::<SilentReporter>()
     .await
@@ -219,20 +223,24 @@ async fn add_does_not_wait_for_a_slower_later_resolution_after_an_error() {
     let result = tokio::time::timeout(
         Duration::from_secs(5),
         Add {
-            tarball_mem_cache: Arc::default(),
-            resolved_packages: &resolved_packages,
-            http_client: &http_client,
-            http_client_arc: Arc::new(ThrottledClient::default()),
-            config,
             manifest: &mut manifest,
-            lockfile: None,
-            lockfile_path: None,
-            dependency_groups: Some([DependencyGroup::Prod]),
-            package_names: &package_names,
-            range_spec_style: RangeSpecStyle::Patch,
-            save_catalog_name: None,
-            supported_architectures: None,
-            lockfile_only: true,
+            options: crate::AddOptions {
+                resolved_packages: &resolved_packages,
+                http_client: &http_client,
+                config,
+                lockfile: None,
+                lockfile_path: None,
+                package_names: &package_names,
+                range_spec_style: RangeSpecStyle::Patch,
+                lockfile_only: true,
+            },
+            resources: crate::AddResources {
+                tarball_mem_cache: Arc::default(),
+                http_client_arc: Arc::new(ThrottledClient::default()),
+                dependency_groups: Some([DependencyGroup::Prod]),
+                save_catalog_name: None,
+                supported_architectures: None,
+            },
         }
         .run::<SilentReporter>(),
     )

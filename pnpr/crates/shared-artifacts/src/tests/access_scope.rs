@@ -126,14 +126,17 @@ async fn a_publication_that_fails_gives_back_the_scopes_it_claimed() {
         inner: InMemory::new(),
         commit_before_error: false,
         fail_deletes: false,
-        fail_next_quota_write: None,
-        claim_slot_first: None,
-        fail_slot_read_after_first: None,
         publish_overlapping_after_create: None,
         fail_reads_of: None,
         fail_scope_writes: false,
         fail_only: None,
-        usage_writes: None,
+
+        quota: super::QuotaFaults {
+            fail_next_write: None,
+            claim_slot_first: None,
+            fail_slot_read_after_first: None,
+            usage_writes: None,
+        },
     });
     let store = SharedArtifactStore::new(
         &HostedStoreConfig::ObjectStore { store: failing, prefix: String::new() },
@@ -365,14 +368,17 @@ async fn a_recovery_that_cannot_remove_its_artifact_keeps_the_scopes_it_retook()
         inner: InMemory::new(),
         commit_before_error: false,
         fail_deletes: false,
-        fail_next_quota_write: None,
-        claim_slot_first: None,
-        fail_slot_read_after_first: None,
         publish_overlapping_after_create: None,
         fail_reads_of: None,
         fail_scope_writes: false,
         fail_only: Some(FailOnly::DeleteOf(format!(".pnpr-artifacts/v0/{variant}"))),
-        usage_writes: None,
+
+        quota: super::QuotaFaults {
+            fail_next_write: None,
+            claim_slot_first: None,
+            fail_slot_read_after_first: None,
+            usage_writes: None,
+        },
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };

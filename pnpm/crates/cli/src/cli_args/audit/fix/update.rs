@@ -334,33 +334,29 @@ async fn update_non_vulnerable<Reporter: self::Reporter + 'static>(
         .lockfile
         .get()
         .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+    let resources = update_resources(state, classification, age_excludes);
     Update {
-        tarball_mem_cache: Arc::clone(&state.tarball_mem_cache),
-        resolved_packages: &state.resolved_packages,
-        http_client: &state.http_client,
-        http_client_arc: Arc::clone(&state.http_client),
-        config: state.config,
         manifest: &mut state.manifest,
-        lockfile,
-        lockfile_path: Some(&lockfile_path),
-        packages: &[],
-        latest: false,
-        patches: false,
-        save_exact: false,
-        save: true,
-        include_direct: vec![
-            DependencyGroup::Prod,
-            DependencyGroup::Dev,
-            DependencyGroup::Optional,
-        ],
-        depth: usize::MAX,
-        workspace_packages: None,
-        supported_architectures: state.config.supported_architectures.clone(),
-        lockfile_only: false,
-        resolution_observer: Some(fix_observer(
-            &classification.vulnerabilities,
-            age_excludes.to_vec(),
-        )),
+        options: pnpm_package_manager::UpdateOptions {
+            resolved_packages: &state.resolved_packages,
+            http_client: &state.http_client,
+            config: state.config,
+            lockfile,
+            lockfile_path: Some(&lockfile_path),
+            lockfile_only: false,
+            selection: pnpm_package_manager::UpdateSelection {
+                packages: &[],
+                depth: usize::MAX,
+                workspace_packages: None,
+            },
+            version: pnpm_package_manager::UpdateVersionOptions {
+                latest: false,
+                patches: false,
+                save_exact: false,
+                save: true,
+            },
+        },
+        resources,
     }
     .run::<Reporter>()
     .await
@@ -368,4 +364,25 @@ async fn update_non_vulnerable<Reporter: self::Reporter + 'static>(
         miette::Report::new(err).wrap_err("update dependencies to fix vulnerabilities")
     })?;
     Ok(())
+}
+
+fn update_resources(
+    state: &State,
+    classification: &UpdateClassification,
+    age_excludes: &[String],
+) -> pnpm_package_manager::UpdateResources {
+    pnpm_package_manager::UpdateResources {
+        tarball_mem_cache: Arc::clone(&state.tarball_mem_cache),
+        http_client_arc: Arc::clone(&state.http_client),
+        include_direct: vec![
+            DependencyGroup::Prod,
+            DependencyGroup::Dev,
+            DependencyGroup::Optional,
+        ],
+        supported_architectures: state.config.supported_architectures.clone(),
+        resolution_observer: Some(fix_observer(
+            &classification.vulnerabilities,
+            age_excludes.to_vec(),
+        )),
+    }
 }

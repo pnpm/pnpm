@@ -7,7 +7,7 @@ use super::{
 fn picks_up_registry_and_normalises_trailing_slash() {
     let ini = "registry=https://r.example\n";
     let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
-    assert_eq!(auth.registry.as_deref(), Some("https://r.example"));
+    assert_eq!(auth.routes.default.as_deref(), Some("https://r.example"));
 
     let mut config = Config::new();
     auth.apply_to::<NoEnv>(&mut config);
@@ -30,7 +30,7 @@ fn parses_scoped_registry_and_applies() {
     );
 
     assert_eq!(
-        auth.scoped_registries.get("@private").map(String::as_str),
+        auth.routes.scoped.get("@private").map(String::as_str),
         Some("https://private.example/npm/"),
     );
 
@@ -75,7 +75,7 @@ fn project_ini_keeps_literal_dollar_brace_fragments() {
 fn ini_section_headers_are_dropped_silently() {
     let ini = "[default]\nregistry=https://r.example\n[other]\n";
     let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
-    assert_eq!(auth.registry.as_deref(), Some("https://r.example"));
+    assert_eq!(auth.routes.default.as_deref(), Some("https://r.example"));
     assert_eq!(auth.warnings, Vec::<String>::new());
 }
 
@@ -162,21 +162,21 @@ fn base64_decode_matches_atob() {
 fn parses_https_proxy_from_ini() {
     let auth =
         NpmrcAuth::from_ini::<NoEnv>("https-proxy=http://proxy.example:8080\n", Path::new(""));
-    assert_eq!(auth.https_proxy.as_deref(), Some("http://proxy.example:8080"));
+    assert_eq!(auth.proxy.https.as_deref(), Some("http://proxy.example:8080"));
 }
 
 #[test]
 fn parses_http_proxy_from_ini() {
     let auth =
         NpmrcAuth::from_ini::<NoEnv>("http-proxy=http://proxy.example:3128\n", Path::new(""));
-    assert_eq!(auth.http_proxy.as_deref(), Some("http://proxy.example:3128"));
+    assert_eq!(auth.proxy.http.as_deref(), Some("http://proxy.example:3128"));
 }
 
 #[test]
 fn parses_legacy_proxy_key_from_ini() {
     let auth = NpmrcAuth::from_ini::<NoEnv>("proxy=http://legacy.example:8080\n", Path::new(""));
-    assert_eq!(auth.legacy_proxy.as_deref(), Some("http://legacy.example:8080"));
-    assert_eq!(auth.https_proxy, None, "legacy `proxy` is its own slot");
+    assert_eq!(auth.proxy.legacy.as_deref(), Some("http://legacy.example:8080"));
+    assert_eq!(auth.proxy.https, None, "legacy `proxy` is its own slot");
 }
 
 #[test]
@@ -185,13 +185,13 @@ fn no_proxy_and_noproxy_aliases_last_wins() {
         "no-proxy=first.example\nnoproxy=second.example\n",
         Path::new(""),
     );
-    assert_eq!(auth.no_proxy.as_deref(), Some("second.example"));
+    assert_eq!(auth.proxy.bypass.as_deref(), Some("second.example"));
 
     let auth = NpmrcAuth::from_ini::<NoEnv>(
         "noproxy=second.example\nno-proxy=first.example\n",
         Path::new(""),
     );
-    assert_eq!(auth.no_proxy.as_deref(), Some("first.example"));
+    assert_eq!(auth.proxy.bypass.as_deref(), Some("first.example"));
 }
 
 #[test]
@@ -301,17 +301,17 @@ fn parses_inline_ca_from_ini() {
     // INI doesn't allow real newlines in values, but for round-trip
     // through this test we still parse `value` as a single line.
     let auth = NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new(""));
-    assert_eq!(auth.ca.len(), 1, "auth.ca={:?}", auth.ca);
+    assert_eq!(auth.tls.ca.len(), 1, "auth.tls.ca={:?}", auth.tls.ca);
 }
 
 #[test]
 fn parses_strict_ssl_true_and_false() {
     assert_eq!(
-        NpmrcAuth::from_ini::<NoEnv>("strict-ssl=true\n", Path::new("")).strict_ssl,
+        NpmrcAuth::from_ini::<NoEnv>("strict-ssl=true\n", Path::new("")).tls.strict_ssl,
         Some(true),
     );
     assert_eq!(
-        NpmrcAuth::from_ini::<NoEnv>("strict-ssl=false\n", Path::new("")).strict_ssl,
+        NpmrcAuth::from_ini::<NoEnv>("strict-ssl=false\n", Path::new("")).tls.strict_ssl,
         Some(false),
     );
 }
@@ -319,7 +319,7 @@ fn parses_strict_ssl_true_and_false() {
 #[test]
 fn strict_ssl_invalid_value_silently_drops() {
     let auth = NpmrcAuth::from_ini::<NoEnv>("strict-ssl=maybe\n", Path::new(""));
-    assert_eq!(auth.strict_ssl, None);
+    assert_eq!(auth.tls.strict_ssl, None);
 }
 
 #[test]
@@ -328,20 +328,25 @@ fn strict_ssl_invalid_value_resets_prior_value() {
     // line would leave TLS verification disabled — silently — until
     // the user noticed.
     let auth = NpmrcAuth::from_ini::<NoEnv>("strict-ssl=false\nstrict-ssl=oops\n", Path::new(""));
-    assert_eq!(auth.strict_ssl, None);
+    assert_eq!(auth.tls.strict_ssl, None);
 }
 
 #[test]
 fn parses_local_address_from_ini() {
     let auth = NpmrcAuth::from_ini::<NoEnv>("local-address=10.0.0.5\n", Path::new(""));
-    assert_eq!(auth.local_address.as_deref(), Some("10.0.0.5"));
+    assert_eq!(auth.tls.local_address.as_deref(), Some("10.0.0.5"));
 }
 
 #[test]
 fn applies_local_address_parsed_as_ipaddr() {
     use std::net::Ipv4Addr;
-    let auth =
-        NpmrcAuth { local_address: Some("192.168.1.42".to_string()), ..NpmrcAuth::default() };
+    let auth = NpmrcAuth {
+        tls: crate::npmrc_auth::NpmrcTls {
+            local_address: Some("192.168.1.42".to_string()),
+            ..Default::default()
+        },
+        ..NpmrcAuth::default()
+    };
     let mut config = Config::new();
     auth.apply_to::<NoEnv>(&mut config);
     assert_eq!(config.tls.local_address, Some(Ipv4Addr::new(192, 168, 1, 42).into()));
@@ -352,7 +357,13 @@ fn invalid_local_address_silently_dropped() {
     // pnpm hands the value verbatim to undici and lets Node error at
     // connect time; pacquet validates early but errors silently per
     // the same parity policy as a missing `cafile`.
-    let auth = NpmrcAuth { local_address: Some("not-an-ip".to_string()), ..NpmrcAuth::default() };
+    let auth = NpmrcAuth {
+        tls: crate::npmrc_auth::NpmrcTls {
+            local_address: Some("not-an-ip".to_string()),
+            ..Default::default()
+        },
+        ..NpmrcAuth::default()
+    };
     let mut config = Config::new();
     auth.apply_to::<NoEnv>(&mut config);
     assert_eq!(config.tls.local_address, None);
@@ -384,7 +395,7 @@ fn parses_scoped_inline_ca() {
         "//reg.example.com/:ca=-----BEGIN CERTIFICATE-----\\nMIIB-----END CERTIFICATE-----\n",
         Path::new(""),
     );
-    let entry = auth.tls_by_uri.get("//reg.example.com/").expect("entry present");
+    let entry = auth.tls.by_uri.get("//reg.example.com/").expect("entry present");
     let ca = entry.ca.as_deref().expect("ca set");
     assert!(ca.contains('\n'), r"expected `\n` → newline expansion: {ca:?}");
     assert!(ca.contains("BEGIN CERTIFICATE"), "expected PEM header: {ca:?}");

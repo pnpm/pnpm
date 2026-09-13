@@ -190,10 +190,7 @@ async fn resolve(
 /// Reads a Python index for one resolve: cache first, then the index.
 struct IndexReader {
     client: Arc<ThrottledClient>,
-    route: Arc<pnpr_route::RouteContext>,
-    identity: pnpr_policy::Identity,
-    footprint: Arc<Mutex<Footprint>>,
-    secret: Arc<[u8]>,
+    hook: Arc<pnpr_route::RouteHook>,
     locks: Arc<StripedLocks>,
     cache_dir: PathBuf,
     ttl: Duration,
@@ -207,13 +204,15 @@ impl IndexReader {
     fn new(runtime: &Resolver, identity: pnpr_policy::Identity, index: url::Url) -> Self {
         Self {
             client: Arc::clone(&runtime.client),
-            route: Arc::clone(&runtime.route_context),
-            identity,
-            footprint: Arc::new(Mutex::new(Footprint::default())),
-            secret: Arc::clone(&runtime.resolution_cache_secret),
-            locks: Arc::clone(&runtime.python_index_locks),
+            hook: Arc::new(pnpr_route::RouteHook::new(
+                Arc::clone(&runtime.route_context),
+                identity,
+                Arc::new(Mutex::new(Footprint::default())),
+                Arc::clone(&runtime.cache.secret),
+            )),
+            locks: Arc::clone(&runtime.index.python_locks),
             cache_dir: runtime.python_index_cache_dir(index.as_str()),
-            ttl: runtime.cargo_index_ttl,
+            ttl: runtime.index.ttl,
             bytes_held: AtomicUsize::new(0),
             index,
         }
@@ -381,14 +380,10 @@ impl IndexReader {
     /// route policy for the caller, with the project bound in so the
     /// package-blind fetch helpers still classify by it.
     fn auth_for(&self, canonical_name: &str) -> AuthHeaders {
-        let hook = pnpr_route::RouteHook::new(
-            Arc::clone(&self.route),
-            self.identity.clone(),
-            Arc::clone(&self.footprint),
-            Arc::clone(&self.secret),
-        );
-        AuthHeaders::default()
-            .with_route_hook(Arc::new(PackageRoute::new(hook, canonical_name.to_string())))
+        AuthHeaders::default().with_route_hook(Arc::new(PackageRoute::new(
+            Arc::clone(&self.hook),
+            canonical_name.to_string(),
+        )))
     }
 
     /// Where `url`'s document is cached. The route scope keys the

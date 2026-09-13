@@ -121,7 +121,7 @@ async fn artifact_and_npm_downloads_hold_permits_after_returning_headers() {
         .create_async()
         .await;
     let mut upstream = upstream(server.url(), HeaderMap::new());
-    upstream.client = std::sync::Arc::new(
+    upstream.http.client = std::sync::Arc::new(
         pnpm_network::ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1)),
     );
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
@@ -137,7 +137,7 @@ async fn artifact_and_npm_downloads_hold_permits_after_returning_headers() {
         assert!(
             tokio::time::timeout(
                 Duration::from_millis(20),
-                upstream.client.acquire_for_url(&server.url())
+                upstream.http.client.acquire_for_url(&server.url())
             )
             .await
             .is_err(),
@@ -145,7 +145,7 @@ async fn artifact_and_npm_downloads_hold_permits_after_returning_headers() {
         drop(response);
         let guard = tokio::time::timeout(
             Duration::from_secs(1),
-            upstream.client.acquire_for_url(&server.url()),
+            upstream.http.client.acquire_for_url(&server.url()),
         )
         .await
         .unwrap();
@@ -169,12 +169,12 @@ async fn revision_download_budget_starts_after_waiting_for_a_permit() {
         socket.write_all(b"body").await.unwrap();
     });
     let mut config = UpstreamConfig::with_defaults(url.clone(), HeaderMap::new());
-    config.timeout = Duration::from_millis(250);
+    config.requests.timeout = Duration::from_millis(250);
     let mut upstream = Upstream::new("test", &config);
-    upstream.client = std::sync::Arc::new(
+    upstream.http.client = std::sync::Arc::new(
         pnpm_network::ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1)),
     );
-    let held = upstream.client.acquire_for_url(&url).await;
+    let held = upstream.http.client.acquire_for_url(&url).await;
     let fetch = upstream.fetch_revision_tarball_response("digest");
     let release_permit = async {
         tokio::time::sleep(Duration::from_millis(400)).await;

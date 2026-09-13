@@ -25,8 +25,8 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
                 dependency_kind: args
                     .dependency_options
                     .cargo_dependency_kind(has_node_packages)?,
-                save_exact: args.save_exact,
-                save_prefix: args.save_prefix.clone(),
+                save_exact: args.save.exact,
+                save_prefix: args.save.prefix.clone(),
             },
         )
         .await?;
@@ -40,8 +40,8 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
             pnpm_python_installer::AddOptions {
                 requirements,
                 development: args.dependency_options.python_development()?,
-                exact: args.save_exact,
-                prefix: args.save_prefix.clone(),
+                exact: args.save.exact,
+                prefix: args.save.prefix.clone(),
             },
         )?);
     }
@@ -60,7 +60,7 @@ fn validate_add_options(context: &InstallContext, args: &AddArgs) -> miette::Res
             "crate: and pypi: dependencies cannot yet be added through a recursive or filtered selection"
         ));
     }
-    if args.save_catalog || args.save_catalog_name.is_some() {
+    if args.save.catalog || args.save.catalog_name.is_some() {
         return Err(miette::miette!("ecosystem dependencies cannot be saved to an npm catalog"));
     }
     Ok(())

@@ -1,3 +1,6 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
+
 pub mod oidc;
 
 pub use logging::{LogConfig, LogFormat, LogLevel};
@@ -11,7 +14,7 @@ pub use access::{AccessSpec, PackageAccess, Teams};
 
 pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};
 
-pub use self::upstream::{RedactedHeaders, UpstreamConfig};
+pub use self::upstream::{RedactedHeaders, UpstreamConfig, UpstreamRequestPolicy};
 
 mod logging;
 use logging::build_log_config;
@@ -105,6 +108,28 @@ pub enum ConfigSource {
 /// matching verdaccio's CLI overrides.
 #[derive(Debug, Clone)]
 pub struct Config {
+    /// Format and level for the `tracing-subscriber` the binary
+    /// installs at startup. Sourced from the YAML `log:` object
+    /// (Verdaccio 6+ shape). Defaults to pretty/info.
+    pub logs: LogConfig,
+    /// Optional local OSV database used by mounted surfaces to reject
+    /// known vulnerable npm package versions without live API calls.
+    pub osv: OsvConfig,
+    /// Secret keying the HMAC that namespaces private resolution-cache
+    /// entries, so the private key is not correlatable offline. Sourced
+    /// from the YAML `secret:` key when present; otherwise a fresh
+    /// 32-byte value from the OS CSPRNG at startup (private entries then
+    /// live only for this process's lifetime).
+    pub resolution_cache_secret: Arc<[u8]>,
+    pub http: HttpConfig,
+    pub storage: StorageConfig,
+    pub identity: IdentityConfig,
+    pub features: Features,
+    pub routing: RoutingConfig,
+}
+
+#[derive(Debug, Clone)]
+pub struct HttpConfig {
     /// Address the HTTP server binds to.
     pub listen: SocketAddr,
     /// URL clients should use to reach this server. Used to rewrite
@@ -116,77 +141,59 @@ pub struct Config {
     pub cors: CorsConfig,
     /// OCI authentication and size limits.
     pub oci: OciConfig,
+    /// How long a cached packument is considered fresh before it is
+    /// re-fetched from the resolved upstream. Ignored when no upstream
+    /// matches.
+    pub packument_ttl: Duration,
+}
+
+#[derive(Debug, Clone)]
+pub struct StorageConfig {
     /// Directory under which authoritative packuments and tarballs
     /// live: packages published to this server and the content served
     /// in static mode. This is the source of truth — it is never
     /// overwritten by an upstream refresh, so operators back it up and
     /// keep it on a durable volume.
-    pub storage: PathBuf,
+    pub hosted_dir: PathBuf,
     /// Directory under which the disposable proxy cache lives —
     /// the mirror of upstream registries plus the resolver's cache.
     /// Safe to wipe at any time; it self-heals on the next
     /// request. Defaults to a `.pnpr-cache` subdirectory of
-    /// [`Self::storage`]; set the YAML `cache:` key (or `--cache`) to
+    /// [`Self::hosted_dir`]; set the YAML `cache:` key (or `--cache`) to
     /// an absolute path to put it on separate, ephemeral disk.
-    pub cache_storage: PathBuf,
-    /// Upstream-registry backends, keyed by registry id. Built from the `registries:`
-    /// `upstream` entries and consumed by the `/~<name>/` serving and route
-    /// classification.
-    pub upstreams: IndexMap<String, UpstreamConfig>,
-    /// How long a cached packument is considered fresh before it is
-    /// re-fetched from the resolved upstream. Ignored when no upstream
-    /// matches.
-    pub packument_ttl: Duration,
+    pub cache_dir: PathBuf,
+    /// Where the authoritative (hosted) store lives. Defaults to
+    /// [`HostedStoreConfig::Fs`] — the local [`Self::hosted_dir`]
+    /// directory. The YAML `s3:` block switches it to an S3-compatible
+    /// object store (S3, Cloudflare R2, `MinIO`, ...).
+    pub hosted_backend: HostedStoreConfig,
+}
+
+#[derive(Debug, Clone)]
+pub struct IdentityConfig {
     /// Where to read/write the htpasswd-format user file and the
     /// token database. Both stores are in-memory when their paths
     /// are `None`, matching the original `@pnpm/registry-mock` mode
     /// where every restart wipes accounts.
     pub auth: AuthConfig,
-    /// Format and level for the `tracing-subscriber` the binary
-    /// installs at startup. Sourced from the YAML `log:` object
-    /// (Verdaccio 6+ shape). Defaults to pretty/info.
-    pub logs: LogConfig,
-    /// Where the authoritative (hosted) store lives. Defaults to
-    /// [`HostedStoreConfig::Fs`] — the local [`Self::storage`]
-    /// directory. The YAML `s3:` block switches it to an S3-compatible
-    /// object store (S3, Cloudflare R2, `MinIO`, ...).
-    pub hosted_store: HostedStoreConfig,
     /// Which record store backs the auth state (users + tokens).
     /// Defaults to [`BackendConfig::Local`] — today's htpasswd file
     /// plus `SQLite` token database. The YAML `backend:` block can
     /// switch both stores to one shared SQL database so several
     /// stateless pnpr replicas see a consistent set of accounts.
     pub backend: BackendConfig,
-    /// Optional local OSV database used by mounted surfaces to reject
-    /// known vulnerable npm package versions without live API calls.
-    pub osv: OsvConfig,
-    /// The npm-registry surface: packument and tarball reads, publish,
-    /// unpublish, dist-tag, and search. Derived, not configured: the
-    /// surface is served iff at least one registry is declared, minus the
-    /// `--disable-registry` per-tier override (a stateless resolver tier
-    /// in front of an existing registry). See [`RegistryFeature`].
-    pub registry: RegistryFeature,
-    /// The install-accelerator surface: the `/-/pnpr` handshake and the
-    /// `/-/pnpr/v0/resolve` / `/-/pnpr/v0/verify-lockfile` endpoints. Enabled by
-    /// default; disable it to run a plain registry with no server-side
-    /// resolution. See [`ResolverFeature`].
-    pub resolver: ResolverFeature,
-    /// Signed build artifacts and compiler caches. Kept separate from the
-    /// resolver so deployments can scale the compute-bound resolver and the
-    /// I/O-bound artifact store independently. See [`ArtifactsFeature`].
-    pub artifacts: ArtifactsFeature,
-    /// The pipeline run-record surface. See [`PipelineFeature`].
-    pub pipeline: PipelineFeature,
+}
+
+#[derive(Debug, Clone)]
+pub struct RoutingConfig {
+    /// Upstream-registry backends, keyed by registry id. Built from the `registries:`
+    /// `upstream` entries and consumed by the `/~<name>/` serving and route
+    /// classification.
+    pub upstreams: IndexMap<String, UpstreamConfig>,
     /// Which fetch routes the resolution cache treats as public (fetched
     /// anonymously and shared globally) vs. private, driving the
     /// resolver's route classification.
     pub route_policy: RoutePolicy,
-    /// Secret keying the HMAC that namespaces private resolution-cache
-    /// entries, so the private key is not correlatable offline. Sourced
-    /// from the YAML `secret:` key when present; otherwise a fresh
-    /// 32-byte value from the OS CSPRNG at startup (private entries then
-    /// live only for this process's lifetime).
-    pub resolution_cache_secret: Arc<[u8]>,
     /// The validated registry routing graph: every addressable origin
     /// (`/~<name>/`) plus the optional path-less default target. Concrete
     /// upstream registries are backed by [`Self::upstreams`]; hosted registries by
@@ -445,11 +452,12 @@ impl Config {
 }
 
 /// The feature toggles the file declares, with the CLI overrides folded in.
-struct Features {
-    registry: RegistryFeature,
-    resolver: ResolverFeature,
-    artifacts: ArtifactsFeature,
-    pipeline: PipelineFeature,
+#[derive(Debug, Clone)]
+pub struct Features {
+    pub registry: RegistryFeature,
+    pub resolver: ResolverFeature,
+    pub artifacts: ArtifactsFeature,
+    pub pipeline: PipelineFeature,
 }
 
 /// The npm-registry surface is derived, not configured: served iff

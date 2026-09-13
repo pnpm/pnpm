@@ -28,6 +28,13 @@ use super::{
 /// to the renderers.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase", default)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the public dependent-tree JSON accepted and returned by the NAPI addon."
+    )
+)]
 pub struct DependentNode {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]

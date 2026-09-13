@@ -136,6 +136,10 @@ struct MockProvider {
     key_requests: Mutex<usize>,
     token_requests: Mutex<usize>,
     auth_method: Mutex<String>,
+    discovery: DiscoveryGate,
+}
+#[derive(Default)]
+struct DiscoveryGate {
     delay_discovery: std::sync::atomic::AtomicBool,
     discovery_started: tokio::sync::Notify,
     release_discovery: tokio::sync::Notify,
@@ -151,16 +155,11 @@ async fn mock_provider() -> (Arc<MockProvider>, tokio::task::JoinHandle<()>) {
         key_requests: Mutex::new(0),
         token_requests: Mutex::new(0),
         auth_method: Mutex::new("client_secret_basic".to_string()),
-        delay_discovery: std::sync::atomic::AtomicBool::new(false),
-        discovery_started: tokio::sync::Notify::new(),
-        release_discovery: tokio::sync::Notify::new(),
+        discovery: DiscoveryGate::default(),
     });
     let router = Router::new()
         .route("/.well-known/openid-configuration", get(async |State(state): State<Arc<MockProvider>>| {
-                if state.delay_discovery.load(std::sync::atomic::Ordering::Relaxed) {
-                    state.discovery_started.notify_one();
-                    state.release_discovery.notified().await;
-                }
+                state.discovery.wait().await;
                 let mut document = metadata(&state.issuer);
                 document["token_endpoint_auth_methods_supported"] = json!([*state.auth_method.lock().unwrap()]);
                 Json(document)
@@ -365,20 +364,20 @@ async fn valid_workloads_do_not_wait_for_a_forced_network_refresh() {
     state.workload(&token).await.unwrap();
     state.providers["example"].metadata.lock().await.attempted_at =
         Instant::now().checked_sub(Duration::from_secs(31));
-    provider.delay_discovery.store(true, std::sync::atomic::Ordering::Relaxed);
+    provider.discovery.delay_discovery.store(true, std::sync::atomic::Ordering::Relaxed);
     let refreshing = Arc::clone(&state);
     let refresh =
         tokio::spawn(
             async move { refreshing.metadata(&refreshing.providers["example"], true).await },
         );
-    tokio::time::timeout(Duration::from_secs(2), provider.discovery_started.notified())
+    tokio::time::timeout(Duration::from_secs(2), provider.discovery.discovery_started.notified())
         .await
         .unwrap();
     tokio::time::timeout(Duration::from_millis(100), state.workload(&token))
         .await
         .unwrap()
         .unwrap();
-    provider.release_discovery.notify_one();
+    provider.discovery.release_discovery.notify_one();
     refresh.await.unwrap().unwrap();
     task.abort();
 }
@@ -424,4 +423,13 @@ async fn callback_capacity_recovers_without_blocking_unattempted_logins() {
     state.finish("example", &start.state, &start.browser_secret, "code").await.unwrap();
     assert_eq!(*provider.token_requests.lock().unwrap(), 1);
     task.abort();
+}
+
+impl DiscoveryGate {
+    async fn wait(&self) {
+        if self.delay_discovery.load(std::sync::atomic::Ordering::Relaxed) {
+            self.discovery_started.notify_one();
+            self.release_discovery.notified().await;
+        }
+    }
 }

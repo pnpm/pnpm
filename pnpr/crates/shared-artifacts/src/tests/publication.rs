@@ -67,14 +67,17 @@ async fn committed_blob_writes_without_an_envelope_are_reclaimed() {
         inner: InMemory::new(),
         commit_before_error: true,
         fail_deletes: false,
-        fail_next_quota_write: None,
-        claim_slot_first: None,
-        fail_slot_read_after_first: None,
         publish_overlapping_after_create: None,
         fail_reads_of: None,
         fail_scope_writes: false,
         fail_only: None,
-        usage_writes: None,
+
+        quota: super::QuotaFaults {
+            fail_next_write: None,
+            claim_slot_first: None,
+            fail_slot_read_after_first: None,
+            usage_writes: None,
+        },
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -350,14 +353,17 @@ async fn a_publication_that_cannot_register_again_does_not_leave_its_artifact() 
         inner: InMemory::new(),
         commit_before_error: false,
         fail_deletes: false,
-        fail_next_quota_write: None,
-        claim_slot_first: None,
-        fail_slot_read_after_first: None,
         publish_overlapping_after_create: None,
         fail_reads_of: None,
         fail_scope_writes: false,
         fail_only: Some(FailOnly::RegistrationAfter(variant.clone())),
-        usage_writes: None,
+
+        quota: super::QuotaFaults {
+            fail_next_write: None,
+            claim_slot_first: None,
+            fail_slot_read_after_first: None,
+            usage_writes: None,
+        },
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
