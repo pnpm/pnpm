@@ -292,8 +292,9 @@ pub(super) async fn append_upstream_search(
     const FETCH_SIZE: usize = 250;
 
     let resolved = RegistrySource::Upstream(context.source.to_string());
-    // Deliberately unconditional: a source routed after a large one must
-    // still be asked, or it vanishes from `objects` and `total` at once.
+    // Unconditional against the page budget, though not the request cap: a
+    // source routed after a large one must still be asked, or it vanishes
+    // from `objects` and `total` at once.
     budget.try_take_page();
     let mut from = 0usize;
     loop {

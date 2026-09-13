@@ -223,9 +223,10 @@ across all sources. Separately from those budgets, every search-enabled
 upstream whose access and package rules admit the caller gets one request
 even after they are spent, sized to whatever result budget remains, down to
 a single entry, so a source listed after a large one is never silently
-dropped from the results or the total. One search makes at most 32 upstream
-requests in total, whatever a registry routes to, and sources past that
-contribute nothing. An upstream the caller may not reach is skipped and
+dropped from the results or the total. The exception is a hard ceiling of 32
+upstream requests for the whole search: a registry routing more eligible
+upstreams than that never queries the ones past it, so they contribute
+neither results nor totals. An upstream the caller may not reach is skipped and
 never queried at all. A source that advertises more than the budget allows
 (the public npm registry does for almost any term) is
 truncated rather than rejected: the requested page is served from what was
