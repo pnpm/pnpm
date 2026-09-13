@@ -1,8 +1,8 @@
 use super::{
-    SH_SHIM_HARDENED_HELPER_LINE, ScriptRuntime, escape_msys_cmd_switches, extension_program,
-    generate_cmd_shim, generate_pwsh_shim, generate_sh_shim, is_sh_shim_hardened,
-    is_shim_pointing_at, parse_shebang, parse_shebang_from_bytes, read_head_filled,
-    relative_target, search_script_runtime, strip_exe_suffix,
+    ScriptRuntime, extension_program, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim,
+    is_sh_shim_hardened, is_shim_pointing_at, parse_shebang, parse_shebang_from_bytes,
+    read_head_filled, relative_target, search_script_runtime,
+    sh::{SH_SHIM_HARDENED_HELPER_LINE, escape_msys_cmd_switches, strip_exe_suffix},
 };
 use crate::{
     capabilities::{FsReadHead, Host},
