@@ -368,7 +368,7 @@ async fn frozen_lockfile_replays_after_a_kernel_only_marker_change() {
             .as_array()
             .unwrap()
             .len(),
-        1
+        1,
     );
 
     pnpm_fs::remove_symlink_dir(&root.path().join(".venv")).unwrap();
@@ -397,7 +397,7 @@ async fn frozen_lockfile_replays_after_a_kernel_only_marker_change() {
             .as_array()
             .unwrap()
             .len(),
-        2
+        2,
     );
     assert!(
         relocked["environments"][0]
