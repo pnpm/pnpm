@@ -67,6 +67,17 @@ describe('placeholder bin', () => {
     assert.match(result.stdout, FAKE_BINARY_OUTPUT)
   })
 
+  // The kernel and the C library's PATH search hand the interpreter the path
+  // they resolved, so $0 is bare only when a shell is given the name itself.
+  it('runs as a bare name handed to sh', { skip: HAS_A_SHELL }, async () => {
+    const fixture = createFixture()
+    fs.symlinkSync(path.relative(fixture.dir, fixture.placeholder), path.join(fixture.dir, 'pnpm-link'))
+
+    const result = await run('sh', ['pnpm-link', '--version'], { cwd: fixture.dir })
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.stdout, FAKE_BINARY_OUTPUT)
+  })
+
   // What a bin linker writes for a target with no shebang, and the shape pnpm 11
   // leaves behind: an `exec` of the file itself, so the same shim keeps working
   // once the native binary takes its place.
@@ -103,7 +114,7 @@ describe('placeholder bin', () => {
     fs.symlinkSync(path.relative(fixture.dir, fixture.placeholder), link)
 
     const result = await run('sh', [link, '--version'], {
-      PATH: [decoyDir, path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter),
+      env: { PATH: [decoyDir, path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter) },
     })
     assert.equal(result.status, 0, result.stderr)
     assert.match(result.stdout, FAKE_BINARY_OUTPUT)
@@ -112,7 +123,7 @@ describe('placeholder bin', () => {
   it('hands over to the entry point when no platform package is installed', { skip: HAS_A_SHELL }, async () => {
     const fixture = createFixture({ installPlatformPackage: false })
 
-    const result = await run('sh', [fixture.placeholder, '--version'], { COREPACK_ENABLE_NETWORK: '0' })
+    const result = await run('sh', [fixture.placeholder, '--version'], { env: { COREPACK_ENABLE_NETWORK: '0' } })
     assert.notEqual(result.status, 0)
     assert.match(result.stderr, /Network access is disabled/)
   })
@@ -125,7 +136,7 @@ describe('placeholder bin', () => {
     const fixture = createFixture({ installPlatformPackage: false, nestedUnder: ['node_modules', 'tool', 'node_modules'] })
     writePlatformPackage(path.join(fixture.dir, 'node_modules'))
 
-    const result = await run(process.execPath, [fixture.entryPoint, '--version'], { COREPACK_ENABLE_NETWORK: '0' })
+    const result = await run(process.execPath, [fixture.entryPoint, '--version'], { env: { COREPACK_ENABLE_NETWORK: '0' } })
     assert.notEqual(result.status, 0)
     assert.match(result.stderr, /Network access is disabled/)
     assert.doesNotMatch(result.stdout, FAKE_BINARY_OUTPUT)
@@ -133,19 +144,19 @@ describe('placeholder bin', () => {
 })
 
 /**
- * Spawn `command` with `args`, `env` overriding the inherited environment.
- * Resolves once the child has exited, with its exit status and decoded output;
- * rejects only if it could not be spawned.
+ * Spawn `command` with `args`. Resolves once the child has exited, with its
+ * exit status and decoded output; rejects only if it could not be spawned.
  *
  * @param {string} command Executable to spawn, as an absolute path or a name on `PATH`.
  * @param {string[]} args Arguments to pass to it.
- * @param {Record<string, string>} [env] Variables layered over `process.env`; the
- *   environment is inherited unchanged when omitted.
+ * @param {{env?: Record<string, string>, cwd?: string}} [options] `env` is
+ *   layered over `process.env`, which is inherited unchanged when omitted;
+ *   `cwd` defaults to the current directory.
  * @returns {Promise<{status: number | null, stdout: string, stderr: string}>}
  *   `status` is null when a signal ended the child.
  */
-function run (command, args, env) {
-  const child = spawn(command, args, { env: { ...process.env, ...env } })
+function run (command, args, { env, cwd } = {}) {
+  const child = spawn(command, args, { cwd, env: { ...process.env, ...env } })
 
   let stdout = ''
   let stderr = ''
