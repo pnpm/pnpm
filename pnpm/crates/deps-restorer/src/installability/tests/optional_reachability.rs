@@ -33,7 +33,13 @@ fn incompatible_regular_dep_of_skipped_optional_is_skipped_not_failed() {
             ..Default::default()
         },
     );
-    snapshots.insert(grandchild.clone(), SnapshotEntry { optional: true, ..Default::default() });
+    snapshots.insert(
+        grandchild.clone(),
+        SnapshotEntry {
+            optional: true,
+            ..Default::default()
+        },
+    );
     let mut packages = HashMap::new();
     packages.insert(
         parent.clone(),
@@ -43,7 +49,10 @@ fn incompatible_regular_dep_of_skipped_optional_is_skipped_not_failed() {
         incompatible.clone(),
         synthetic_metadata(None, None, Some(&["this-os-does-not-exist"]), None),
     );
-    packages.insert(grandchild.clone(), synthetic_metadata(None, None, None, None));
+    packages.insert(
+        grandchild.clone(),
+        synthetic_metadata(None, None, None, None),
+    );
 
     let mut strict_host = host("20.10.0", "darwin", "arm64");
     strict_host.engine_strict = true;
@@ -80,7 +89,10 @@ fn incompatible_regular_dep_of_skipped_optional_is_skipped_not_failed() {
 #[test]
 fn regular_edge_from_installed_parent_wins_over_optional_reachability() {
     recording_reporter!(reset_events);
-    let importers = root_importer(&["compat-parent@1.0.0"], &["not-compatible-with-any-os@1.0.0"]);
+    let importers = root_importer(
+        &["compat-parent@1.0.0"],
+        &["not-compatible-with-any-os@1.0.0"],
+    );
     let compat_parent = snapshot_key("compat-parent@1.0.0");
     let incompatible = snapshot_key("not-compatible-with-any-os@1.0.0");
     let mut snapshots = HashMap::new();
@@ -91,7 +103,13 @@ fn regular_edge_from_installed_parent_wins_over_optional_reachability() {
             ..Default::default()
         },
     );
-    snapshots.insert(incompatible.clone(), SnapshotEntry { optional: true, ..Default::default() });
+    snapshots.insert(
+        incompatible.clone(),
+        SnapshotEntry {
+            optional: true,
+            ..Default::default()
+        },
+    );
     let mut packages = HashMap::new();
     packages.insert(compat_parent, synthetic_metadata(None, None, None, None));
     packages.insert(
@@ -109,7 +127,10 @@ fn regular_edge_from_installed_parent_wins_over_optional_reachability() {
         SkippedSnapshots::new(),
     )
     .unwrap();
-    assert!(lenient.is_empty(), "the regular edge from an installed parent must win over skip");
+    assert!(
+        lenient.is_empty(),
+        "the regular edge from an installed parent must win over skip",
+    );
 
     let mut strict_host = host("20.10.0", "darwin", "arm64");
     strict_host.engine_strict = true;
@@ -122,5 +143,8 @@ fn regular_edge_from_installed_parent_wins_over_optional_reachability() {
         "/proj",
         SkippedSnapshots::new(),
     );
-    assert!(strict.is_err(), "the same required dispatch fails under engine_strict");
+    assert!(
+        strict.is_err(),
+        "the same required dispatch fails under engine_strict",
+    );
 }

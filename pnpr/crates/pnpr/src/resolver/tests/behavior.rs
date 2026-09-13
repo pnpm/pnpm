@@ -36,7 +36,10 @@ fn patch_hashes_must_be_lowercase_sha256_digests() {
 
     assert!(reject_invalid_patch_hashes(&request(&"a".repeat(64))).is_none());
     for invalid in ["abc".to_string(), "A".repeat(64), "g".repeat(64)] {
-        assert!(reject_invalid_patch_hashes(&request(&invalid)).is_some(), "accepted {invalid}");
+        assert!(
+            reject_invalid_patch_hashes(&request(&invalid)).is_some(),
+            "accepted {invalid}",
+        );
     }
 }
 
@@ -105,11 +108,24 @@ fn public_cached_resolution_matches_every_caller() {
     ));
 
     assert!(
-        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &Identity::Anonymous,)
-            .is_some(),
+        cached_resolution(
+            &cache,
+            Duration::from_mins(1),
+            &key,
+            &context,
+            &Identity::Anonymous,
+        )
+        .is_some(),
     );
     assert!(
-        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_some(),
+        cached_resolution(
+            &cache,
+            Duration::from_mins(1),
+            &key,
+            &context,
+            &user("alice")
+        )
+        .is_some(),
     );
 }
 
@@ -155,7 +171,14 @@ fn package_qualified_alias_descriptor_rechecks_upstream_rules_on_replay() {
 
     // Alice satisfies the per-package refinement: the hit replays.
     assert!(
-        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_some(),
+        cached_resolution(
+            &cache,
+            Duration::from_mins(1),
+            &key,
+            &context,
+            &user("alice")
+        )
+        .is_some(),
     );
     // Bob passes the registry-level alias gate but the refinement denies
     // him: replay must be exactly as strict as a fresh resolve, so no hit.
@@ -198,7 +221,10 @@ fn unknown_lockfile_routing_leaves_resolution_unrewritten() {
         resolution.get("tarball").is_none(),
         "unknown route stays integrity-only: {resolution}",
     );
-    assert_eq!(value, serde_json::to_value(&input).expect("lockfile serializes"));
+    assert_eq!(
+        value,
+        serde_json::to_value(&input).expect("lockfile serializes"),
+    );
 }
 
 #[test]
@@ -256,5 +282,9 @@ fn candidate_lists_stay_bounded_and_keep_public_entries() {
     let cache = cache.lock().expect("resolution cache poisoned");
     let candidates = cache.get(&key).expect("base key remains cached");
     assert_eq!(candidates.len(), MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY);
-    assert!(candidates.iter().any(|candidate| candidate.footprint.is_public()));
+    assert!(
+        candidates
+            .iter()
+            .any(|candidate| candidate.footprint.is_public()),
+    );
 }

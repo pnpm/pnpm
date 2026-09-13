@@ -9,8 +9,10 @@
 /// output through the characters masking leaves behind.
 #[must_use]
 pub fn hide_auth_information(auth_header_value: &str) -> String {
-    let sanitized: String =
-        auth_header_value.chars().filter(|character| !character.is_control()).collect();
+    let sanitized: String = auth_header_value
+        .chars()
+        .filter(|character| !character.is_control())
+        .collect();
     let mut parts = sanitized.split(' ');
     let auth_type = parts.next().unwrap_or_default();
     let Some(token) = parts.next() else {
@@ -19,7 +21,10 @@ pub fn hide_auth_information(auth_header_value: &str) -> String {
     if token.chars().count() < 20 {
         return format!("{auth_type} [hidden]");
     }
-    let prefix: String = token.chars().take(4).collect();
+    let prefix: String = token
+        .chars()
+        .take(4)
+        .collect();
     format!("{auth_type} {prefix}[hidden]")
 }
 
@@ -39,7 +44,9 @@ pub fn redact_url_credentials(text: &str) -> String {
         // (schemes end in an ASCII alphanumeric) precedes it, so an unrelated
         // "://" in the message isn't mangled.
         let has_scheme = pos > 0 && rest.as_bytes()[pos - 1].is_ascii_alphanumeric();
-        rest = strip_leading_userinfo(after).filter(|_| has_scheme).unwrap_or(after);
+        rest = strip_leading_userinfo(after)
+            .filter(|_| has_scheme)
+            .unwrap_or(after);
     }
     out.push_str(rest);
     out
@@ -82,7 +89,10 @@ pub fn redact_url_for_display(url: &str) -> String {
 }
 
 fn sanitize_control_characters(text: &str) -> String {
-    text.chars().filter(|character| !character.is_control()).collect()
+    text
+        .chars()
+        .filter(|character| !character.is_control())
+        .collect()
 }
 
 /// [`redact_and_sanitize`] for text whose line breaks are worth keeping, such
@@ -96,8 +106,16 @@ fn sanitize_control_characters(text: &str) -> String {
 #[must_use]
 pub fn redact_and_sanitize_multiline(text: &str) -> String {
     let collapsed = redact_and_sanitize(text);
-    let per_line = text.split('\n').map(redact_and_sanitize).collect::<Vec<_>>().join("\n");
-    if per_line.replace('\n', "") == collapsed { per_line } else { collapsed }
+    let per_line = text
+        .split('\n')
+        .map(redact_and_sanitize)
+        .collect::<Vec<_>>()
+        .join("\n");
+    if per_line.replace('\n', "") == collapsed {
+        per_line
+    } else {
+        collapsed
+    }
 }
 
 /// If the authority leading `text` contains `userinfo@`, return the slice after

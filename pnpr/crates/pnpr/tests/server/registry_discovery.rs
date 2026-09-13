@@ -18,7 +18,11 @@ async fn search_paginates_visible_results_and_filters_by_maintainer() {
 
     let page = app
         .clone()
-        .oneshot(Request::get("/-/v1/search?text=tool&from=1&size=1").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/v1/search?text=tool&from=1&size=1")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let page = body_json(page.into_body()).await;
@@ -50,8 +54,15 @@ async fn organization_packages_are_available_on_both_registry_routes() {
     ));
 
     for route in ["/-/org/acme/package", "/~main/-/org/acme/package"] {
-        let response =
-            app.clone().oneshot(Request::get(route).body(Body::empty()).unwrap()).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(route)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
         let packages = body_json(response.into_body()).await;
         assert_eq!(packages["@acme/alpha"], json!("read"));
@@ -109,7 +120,10 @@ async fn opt_in_upstream_discovery_serves_search_and_organization_packages() {
         .unwrap();
     let response = body_json(response.into_body()).await;
     assert_eq!(response["total"], json!(1));
-    assert_eq!(response["objects"][0]["package"]["name"], json!("remote-package"));
+    assert_eq!(
+        response["objects"][0]["package"]["name"],
+        json!("remote-package"),
+    );
 
     let response = app
         .oneshot(
@@ -121,7 +135,10 @@ async fn opt_in_upstream_discovery_serves_search_and_organization_packages() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(body_json(response.into_body()).await["@acme/remote"], json!("read"));
+    assert_eq!(
+        body_json(response.into_body()).await["@acme/remote"],
+        json!("read"),
+    );
     search.assert_async().await;
     org.assert_async().await;
 }
@@ -168,7 +185,11 @@ async fn upstream_search_exhausts_results_to_return_an_exact_total() {
     let app = router(config);
 
     let response = app
-        .oneshot(Request::get("/-/v1/search?text=remote&size=1").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/v1/search?text=remote&size=1")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 
@@ -199,13 +220,21 @@ async fn upstream_search_rejects_unbounded_offsets_and_result_sets() {
 
     let offset = app
         .clone()
-        .oneshot(Request::get("/-/v1/search?text=remote&from=2001").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/v1/search?text=remote&from=2001")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(offset.status(), StatusCode::BAD_REQUEST);
 
     let result_set = app
-        .oneshot(Request::get("/-/v1/search?text=remote").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/v1/search?text=remote")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(result_set.status(), StatusCode::BAD_REQUEST);
@@ -236,7 +265,11 @@ async fn upstream_search_rejects_more_than_eight_short_pages() {
     let app = router(config);
 
     let response = app
-        .oneshot(Request::get("/-/v1/search?text=remote").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/v1/search?text=remote")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 
@@ -264,23 +297,42 @@ async fn registry_directory_hides_upstream_access_and_package_rule_metadata() {
                     patterns: vec![PackagePattern::Exact("secret-package".to_string())],
                 },
             ),
-            ("npmjs".to_string(), Registry::Upstream { patterns: vec![] }),
+            (
+                "npmjs".to_string(),
+                Registry::Upstream {
+                    patterns: vec![],
+                },
+            ),
         ]
         .into_iter()
         .collect(),
         Some("npmjs".to_string()),
     );
     let response = router(config)
-        .oneshot(Request::builder().uri("/-/pnpr/v0/registries").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/-/pnpr/v0/registries")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let body: Value = serde_json::from_slice(&bytes).unwrap();
     let text = String::from_utf8_lossy(&bytes);
-    assert!(!text.contains("secret-package"), "directory exposes a restricted package name");
+    assert!(
+        !text.contains("secret-package"),
+        "directory exposes a restricted package name",
+    );
     assert!(!text.contains("alice"), "directory exposes an access rule");
     assert_eq!(body["defaultRegistries"], json!({}));
-    assert_eq!(body["registries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        body["registries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1,
+    );
     assert_eq!(body["registries"][0]["name"], "public");
     assert!(body["registries"][0]["patterns"].is_null());
     assert_eq!(body["ecosystems"]["npm"]["prefixed"], false);
@@ -295,7 +347,11 @@ async fn registry_directory_describes_oci_only_named_endpoints() {
     let app = router(config);
     let response = app
         .clone()
-        .oneshot(Request::get("/-/pnpr/v0/registries").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/pnpr/v0/registries")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let directory: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
@@ -304,8 +360,15 @@ async fn registry_directory_describes_oci_only_named_endpoints() {
         json!({"available": true, "prefixed": false, "namedPrefixed": false}),
     );
     for path in ["/~internal/v2/", "/v2/"] {
-        let response =
-            app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "{path}");
     }
 }

@@ -97,12 +97,20 @@ async fn read_first_license_file(dir: &Path) -> Option<Vec<u8>> {
 /// followed: the license of a package is a file the package ships.
 async fn read_license_file(path: &Path) -> Option<Vec<u8>> {
     let file = open_no_follow(path).await.ok()?;
-    let metadata = file.metadata().await.ok().filter(std::fs::Metadata::is_file)?;
+    let metadata = file
+        .metadata()
+        .await
+        .ok()
+        .filter(std::fs::Metadata::is_file)?;
     if metadata.len() > MAX_LICENSE_FILE_SIZE as u64 {
         return None;
     }
     let mut contents = Vec::with_capacity(metadata.len() as usize);
-    file.take((MAX_LICENSE_FILE_SIZE + 1) as u64).read_to_end(&mut contents).await.ok()?;
+    file
+        .take((MAX_LICENSE_FILE_SIZE + 1) as u64)
+        .read_to_end(&mut contents)
+        .await
+        .ok()?;
     (contents.len() <= MAX_LICENSE_FILE_SIZE).then_some(contents)
 }
 
@@ -119,8 +127,11 @@ async fn open_no_follow(path: &Path) -> std::io::Result<tokio::fs::File> {
 fn detect_license_from_text(contents: &str) -> Option<String> {
     static LICENSE_PATTERN: OnceLock<Regex> = OnceLock::new();
     let pattern = LICENSE_PATTERN.get_or_init(|| {
-        let alternatives =
-            LICENSE_NAMES.iter().map(|name| regex::escape(name)).collect::<Vec<_>>().join("|");
+        let alternatives = LICENSE_NAMES
+            .iter()
+            .map(|name| regex::escape(name))
+            .collect::<Vec<_>>()
+            .join("|");
         Regex::new(&format!(r"(?i)\b({alternatives})\b"))
             .expect("license names form a valid regular expression")
     });

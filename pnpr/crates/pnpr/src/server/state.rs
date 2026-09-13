@@ -84,11 +84,9 @@ impl BuildServices {
         Ok(Self {
             artifacts: artifact_store(config, config.features.artifacts.enabled)?,
             compiler_cache_uploads: tokio::sync::Semaphore::new(2),
-            pipeline_runs: config
-                .features
-                .pipeline
-                .enabled
-                .then(|| pnpr_pipeline_runs::PipelineRunStore::new(storage.clone())),
+            pipeline_runs: config.features.pipeline.enabled.then(|| {
+                pnpr_pipeline_runs::PipelineRunStore::new(storage.clone())
+            }),
         })
     }
 }
@@ -96,13 +94,14 @@ impl BuildServices {
 impl ProxyState {
     fn new(config: &Config) -> Self {
         let upstreams = upstream_clients(config, config.features.registry.enabled);
-        let upstream_cache_namespaces = config
-            .routing
-            .upstreams
+        let upstream_cache_namespaces = config.routing.upstreams
             .keys()
             .map(|name| (name.clone(), compute_upstream_cache_namespace(config, name)))
             .collect();
-        Self { upstreams, cache_namespaces: upstream_cache_namespaces }
+        Self {
+            upstreams,
+            cache_namespaces: upstream_cache_namespaces,
+        }
     }
 }
 
@@ -111,7 +110,10 @@ impl IdentityServices {
         super::oidc::validate_workloads(config)?;
         let oidc =
             pnpr_auth::oidc::OidcState::new(&config.identity.auth.oidc, &config.http.public_url)?;
-        Ok(Self { auth, oidc })
+        Ok(Self {
+            auth,
+            oidc,
+        })
     }
 }
 
@@ -122,9 +124,7 @@ fn upstream_clients(config: &Config, registry_enabled: bool) -> IndexMap<String,
     if !registry_enabled {
         return IndexMap::new();
     }
-    config
-        .routing
-        .upstreams
+    config.routing.upstreams
         .iter()
         .map(|(name, upstream)| {
             let client = Upstream::new(name, upstream);

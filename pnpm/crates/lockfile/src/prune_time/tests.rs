@@ -23,7 +23,10 @@ fn transitive_entries_are_dropped() {
             "is-positive@1.0.0": "2016-02-02T00:00:00.000Z",
         },
     }));
-    assert_eq!(document["time"], json!({ "is-positive@1.0.0": "2016-02-02T00:00:00.000Z" }));
+    assert_eq!(
+        document["time"],
+        json!({ "is-positive@1.0.0": "2016-02-02T00:00:00.000Z" }),
+    );
 }
 
 #[test]
@@ -67,7 +70,10 @@ fn a_peer_qualified_dependency_matches_its_peer_stripped_key() {
         },
         "time": { "react-dom@17.0.2": "2021-03-22T15:00:00.000Z" },
     }));
-    assert_eq!(document["time"], json!({ "react-dom@17.0.2": "2021-03-22T15:00:00.000Z" }));
+    assert_eq!(
+        document["time"],
+        json!({ "react-dom@17.0.2": "2021-03-22T15:00:00.000Z" }),
+    );
 }
 
 #[test]
@@ -85,7 +91,10 @@ fn an_aliased_dependency_matches_its_target_key() {
             "positive@1.0.0": "2016-02-02T00:00:00.000Z",
         },
     }));
-    assert_eq!(document["time"], json!({ "is-positive@1.0.0": "2016-02-02T00:00:00.000Z" }));
+    assert_eq!(
+        document["time"],
+        json!({ "is-positive@1.0.0": "2016-02-02T00:00:00.000Z" }),
+    );
 }
 
 #[test]

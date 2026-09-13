@@ -4,12 +4,20 @@ use pretty_assertions::assert_eq;
 /// The value `login_fields` assigns to `key`, or `None` when the login does
 /// not touch that field.
 fn field(fields: &ConfigYamlFields, key: &str) -> Option<Value> {
-    fields.iter().find(|(name, _)| *name == key).map(|(_, value)| value.clone())
+    fields
+        .iter()
+        .find(|(name, _)| *name == key)
+        .map(|(_, value)| value.clone())
 }
 
 fn login(document: Option<&str>, scope: Option<&str>) -> ConfigYamlFields {
-    login_fields(document, "https://registry.example/", scope, "granted-token")
-        .expect("the document parses")
+    login_fields(
+        document,
+        "https://registry.example/",
+        scope,
+        "granted-token",
+    )
+    .expect("the document parses")
 }
 
 #[test]
@@ -227,9 +235,17 @@ registries:
 
 #[test]
 fn a_document_that_is_not_yaml_is_an_error() {
-    let error = login_fields(Some("_auth: [unclosed\n"), "https://registry.example/", None, "t");
+    let error = login_fields(
+        Some("_auth: [unclosed\n"),
+        "https://registry.example/",
+        None,
+        "t",
+    );
 
-    assert!(error.is_err(), "a malformed document must not be silently replaced");
+    assert!(
+        error.is_err(),
+        "a malformed document must not be silently replaced",
+    );
 }
 
 /// The reader refuses a `registries` that routes one scope to two registries,

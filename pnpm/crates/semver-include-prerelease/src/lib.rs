@@ -31,7 +31,12 @@ impl IncludePrereleaseRange {
     /// parser accepts is satisfied by nothing rather than by everything.
     #[must_use]
     pub fn parse(range: &str) -> Self {
-        IncludePrereleaseRange { alternatives: range.split("||").filter_map(comparators).collect() }
+        IncludePrereleaseRange {
+            alternatives: range
+                .split("||")
+                .filter_map(comparators)
+                .collect(),
+        }
     }
 
     /// Whether `version` lies inside any one of the range's
@@ -48,17 +53,25 @@ impl IncludePrereleaseRange {
         // answers with the endpoint test — and answers it without the
         // single-version ranges the prerelease path has to build.
         if !version.is_prerelease() {
-            return self.alternatives.iter().any(|alternative| {
-                alternative.iter().all(|comparator| comparator.bounds.satisfies(version))
-            });
-        }
-        let Some(point) = point_range(version) else { return false };
-        let release_point = point_range(&release_of(version));
-        self.alternatives.iter().any(|alternative| {
-            alternative
+            return self.alternatives
                 .iter()
-                .all(|comparator| comparator.satisfies(&point, release_point.as_ref()))
-        })
+                .any(|alternative| {
+                    alternative
+                        .iter()
+                        .all(|comparator| comparator.bounds.satisfies(version))
+                });
+        }
+        let Some(point) = point_range(version) else {
+            return false;
+        };
+        let release_point = point_range(&release_of(version));
+        self.alternatives
+            .iter()
+            .any(|alternative| {
+                alternative
+                    .iter()
+                    .all(|comparator| comparator.satisfies(&point, release_point.as_ref()))
+            })
     }
 }
 
@@ -111,7 +124,10 @@ fn comparators(alternative: &str) -> Option<Vec<Comparator>> {
             (text, omits_a_component(token), 1)
         };
         if let Ok(bounds) = text.parse::<Range>() {
-            comparators.push(Comparator { bounds, lower_bound_admits_prereleases });
+            comparators.push(Comparator {
+                bounds,
+                lower_bound_admits_prereleases,
+            });
         }
         index += width;
     }
@@ -139,13 +155,19 @@ fn glue_operators_to_versions(alternative: &str) -> String {
 /// bound. A hyphen range's lower endpoint is lowered whether or not it
 /// omits anything, so it is asked [`names_a_prerelease`] instead.
 fn omits_a_component(token: &str) -> bool {
-    let core = version_of(token).split(['-', '+']).next().unwrap_or_default();
+    let core = version_of(token)
+        .split(['-', '+'])
+        .next()
+        .unwrap_or_default();
     let mut components = core.split('.');
     let named = [components.next(), components.next(), components.next()];
-    named.into_iter().any(|component| {
-        component
-            .is_none_or(|component| component.is_empty() || matches!(component, "x" | "X" | "*"))
-    })
+    named
+        .into_iter()
+        .any(|component| {
+            component.is_none_or(|component| {
+                component.is_empty() || matches!(component, "x" | "X" | "*")
+            })
+        })
 }
 
 /// npm reads a `<` bound whose version omits a component as excluding
@@ -161,10 +183,17 @@ fn npm_upper_bound(token: &str) -> Option<String> {
     }
     let version = version.trim_start_matches('v');
     let mut components = version.split('.');
-    let major: u64 = components.next()?.parse().ok()?;
-    let minor: Option<u64> = components.next().and_then(|minor| minor.parse().ok());
-    let patch_is_named =
-        components.next().is_some_and(|patch| patch.parse::<u64>().is_ok()) && minor.is_some();
+    let major: u64 = components
+        .next()?
+        .parse()
+        .ok()?;
+    let minor: Option<u64> = components
+        .next()
+        .and_then(|minor| minor.parse().ok());
+    let patch_is_named = components
+        .next()
+        .is_some_and(|patch| patch.parse::<u64>().is_ok())
+        && minor.is_some();
     match (minor, patch_is_named) {
         (_, true) => None,
         (None, _) => Some(format!("<{major}.0.0-0")),
@@ -173,11 +202,17 @@ fn npm_upper_bound(token: &str) -> Option<String> {
 }
 
 fn names_a_prerelease(token: &str) -> bool {
-    version_of(token).split('+').next().unwrap_or_default().contains('-')
+    version_of(token)
+        .split('+')
+        .next()
+        .unwrap_or_default()
+        .contains('-')
 }
 
 fn version_of(token: &str) -> &str {
-    token.trim_start_matches(['<', '>', '=', '~', '^']).trim_start_matches('v')
+    token
+        .trim_start_matches(['<', '>', '=', '~', '^'])
+        .trim_start_matches('v')
 }
 
 fn release_of(version: &Version) -> Version {
@@ -191,7 +226,10 @@ fn release_of(version: &Version) -> Version {
 }
 
 fn point_range(version: &Version) -> Option<Range> {
-    version.to_string().parse().ok()
+    version
+        .to_string()
+        .parse()
+        .ok()
 }
 
 #[cfg(test)]

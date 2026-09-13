@@ -20,6 +20,9 @@
 
 pub(super) use publication::{CratePublication, authorize_crate_publish, verify_crate_archive};
 
+mod search;
+use search::get_search;
+
 mod publication;
 use publication::{delete_yank, put_publish, put_unyank};
 
@@ -70,15 +73,24 @@ pub(super) fn routes(prefixed: bool) -> Router<AppState> {
         router = router
             .route(&format!("{base}/index/config.json"), get(get_index_config))
             .route(&format!("{base}/index/{{a}}/{{b}}"), get(get_index_file))
-            .route(&format!("{base}/index/{{a}}/{{b}}/{{c}}"), get(get_index_file))
+            .route(
+                &format!("{base}/index/{{a}}/{{b}}/{{c}}"),
+                get(get_index_file),
+            )
             .route(&format!("{base}/api/v1/crates"), get(get_search))
             .route(&format!("{base}/api/v1/crates/new"), put(put_publish))
             .route(
                 &format!("{base}/api/v1/crates/{{name}}/{{version}}/download"),
                 get(get_download),
             )
-            .route(&format!("{base}/api/v1/crates/{{name}}/{{version}}/yank"), delete(delete_yank))
-            .route(&format!("{base}/api/v1/crates/{{name}}/{{version}}/unyank"), put(put_unyank));
+            .route(
+                &format!("{base}/api/v1/crates/{{name}}/{{version}}/yank"),
+                delete(delete_yank),
+            )
+            .route(
+                &format!("{base}/api/v1/crates/{{name}}/{{version}}/unyank"),
+                put(put_unyank),
+            );
     }
     router
 }
@@ -86,110 +98,6 @@ pub(super) fn routes(prefixed: bool) -> Router<AppState> {
 /// `cargo search`'s default page size, which is also what crates.io returns
 /// when a request names none.
 const DEFAULT_SEARCH_PAGE: usize = 10;
-
-async fn get_search(
-    State(state): State<AppState>,
-    AuthedCaller(identity): AuthedCaller,
-    TargetRegistry(registry): TargetRegistry,
-    RawQuery(query): RawQuery,
-) -> Response {
-    let query_string = query.unwrap_or_default();
-    let respond = |crates: Vec<SearchCrate>, total: usize| {
-        json_response(
-            StatusCode::OK,
-            &serde_json::to_value(SearchResponse { crates, meta: SearchMeta { total } })
-                .expect("search response serializes"),
-        )
-    };
-    let Some(text) = pnpr_search::parse_query(&query_string).map(pnpr_search::SearchText::Package)
-    else {
-        return respond(Vec::new(), 0);
-    };
-    let Some(target) = addressed_registry(&state, registry.as_deref(), ECOSYSTEM) else {
-        return not_found();
-    };
-    let size = pnpr_search::parse_usize_param(&query_string, "per_page")
-        .map_or(DEFAULT_SEARCH_PAGE, |size| size.clamp(1, pnpr_search::MAX_PAGE_SIZE));
-    // crates.io numbers pages from one; anything lower starts at the first.
-    let from = pnpr_search::parse_usize_param(&query_string, "page")
-        .map_or(0, |page| page.saturating_sub(1).saturating_mul(size));
-
-    let mut page = SearchPage::new(from, size);
-    if let Err(err) = collect_hosted_crates(&state, &identity, &target, &text, &mut page).await {
-        return error_response(err);
-    }
-    let total = page.total();
-    // Results are filtered per caller (registry access plus per-package
-    // ACL), so they must never land in a shared HTTP cache.
-    private_no_cache(respond(page.objects, total))
-}
-
-/// Add every hosted registry's matching crates to the page.
-async fn collect_hosted_crates(
-    state: &AppState,
-    identity: &Identity,
-    target: &str,
-    text: &pnpr_search::SearchText,
-    page: &mut SearchPage<SearchCrate>,
-) -> Result<(), RegistryError> {
-    for source in discovery_sources(state, target, ECOSYSTEM) {
-        let DiscoverySource::Hosted(source) = source else {
-            continue;
-        };
-        let hosted = hosted_search_names(state, identity, target, &source, ECOSYSTEM, text).await;
-        let (storage, names) = match hosted {
-            Ok(Some(hosted)) => hosted,
-            Ok(None) => continue,
-            Err(err) => return Err(err),
-        };
-        add_crates_to_page(page, &storage, names).await;
-    }
-    Ok(())
-}
-
-/// `GET api/v1/crates?q=<query>&per_page=<n>&page=<n>` — `cargo search`.
-///
-/// Hosted sources only. An upstream contributes nothing, the way an npm
-/// upstream does until its `search` is turned on, and searching one needs
-/// its `config.json` `api` base rather than the index base pnpr proxies.
-/// Add one hosted source's names to the page.
-///
-/// A hosted namespace shared with another ecosystem holds names that are not
-/// crate names. Dropping them before the position is claimed keeps them out of
-/// the page and out of the total, and costs no read.
-async fn add_crates_to_page(
-    page: &mut SearchPage<SearchCrate>,
-    storage: &pnpr_storage::Storage,
-    names: Vec<String>,
-) {
-    for name in names {
-        let Ok(key) = CanonicalPackageName::parse(&name, ECOSYSTEM) else {
-            continue;
-        };
-        if page.push_name(&name) {
-            page.objects.push(search_crate(storage, &key).await);
-        }
-    }
-}
-
-/// One search row, read from the crate's stored document. A document that
-/// cannot be read or parsed still answers with the name the caller matched,
-/// so the page never disagrees with the total it reports.
-async fn search_crate(storage: &pnpr_storage::Storage, key: &CanonicalPackageName) -> SearchCrate {
-    let document = async {
-        let bytes = storage.read_hosted_document(key).await.ok()??;
-        CrateDocument::parse(&bytes).ok()
-    }
-    .await;
-    document.as_ref().map_or_else(
-        || SearchCrate {
-            name: key.as_str().to_string(),
-            description: None,
-            max_version: String::new(),
-        },
-        CrateDocument::to_search_crate,
-    )
-}
 
 /// A registry error in the crates API's JSON shape, so `cargo` prints the
 /// detail instead of a bare status.
@@ -200,7 +108,9 @@ fn error_response(err: RegistryError) -> Response {
 }
 
 fn bad_request(reason: impl Display) -> Response {
-    error_response(RegistryError::BadRequest { reason: reason.to_string() })
+    error_response(RegistryError::BadRequest {
+        reason: reason.to_string(),
+    })
 }
 
 /// `GET index/config.json`.
@@ -238,21 +148,15 @@ async fn get_index_file(
     TargetRegistry(registry): TargetRegistry,
     Path(params): Path<HashMap<String, String>>,
 ) -> Response {
-    let segments: Vec<&str> =
-        ["a", "b", "c"].iter().filter_map(|key| params.get(*key).map(String::as_str)).collect();
-    let Some(name) = segments.last().copied() else { return not_found() };
-    let Ok(key) = CanonicalPackageName::parse(name, ECOSYSTEM) else { return not_found() };
-    let path = sparse_index_path(name);
-    if path != segments.join("/") {
+    let Some((key, path)) = index_request(&params) else {
         return not_found();
-    }
+    };
     let Some(target) = addressed_registry(&state, registry.as_deref(), ECOSYSTEM) else {
         return not_found();
     };
     let index = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, key.as_str()) {
         RegistrySource::Hosted(source) => {
-            read_hosted_document::<CrateDocument>(&state, &identity, &source, &key)
-                .await
+            read_hosted_document::<CrateDocument>(&state, &identity, &source, &key).await
                 .map(|document| document.map(|document| document.render_index()))
         }
         source @ RegistrySource::Upstream(_) => {
@@ -265,7 +169,13 @@ async fn get_index_file(
         Ok(None) => not_found(),
         Err(err) => error_response(err),
     };
-    caller_scoped(&state, ECOSYSTEM, registry.as_deref(), Some(key.as_str()), response)
+    caller_scoped(
+        &state,
+        ECOSYSTEM,
+        registry.as_deref(),
+        Some(key.as_str()),
+        response,
+    )
 }
 
 async fn load_upstream_index(
@@ -276,20 +186,27 @@ async fn load_upstream_index(
     path: &str,
 ) -> Result<Option<String>, RegistryError> {
     let (upstream, namespace) = upstream_for(state, identity, source, key)?;
-    let request =
-        UpstreamDocument { name: key, relative_path: path, accept: None, limit: INDEX_FILE_LIMIT };
+    let request = UpstreamDocument {
+        name: key,
+        relative_path: path,
+        accept: None,
+        limit: INDEX_FILE_LIMIT,
+    };
     let bytes = load_upstream_document(state, upstream, &namespace, request, |document| {
         decode_index_text(document.bytes, path).map(String::into_bytes)
     })
     .await?;
-    bytes.map(|bytes| decode_index_text(bytes, path)).transpose()
+    bytes
+        .map(|bytes| decode_index_text(bytes, path))
+        .transpose()
 }
 
 fn decode_index_text(bytes: Vec<u8>, path: &str) -> Result<String, RegistryError> {
-    String::from_utf8(bytes).map_err(|err| RegistryError::UpstreamResponse {
-        url: path.to_string(),
-        reason: format!("sparse index is not valid UTF-8: {err}"),
-    })
+    String::from_utf8(bytes)
+        .map_err(|err| RegistryError::UpstreamResponse {
+            url: path.to_string(),
+            reason: format!("sparse index is not valid UTF-8: {err}"),
+        })
 }
 
 /// `GET api/v1/crates/<crate>/<version>/download`.
@@ -302,7 +219,9 @@ async fn get_download(
     let (Some(name), Some(version)) = (params.get("name"), params.get("version")) else {
         return not_found();
     };
-    let Ok(key) = CanonicalPackageName::parse(name, ECOSYSTEM) else { return not_found() };
+    let Ok(key) = CanonicalPackageName::parse(name, ECOSYSTEM) else {
+        return not_found();
+    };
     if !is_safe_path_segment(version) {
         return not_found();
     }
@@ -311,8 +230,7 @@ async fn get_download(
     };
     let response = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, key.as_str()) {
         RegistrySource::Hosted(source) => {
-            download_hosted_crate(&state, &identity, &source, &key, version)
-                .await
+            download_hosted_crate(&state, &identity, &source, &key, version).await
                 .unwrap_or_else(error_response)
         }
         source @ RegistrySource::Upstream(_) => {
@@ -320,7 +238,13 @@ async fn get_download(
         }
         RegistrySource::Unclaimed | RegistrySource::NotFound => not_found(),
     };
-    caller_scoped(&state, ECOSYSTEM, registry.as_deref(), Some(key.as_str()), response)
+    caller_scoped(
+        &state,
+        ECOSYSTEM,
+        registry.as_deref(),
+        Some(key.as_str()),
+        response,
+    )
 }
 
 async fn download_hosted_crate(
@@ -330,8 +254,7 @@ async fn download_hosted_crate(
     key: &CanonicalPackageName,
     version: &str,
 ) -> Result<Response, RegistryError> {
-    let document = read_hosted_document::<CrateDocument>(state, identity, source, key)
-        .await?
+    let document = read_hosted_document::<CrateDocument>(state, identity, source, key).await?
         .ok_or(RegistryError::NotFound)?;
     let entry = document.version(version).ok_or(RegistryError::NotFound)?;
     let filename = crate_filename(&entry.name, &entry.vers);
@@ -363,8 +286,9 @@ async fn download_via_upstream(
         Ok(entries) => entries,
         Err(err) => return error_response(err),
     };
-    let Some(entry) =
-        entries.iter().find(|entry| entry.vers == version && entry.name.eq_ignore_ascii_case(name))
+    let Some(entry) = entries
+        .iter()
+        .find(|entry| entry.vers == version && entry.name.eq_ignore_ascii_case(name))
     else {
         return not_found();
     };
@@ -378,15 +302,15 @@ async fn download_via_upstream(
         Ok(config) => config,
         Err(err) => return error_response(err),
     };
-    let url = download_url(&config.dl, &entry.name, &entry.vers, &entry.cksum);
-    if !url::Url::parse(&url).is_ok_and(|url| is_fetchable_artifact_url(&url)) {
-        return error_response(RegistryError::UpstreamResponse {
-            url: INDEX_CONFIG_KEY.to_string(),
-            reason: "the upstream `dl` template does not produce an HTTP(S) URL".to_string(),
-        });
-    }
+    let url = match upstream_download_url(&config, entry) {
+        Ok(url) => url,
+        Err(err) => return error_response(err),
+    };
     let filename = crate_filename(&entry.name, &entry.vers);
-    serve_upstream_artifact(state, upstream, &namespace, key, &filename, &url, &integrity).await
+    serve_upstream_artifact(
+        state, upstream, &namespace, key, &filename, &url, &integrity,
+    )
+    .await
 }
 
 /// The upstream sparse index's `config.json`, through the cache.
@@ -404,9 +328,12 @@ async fn upstream_index_config(
         limit: INDEX_CONFIG_LIMIT,
     };
     let bytes = load_upstream_document(state, upstream, namespace, request, |document| {
-        IndexConfig::parse(&document.bytes).map(|_| document.bytes).map_err(|err| {
-            RegistryError::UpstreamResponse { url: document.url, reason: err.to_string() }
-        })
+        IndexConfig::parse(&document.bytes)
+            .map(|_| document.bytes)
+            .map_err(|err| RegistryError::UpstreamResponse {
+                url: document.url,
+                reason: err.to_string(),
+            })
     })
     .await?
     .ok_or_else(|| RegistryError::UpstreamResponse {
@@ -417,8 +344,39 @@ async fn upstream_index_config(
 }
 
 fn parse_upstream_index(index: &str, name: &str) -> Result<Vec<IndexEntry>, RegistryError> {
-    parse_index(index).map_err(|err| RegistryError::UpstreamResponse {
-        url: sparse_index_path(name),
-        reason: err.to_string(),
-    })
+    parse_index(index)
+        .map_err(|err| RegistryError::UpstreamResponse {
+            url: sparse_index_path(name),
+            reason: err.to_string(),
+        })
+}
+
+fn index_request(params: &HashMap<String, String>) -> Option<(CanonicalPackageName, String)> {
+    let segments: Vec<&str> = ["a", "b", "c"]
+        .iter()
+        .filter_map(|key| params.get(*key).map(String::as_str))
+        .collect();
+    let name = segments.last().copied()?;
+    let Ok(key) = CanonicalPackageName::parse(name, ECOSYSTEM) else {
+        return None;
+    };
+    let path = sparse_index_path(name);
+    if path != segments.join("/") {
+        return None;
+    }
+    Some((key, path))
+}
+
+fn upstream_download_url(
+    config: &IndexConfig,
+    entry: &IndexEntry,
+) -> Result<String, RegistryError> {
+    let url = download_url(&config.dl, &entry.name, &entry.vers, &entry.cksum);
+    if !url::Url::parse(&url).is_ok_and(|url| is_fetchable_artifact_url(&url)) {
+        return Err(RegistryError::UpstreamResponse {
+            url: INDEX_CONFIG_KEY.to_string(),
+            reason: "the upstream `dl` template does not produce an HTTP(S) URL".to_string(),
+        });
+    }
+    Ok(url)
 }

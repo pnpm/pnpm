@@ -21,7 +21,11 @@ fn trust_policy_yaml_values_round_trip() {
     assert!(settings.trust_policy.is_none());
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
-    assert_eq!(config.trust_policy, TrustPolicy::Off, "default stays off when key is absent");
+    assert_eq!(
+        config.trust_policy,
+        TrustPolicy::Off,
+        "default stays off when key is absent",
+    );
 }
 
 /// `registrySupportsTimeField` is a camelCase boolean; default `false`.
@@ -32,7 +36,10 @@ fn parses_registry_supports_time_field_from_yaml_and_applies() {
     assert_eq!(settings.registry_supports_time_field, Some(true));
 
     let mut config = Config::new();
-    assert!(!config.registry_supports_time_field, "the default is `false`");
+    assert!(
+        !config.registry_supports_time_field,
+        "the default is `false`",
+    );
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert!(config.registry_supports_time_field, "yaml override wins");
 }
@@ -52,7 +59,10 @@ update:
 
     let mut config = Config::new();
     assert!(config.update_config.changeset.is_none(), "default is unset");
-    assert!(config.update_config.ignore_dependencies.is_none(), "default is unset");
+    assert!(
+        config.update_config.ignore_dependencies.is_none(),
+        "default is unset",
+    );
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.update_config.changeset, Some(true));
     assert_eq!(
@@ -80,7 +90,10 @@ audit:
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.audit_level, Some(AuditLevel::High));
-    assert_eq!(config.audit_config.ignore_ghsas, vec!["GHSA-1".to_string(), "GHSA-2".to_string()]);
+    assert_eq!(
+        config.audit_config.ignore_ghsas,
+        vec!["GHSA-1".to_string(), "GHSA-2".to_string()],
+    );
 }
 
 /// The global config file, `PNPM_CONFIG_*`, and `updateConfig` hooks reach
@@ -108,15 +121,13 @@ registries:
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(
-        config
-            .registry_options_by_url
+        config.registry_options_by_url
             .get("https://artifactory.example/artifactory/api/npm/npm-virtual/")
             .map(|options| options.server_type),
         Some(Some(RegistryServerType::Artifactory)),
     );
     assert_eq!(
-        config
-            .registry_options_by_url
+        config.registry_options_by_url
             .get("https://npm.example.com/")
             .map(|options| options.server_type),
         Some(Some(RegistryServerType::Npm)),
@@ -221,8 +232,7 @@ registries:
         Some("https://npm.corp.example"),
     );
     assert_eq!(
-        config
-            .registry_options_by_url
+        config.registry_options_by_url
             .get("https://npm.corp.example/")
             .map(|options| options.server_type),
         Some(Some(RegistryServerType::Artifactory)),
@@ -280,7 +290,10 @@ fn rejects_a_registries_map_that_mixes_both_shapes() {
         .expect_err("a mixed registries map must not load")
         .to_string();
     assert!(error.contains("mixes registry declarations"), "{error}");
-    assert!(error.contains(r#""@acme""#), "the scope-routed entry is named: {error}");
+    assert!(
+        error.contains(r#""@acme""#),
+        "the scope-routed entry is named: {error}",
+    );
 }
 
 /// A scope routes to a registry, so a URL in that position routes nothing and
@@ -306,9 +319,15 @@ fn rejects_a_url_keyed_registries_entry_written_as_a_string() {
 fn rebuilds_the_declarations_from_the_lookups() {
     let mut config = Config::new();
     config.registries_by_scope = BTreeMap::from([
-        ("default".to_owned(), "https://registry.npmjs.org/".to_owned()),
+        (
+            "default".to_owned(),
+            "https://registry.npmjs.org/".to_owned(),
+        ),
         ("@acme".to_owned(), "https://npm.corp.example/".to_owned()),
-        ("@acme-internal".to_owned(), "https://npm.corp.example/".to_owned()),
+        (
+            "@acme-internal".to_owned(),
+            "https://npm.corp.example/".to_owned(),
+        ),
         ("@other".to_owned(), "https://npm.other.example/".to_owned()),
     ]);
     config.registries_by_prefix =
@@ -340,7 +359,10 @@ fn rebuilds_the_declarations_from_the_lookups() {
         }),
     );
     // The default registry travels as the request's own `registry` field.
-    assert!(!declarations.contains_key("https://registry.npmjs.org/"), "{declarations:?}");
+    assert!(
+        !declarations.contains_key("https://registry.npmjs.org/"),
+        "{declarations:?}",
+    );
 }
 
 /// The resolved view declares every route: the default registry appears as
@@ -398,8 +420,14 @@ fn resolved_registries_carry_the_builtin_jsr_route() {
 
     let registries = config.resolved_registries();
 
-    assert_eq!(registries.get("default").map(String::as_str), Some("https://npm.corp.example/"));
-    assert_eq!(registries.get("@jsr").map(String::as_str), Some("https://npm.jsr.io/"));
+    assert_eq!(
+        registries.get("default").map(String::as_str),
+        Some("https://npm.corp.example/"),
+    );
+    assert_eq!(
+        registries.get("@jsr").map(String::as_str),
+        Some("https://npm.jsr.io/"),
+    );
 }
 
 /// A declaration map survives the round trip through the lookups it is split
@@ -483,7 +511,11 @@ fn no_filtered_mirror_without_a_reason_for_full_metadata() {
 #[test]
 fn load_at_collects_issues_from_a_key_it_cannot_scan() {
     let dir = tempfile::tempdir().unwrap();
-    fs::write(dir.path().join(WORKSPACE_MANIFEST_FILENAME), "{zzzNotASettingZzz: 1}\n").unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "{zzzNotASettingZzz: 1}\n",
+    )
+    .unwrap();
 
     let settings = WorkspaceSettings::load_at(dir.path())
         .expect("load pnpm-workspace.yaml")
@@ -533,12 +565,20 @@ fn parses_a_valid_tasks_section_and_applies_it() {
     let mut config = Config::default();
     settings.apply_to(&mut config, dir.path());
     assert_eq!(
-        config.tasks.get("build").unwrap().depends_on.as_deref(),
+        config.tasks
+            .get("build")
+            .unwrap()
+            .depends_on
+            .as_deref(),
         Some(&["^build".to_string()][..]),
     );
     assert_eq!(config.tasks.get("build").unwrap().concurrency, Some(2));
     assert_eq!(
-        config.tasks.get("test").unwrap().depends_on.as_deref(),
+        config.tasks
+            .get("test")
+            .unwrap()
+            .depends_on
+            .as_deref(),
         Some(&["build".to_string()][..]),
     );
     // `lint: {}` declares an explicitly empty dependency list — a different

@@ -47,12 +47,17 @@ struct AgentDirs {
 
 pub fn run_watch(invocation: &WatchInvocation, state_dir: &Path) -> miette::Result<()> {
     if invocation.polling.interval.is_zero() {
-        return Err(miette::miette!("watch interval must be at least one second"));
+        return Err(miette::miette!(
+            "watch interval must be at least one second"
+        ));
     }
-    let agent_dir = state_dir.join("pipeline").join("agent").join(create_short_hash(&format!(
-        "{}\0{}",
-        invocation.polling.repo, invocation.polling.branch,
-    )));
+    let agent_dir = state_dir
+        .join("pipeline")
+        .join("agent")
+        .join(create_short_hash(&format!(
+            "{}\0{}",
+            invocation.polling.repo, invocation.polling.branch,
+        )));
     fs::create_dir_all(&agent_dir)
         .map_err(|error| miette::miette!("creating the agent directory: {error}"))?;
     let agent_display = agent_dir.display();
@@ -62,7 +67,9 @@ pub fn run_watch(invocation: &WatchInvocation, state_dir: &Path) -> miette::Resu
     // path — the run record's workspace identity above all — reads as the
     // project, not as "checkout".
     let dirs = AgentDirs {
-        checkout: agent_dir.join("checkout").join(repo_basename(&invocation.polling.repo)),
+        checkout: agent_dir
+            .join("checkout")
+            .join(repo_basename(&invocation.polling.repo)),
         head_file: agent_dir.join("head"),
     };
     println!(
@@ -72,14 +79,20 @@ pub fn run_watch(invocation: &WatchInvocation, state_dir: &Path) -> miette::Resu
         invocation.polling.interval.as_secs(),
         dirs.checkout.display(),
     );
+    watch_revisions(invocation, &dirs)
+}
+
+fn watch_revisions(invocation: &WatchInvocation, dirs: &AgentDirs) -> miette::Result<()> {
     loop {
-        let result = poll_and_build(invocation, &dirs);
+        let result = poll_and_build(invocation, dirs);
         match result {
             Ok(Some(revision)) => println!("Built {revision}."),
             Ok(None) => println!("{} is up to date.", invocation.polling.branch),
             // A failed poll (the remote is briefly unreachable, a fetch
             // hiccup) must not kill a daemon; the next tick retries.
-            Err(error) if invocation.polling.once => return Err(error),
+            Err(error) if invocation.polling.once => {
+                return Err(error);
+            }
             Err(error) => eprintln!("[WARN] poll failed: {error}"),
         }
         if invocation.polling.once {
@@ -125,7 +138,11 @@ fn repo_basename(repo: &str) -> String {
         .take(50)
         .collect();
     let name = name.trim_start_matches('.').to_string();
-    if name.is_empty() { "checkout".to_string() } else { name }
+    if name.is_empty() {
+        "checkout".to_string()
+    } else {
+        name
+    }
 }
 
 fn remote_head(repo: &str, branch: &str) -> miette::Result<String> {
@@ -155,7 +172,10 @@ fn materialize(
     revision: &str,
 ) -> miette::Result<()> {
     if dirs.checkout.join(".git").exists() {
-        git_ok(Some(&dirs.checkout), &["fetch", "origin", &invocation.polling.branch])?;
+        git_ok(
+            Some(&dirs.checkout),
+            &["fetch", "origin", &invocation.polling.branch],
+        )?;
     } else {
         git_ok(
             None,
@@ -171,7 +191,10 @@ fn materialize(
     }
     git_ok(Some(&dirs.checkout), &["reset", "--hard", "HEAD"])?;
     git_ok(Some(&dirs.checkout), &["clean", "-fd"])?;
-    git_ok(Some(&dirs.checkout), &["checkout", "--force", "--detach", revision])
+    git_ok(
+        Some(&dirs.checkout),
+        &["checkout", "--force", "--detach", revision],
+    )
 }
 
 fn git_ok(cwd: Option<&Path>, args: &[&str]) -> miette::Result<()> {
@@ -180,8 +203,9 @@ fn git_ok(cwd: Option<&Path>, args: &[&str]) -> miette::Result<()> {
     if let Some(cwd) = cwd {
         command.current_dir(cwd);
     }
-    let output =
-        command.output().map_err(|error| miette::miette!("running git {args:?}: {error}"))?;
+    let output = command
+        .output()
+        .map_err(|error| miette::miette!("running git {args:?}: {error}"))?;
     if output.status.success() {
         return Ok(());
     }
@@ -204,31 +228,7 @@ fn run_pipeline_in_checkout(
     let program = std::env::current_exe()
         .map_err(|error| miette::miette!("cannot locate the pnpm executable: {error}"))?;
     let mut child = Command::new(program);
-    child.arg("pipeline");
-    if let Some(name) = &invocation.pipeline_name {
-        child.arg(name);
-    }
-    child.arg("--dir").arg(&dirs.checkout);
-    match last_built {
-        Some(last_built) => {
-            child.arg("--base").arg(last_built.trim());
-        }
-        None => {
-            child.arg("--full");
-        }
-    }
-    if invocation.no_cache {
-        child.arg("--no-cache");
-    }
-    if invocation.report {
-        child.arg("--report");
-    }
-    if let Some(report_to) = &invocation.report_to {
-        child.arg("--report-to").arg(report_to);
-    }
-    if let Some(auth_file) = &invocation.npmrc_auth_file {
-        child.arg("--npmrc-auth-file").arg(auth_file);
-    }
+    configure_pipeline_command(&mut child, invocation, dirs, last_built);
     match child.status() {
         Ok(status) if status.success() => {}
         Ok(status) => {
@@ -237,7 +237,9 @@ fn run_pipeline_in_checkout(
             ));
         }
         Err(error) => {
-            return Err(miette::miette!("failed to run the pipeline for {revision}: {error}"));
+            return Err(miette::miette!(
+                "failed to run the pipeline for {revision}: {error}"
+            ));
         }
     }
     Ok(())
@@ -256,3 +258,38 @@ fn lock_agent(directory: &Path) -> std::io::Result<fs::File> {
 
 #[cfg(test)]
 mod tests;
+
+fn configure_pipeline_command(
+    child: &mut Command,
+    invocation: &WatchInvocation,
+    dirs: &AgentDirs,
+    last_built: Option<&str>,
+) {
+    child.arg("pipeline");
+    if let Some(name) = &invocation.pipeline_name {
+        child.arg(name);
+    }
+    child.arg("--dir").arg(&dirs.checkout);
+    match last_built {
+        Some(last_built) => {
+            child
+                .arg("--base")
+                .arg(last_built.trim());
+        }
+        None => {
+            child.arg("--full");
+        }
+    }
+    if invocation.no_cache {
+        child.arg("--no-cache");
+    }
+    if invocation.report {
+        child.arg("--report");
+    }
+    if let Some(report_to) = &invocation.report_to {
+        child.arg("--report-to").arg(report_to);
+    }
+    if let Some(auth_file) = &invocation.npmrc_auth_file {
+        child.arg("--npmrc-auth-file").arg(auth_file);
+    }
+}

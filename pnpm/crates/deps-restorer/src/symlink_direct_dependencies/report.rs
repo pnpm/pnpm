@@ -19,21 +19,14 @@ pub(super) fn emit_root_added<Reporter: self::Reporter>(
     prefix: &str,
 ) {
     let ResolvedEntry { name, spec, group, name_str, .. } = entry;
-    let dependency_type = match group {
-        DependencyGroup::Prod => DependencyType::Prod,
-        DependencyGroup::Dev => DependencyType::Dev,
-        DependencyGroup::Optional => DependencyType::Optional,
-        // Filtered upfront. See the comment on the `entries` builder.
-        DependencyGroup::Peer => unreachable!("peers are filtered out before this point"),
-    };
+    let dependency_type = dependency_type(*group);
     // For a `link:` dep, the `version` field is the resolved
     // `link:<path>` payload (re-prepended on the wire) so reporters can
     // render the link target; for `Regular` deps it is the semver-only
     // formatting on the wire. For an `Alias`, the wire shape is the same
     // as `Regular` (the version-without-peer of the alias's resolved
     // suffix); the resolved package name surfaces via `real_name`.
-    let manifest_version = spec
-        .version
+    let manifest_version = spec.version
         .resolved_key(name)
         .and_then(|key| packages?.get(&key.without_peer()))
         .and_then(|metadata| metadata.version.clone());
@@ -59,4 +52,14 @@ pub(super) fn emit_root_added<Reporter: self::Reporter>(
             },
         },
     }));
+}
+
+fn dependency_type(group: DependencyGroup) -> DependencyType {
+    match group {
+        DependencyGroup::Prod => DependencyType::Prod,
+        DependencyGroup::Dev => DependencyType::Dev,
+        DependencyGroup::Optional => DependencyType::Optional,
+        // Filtered upfront. See the comment on the `entries` builder.
+        DependencyGroup::Peer => unreachable!("peers are filtered out before this point"),
+    }
 }

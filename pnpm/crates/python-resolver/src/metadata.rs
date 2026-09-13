@@ -63,7 +63,10 @@ impl WheelMetadata {
         let Some((name, value)) = line.split_once(':') else {
             bail!("Python wheel metadata has a line that is not a field: {line:?}");
         };
-        Ok(Some((name.trim().to_ascii_lowercase(), value.trim().to_string())))
+        Ok(Some((
+            name.trim().to_ascii_lowercase(),
+            value.trim().to_string(),
+        )))
     }
 
     fn take_field(&mut self, name: &str, value: String) {

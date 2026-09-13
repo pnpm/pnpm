@@ -172,9 +172,18 @@ fn net_new_fields_and_marker_reshapes_never_cost_the_version() {
             "the manifest gains a net-new top-level field",
             manifest_with("", "{}", r#", "hasShrinkwrap": false"#),
         ),
-        ("unpackedSize as a float", manifest_with(r#", "unpackedSize": 12345.0"#, "{}", "")),
-        ("unpackedSize as a string", manifest_with(r#", "unpackedSize": "12345""#, "{}", "")),
-        ("fileCount as a float", manifest_with(r#", "fileCount": 12.0"#, "{}", "")),
+        (
+            "unpackedSize as a float",
+            manifest_with(r#", "unpackedSize": 12345.0"#, "{}", ""),
+        ),
+        (
+            "unpackedSize as a string",
+            manifest_with(r#", "unpackedSize": "12345""#, "{}", ""),
+        ),
+        (
+            "fileCount as a float",
+            manifest_with(r#", "fileCount": 12.0"#, "{}", ""),
+        ),
         (
             "peerDependenciesMeta.optional as a string",
             manifest_with(
@@ -183,12 +192,21 @@ fn net_new_fields_and_marker_reshapes_never_cost_the_version() {
                 r#", "peerDependenciesMeta": { "react": { "optional": "true" } }"#,
             ),
         ),
-        ("_npmUser abbreviated to a presence marker", manifest_with("", "1", "")),
-        ("_npmUser as a maintainer string", manifest_with("", r#""alice""#, "")),
+        (
+            "_npmUser abbreviated to a presence marker",
+            manifest_with("", "1", ""),
+        ),
+        (
+            "_npmUser as a maintainer string",
+            manifest_with("", r#""alice""#, ""),
+        ),
     ];
 
     for (label, json) in cases {
-        assert!(decodes(&json), "{label} must not make the version undecodable");
+        assert!(
+            decodes(&json),
+            "{label} must not make the version undecodable",
+        );
     }
 }
 
@@ -218,7 +236,10 @@ fn a_version_pnpm_could_not_install_still_fails_the_manifest() {
             manifest_with("", "{}", "").replace("sha512-AAAA", "not-an-integrity"),
         ),
         // No tarball to fetch, and no version to order against its peers.
-        ("dist omitted entirely", r#"{ "name": "acme", "version": "1.0.0" }"#.to_string()),
+        (
+            "dist omitted entirely",
+            r#"{ "name": "acme", "version": "1.0.0" }"#.to_string(),
+        ),
         (
             "a version that isn't semver",
             manifest_with("", "{}", "").replace(r#""version": "1.0.0""#, r#""version": "1.0.0.0""#),

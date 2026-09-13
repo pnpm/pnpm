@@ -47,7 +47,11 @@ pub(crate) struct ChannelBytesReader {
 
 impl ChannelBytesReader {
     pub(crate) fn new(rx: BodyChunkReceiver) -> Self {
-        Self { rx, current: bytes::Bytes::new(), offset: 0 }
+        Self {
+            rx,
+            current: bytes::Bytes::new(),
+            offset: 0,
+        }
     }
 }
 
@@ -153,7 +157,11 @@ pub(crate) fn extract_tarball_entries_streaming(
 
     for entry in archive.entries().map_err(TarballError::ReadTarballEntries)? {
         let mut entry = entry.map_err(TarballError::ReadTarballEntries)?;
-        if !entry.header().entry_type().is_file() {
+        if !entry
+            .header()
+            .entry_type()
+            .is_file()
+        {
             continue;
         }
         let Some(meta) = entry_meta(&entry, ignore_file_pattern)? else {
@@ -184,8 +192,14 @@ pub(super) fn entry_meta<Source: Read>(
     entry: &tar::Entry<'_, Source>,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
 ) -> Result<Option<EntryMeta>, TarballError> {
-    let mode = entry.header().mode().map_err(TarballError::ReadTarballEntries)?;
-    let size = entry.header().size().map_err(TarballError::ReadTarballEntries)?;
+    let mode = entry
+        .header()
+        .mode()
+        .map_err(TarballError::ReadTarballEntries)?;
+    let size = entry
+        .header()
+        .size()
+        .map_err(TarballError::ReadTarballEntries)?;
     let cleaned_path = {
         let entry_path = entry.path().map_err(TarballError::ReadTarballEntries)?;
         clean_archive_entry_path(&entry_path.to_string_lossy())?
@@ -193,7 +207,12 @@ pub(super) fn entry_meta<Source: Read>(
     if ignore_file_pattern.is_some_and(|filter| filter(&cleaned_path)) {
         return Ok(None);
     }
-    Ok(Some(EntryMeta { cleaned_path, executable: file_mode::is_executable(mode), mode, size }))
+    Ok(Some(EntryMeta {
+        cleaned_path,
+        executable: file_mode::is_executable(mode),
+        mode,
+        size,
+    }))
 }
 
 /// The running state of a streaming extraction: the CAFS rows written so
@@ -252,7 +271,10 @@ pub(crate) fn tar_entry_payload<'a, Reader: std::io::Read>(
             message.to_string(),
         ))
     };
-    let file_size = entry.header().size().map_err(TarballError::ReadTarballEntries)?;
+    let file_size = entry
+        .header()
+        .size()
+        .map_err(TarballError::ReadTarballEntries)?;
     let data_offset = usize::try_from(entry.raw_file_position())
         .map_err(|_| invalid("tar entry file offset does not fit in usize"))?;
     let size = usize::try_from(file_size)
@@ -260,10 +282,12 @@ pub(crate) fn tar_entry_payload<'a, Reader: std::io::Read>(
     let end = data_offset
         .checked_add(size)
         .ok_or_else(|| invalid("tar entry file offset plus size overflows usize"))?;
-    tar_data.get(data_offset..end).ok_or_else(|| {
-        TarballError::ReadTarballEntries(std::io::Error::new(
-            std::io::ErrorKind::UnexpectedEof,
-            "tar entry payload extends beyond archive",
-        ))
-    })
+    tar_data
+        .get(data_offset..end)
+        .ok_or_else(|| {
+            TarballError::ReadTarballEntries(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "tar entry payload extends beyond archive",
+            ))
+        })
 }

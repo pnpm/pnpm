@@ -25,17 +25,35 @@ const MOCK_INTEGRITY: &str = "sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoI
 /// every package gets version `1.0.0`, and every dependency name that is
 /// mentioned but not declared gets its own empty entry.
 fn mock_packages_yaml(packages: &[(&str, &[&str])]) -> String {
-    let mut names: BTreeSet<&str> = packages.iter().map(|(name, _)| *name).collect();
-    names.extend(packages.iter().flat_map(|(_, deps)| deps.iter().copied()));
-    let deps_of: HashMap<&str, &[&str]> = packages.iter().copied().collect();
+    let mut names: BTreeSet<&str> = packages
+        .iter()
+        .map(|(name, _)| *name)
+        .collect();
+    names.extend(
+        packages
+            .iter()
+            .flat_map(|(_, deps)| deps.iter().copied()),
+    );
+    let deps_of: HashMap<&str, &[&str]> = packages
+        .iter()
+        .copied()
+        .collect();
 
     let mut yaml = String::from("packages:\n");
     for name in &names {
-        writeln!(yaml, "  {name}@1.0.0:\n    resolution: {{integrity: {MOCK_INTEGRITY}}}").unwrap();
+        writeln!(
+            yaml,
+            "  {name}@1.0.0:\n    resolution: {{integrity: {MOCK_INTEGRITY}}}",
+        )
+        .unwrap();
     }
     yaml.push_str("\nsnapshots:\n");
     for name in &names {
-        match deps_of.get(name).copied().unwrap_or_default() {
+        match deps_of
+            .get(name)
+            .copied()
+            .unwrap_or_default()
+        {
             [] => writeln!(yaml, "  {name}@1.0.0: {{}}").unwrap(),
             deps => {
                 writeln!(yaml, "  {name}@1.0.0:\n    dependencies:").unwrap();
@@ -94,7 +112,11 @@ fn include_no_optional() -> IncludedDependencies {
 fn graph_for(lockfile: &Lockfile, roots: &[TreeNodeId]) -> DependencyGraph {
     build_dependency_graph(
         roots,
-        &BuildGraphOptions { lockfile, include: include_no_optional(), only_projects: false },
+        &BuildGraphOptions {
+            lockfile,
+            include: include_no_optional(),
+            only_projects: false,
+        },
     )
 }
 
@@ -118,7 +140,13 @@ fn tree_with_graph(
         show_deduped_search_matches: false,
         rewrite_link_version_dir: env.layout.lockfile_dir.clone(),
     };
-    get_tree(&opts, &mut MaterializationCache::new(), root, max_depth, None)
+    get_tree(
+        &opts,
+        &mut MaterializationCache::new(),
+        root,
+        max_depth,
+        None,
+    )
 }
 
 fn tree_with_search(
@@ -137,7 +165,13 @@ fn tree_with_search(
         show_deduped_search_matches,
         rewrite_link_version_dir: env.layout.lockfile_dir.clone(),
     };
-    get_tree(&opts, &mut MaterializationCache::new(), root, MaxDepth::Unlimited, None)
+    get_tree(
+        &opts,
+        &mut MaterializationCache::new(),
+        root,
+        MaxDepth::Unlimited,
+        None,
+    )
 }
 
 fn query_searcher(query: &str) -> Searcher {
@@ -149,7 +183,10 @@ fn query_searcher(query: &str) -> Searcher {
 fn finder_searcher(alias: &str, dep_path: &str, message: &str) -> Searcher {
     let mut searcher = Searcher::from_queries(&[]).unwrap();
     searcher.set_finder_results(HashMap::from([(
-        (alias.to_string(), Some(TreeNodeId::Package(dep_path.parse().unwrap()))),
+        (
+            alias.to_string(),
+            Some(TreeNodeId::Package(dep_path.parse().unwrap())),
+        ),
         SearchMatch::Message(message.to_string()),
     )]));
     searcher
@@ -177,15 +214,21 @@ fn find<'a>(nodes: &'a [DependencyNode], alias_path: &[&str]) -> &'a DependencyN
         .iter()
         .find(|node| node.alias == *first)
         .unwrap_or_else(|| panic!("no node with alias {first}"));
-    if rest.is_empty() { node } else { find(&node.dependencies, rest) }
+    if rest.is_empty() {
+        node
+    } else {
+        find(&node.dependencies, rest)
+    }
 }
 
 // Port of upstream's 'full test case to print when max depth is large' (deps/inspection/tree-builder/test/getTree.test.ts).
 #[test]
 fn full_test_case_to_print_when_max_depth_is_large() {
     let dir = tempfile::tempdir().unwrap();
-    let lockfile =
-        mock_lockfile(dir.path(), &[("a", &["b1", "b2", "b3"]), ("b1", &["c1"]), ("c1", &["d1"])]);
+    let lockfile = mock_lockfile(
+        dir.path(),
+        &[("a", &["b1", "b2", "b3"]), ("b1", &["c1"]), ("c1", &["d1"])],
+    );
     let env = mock_env(dir.path(), &lockfile);
 
     let result = tree_with_graph(&env, &pkg_root("a"), MaxDepth::Finite(9999));
@@ -197,8 +240,10 @@ fn full_test_case_to_print_when_max_depth_is_large() {
 #[test]
 fn no_result_when_current_depth_exceeds_max_depth() {
     let dir = tempfile::tempdir().unwrap();
-    let lockfile =
-        mock_lockfile(dir.path(), &[("a", &["b1", "b2", "b3"]), ("b1", &["c1"]), ("c1", &["d1"])]);
+    let lockfile = mock_lockfile(
+        dir.path(),
+        &[("a", &["b1", "b2", "b3"]), ("b1", &["c1"]), ("c1", &["d1"])],
+    );
     let env = mock_env(dir.path(), &lockfile);
 
     let result = tree_with_graph(&env, &pkg_root("a"), MaxDepth::Finite(0));
@@ -210,8 +255,10 @@ fn no_result_when_current_depth_exceeds_max_depth() {
 #[test]
 fn max_depth_of_1_to_print_flat_dependencies() {
     let dir = tempfile::tempdir().unwrap();
-    let lockfile =
-        mock_lockfile(dir.path(), &[("a", &["b1", "b2", "b3"]), ("b1", &["c1"]), ("c1", &["d1"])]);
+    let lockfile = mock_lockfile(
+        dir.path(),
+        &[("a", &["b1", "b2", "b3"]), ("b1", &["c1"]), ("c1", &["d1"])],
+    );
     let env = mock_env(dir.path(), &lockfile);
 
     let result = tree_with_graph(&env, &pkg_root("a"), MaxDepth::Finite(1));
@@ -223,8 +270,10 @@ fn max_depth_of_1_to_print_flat_dependencies() {
 #[test]
 fn max_depth_of_2_to_print_a1_to_b1_to_c1_but_not_d1() {
     let dir = tempfile::tempdir().unwrap();
-    let lockfile =
-        mock_lockfile(dir.path(), &[("a", &["b1", "b2", "b3"]), ("b1", &["c1"]), ("c1", &["d1"])]);
+    let lockfile = mock_lockfile(
+        dir.path(),
+        &[("a", &["b1", "b2", "b3"]), ("b1", &["c1"]), ("c1", &["d1"])],
+    );
     let env = mock_env(dir.path(), &lockfile);
 
     let result = tree_with_graph(&env, &pkg_root("a"), MaxDepth::Finite(2));
@@ -258,7 +307,12 @@ fn revisiting_package_at_higher_depth_does_not_print_extra_dependencies() {
     let dir = tempfile::tempdir().unwrap();
     let lockfile = mock_lockfile(
         dir.path(),
-        &[("root", &["a"]), ("a", &["b", "d"]), ("b", &["c"]), ("d", &["b"])],
+        &[
+            ("root", &["a"]),
+            ("a", &["b", "d"]),
+            ("b", &["c"]),
+            ("d", &["b"]),
+        ],
     );
     let env = mock_env(dir.path(), &lockfile);
 
@@ -271,8 +325,10 @@ fn revisiting_package_at_higher_depth_does_not_print_extra_dependencies() {
 #[test]
 fn height_less_than_requested_depth() {
     let dir = tempfile::tempdir().unwrap();
-    let lockfile =
-        mock_lockfile(dir.path(), &[("root", &["a", "b"]), ("a", &["b"]), ("b", &["c"])]);
+    let lockfile = mock_lockfile(
+        dir.path(),
+        &[("root", &["a", "b"]), ("a", &["b"]), ("b", &["c"])],
+    );
     let env = mock_env(dir.path(), &lockfile);
 
     let result = tree_with_graph(&env, &pkg_root("root"), MaxDepth::Finite(4));
@@ -286,7 +342,12 @@ fn height_equals_requested_depth() {
     let dir = tempfile::tempdir().unwrap();
     let lockfile = mock_lockfile(
         dir.path(),
-        &[("root", &["a", "c"]), ("a", &["b"]), ("c", &["d"]), ("d", &["a"])],
+        &[
+            ("root", &["a", "c"]),
+            ("a", &["b"]),
+            ("c", &["d"]),
+            ("d", &["a"]),
+        ],
     );
     let env = mock_env(dir.path(), &lockfile);
 
@@ -301,7 +362,12 @@ fn height_equals_requested_depth_plus_1() {
     let dir = tempfile::tempdir().unwrap();
     let lockfile = mock_lockfile(
         dir.path(),
-        &[("root", &["a", "c"]), ("a", &["b"]), ("c", &["d"]), ("d", &["a"])],
+        &[
+            ("root", &["a", "c"]),
+            ("a", &["b"]),
+            ("c", &["d"]),
+            ("d", &["a"]),
+        ],
     );
     let env = mock_env(dir.path(), &lockfile);
 
@@ -337,7 +403,10 @@ fn height_greater_than_requested_depth() {
 #[test]
 fn marks_back_edge_as_circular_in_a_simple_cycle() {
     let dir = tempfile::tempdir().unwrap();
-    let lockfile = mock_lockfile(dir.path(), &[("root", &["a"]), ("a", &["b"]), ("b", &["a"])]);
+    let lockfile = mock_lockfile(
+        dir.path(),
+        &[("root", &["a"]), ("a", &["b"]), ("b", &["a"])],
+    );
     let env = mock_env(dir.path(), &lockfile);
 
     let result = tree_with_graph(&env, &pkg_root("root"), MaxDepth::Unlimited);
@@ -354,7 +423,12 @@ fn does_not_mark_a_node_as_circular_when_reached_from_a_non_cyclic_path() {
     let dir = tempfile::tempdir().unwrap();
     let lockfile = mock_lockfile(
         dir.path(),
-        &[("root", &["a", "c"]), ("a", &["b"]), ("b", &["a"]), ("c", &["b"])],
+        &[
+            ("root", &["a", "c"]),
+            ("a", &["b"]),
+            ("b", &["a"]),
+            ("c", &["b"]),
+        ],
     );
     let env = mock_env(dir.path(), &lockfile);
 
@@ -393,10 +467,17 @@ importers:
     let lockfile = load_lockfile(dir.path(), &yaml);
     let env = mock_env(dir.path(), &lockfile);
 
-    let result = tree_with_graph(&env, &TreeNodeId::Importer(".".to_string()), MaxDepth::Unlimited);
+    let result = tree_with_graph(
+        &env,
+        &TreeNodeId::Importer(".".to_string()),
+        MaxDepth::Unlimited,
+    );
 
     assert_eq!(shape(&result), "my-link,regular-dep(transitive)");
-    assert_eq!(find(&result, &["my-link"]).package.version, "link:../external-pkg");
+    assert_eq!(
+        find(&result, &["my-link"]).package.version,
+        "link:../external-pkg",
+    );
 }
 
 // Port of upstream's 'link inside workspace resolves to importer and is traversed' (deps/inspection/tree-builder/test/getTree.test.ts).
@@ -424,10 +505,17 @@ importers:
     let lockfile = load_lockfile(dir.path(), &yaml);
     let env = mock_env(dir.path(), &lockfile);
 
-    let result = tree_with_graph(&env, &TreeNodeId::Importer(".".to_string()), MaxDepth::Unlimited);
+    let result = tree_with_graph(
+        &env,
+        &TreeNodeId::Importer(".".to_string()),
+        MaxDepth::Unlimited,
+    );
 
     assert_eq!(shape(&result), "workspace-pkg(leaf)");
-    assert_eq!(find(&result, &["workspace-pkg"]).package.version, "link:packages/workspace-pkg");
+    assert_eq!(
+        find(&result, &["workspace-pkg"]).package.version,
+        "link:packages/workspace-pkg",
+    );
 }
 
 // Port of upstream's 'deduped subtree containing a search match still appears in output' (deps/inspection/tree-builder/test/getTree.test.ts).
@@ -436,7 +524,12 @@ fn deduped_subtree_containing_a_search_match_still_appears_in_output() {
     let dir = tempfile::tempdir().unwrap();
     let lockfile = mock_lockfile(
         dir.path(),
-        &[("root", &["a", "c"]), ("a", &["b"]), ("b", &["target"]), ("c", &["b"])],
+        &[
+            ("root", &["a", "c"]),
+            ("a", &["b"]),
+            ("b", &["target"]),
+            ("c", &["b"]),
+        ],
     );
     let env = mock_env(dir.path(), &lockfile);
     let search = query_searcher("target");
@@ -458,7 +551,12 @@ fn deduped_subtree_propagates_string_search_messages_to_the_deduped_node() {
     let dir = tempfile::tempdir().unwrap();
     let lockfile = mock_lockfile(
         dir.path(),
-        &[("root", &["a", "c"]), ("a", &["b"]), ("b", &["target"]), ("c", &["b"])],
+        &[
+            ("root", &["a", "c"]),
+            ("a", &["b"]),
+            ("b", &["target"]),
+            ("c", &["b"]),
+        ],
     );
     let env = mock_env(dir.path(), &lockfile);
     let search = finder_searcher("target", "target@1.0.0", "depends on target");
@@ -474,7 +572,10 @@ fn deduped_subtree_propagates_string_search_messages_to_the_deduped_node() {
     // The deduped b under c carries the search message from target.
     assert!(b_under_c.status.deduped);
     assert!(b_under_c.search.matched);
-    assert_eq!(b_under_c.search.message.as_deref(), Some("depends on target"));
+    assert_eq!(
+        b_under_c.search.message.as_deref(),
+        Some("depends on target"),
+    );
 }
 
 // Port of upstream's 'deduped subtree with search match is hidden by default' (deps/inspection/tree-builder/test/getTree.test.ts).
@@ -483,7 +584,12 @@ fn deduped_subtree_with_search_match_is_hidden_by_default() {
     let dir = tempfile::tempdir().unwrap();
     let lockfile = mock_lockfile(
         dir.path(),
-        &[("root", &["a", "c"]), ("a", &["b"]), ("b", &["target"]), ("c", &["b"])],
+        &[
+            ("root", &["a", "c"]),
+            ("a", &["b"]),
+            ("b", &["target"]),
+            ("c", &["b"]),
+        ],
     );
     let env = mock_env(dir.path(), &lockfile);
     let search = query_searcher("target");
@@ -501,7 +607,12 @@ fn deduped_subtree_without_search_match_is_excluded_when_search_is_active() {
     let dir = tempfile::tempdir().unwrap();
     let lockfile = mock_lockfile(
         dir.path(),
-        &[("root", &["a", "c"]), ("a", &["b"]), ("b", &["leaf"]), ("c", &["b"])],
+        &[
+            ("root", &["a", "c"]),
+            ("a", &["b"]),
+            ("b", &["leaf"]),
+            ("c", &["b"]),
+        ],
     );
     let env = mock_env(dir.path(), &lockfile);
     let search = query_searcher("target");
@@ -531,7 +642,11 @@ importers:
         version: 1.0.0
 
 {}",
-        mock_packages_yaml(&[("a", &["shared"]), ("b", &["unique-to-b"]), ("shared", &["deep"])]),
+        mock_packages_yaml(&[
+            ("a", &["shared"]),
+            ("b", &["unique-to-b"]),
+            ("shared", &["deep"])
+        ]),
     );
     let lockfile = load_lockfile(dir.path(), &yaml);
     let root_a = TreeNodeId::Importer("project-a".to_string());
@@ -542,12 +657,21 @@ importers:
     let graph_b = graph_for(&lockfile, std::slice::from_ref(&root_b));
 
     dbg!(multi.nodes.keys().collect::<Vec<_>>());
-    for key in graph_a.nodes.keys().chain(graph_b.nodes.keys()) {
-        assert!(multi.nodes.contains_key(key), "multi-root graph is missing {key:?}");
+    for key in graph_a.nodes
+        .keys()
+        .chain(graph_b.nodes.keys())
+    {
+        assert!(
+            multi.nodes.contains_key(key),
+            "multi-root graph is missing {key:?}",
+        );
     }
     for name in ["unique-to-b", "shared", "deep"] {
         let id = pkg_root(name);
-        assert!(multi.nodes.contains_key(&id), "multi-root graph is missing {id:?}");
+        assert!(
+            multi.nodes.contains_key(&id),
+            "multi-root graph is missing {id:?}",
+        );
     }
 }
 
@@ -555,7 +679,10 @@ importers:
 #[test]
 fn second_get_tree_call_for_same_node_returns_deduped_children() {
     let dir = tempfile::tempdir().unwrap();
-    let lockfile = mock_lockfile(dir.path(), &[("root", &["a"]), ("a", &["b"]), ("b", &["c"])]);
+    let lockfile = mock_lockfile(
+        dir.path(),
+        &[("root", &["a"]), ("a", &["b"]), ("b", &["c"])],
+    );
     let env = mock_env(dir.path(), &lockfile);
     let root = pkg_root("root");
     let graph = graph_for(&lockfile, std::slice::from_ref(&root));
@@ -653,7 +780,10 @@ fn deduped_dependencies_count_correctly_reflects_subtree_size() {
 #[test]
 fn different_max_depth_values_are_cached_independently() {
     let dir = tempfile::tempdir().unwrap();
-    let lockfile = mock_lockfile(dir.path(), &[("root", &["a"]), ("a", &["b"]), ("b", &["c"])]);
+    let lockfile = mock_lockfile(
+        dir.path(),
+        &[("root", &["a"]), ("a", &["b"]), ("b", &["c"])],
+    );
     let env = mock_env(dir.path(), &lockfile);
     let root = pkg_root("root");
     let graph = graph_for(&lockfile, std::slice::from_ref(&root));
@@ -730,8 +860,13 @@ snapshots:
         rewrite_link_version_dir: dir.path().to_path_buf(),
     };
 
-    let result =
-        get_tree(&opts, &mut MaterializationCache::new(), &root, MaxDepth::Finite(9999), None);
+    let result = get_tree(
+        &opts,
+        &mut MaterializationCache::new(),
+        &root,
+        MaxDepth::Finite(9999),
+        None,
+    );
 
     // peer1 stays because it has dependencies of its own; peer2 is excluded.
     assert_eq!(shape(&result), "peer1(bar),qar");
@@ -742,17 +877,27 @@ snapshots:
 #[test]
 fn absurdly_deep_chain_is_capped_instead_of_overflowing_the_stack() {
     let chain_len = crate::MAX_WALK_DEPTH * 3;
-    let names: Vec<String> = (0..chain_len).map(|i| format!("chain-{i}")).collect();
+    let names: Vec<String> = (0..chain_len)
+        .map(|i| format!("chain-{i}"))
+        .collect();
 
     let mut yaml = String::from("lockfileVersion: '9.0'\n\nimporters:\n  .: {}\n\npackages:\n");
     for name in &names {
-        writeln!(yaml, "  {name}@1.0.0:\n    resolution: {{integrity: {MOCK_INTEGRITY}}}").unwrap();
+        writeln!(
+            yaml,
+            "  {name}@1.0.0:\n    resolution: {{integrity: {MOCK_INTEGRITY}}}",
+        )
+        .unwrap();
     }
     yaml.push_str("\nsnapshots:\n");
     for (i, name) in names.iter().enumerate() {
         match names.get(i + 1) {
             Some(next) => {
-                writeln!(yaml, "  {name}@1.0.0:\n    dependencies:\n      {next}: 1.0.0").unwrap();
+                writeln!(
+                    yaml,
+                    "  {name}@1.0.0:\n    dependencies:\n      {next}: 1.0.0",
+                )
+                .unwrap();
             }
             None => writeln!(yaml, "  {name}@1.0.0: {{}}").unwrap(),
         }

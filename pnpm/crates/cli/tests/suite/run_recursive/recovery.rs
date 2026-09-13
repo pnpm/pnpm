@@ -71,11 +71,26 @@ fn recursive_run_resume_from_starts_at_the_given_package() {
         .success();
 
     assert!(
-        !workspace.join("project-1").join("ran.txt").exists(),
+        !workspace
+            .join("project-1")
+            .join("ran.txt")
+            .exists(),
         "project-1 sorts before the resume point and must be skipped",
     );
-    assert!(workspace.join("project-2").join("ran.txt").exists(), "project-2 should run");
-    assert!(workspace.join("project-3").join("ran.txt").exists(), "project-3 should run");
+    assert!(
+        workspace
+            .join("project-2")
+            .join("ran.txt")
+            .exists(),
+        "project-2 should run",
+    );
+    assert!(
+        workspace
+            .join("project-3")
+            .join("ran.txt")
+            .exists(),
+        "project-3 should run",
+    );
 
     drop(root);
 }
@@ -116,7 +131,13 @@ fn recursive_run_resumes_from_exactly_the_tasks_that_passed_before_a_failure() {
     fs::write(workspace.join("fail"), "").expect("write failure marker");
 
     pacquet
-        .with_args(["--no-bail", "--workspace-concurrency=1", "-r", "run", "build"])
+        .with_args([
+            "--no-bail",
+            "--workspace-concurrency=1",
+            "-r",
+            "run",
+            "build",
+        ])
         .assert()
         .failure();
     let first_run = fs::read_to_string(workspace.join("order.log")).expect("read first run");
@@ -128,13 +149,28 @@ fn recursive_run_resumes_from_exactly_the_tasks_that_passed_before_a_failure() {
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(&workspace)
-        .with_args(["--workspace-concurrency=1", "--resume-from=anchor", "-r", "run", "build"])
+        .with_args([
+            "--workspace-concurrency=1",
+            "--resume-from=anchor",
+            "-r",
+            "run",
+            "build",
+        ])
         .assert()
         .success();
 
     let order = fs::read_to_string(workspace.join("order.log")).expect("read resumed run");
-    assert!(order.ends_with("dependency\nanchor\n"), "unfinished dependency must rerun: {order}");
-    assert_eq!(order.lines().filter(|task| *task == "completed").count(), 1);
+    assert!(
+        order.ends_with("dependency\nanchor\n"),
+        "unfinished dependency must rerun: {order}",
+    );
+    assert_eq!(
+        order
+            .lines()
+            .filter(|task| *task == "completed")
+            .count(),
+        1,
+    );
     let state_dir = workspace.join("node_modules").join(".pnpm-task-run-state-v1");
     let latest: Value = serde_json::from_str(
         &fs::read_to_string(state_dir.join("latest.json")).expect("read latest state pointer"),
@@ -145,7 +181,10 @@ fn recursive_run_resumes_from_exactly_the_tasks_that_passed_before_a_failure() {
         latest["invocation"].as_str().expect("latest invocation"),
         latest["run"].as_str().expect("latest run"),
     ));
-    assert!(!latest_journal.exists(), "successful resume removes its current checkpoint");
+    assert!(
+        !latest_journal.exists(),
+        "successful resume removes its current checkpoint",
+    );
 
     drop(root);
 }
@@ -195,22 +234,46 @@ fn recursive_run_does_not_persist_a_task_skipped_by_the_recursion_guard() {
     pacquet
         .with_env("npm_lifecycle_event", "build")
         .with_env("PNPM_SCRIPT_SRC_DIR", origin.to_string_lossy().as_ref())
-        .with_args(["--no-bail", "--workspace-concurrency=1", "-r", "run", "build"])
+        .with_args([
+            "--no-bail",
+            "--workspace-concurrency=1",
+            "-r",
+            "run",
+            "build",
+        ])
         .assert()
         .failure();
     let first_run = fs::read_to_string(workspace.join("order.log")).expect("read first run");
-    assert!(!first_run.lines().any(|task| task == "origin"), "origin must be recursion-guarded");
+    assert!(
+        !first_run
+            .lines()
+            .any(|task| task == "origin"),
+        "origin must be recursion-guarded",
+    );
 
     fs::remove_file(workspace.join("fail")).expect("remove failure marker");
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(&workspace)
-        .with_args(["--workspace-concurrency=1", "--resume-from=anchor", "-r", "run", "build"])
+        .with_args([
+            "--workspace-concurrency=1",
+            "--resume-from=anchor",
+            "-r",
+            "run",
+            "build",
+        ])
         .assert()
         .success();
 
     let order = fs::read_to_string(workspace.join("order.log")).expect("read resumed run");
-    assert_eq!(order.lines().filter(|task| *task == "origin").count(), 1, "{order}");
+    assert_eq!(
+        order
+            .lines()
+            .filter(|task| *task == "origin")
+            .count(),
+        1,
+        "{order}",
+    );
 
     drop(root);
 }
@@ -220,7 +283,10 @@ fn recursive_run_does_not_persist_a_task_skipped_by_the_recursion_guard() {
 #[test]
 fn recursive_run_resume_from_unknown_package_errors() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_workspace(&workspace, &[("project-1", build_writes_marker("project-1"))]);
+    write_workspace(
+        &workspace,
+        &[("project-1", build_writes_marker("project-1"))],
+    );
 
     let output = pacquet
         .with_arg("-r")
@@ -230,7 +296,10 @@ fn recursive_run_resume_from_unknown_package_errors() {
         .with_arg("build")
         .output()
         .expect("spawn pacquet");
-    assert!(!output.status.success(), "an unknown resume-from package must fail");
+    assert!(
+        !output.status.success(),
+        "an unknown resume-from package must fail",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("ERR_PNPM_RESUME_FROM_NOT_FOUND"),
@@ -255,7 +324,10 @@ fn recursive_run_report_summary_records_every_package_status() {
             ("project-2", build("project-2", "exit 1")),
             ("project-3", build("project-3", "true")),
             ("project-4", build("project-4", "exit 1")),
-            ("project-5", json!({ "name": "project-5", "version": "1.0.0" })),
+            (
+                "project-5",
+                json!({ "name": "project-5", "version": "1.0.0" }),
+            ),
         ],
     );
 
@@ -267,7 +339,10 @@ fn recursive_run_report_summary_records_every_package_status() {
         .with_arg("build")
         .output()
         .expect("spawn pacquet");
-    assert!(!output.status.success(), "a run with failing packages must fail overall");
+    assert!(
+        !output.status.success(),
+        "a run with failing packages must fail overall",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("ERR_PNPM_RECURSIVE_FAIL"),
@@ -283,7 +358,11 @@ fn recursive_run_report_summary_records_every_package_status() {
         ("project-5", "skipped"),
     ];
     for (name, status) in expected {
-        assert_eq!(statuses.get(name).map(String::as_str), Some(status), "status of {name}");
+        assert_eq!(
+            statuses.get(name).map(String::as_str),
+            Some(status),
+            "status of {name}",
+        );
     }
 
     drop(root);
@@ -336,7 +415,10 @@ fn recursive_run_reads_bail_from_workspace_config() {
         .output()
         .expect("run recursive script");
 
-    assert!(!output.status.success(), "the failed project must still fail the command");
+    assert!(
+        !output.status.success(),
+        "the failed project must still fail the command",
+    );
     assert!(
         workspace.join("later-continues/ran.txt").exists(),
         "bail: false must keep running unrelated projects after a failure",
@@ -356,7 +438,10 @@ fn recursive_run_bail_writes_summary_then_stops_at_first_failure() {
     let build = |name: &str, body: &str| json!({ "name": name, "version": "1.0.0", "scripts": { "build": body } });
     write_workspace(
         &workspace,
-        &[("project-1", build("project-1", "exit 1")), ("project-2", build("project-2", "true"))],
+        &[
+            ("project-1", build("project-1", "exit 1")),
+            ("project-2", build("project-2", "true")),
+        ],
     );
 
     let output = pacquet
@@ -367,7 +452,10 @@ fn recursive_run_bail_writes_summary_then_stops_at_first_failure() {
         .with_arg("build")
         .output()
         .expect("spawn pacquet");
-    assert!(!output.status.success(), "a failing script with bail on must fail the run");
+    assert!(
+        !output.status.success(),
+        "a failing script with bail on must fail the run",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL"),
@@ -375,7 +463,11 @@ fn recursive_run_bail_writes_summary_then_stops_at_first_failure() {
     );
 
     let statuses = summary_statuses(&workspace);
-    assert_eq!(statuses.get("project-1").map(String::as_str), Some("failure"), "project-1 failed");
+    assert_eq!(
+        statuses.get("project-1").map(String::as_str),
+        Some("failure"),
+        "project-1 failed",
+    );
     assert_eq!(
         statuses.get("project-2").map(String::as_str),
         Some("queued"),
@@ -395,12 +487,22 @@ fn recursive_run_bail_without_report_summary_writes_no_file() {
     let build = |name: &str, body: &str| json!({ "name": name, "version": "1.0.0", "scripts": { "build": body } });
     write_workspace(
         &workspace,
-        &[("project-1", build("project-1", "exit 1")), ("project-2", build("project-2", "true"))],
+        &[
+            ("project-1", build("project-1", "exit 1")),
+            ("project-2", build("project-2", "true")),
+        ],
     );
 
-    let output =
-        pacquet.with_arg("-r").with_arg("run").with_arg("build").output().expect("spawn pacquet");
-    assert!(!output.status.success(), "a failing script with bail on must fail the run");
+    let output = pacquet
+        .with_arg("-r")
+        .with_arg("run")
+        .with_arg("build")
+        .output()
+        .expect("spawn pacquet");
+    assert!(
+        !output.status.success(),
+        "a failing script with bail on must fail the run",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL"),
@@ -448,11 +550,17 @@ fn recursive_run_recursion_guard_skips_originating_project() {
         .success();
 
     assert!(
-        !workspace.join("project-1").join("ran.txt").exists(),
+        !workspace
+            .join("project-1")
+            .join("ran.txt")
+            .exists(),
         "the originating project must be recursion-guarded and skipped",
     );
     assert!(
-        workspace.join("project-2").join("ran.txt").exists(),
+        workspace
+            .join("project-2")
+            .join("ran.txt")
+            .exists(),
         "other projects should still run",
     );
 

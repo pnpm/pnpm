@@ -40,7 +40,9 @@ pub(super) fn convert_package_metadata(
                 integrity: resolution.integrity.clone(),
                 revision: None,
                 git_hosted: resolution.git_hosted,
-                path: resolution.path.as_ref().map(|_| relative_path(ctx.deploy_dir, &resolved)),
+                path: resolution.path
+                    .as_ref()
+                    .map(|_| relative_path(ctx.deploy_dir, &resolved)),
             })
         }
         _ => metadata.resolution.clone(),
@@ -54,7 +56,10 @@ pub(super) fn convert_snapshot(
     ctx: &ConvertCtx,
     link_base: &Path,
 ) -> miette::Result<SnapshotEntry> {
-    let bases = ResolveBases { file_base: ctx.lockfile_dir, link_base };
+    let bases = ResolveBases {
+        file_base: ctx.lockfile_dir,
+        link_base,
+    };
     Ok(SnapshotEntry {
         dependencies: convert_snapshot_dep_map(snapshot.dependencies.as_ref(), ctx, &bases)?,
         optional_dependencies: convert_snapshot_dep_map(
@@ -122,7 +127,10 @@ fn convert_snapshot_dep_map(
     let Some(input) = input else { return Ok(None) };
     let mut output = HashMap::new();
     for (name, dep_ref) in input {
-        output.insert(name.clone(), convert_snapshot_dep_ref(name, dep_ref, ctx, bases)?);
+        output.insert(
+            name.clone(),
+            convert_snapshot_dep_ref(name, dep_ref, ctx, bases)?,
+        );
     }
     Ok((!output.is_empty()).then_some(output))
 }
@@ -200,7 +208,9 @@ fn resolve_snapshot_dep_ref(
 }
 
 fn resolve_pkg_ver_peer(version: &pnpm_lockfile::PkgVerPeer, base: &Path) -> Option<LocalResolve> {
-    let VersionPart::File(path) = version.version() else { return None };
+    let VersionPart::File(path) = version.version() else {
+        return None;
+    };
     Some(LocalResolve {
         resolved_path: lexical_normalize(&base.join(path)),
         suffix: version.peer().to_string(),
@@ -209,12 +219,18 @@ fn resolve_pkg_ver_peer(version: &pnpm_lockfile::PkgVerPeer, base: &Path) -> Opt
 
 fn resolve_file_payload(base: &Path, payload: &str) -> LocalResolve {
     let (path, suffix) = split_local_payload(payload);
-    LocalResolve { resolved_path: lexical_normalize(&base.join(path)), suffix: suffix.to_string() }
+    LocalResolve {
+        resolved_path: lexical_normalize(&base.join(path)),
+        suffix: suffix.to_string(),
+    }
 }
 
 fn resolve_link_payload(base: &Path, payload: &str) -> LocalResolve {
     let (path, suffix) = split_local_payload(payload);
-    LocalResolve { resolved_path: lexical_normalize(&base.join(path)), suffix: suffix.to_string() }
+    LocalResolve {
+        resolved_path: lexical_normalize(&base.join(path)),
+        suffix: suffix.to_string(),
+    }
 }
 
 pub(super) fn split_local_payload(payload: &str) -> (&str, &str) {
@@ -240,8 +256,12 @@ fn local_to_importer_dep_version(
     if same_path(&resolved_path, ctx.deployed_project_root) {
         return Ok(ImporterDepVersion::Link(".".to_string()));
     }
-    let key =
-        create_file_url_key(&resolved_path, &local.suffix, ctx.projects_by_path, Some(alias))?;
+    let key = create_file_url_key(
+        &resolved_path,
+        &local.suffix,
+        ctx.projects_by_path,
+        Some(alias),
+    )?;
     Ok(ImporterDepVersion::Alias(key))
 }
 
@@ -266,9 +286,16 @@ pub(super) fn convert_package_key(
     key: &PackageKey,
     ctx: &ConvertCtx,
 ) -> miette::Result<PackageKey> {
-    let VersionPart::File(path) = key.suffix.version() else { return Ok(key.clone()) };
+    let VersionPart::File(path) = key.suffix.version() else {
+        return Ok(key.clone());
+    };
     let resolved = validate_lockfile_local_path(&ctx.lockfile_dir.join(path), ctx.lockfile_dir)?;
-    create_file_url_key(&resolved, key.suffix.peer(), ctx.projects_by_path, Some(&key.name))
+    create_file_url_key(
+        &resolved,
+        key.suffix.peer(),
+        ctx.projects_by_path,
+        Some(&key.name),
+    )
 }
 
 pub(super) fn validate_lockfile_local_path(
@@ -280,7 +307,11 @@ pub(super) fn validate_lockfile_local_path(
     if same_path(&normalized, &workspace_dir) || is_child_path(&normalized, &workspace_dir) {
         return Ok(normalized);
     }
-    Err(DeployError::UnsafeLockfilePath { path: normalized, workspace_dir }.into())
+    Err(DeployError::UnsafeLockfilePath {
+        path: normalized,
+        workspace_dir,
+    }
+    .into())
 }
 
 pub(super) fn create_file_url_key(
@@ -299,7 +330,11 @@ pub(super) fn create_file_url_key(
         .and_then(|project| project.name.as_deref())
         .map(str::to_string)
         .or_else(|| package_name.map(PkgName::to_string))
-        .or_else(|| normalized.file_name().map(|name| name.to_string_lossy().into_owned()))
+        .or_else(|| {
+            normalized
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+        })
         .unwrap_or_else(|| normalized.display().to_string());
     format!("{name}@{dep_file_url}{suffix}")
         .parse()

@@ -34,7 +34,11 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
     let manifest_path = project_root.join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     manifest
-        .add_dependency("@pnpm.e2e/abc-optional-peers", "1.0.0", DependencyGroup::Prod)
+        .add_dependency(
+            "@pnpm.e2e/abc-optional-peers",
+            "1.0.0",
+            DependencyGroup::Prod,
+        )
         .unwrap();
     manifest.add_dependency("@pnpm.e2e/peer-c", "link:../peer-c", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
@@ -103,8 +107,7 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
     let lockfile = Lockfile::load_wanted_from_dir(&project_root)
         .expect("load wanted lockfile")
         .expect("wanted lockfile exists");
-    let snapshot_key = lockfile
-        .snapshots
+    let snapshot_key = lockfile.snapshots
         .as_ref()
         .expect("snapshots exist")
         .keys()
@@ -120,7 +123,10 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
         Some(&allow_build_policy),
         Some(&project_root),
     );
-    let linked_peer = layout.slot_dir(&snapshot_key).join("node_modules").join("@pnpm.e2e/peer-c");
+    let linked_peer = layout
+        .slot_dir(&snapshot_key)
+        .join("node_modules")
+        .join("@pnpm.e2e/peer-c");
     assert!(
         is_symlink_or_junction(&linked_peer).unwrap(),
         "full install must create the optional peer link at {linked_peer:?}",
@@ -199,12 +205,18 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
 #[tokio::test]
 async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 

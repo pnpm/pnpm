@@ -141,8 +141,12 @@ where
         let (parent_pkg, target_pkg) = parse_pkg_and_parent_selector(selector)?;
         let resolved_specifier =
             resolve_catalog_in_value(catalogs, &target_pkg.name, new_bare_specifier)?;
-        let converge =
-            check_converge(selector, parent_pkg.as_ref(), &target_pkg, &resolved_specifier)?;
+        let converge = check_converge(
+            selector,
+            parent_pkg.as_ref(),
+            &target_pkg,
+            &resolved_specifier,
+        )?;
         out.push(VersionOverride {
             selector: selector.clone(),
             parent_pkg,
@@ -177,7 +181,10 @@ pub fn parse_pkg_and_parent_selector(
     if let Some(delimiter_idx) = find_parent_delimiter(selector) {
         let parent_selector = &selector[..delimiter_idx];
         let child_selector = &selector[delimiter_idx + 1..];
-        Ok((Some(parse_pkg_selector(parent_selector)?), parse_pkg_selector(child_selector)?))
+        Ok((
+            Some(parse_pkg_selector(parent_selector)?),
+            parse_pkg_selector(child_selector)?,
+        ))
     } else {
         Ok((None, parse_pkg_selector(selector)?))
     }
@@ -189,15 +196,19 @@ pub fn parse_pkg_and_parent_selector(
 ///
 /// Matches the regex `/[^ |@]>/` and returns the index of the `>` itself.
 fn find_parent_delimiter(selector: &str) -> Option<usize> {
-    selector.as_bytes().windows(2).enumerate().find_map(|(idx, window)| {
-        if matches!(window[0], b' ' | b'|' | b'@') {
-            None
-        } else if window[1] == b'>' {
-            Some(idx + 1)
-        } else {
-            None
-        }
-    })
+    selector
+        .as_bytes()
+        .windows(2)
+        .enumerate()
+        .find_map(|(idx, window)| {
+            if matches!(window[0], b' ' | b'|' | b'@') {
+                None
+            } else if window[1] == b'>' {
+                Some(idx + 1)
+            } else {
+                None
+            }
+        })
 }
 
 /// Decide [`VersionOverride::converge`] for a parsed entry: a
@@ -235,9 +246,14 @@ fn check_converge(
 fn parse_pkg_selector(selector: &str) -> Result<PackageSelector, ParseOverridesError> {
     let wanted = parse_wanted_dependency(selector);
     let Some(name) = wanted.alias else {
-        return Err(ParseOverridesError::InvalidSelector { selector: selector.to_string() });
+        return Err(ParseOverridesError::InvalidSelector {
+            selector: selector.to_string(),
+        });
     };
-    Ok(PackageSelector { name, bare_specifier: wanted.bare_specifier })
+    Ok(PackageSelector {
+        name,
+        bare_specifier: wanted.bare_specifier,
+    })
 }
 
 /// Run the override value through the catalog resolver:

@@ -28,7 +28,10 @@ use std::fs;
 /// diagnostic propagates from the classic fallback.
 fn assert_rejects_non_interactive_terminal(subcommand: &str) {
     let mut server = mockito::Server::new();
-    let login_probe = server.mock("POST", "/-/v1/login").with_status(404).create();
+    let login_probe = server
+        .mock("POST", "/-/v1/login")
+        .with_status(404)
+        .create();
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
 
     let output = pacquet
@@ -147,7 +150,10 @@ fn a_scoped_login_records_the_token_and_route_in_config_yaml() {
         .expect("spawn pacquet login");
 
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
-    assert!(output.status.success(), "`pacquet login` must succeed; stderr:\n{stderr}");
+    assert!(
+        output.status.success(),
+        "`pacquet login` must succeed; stderr:\n{stderr}",
+    );
     let document: serde_json::Value = root
         .path()
         .join("pnpm")
@@ -161,14 +167,22 @@ fn a_scoped_login_records_the_token_and_route_in_config_yaml() {
         document["_auth"][&normalized],
         serde_json::json!({ "@acme": { "authToken": "cli-scoped-token" } }),
     );
-    assert_eq!(document["registries"][&normalized], serde_json::json!({ "scopes": ["@acme"] }));
+    assert_eq!(
+        document["registries"][&normalized],
+        serde_json::json!({ "scopes": ["@acme"] }),
+    );
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt as _;
-        let mode = fs::metadata(root.path().join("pnpm").join("config.yaml"))
-            .expect("stat config.yaml")
-            .permissions()
-            .mode()
+        let mode = fs::metadata(
+            root
+                .path()
+                .join("pnpm")
+                .join("config.yaml"),
+        )
+        .expect("stat config.yaml")
+        .permissions()
+        .mode()
             & 0o777;
         assert_eq!(mode, 0o600, "the file now holds a token; got {mode:o}");
     }
@@ -218,8 +232,7 @@ fn a_login_writes_a_config_the_reader_reads_back() {
         String::from_utf8_lossy(&login.stderr),
     );
 
-    let listed = CommandTempCwd::init()
-        .pacquet
+    let listed = CommandTempCwd::init().pacquet
         .with_env("XDG_CONFIG_HOME", root.path())
         .with_arg("config")
         .with_arg("list")
@@ -227,13 +240,19 @@ fn a_login_writes_a_config_the_reader_reads_back() {
         .expect("spawn pacquet config list");
 
     let stderr = String::from_utf8_lossy(&listed.stderr).into_owned();
-    assert!(listed.status.success(), "the written config must load; stderr:\n{stderr}");
+    assert!(
+        listed.status.success(),
+        "the written config must load; stderr:\n{stderr}",
+    );
     let stdout = String::from_utf8_lossy(&listed.stdout).into_owned();
     assert!(
         stdout.contains(&format!(r#""@acme:registry": "{registry}/""#)),
         "the scope must resolve to the registry logged in to; got:\n{stdout}",
     );
-    assert!(!stdout.contains(TOKEN), "the token must not be listed; got:\n{stdout}");
+    assert!(
+        !stdout.contains(TOKEN),
+        "the token must not be listed; got:\n{stdout}",
+    );
     drop(root);
 }
 
@@ -275,7 +294,10 @@ fn a_workspace_yaml_scope_is_ignored_and_reported_on_stderr() {
         .expect("spawn pacquet login");
 
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
-    assert!(output.status.success(), "`pacquet login` must still succeed; stderr:\n{stderr}");
+    assert!(
+        output.status.success(),
+        "`pacquet login` must still succeed; stderr:\n{stderr}",
+    );
     assert_eq!(
         stderr
             .matches(

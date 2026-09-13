@@ -32,19 +32,18 @@ pub(crate) fn selected_projects(
 ) -> miette::Result<Vec<(Option<String>, String)>> {
     let selection =
         select_recursive_projects(projects, config, workspace_dir, AutoExcludeRoot::Disabled)?;
-    Ok(selection
-        .selected
+    Ok(selection.selected
         .iter()
         .map(|(root_dir, node)| {
-            let name = node
-                .package
-                .project
-                .manifest
+            let name = node.package.project.manifest
                 .value()
                 .get("name")
                 .and_then(|name| name.as_str())
                 .map(ToString::to_string);
-            (name, pnpm_versioning::to_project_dir(workspace_dir, root_dir))
+            (
+                name,
+                pnpm_versioning::to_project_dir(workspace_dir, root_dir),
+            )
         })
         .collect())
 }
@@ -103,7 +102,13 @@ impl PlannedWorkspaceRelease {
         config: &Config,
         workspace_dir: &Path,
     ) -> miette::Result<()> {
-        let Self { plan, projects: engine_projects, intents, published_names, unfiltered } = self;
+        let Self {
+            plan,
+            projects: engine_projects,
+            intents,
+            published_names,
+            unfiltered,
+        } = self;
         if plan.releases.is_empty() {
             // A full (unfiltered) run garbage-collects the intent files an
             // empty plan leaves behind: declined ("none"-only) intents and
@@ -162,9 +167,7 @@ impl VersionArgs {
             return Err(VersionError::UncleanWorkingTree.into());
         }
 
-        plan_workspace_release(config, &workspace_dir)
-            .await?
-            .apply(self, config, &workspace_dir)
+        plan_workspace_release(config, &workspace_dir).await?.apply(self, config, &workspace_dir)
             .await
     }
 

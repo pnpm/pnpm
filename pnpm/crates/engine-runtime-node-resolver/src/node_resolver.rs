@@ -171,7 +171,9 @@ impl NodeResolver {
             &version,
             wanted_dependency.prev_specifier.as_deref(),
         );
-        let resolution = LockfileResolution::Variations(VariationsResolution { variants });
+        let resolution = LockfileResolution::Variations(VariationsResolution {
+            variants,
+        });
         let manifest = serde_json::json!({
             "name": "node",
             "version": version,
@@ -212,9 +214,9 @@ impl NodeResolver {
                 )
                 .await
                 {
-                    Ok(None) => {
-                        NodeResolverError::VersionNotFound { spec: version_spec.to_string() }
-                    }
+                    Ok(None) => NodeResolverError::VersionNotFound {
+                        spec: version_spec.to_string(),
+                    },
                     _ => error,
                 };
                 Err(Box::new(error))
@@ -257,7 +259,9 @@ impl NodeResolver {
         )
         .await
         .map_err(NodeResolverError::FetchReleaseIndex)?
-        .ok_or_else(|| NodeResolverError::VersionNotFound { spec: version_spec.to_string() })?;
+        .ok_or_else(|| NodeResolverError::VersionNotFound {
+            spec: version_spec.to_string(),
+        })?;
         Ok(PickedNodeVersion {
             version,
             mirror,
@@ -308,9 +312,10 @@ impl NodeResolver {
             spec_owned = "latest";
             spec_owned
         };
-        let parsed = parse_node_specifier(version_spec).map_err(|err| {
-            Box::new(NodeResolverError::InvalidReleaseChannel(err)) as ResolveError
-        })?;
+        let parsed = parse_node_specifier(version_spec)
+            .map_err(|err| {
+                Box::new(NodeResolverError::InvalidReleaseChannel(err)) as ResolveError
+            })?;
         let mirror = get_node_mirror(Some(&self.node_download_mirrors), &parsed.release_channel);
         let version = resolve_node_version_with_auth(
             &self.http_client,
@@ -409,7 +414,9 @@ fn bare_runtime_spec<'a>(wanted: &'a WantedDependency, expected_alias: &str) -> 
     if wanted.alias.as_deref() != Some(expected_alias) {
         return None;
     }
-    wanted.bare_specifier.as_deref().and_then(|spec| spec.strip_prefix(BARE_SPEC_PREFIX))
+    wanted.bare_specifier
+        .as_deref()
+        .and_then(|spec| spec.strip_prefix(BARE_SPEC_PREFIX))
 }
 
 fn normalize_node_runtime_version_specifier(
@@ -425,7 +432,9 @@ fn normalize_node_runtime_version_specifier(
     let source = prev_specifier
         .and_then(|specifier| specifier.strip_prefix(BARE_SPEC_PREFIX))
         .unwrap_or(version_spec);
-    let spec = source.split_once('/').map_or(source, |(_, spec)| spec);
+    let spec = source
+        .split_once('/')
+        .map_or(source, |(_, spec)| spec);
     let prefix = if spec.starts_with('^') {
         "^"
     } else if spec.starts_with('~') {

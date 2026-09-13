@@ -18,13 +18,20 @@ const OPTIONAL_DEP: &str = "@pnpm.e2e/qar";
 
 fn virtual_dep(workspace: &Path, name: &str) -> std::path::PathBuf {
     let slot = format!("{}@100.0.0", name.replace('/', "+"));
-    workspace.join("node_modules/.pnpm").join(slot).join("node_modules").join(name)
+    workspace
+        .join("node_modules/.pnpm")
+        .join(slot)
+        .join("node_modules")
+        .join(name)
 }
 
 fn assert_no_importer_links(workspace: &Path) {
     for name in [PROD_DEP, DEV_DEP, OPTIONAL_DEP] {
         assert!(
-            !workspace.join("node_modules").join(name).exists(),
+            !workspace
+                .join("node_modules")
+                .join(name)
+                .exists(),
             "fetch must not create an importer link for {name}",
         );
     }
@@ -45,14 +52,25 @@ fn write_manifest_and_lockfile(workspace: &Path) {
     )
     .expect("write package.json");
 
-    pacquet_at(workspace).with_args(["install", "--lockfile-only"]).assert().success();
-    assert!(workspace.join("pnpm-lock.yaml").exists(), "lockfile must exist after --lockfile-only");
+    pacquet_at(workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    assert!(
+        workspace.join("pnpm-lock.yaml").exists(),
+        "lockfile must exist after --lockfile-only",
+    );
 }
 
 #[test]
 fn fetch_requires_existing_lockfile() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -64,9 +82,15 @@ fn fetch_requires_existing_lockfile() {
     )
     .expect("write package.json");
 
-    let output = pacquet.with_arg("fetch").output().expect("spawn pacquet fetch");
+    let output = pacquet
+        .with_arg("fetch")
+        .output()
+        .expect("spawn pacquet fetch");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(!output.status.success(), "fetch without lockfile must fail (stderr: {stderr})");
+    assert!(
+        !output.status.success(),
+        "fetch without lockfile must fail (stderr: {stderr})",
+    );
     assert!(
         stderr.contains("pnpm-lock.yaml"),
         "fetch must fail specifically because the lockfile is missing (stderr: {stderr})",
@@ -83,17 +107,32 @@ fn fetch_populates_every_group_by_default() {
 
     write_manifest_and_lockfile(&workspace);
 
-    pacquet_at(&workspace).with_arg("fetch").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("fetch")
+        .assert()
+        .success();
 
-    assert!(store_dir.join(STORE_VERSION).exists(), "fetch must populate the store");
-    assert!(virtual_dep(&workspace, PROD_DEP).exists(), "production dep must be fetched");
-    assert!(virtual_dep(&workspace, DEV_DEP).exists(), "dev dep must be fetched");
-    assert!(virtual_dep(&workspace, OPTIONAL_DEP).exists(), "optional dep must be fetched");
+    assert!(
+        store_dir.join(STORE_VERSION).exists(),
+        "fetch must populate the store",
+    );
+    assert!(
+        virtual_dep(&workspace, PROD_DEP).exists(),
+        "production dep must be fetched",
+    );
+    assert!(
+        virtual_dep(&workspace, DEV_DEP).exists(),
+        "dev dep must be fetched",
+    );
+    assert!(
+        virtual_dep(&workspace, OPTIONAL_DEP).exists(),
+        "optional dep must be fetched",
+    );
     assert_no_importer_links(&workspace);
     assert_eq!(
-        pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(
-            &workspace.join("node_modules"),
-        )
+        pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(&workspace.join(
+            "node_modules"
+        ),)
         .expect("read .modules.yaml")
         .expect("fetch must write .modules.yaml")
         .virtual_store_only,
@@ -111,7 +150,10 @@ fn fetch_prod_keeps_optional_drops_dev() {
 
     write_manifest_and_lockfile(&workspace);
 
-    pacquet_at(&workspace).with_args(["fetch", "--prod"]).assert().success();
+    pacquet_at(&workspace)
+        .with_args(["fetch", "--prod"])
+        .assert()
+        .success();
 
     assert!(
         virtual_dep(&workspace, PROD_DEP).exists(),
@@ -121,7 +163,10 @@ fn fetch_prod_keeps_optional_drops_dev() {
         virtual_dep(&workspace, OPTIONAL_DEP).exists(),
         "`fetch --prod` must still fetch optional deps (they follow production)",
     );
-    assert!(!virtual_dep(&workspace, DEV_DEP).exists(), "`fetch --prod` must not fetch dev deps");
+    assert!(
+        !virtual_dep(&workspace, DEV_DEP).exists(),
+        "`fetch --prod` must not fetch dev deps",
+    );
     assert_no_importer_links(&workspace);
 
     drop((root, mock_instance));
@@ -135,9 +180,15 @@ fn fetch_dev_drops_prod_and_optional() {
 
     write_manifest_and_lockfile(&workspace);
 
-    pacquet_at(&workspace).with_args(["fetch", "--dev"]).assert().success();
+    pacquet_at(&workspace)
+        .with_args(["fetch", "--dev"])
+        .assert()
+        .success();
 
-    assert!(virtual_dep(&workspace, DEV_DEP).exists(), "`fetch --dev` must fetch dev deps");
+    assert!(
+        virtual_dep(&workspace, DEV_DEP).exists(),
+        "`fetch --dev` must fetch dev deps",
+    );
     assert!(
         !virtual_dep(&workspace, PROD_DEP).exists(),
         "`fetch --dev` must not fetch production deps",
@@ -161,15 +212,27 @@ fn fetch_populates_the_global_virtual_store_without_importer_links() {
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let yaml = fs::read_to_string(&yaml_path)
         .expect("read pnpm-workspace.yaml")
-        .replace("enableGlobalVirtualStore: false", "enableGlobalVirtualStore: true");
+        .replace(
+            "enableGlobalVirtualStore: false",
+            "enableGlobalVirtualStore: true",
+        );
     fs::write(&yaml_path, yaml).expect("enable the global virtual store");
 
-    pacquet_at(&workspace).with_arg("fetch").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("fetch")
+        .assert()
+        .success();
 
     let gvs_root = store_dir.join(STORE_VERSION).join("links");
-    assert!(gvs_root.is_dir(), "fetch must populate the global virtual store");
     assert!(
-        gvs_root.join(PROD_DEP).join("100.0.0").is_dir(),
+        gvs_root.is_dir(),
+        "fetch must populate the global virtual store",
+    );
+    assert!(
+        gvs_root
+            .join(PROD_DEP)
+            .join("100.0.0")
+            .is_dir(),
         "the production dependency must have a GVS version directory",
     );
     assert_no_importer_links(&workspace);
@@ -199,9 +262,15 @@ fn fetch_under_pnp_does_not_write_the_loader() {
     fs::write(&workspace_manifest, yaml).expect("write pnpm-workspace.yaml");
 
     write_manifest_and_lockfile(&workspace);
-    pacquet_at(&workspace).with_arg("fetch").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("fetch")
+        .assert()
+        .success();
 
-    assert!(store_dir.join(STORE_VERSION).exists(), "fetch must still populate the store");
+    assert!(
+        store_dir.join(STORE_VERSION).exists(),
+        "fetch must still populate the store",
+    );
     assert!(
         !workspace.join(".pnp.cjs").exists(),
         "fetch must not write the PnP loader: it never linked the project",
@@ -237,13 +306,19 @@ fn fetch_runs_a_build_script_that_calls_a_sibling_dependency_bin() {
         serde_json::json!({ "dependencies": { BUILT_DEP: "1.0.0" } }).to_string(),
     )
     .expect("write package.json");
-    pacquet_at(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
 
     // The Docker "fetcher stage" shape the report used: the lockfile and
     // the workspace manifest, with no project manifest to import from.
     fs::remove_file(workspace.join("package.json")).expect("remove package.json");
 
-    pacquet_at(&workspace).with_arg("fetch").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("fetch")
+        .assert()
+        .success();
 
     let pkg_dir = workspace
         .join("node_modules/.pnpm")

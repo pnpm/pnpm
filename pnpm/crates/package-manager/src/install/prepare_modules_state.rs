@@ -49,16 +49,22 @@ pub(super) fn prior_hoisted_locations(
 pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + 'static>(
     inputs: PrepareModulesStateInputs<'_, 'install>,
 ) -> Result<Option<PreparedModulesState<'install>>, InstallError> {
-    let old_modules =
-        read_old_modules(inputs.resolve_only, inputs.repeat.frozen, inputs.tree.config)?;
+    let old_modules = read_old_modules(
+        inputs.resolve_only,
+        inputs.repeat.frozen,
+        inputs.tree.config,
+    )?;
     let modules_manifest = old_modules.as_ref();
     let previous_modules_metadata = read_previous_modules_metadata(
         inputs.resolve_only,
         inputs.repeat.filtered,
         inputs.tree.config,
     )?;
-    let is_inconsistent =
-        modules_layout_drifted(modules_manifest, inputs.tree.config, inputs.tree.node_linker);
+    let is_inconsistent = modules_layout_drifted(
+        modules_manifest,
+        inputs.tree.config,
+        inputs.tree.node_linker,
+    );
 
     prepare_modules_layout(&inputs, modules_manifest, is_inconsistent)?;
 
@@ -236,8 +242,7 @@ fn modules_layout_drifted(
 ) -> bool {
     let Some(modules) = modules_manifest else {
         // Treat existence-check errors conservatively as inconsistent.
-        return config
-            .modules_dir
+        return config.modules_dir
             .join(pnpm_modules_yaml::MODULES_FILENAME)
             .try_exists()
             .unwrap_or(true);

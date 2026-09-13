@@ -445,7 +445,6 @@ jobs:
       - name: Install Rust
         uses: $/.github/actions/rustup
         with:
-          fmt: true
           restore-cache: false
 
       - name: Install Taplo CLI
@@ -457,6 +456,18 @@ jobs:
         uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           install: false
+
+      - name: Cache the pinned formatter
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/pnpm/rustfmt
+            ~/.rustup/toolchains/nightly-*
+            ~/.rustup/update-hashes/nightly-*
+          key: rustfmt-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm/scripts/rustfmt.json') }}
+
+      - name: Test formatter installation and invocation
+        run: node --test pnpm/scripts/rustfmt.test.mjs
 
       - name: Check Rust and TOML formatting
         run: pnpm pipeline rust-format --include-workspace-root --full --no-cache

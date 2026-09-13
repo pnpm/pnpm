@@ -14,8 +14,9 @@ impl Request {
         let Ok(digest) = Digest::parse(digest) else {
             return error(ErrorCode::DigestInvalid, "not a supported digest");
         };
-        let Ok(last) =
-            query_param(Some(&self.query), "last").map(|value| Digest::parse(&value)).transpose()
+        let Ok(last) = query_param(Some(&self.query), "last")
+            .map(|value| Digest::parse(&value))
+            .transpose()
         else {
             return error(ErrorCode::DigestInvalid, "last must be a supported digest");
         };
@@ -23,15 +24,8 @@ impl Request {
             Ok(repo) => repo,
             Err(refusal) => return refusal.respond(),
         };
-        let document = match read_hosted_document::<ImageDocument>(
-            &self.state,
-            &self.identity,
-            &repo.source,
-            &repo.key,
-        )
-        .await
-        {
-            Ok(document) => document.unwrap_or_else(|| ImageDocument::new(repo.key.as_str())),
+        let document = match self.referrer_document(&repo).await {
+            Ok(document) => document,
             Err(err) => return registry_error(err),
         };
         let filter = ReferrerFilter::new(digest, &self.query);
@@ -49,6 +43,20 @@ impl Request {
         self.caller_scoped(Some(repo.key.as_str()), response)
     }
 
+    async fn referrer_document(
+        &self,
+        repo: &super::HostedRepo,
+    ) -> Result<ImageDocument, RegistryError> {
+        Ok(read_hosted_document::<ImageDocument>(
+            &self.state,
+            &self.identity,
+            &repo.source,
+            &repo.key,
+        )
+        .await?
+        .unwrap_or_else(|| ImageDocument::new(repo.key.as_str())))
+    }
+
     /// Walk the manifest index from `last` onwards, reading only the manifests
     /// the index cannot answer for, until the page fills up.
     pub(super) async fn scan_referrers<'a>(
@@ -59,9 +67,7 @@ impl Request {
         filter: &ReferrerFilter,
         last: Option<Digest>,
     ) -> Result<ReferrerPage<'a>, Response> {
-        let start = document.manifests().partition_point(|entry| {
-            last.as_ref().is_some_and(|last| entry.digest.hex() <= last.hex())
-        });
+        let start = referrer_start(document, last.as_ref());
         let mut entries = document.manifests()[start..].iter().peekable();
         let mut page = ReferrerPage::new(self.state.inner.config.http.oci.max_manifest_bytes);
         // The index is migrated in place the first time a manifest is read for
@@ -88,12 +94,10 @@ impl Request {
                     continue;
                 }
                 ReferrerStep::Read { unindexed } => {
-                    let manifest =
-                        self.read_referrer_manifest(storage, key, entry, &mut page).await?;
-                    match page.push_referrer(entry, manifest, filter, unindexed) {
-                        Ok(true) => {}
-                        Ok(false) => break,
-                        Err(response) => return Err(*response),
+                    if !self.append_referrer(storage, key, entry, &mut page, filter, unindexed)
+                        .await?
+                    {
+                        break;
                     }
                 }
             }
@@ -102,6 +106,21 @@ impl Request {
         }
         page.more = entries.peek().is_some();
         Ok(page)
+    }
+
+    async fn append_referrer<'a>(
+        &self,
+        storage: &pnpr_storage::Storage,
+        key: &CanonicalPackageName,
+        entry: &'a ManifestEntry,
+        page: &mut ReferrerPage<'a>,
+        filter: &ReferrerFilter,
+        unindexed: bool,
+    ) -> Result<bool, Response> {
+        let manifest = self.read_referrer_manifest(storage, key, entry, page).await?;
+        page
+            .push_referrer(entry, manifest, filter, unindexed)
+            .map_err(|response| *response)
     }
 
     /// Read and parse one indexed manifest, charging it against the page's
@@ -123,13 +142,20 @@ impl Request {
         let bytes = match read {
             Ok(Some(bytes)) => bytes,
             Ok(None) => {
-                return Err(error(ErrorCode::ManifestUnknown, "a referenced manifest is missing"));
+                return Err(error(
+                    ErrorCode::ManifestUnknown,
+                    "a referenced manifest is missing",
+                ));
             }
             Err(err) => return Err(registry_error(err)),
         };
         page.charge_read(bytes.len() as u64);
         Manifest::parse(&bytes, Some(&entry.media_type))
-            .map_err(|err| registry_error(RegistryError::Internal { reason: err.to_string() }))
+            .map_err(|err| {
+                registry_error(RegistryError::Internal {
+                    reason: err.to_string(),
+                })
+            })
     }
 
     /// Write back the referrer metadata this scan had to read for, so the next
@@ -146,11 +172,16 @@ impl Request {
         let _guard = self.state.inner.locks.packages.lock(key.as_str()).await;
         storage
             .update_hosted_document_with_retry(key, DOCUMENT_WRITE_RETRIES, |existing| {
-                let Some(bytes) = existing else { return Ok(None) };
+                let Some(bytes) = existing else {
+                    return Ok(None);
+                };
                 let mut current = ImageDocument::parse(bytes)?;
                 let mut changed = false;
                 for entry in additions {
-                    if current.manifest(&entry.digest).is_some_and(|held| held.referrer.is_none()) {
+                    if current
+                        .manifest(&entry.digest)
+                        .is_some_and(|held| held.referrer.is_none())
+                    {
                         current.insert_manifest(entry.clone());
                         changed = true;
                     }
@@ -168,14 +199,17 @@ impl Request {
         filter: &ReferrerFilter,
         page: &ReferrerPage<'_>,
     ) -> Response {
-        let manifests = page
-            .referrers
+        let manifests = page.referrers
             .iter()
             .map(|(entry, manifest)| ReferrerDescriptor::new(entry, manifest))
             .collect();
         let mut response = json(
             StatusCode::OK,
-            &Referrers { schema_version: 2, media_type: media_type::OCI_IMAGE_INDEX, manifests },
+            &Referrers {
+                schema_version: 2,
+                media_type: media_type::OCI_IMAGE_INDEX,
+                manifests,
+            },
         );
         insert_header(&mut response, "content-type", media_type::OCI_IMAGE_INDEX);
         if filter.artifact_type.is_some() {
@@ -186,4 +220,14 @@ impl Request {
         }
         response
     }
+}
+
+fn referrer_start(document: &ImageDocument, last: Option<&Digest>) -> usize {
+    document
+        .manifests()
+        .partition_point(|entry| {
+            last
+                .as_ref()
+                .is_some_and(|last| entry.digest.hex() <= last.hex())
+        })
 }

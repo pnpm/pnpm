@@ -12,7 +12,10 @@ pub fn url_has_inline_credentials(spec: &str) -> bool {
     let Some((scheme, after_scheme)) = spec.split_once("://") else {
         return false;
     };
-    let authority = after_scheme.split(['/', '?', '#']).next().unwrap_or(after_scheme);
+    let authority = after_scheme
+        .split(['/', '?', '#'])
+        .next()
+        .unwrap_or(after_scheme);
     let Some((userinfo, _)) = authority.rsplit_once('@') else {
         return false;
     };
@@ -33,7 +36,9 @@ pub fn strip_url_credentials(url: &str) -> String {
     let Some((scheme, after)) = url.split_once("://") else {
         return url.to_string();
     };
-    let authority_end = after.find(['/', '?', '#']).unwrap_or(after.len());
+    let authority_end = after
+        .find(['/', '?', '#'])
+        .unwrap_or(after.len());
     let (authority, rest) = after.split_at(authority_end);
     match authority.rsplit_once('@') {
         Some((_, host)) => format!("{scheme}://{host}{rest}"),
@@ -60,5 +65,7 @@ pub fn sanitize_registry_tarball_url(url: &str) -> String {
 }
 
 pub(super) fn scheme_of(url: &str) -> Option<&str> {
-    url.split_once("://").map(|(scheme, _)| scheme)
+    url
+        .split_once("://")
+        .map(|(scheme, _)| scheme)
 }

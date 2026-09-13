@@ -49,13 +49,19 @@ impl PickState<'_> {
         if !meta.versions.contains_key(&spec.fetch_spec) {
             return None;
         }
-        let Ok((picked_meta, Some(picked))) =
-            pick_from_meta_fast(&self.picker_opts, spec, Arc::clone(&meta), opts.blocked_versions)
-        else {
+        let Ok((picked_meta, Some(picked))) = pick_from_meta_fast(
+            &self.picker_opts,
+            spec,
+            Arc::clone(&meta),
+            opts.blocked_versions,
+        ) else {
             return None;
         };
         self.promote_unverified(ctx, opts, &meta);
-        Some(PickPackageResult { meta: picked_meta, picked_package: Some(picked) })
+        Some(PickPackageResult {
+            meta: picked_meta,
+            picked_package: Some(picked),
+        })
     }
 
     /// The mirror, loaded once and reused by every fast path.
@@ -97,7 +103,10 @@ impl PickState<'_> {
             return None;
         }
         self.promote_unverified(ctx, opts, &meta);
-        Some(PickPackageResult { meta: picked_meta, picked_package: Some(picked) })
+        Some(PickPackageResult {
+            meta: picked_meta,
+            picked_package: Some(picked),
+        })
     }
 
     /// Whether a range pick could be settled from the mirror at all: every
@@ -144,9 +153,12 @@ impl PickState<'_> {
             return None;
         }
         let meta = self.mirror_meta(disk_meta).await?;
-        let Ok((picked_meta, Some(picked))) =
-            pick_from_meta_fast(&self.picker_opts, spec, Arc::clone(&meta), opts.blocked_versions)
-        else {
+        let Ok((picked_meta, Some(picked))) = pick_from_meta_fast(
+            &self.picker_opts,
+            spec,
+            Arc::clone(&meta),
+            opts.blocked_versions,
+        ) else {
             return None;
         };
         // Same rationale as the version-spec fast path — promote the
@@ -154,7 +166,10 @@ impl PickState<'_> {
         if !opts.request.dry_run {
             ctx.metadata.meta_cache.set(self.cache_key.clone(), meta);
         }
-        Some(PickPackageResult { meta: picked_meta, picked_package: Some(picked) })
+        Some(PickPackageResult {
+            meta: picked_meta,
+            picked_package: Some(picked),
+        })
     }
 
     /// Promote a disk-loaded packument into the install-scoped in-memory
@@ -199,16 +214,26 @@ impl PickState<'_> {
             self.promote_unverified(ctx, opts, &meta);
             let (meta, picked) =
                 pick_from_meta(&self.picker_opts, spec, meta, opts.blocked_versions)?;
-            return Ok(Some(PickPackageResult { meta, picked_package: picked }));
+            return Ok(Some(PickPackageResult {
+                meta,
+                picked_package: picked,
+            }));
         }
 
         let Some(meta) = meta else { return Ok(None) };
         disk_meta.take();
         let meta = self.upgraded_meta(ctx, spec, opts, meta).await?;
-        let (picked_meta, picked) =
-            pick_from_meta(&self.picker_opts, spec, Arc::clone(&meta), opts.blocked_versions)?;
+        let (picked_meta, picked) = pick_from_meta(
+            &self.picker_opts,
+            spec,
+            Arc::clone(&meta),
+            opts.blocked_versions,
+        )?;
         if picked.is_some() {
-            return Ok(Some(PickPackageResult { meta: picked_meta, picked_package: picked }));
+            return Ok(Some(PickPackageResult {
+                meta: picked_meta,
+                picked_package: picked,
+            }));
         }
         // Fall through to fetch when disk had the meta but no version
         // satisfied the spec — the disk copy may be stale. Restore the

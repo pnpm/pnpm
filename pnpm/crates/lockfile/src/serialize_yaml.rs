@@ -30,7 +30,10 @@ pub(crate) fn to_string<Document: Serialize>(
     // serialization (should one ever appear) cannot clobber its
     // caller's stash.
     let previous = LOWERED_MAPS.with_borrow_mut(|stash| {
-        stash.replace(LoweredMaps { nonce: stash_nonce.clone(), maps: Vec::new() })
+        stash.replace(LoweredMaps {
+            nonce: stash_nonce.clone(),
+            maps: Vec::new(),
+        })
     });
     let document = serde_json::to_value(value);
     let stash = LOWERED_MAPS.with_borrow_mut(|slot| std::mem::replace(slot, previous));
@@ -164,8 +167,10 @@ fn stash_parallel_lowered<Value: Serialize + Sync>(
         return Ok(None);
     };
     PARALLEL_LOWERINGS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let lowered: Result<Vec<serde_json::Value>, serde_json::Error> =
-        entries.par_iter().map(|(_, value)| serde_json::to_value(value)).collect();
+    let lowered: Result<Vec<serde_json::Value>, serde_json::Error> = entries
+        .par_iter()
+        .map(|(_, value)| serde_json::to_value(value))
+        .collect();
     let result = lowered.map(|lowered| {
         let mut map = serde_json::Map::with_capacity(entries.len());
         for ((key, _), value) in entries.iter().zip(lowered) {
@@ -200,8 +205,10 @@ where
     Value: Serialize + Sync,
     Ser: Serializer,
 {
-    let mut entries: Vec<(String, &Value)> =
-        map.iter().map(|(key, value)| (key.to_string(), value)).collect();
+    let mut entries: Vec<(String, &Value)> = map
+        .iter()
+        .map(|(key, value)| (key.to_string(), value))
+        .collect();
     entries.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
     if entries.len() >= PARALLEL_LOWERING_THRESHOLD
         && let Some(marker) = stash_parallel_lowered(&entries).map_err(serde::ser::Error::custom)?
@@ -219,7 +226,10 @@ where
 /// unreachable in practice — every call site pairs this with
 /// `skip_serializing_if = "Option::is_none"` — but is handled so the helper
 /// is a drop-in `serialize_with` for optional maps.
-#[expect(clippy::ref_option, reason = "serde serialize_with is invoked as f(&field, serializer)")]
+#[expect(
+    clippy::ref_option,
+    reason = "serde serialize_with is invoked as f(&field, serializer)"
+)]
 pub(crate) fn sorted_map_opt<Key, Value, Ser>(
     map: &Option<HashMap<Key, Value>>,
     serializer: Ser,

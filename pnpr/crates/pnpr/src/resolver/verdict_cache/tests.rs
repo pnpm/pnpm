@@ -48,7 +48,10 @@ fn hit_hands_the_cached_policy_to_the_trust_check() {
         true
     });
     assert!(trusted);
-    assert!(saw_policy.get(), "the stored policy snapshot is what the trust check receives");
+    assert!(
+        saw_policy.get(),
+        "the stored policy snapshot is what the trust check receives",
+    );
 }
 
 #[test]
@@ -60,14 +63,18 @@ fn a_corrupt_policy_row_is_evicted_on_lookup() {
     // Write a row whose policy blob isn't valid JSON, behind the cache's back.
     {
         let conn = rusqlite::Connection::open(&path).expect("open raw conn");
-        conn.execute(
-            "INSERT INTO lockfile_verdicts (hash, policy, verified_at_ms) VALUES (?1, ?2, ?3)",
-            rusqlite::params!["corrupt", "not json", 0_i64],
-        )
-        .expect("insert corrupt row");
+        conn
+            .execute(
+                "INSERT INTO lockfile_verdicts (hash, policy, verified_at_ms) VALUES (?1, ?2, ?3)",
+                rusqlite::params!["corrupt", "not json", 0_i64],
+            )
+            .expect("insert corrupt row");
     }
 
-    assert!(!cache.is_verified("corrupt", |_| true), "an unparsable policy is a miss");
+    assert!(
+        !cache.is_verified("corrupt", |_| true),
+        "an unparsable policy is a miss",
+    );
 
     let conn = rusqlite::Connection::open(&path).expect("open raw conn");
     let remaining: i64 = conn
@@ -77,7 +84,10 @@ fn a_corrupt_policy_row_is_evicted_on_lookup() {
             |row| row.get(0),
         )
         .expect("count rows");
-    assert_eq!(remaining, 0, "the corrupt row self-heals (is deleted) so it can be re-recorded");
+    assert_eq!(
+        remaining, 0,
+        "the corrupt row self-heals (is deleted) so it can be re-recorded",
+    );
 }
 
 #[test]
@@ -89,5 +99,8 @@ fn re_recording_the_same_hash_overwrites_the_policy() {
         assert_eq!(cached.get("minimumReleaseAge"), Some(&Value::from(60)));
         true
     });
-    assert!(hit, "the row must still be a hit so the overwrite assertion actually runs");
+    assert!(
+        hit,
+        "the row must still be a hit so the overwrite assertion actually runs",
+    );
 }

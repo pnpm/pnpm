@@ -6,7 +6,10 @@ use std::borrow::Cow;
 #[test]
 fn parses_regular_version() {
     let parsed: ImporterDepVersion = "4.0.0".parse().unwrap();
-    assert_eq!(parsed.as_regular().map(ToString::to_string), Some("4.0.0".to_string()));
+    assert_eq!(
+        parsed.as_regular().map(ToString::to_string),
+        Some("4.0.0".to_string()),
+    );
     assert!(parsed.as_link_target().is_none());
     let serialized: String = parsed.into();
     assert_eq!(serialized, "4.0.0");

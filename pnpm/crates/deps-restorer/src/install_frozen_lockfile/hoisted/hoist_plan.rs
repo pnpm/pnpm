@@ -34,7 +34,10 @@ pub fn workspace_packages_for_hoist(
         .iter()
         .filter(|(project_dir, _)| project_dir != workspace_root)
         .filter_map(|(project_dir, manifest)| {
-            let name = manifest.value().get("name")?.as_str()?;
+            let name = manifest
+                .value()
+                .get("name")?
+                .as_str()?;
             Some((name.to_string(), project_dir.clone()))
         })
         .collect()
@@ -66,16 +69,10 @@ pub fn compute_hoist_plan(
     if config.hoist_pattern.is_none() && config.public_hoist_pattern.is_none() {
         return None;
     }
-    let (Some(snaps), Some(pkgs)) = (snapshots, packages) else { return None };
-    let private_pattern = create_matcher(config.hoist_pattern.as_deref().unwrap_or(&[]));
-    let public_pattern = create_matcher(config.public_hoist_pattern.as_deref().unwrap_or(&[]));
-    // Static fast-path: when both compiled matchers come from empty
-    // pattern lists (`Some([])`), there's no alias they could match,
-    // so the traversal would visit every node only to drop every child.
-    // Skip the graph-build + walk entirely.
-    if private_pattern.is_empty() && public_pattern.is_empty() {
+    let (Some(snaps), Some(pkgs)) = (snapshots, packages) else {
         return None;
-    }
+    };
+    let (private_pattern, public_pattern) = hoist_patterns(config)?;
     let graph = crate::build_hoist_graph_with_max_length(
         snaps,
         pkgs,
@@ -91,7 +88,10 @@ pub fn compute_hoist_plan(
     // the outer `SkippedSnapshots` by cloning the small skip set
     // (typically 0-100 entries). Stored on [`HoistPlan`] so the
     // later on-disk pass can reuse the exact same set the traversal saw.
-    let hoist_skipped: HashSet<PackageKey> = skipped.iter().cloned().collect();
+    let hoist_skipped: HashSet<PackageKey> = skipped
+        .iter()
+        .cloned()
+        .collect();
     let result = get_hoisted_dependencies(&crate::HoistInputs {
         graph: &graph,
         direct_deps_by_importer: &direct_deps,
@@ -100,7 +100,11 @@ pub fn compute_hoist_plan(
         public_pattern,
         hoisted_workspace_packages,
     })?;
-    Some(HoistPlan { graph, result, skipped: hoist_skipped })
+    Some(HoistPlan {
+        graph,
+        result,
+        skipped: hoist_skipped,
+    })
 }
 /// Build the `<alias → resolved-target-dir>` map for every publicly-
 /// hoisted entry that will land in root's `node_modules/`. Pacquet
@@ -129,15 +133,22 @@ pub fn collect_public_hoist_targets(
     // the hoist symlink points at.
     for (alias, kind, project_dir) in &result.hoisted_workspace_aliases {
         if matches!(kind, pnpm_modules_yaml::HoistKind::Public) {
-            targets.entry(alias.clone()).or_insert_with(|| project_dir.clone());
+            targets
+                .entry(alias.clone())
+                .or_insert_with(|| project_dir.clone());
         }
     }
     for (node_id, alias_map) in &result.hoisted_dependencies_by_node_id {
         if hoist_skipped.contains(node_id) {
             continue;
         }
-        let Some(node) = graph.get(node_id) else { continue };
-        let dep_dir = layout.slot_dir(node_id).join("node_modules").join(node.name.to_string());
+        let Some(node) = graph.get(node_id) else {
+            continue;
+        };
+        let dep_dir = layout
+            .slot_dir(node_id)
+            .join("node_modules")
+            .join(node.name.to_string());
         add_public_aliases(&mut targets, alias_map, &dep_dir);
     }
     targets
@@ -152,7 +163,9 @@ pub(super) fn add_public_aliases(
 ) {
     for (alias, kind) in alias_map {
         if matches!(kind, pnpm_modules_yaml::HoistKind::Public) {
-            targets.entry(alias.clone()).or_insert_with(|| dep_dir.to_path_buf());
+            targets
+                .entry(alias.clone())
+                .or_insert_with(|| dep_dir.to_path_buf());
         }
     }
 }
@@ -164,7 +177,11 @@ pub(super) fn add_public_aliases(
 #[must_use]
 pub fn parse_major_from_version(version: &str) -> Option<u32> {
     let after_v = version.strip_prefix('v').unwrap_or(version);
-    after_v.split('.').next()?.parse().ok()
+    after_v
+        .split('.')
+        .next()?
+        .parse()
+        .ok()
 }
 /// Pull the `node@runtime:<version>` major out of a lockfile's
 /// `snapshots:` map, if the project pinned a runtime Node.
@@ -236,4 +253,25 @@ pub fn find_own_runtime_node_major(snapshot: &SnapshotEntry) -> Option<u32> {
         return Some(ver_peer.version_semver()?.major as u32);
     }
     None
+}
+
+fn hoist_patterns(config: &Config) -> Option<(pnpm_matcher::Matcher, pnpm_matcher::Matcher)> {
+    let private_pattern = create_matcher(
+        config.hoist_pattern
+            .as_deref()
+            .unwrap_or(&[]),
+    );
+    let public_pattern = create_matcher(
+        config.public_hoist_pattern
+            .as_deref()
+            .unwrap_or(&[]),
+    );
+    // Static fast-path: when both compiled matchers come from empty
+    // pattern lists (`Some([])`), there's no alias they could match,
+    // so the traversal would visit every node only to drop every child.
+    // Skip the graph-build + walk entirely.
+    if private_pattern.is_empty() && public_pattern.is_empty() {
+        return None;
+    }
+    Some((private_pattern, public_pattern))
 }

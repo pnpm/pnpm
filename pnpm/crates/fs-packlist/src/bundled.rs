@@ -48,7 +48,11 @@ pub(super) fn collect_bundled_files(
     let mut visited: HashSet<PathBuf> = HashSet::new();
     let mut queue: VecDeque<BundleTask> = root_bundle_dep_names(root_manifest)
         .into_iter()
-        .map(|name| BundleTask { name, from_dir: root.to_path_buf(), depth: 0 })
+        .map(|name| BundleTask {
+            name,
+            from_dir: root.to_path_buf(),
+            depth: 0,
+        })
         .collect();
 
     while let Some(task) = queue.pop_front() {
@@ -68,7 +72,11 @@ pub(super) fn collect_bundled_files(
             out.insert(format!("{prefix}/{rel}"));
         }
         for name in nested_bundle_dep_names(&dep_manifest) {
-            queue.push_back(BundleTask { name, from_dir: dep_dir.clone(), depth: task.depth + 1 });
+            queue.push_back(BundleTask {
+                name,
+                from_dir: dep_dir.clone(),
+                depth: task.depth + 1,
+            });
         }
     }
     Ok(())
@@ -90,21 +98,7 @@ fn admitted_bundle(
     root: &Path,
     canonical_root: Option<&Path>,
 ) -> Option<AdmittedBundle> {
-    if task.depth > MAX_BUNDLE_DEPTH {
-        tracing::warn!(
-            target: "pacquet::fs_packlist",
-            bundle_name = %task.name,
-            depth = task.depth,
-            "bundleDependencies closure exceeded MAX_BUNDLE_DEPTH; refusing to descend further",
-        );
-        return None;
-    }
-    if !is_safe_bundle_name(&task.name) {
-        tracing::warn!(
-            target: "pacquet::fs_packlist",
-            bundle_name = %task.name,
-            "rejecting bundleDependencies entry that is not a single path segment",
-        );
+    if !can_resolve_bundle(task) {
         return None;
     }
     let Some(dep_dir) = resolve_bundled_dependency(&task.name, &task.from_dir, root) else {
@@ -132,7 +126,10 @@ fn admitted_bundle(
         return None;
     }
     let dedup_key = canonical_dep.unwrap_or_else(|| dep_dir.clone());
-    Some(AdmittedBundle { dir: dep_dir, dedup_key })
+    Some(AdmittedBundle {
+        dir: dep_dir,
+        dedup_key,
+    })
 }
 
 /// A bundled dependency the walk accepted.
@@ -227,10 +224,16 @@ pub(super) fn is_safe_bundle_name(name: &str) -> bool {
 /// spellings appear in real published packages; npm-packlist accepts
 /// either.
 fn root_bundle_dep_names(manifest: &Value) -> Vec<String> {
-    let raw = manifest.get("bundleDependencies").or_else(|| manifest.get("bundledDependencies"));
+    let raw = manifest
+        .get("bundleDependencies")
+        .or_else(|| manifest.get("bundledDependencies"));
     let Some(raw) = raw else { return Vec::new() };
     match raw {
-        Value::Array(arr) => arr.iter().filter_map(Value::as_str).map(String::from).collect(),
+        Value::Array(arr) => arr
+            .iter()
+            .filter_map(Value::as_str)
+            .map(String::from)
+            .collect(),
         Value::Bool(true) => {
             // `bundleDependencies: true` means "bundle every entry in
             // `dependencies`". Rare but supported by npm. Materialize
@@ -238,7 +241,12 @@ fn root_bundle_dep_names(manifest: &Value) -> Vec<String> {
             manifest
                 .get("dependencies")
                 .and_then(Value::as_object)
-                .map(|map| map.keys().cloned().collect::<Vec<_>>())
+                .map(|map| {
+                    map
+                        .keys()
+                        .cloned()
+                        .collect::<Vec<_>>()
+                })
                 .unwrap_or_default()
         }
         _ => Vec::new(),
@@ -260,4 +268,25 @@ fn nested_bundle_dep_names(manifest: &Value) -> Vec<String> {
         }
     }
     names
+}
+
+fn can_resolve_bundle(task: &BundleTask) -> bool {
+    if task.depth > MAX_BUNDLE_DEPTH {
+        tracing::warn!(
+            target: "pacquet::fs_packlist",
+            bundle_name = %task.name,
+            depth = task.depth,
+            "bundleDependencies closure exceeded MAX_BUNDLE_DEPTH; refusing to descend further",
+        );
+        return false;
+    }
+    if !is_safe_bundle_name(&task.name) {
+        tracing::warn!(
+            target: "pacquet::fs_packlist",
+            bundle_name = %task.name,
+            "rejecting bundleDependencies entry that is not a single path segment",
+        );
+        return false;
+    }
+    true
 }

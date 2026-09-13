@@ -15,7 +15,11 @@ fn bundle_dependencies_pull_in_hoisted_transitive_deps() {
         r#"{"name":"top","version":"1.0.0","dependencies":{"nested":"1.0.0"}}"#,
     );
     touch(root, "node_modules/top/index.js");
-    write(root, "node_modules/nested/package.json", r#"{"name":"nested","version":"1.0.0"}"#);
+    write(
+        root,
+        "node_modules/nested/package.json",
+        r#"{"name":"nested","version":"1.0.0"}"#,
+    );
     touch(root, "node_modules/nested/index.js");
 
     let manifest = json!({
@@ -25,7 +29,10 @@ fn bundle_dependencies_pull_in_hoisted_transitive_deps() {
     });
     let out = packlist(root, &manifest).unwrap();
 
-    assert!(out.contains(&"node_modules/top/index.js".to_string()), "{out:?}");
+    assert!(
+        out.contains(&"node_modules/top/index.js".to_string()),
+        "{out:?}",
+    );
     assert!(
         out.contains(&"node_modules/nested/index.js".to_string()),
         "hoisted transitive dep `nested` must be bundled: {out:?}",
@@ -50,7 +57,11 @@ fn bundle_dependencies_follow_nested_node_modules_before_hoisted() {
         r#"{"name":"nested","version":"2.0.0"}"#,
     );
     touch(root, "node_modules/top/node_modules/nested/nested-v2.js");
-    write(root, "node_modules/nested/package.json", r#"{"name":"nested","version":"1.0.0"}"#);
+    write(
+        root,
+        "node_modules/nested/package.json",
+        r#"{"name":"nested","version":"1.0.0"}"#,
+    );
     touch(root, "node_modules/nested/hoisted-v1.js");
 
     let manifest = json!({
@@ -74,7 +85,10 @@ fn bundle_dependencies_follow_nested_node_modules_before_hoisted() {
 fn workspace_root_gitignore_excludes_workspace_package_files() {
     let dir = tempdir().unwrap();
     fs::write(dir.path().join(".gitignore"), "dist/\n").unwrap();
-    let root = dir.path().join("packages").join("pkg");
+    let root = dir
+        .path()
+        .join("packages")
+        .join("pkg");
     fs::create_dir_all(&root).unwrap();
     touch(&root, "package.json");
     touch(&root, "dist/generated.js");
@@ -84,7 +98,9 @@ fn workspace_root_gitignore_excludes_workspace_package_files() {
     let out = packlist_with_options(
         &root,
         &manifest,
-        PacklistOptions { workspace_dir: Some(dir.path()) },
+        PacklistOptions {
+            workspace_dir: Some(dir.path()),
+        },
     )
     .unwrap();
 
@@ -103,7 +119,10 @@ fn workspace_root_gitignore_excludes_workspace_package_files() {
 fn files_field_overrides_workspace_root_gitignore() {
     let dir = tempdir().unwrap();
     fs::write(dir.path().join(".gitignore"), "lib\n").unwrap();
-    let root = dir.path().join("packages").join("pkg");
+    let root = dir
+        .path()
+        .join("packages")
+        .join("pkg");
     fs::create_dir_all(&root).unwrap();
     touch(&root, "package.json");
     touch(&root, "lib/index.js");
@@ -121,7 +140,9 @@ fn files_field_overrides_workspace_root_gitignore() {
     let mut out = packlist_with_options(
         &root,
         &manifest,
-        PacklistOptions { workspace_dir: Some(dir.path()) },
+        PacklistOptions {
+            workspace_dir: Some(dir.path()),
+        },
     )
     .unwrap();
     out.sort();
@@ -142,7 +163,10 @@ fn files_field_overrides_workspace_root_gitignore() {
 fn files_field_overrides_workspace_root_npmignore() {
     let dir = tempdir().unwrap();
     fs::write(dir.path().join(".npmignore"), "lib\n").unwrap();
-    let root = dir.path().join("packages").join("pkg");
+    let root = dir
+        .path()
+        .join("packages")
+        .join("pkg");
     fs::create_dir_all(&root).unwrap();
     touch(&root, "package.json");
     touch(&root, "lib/index.js");
@@ -159,14 +183,20 @@ fn files_field_overrides_workspace_root_npmignore() {
     let mut out = packlist_with_options(
         &root,
         &manifest,
-        PacklistOptions { workspace_dir: Some(dir.path()) },
+        PacklistOptions {
+            workspace_dir: Some(dir.path()),
+        },
     )
     .unwrap();
     out.sort();
 
     assert_eq!(
         out,
-        vec!["lib/index.d.ts".to_string(), "lib/index.js".into(), "package.json".into()],
+        vec![
+            "lib/index.d.ts".to_string(),
+            "lib/index.js".into(),
+            "package.json".into()
+        ],
         "`files` allowlist must override the workspace-root .npmignore",
     );
 }
@@ -179,7 +209,10 @@ fn files_field_overrides_workspace_root_npmignore() {
 fn empty_files_field_keeps_workspace_ignores_active() {
     let dir = tempdir().unwrap();
     fs::write(dir.path().join(".gitignore"), "dist/\n").unwrap();
-    let root = dir.path().join("packages").join("pkg");
+    let root = dir
+        .path()
+        .join("packages")
+        .join("pkg");
     fs::create_dir_all(&root).unwrap();
     touch(&root, "package.json");
     touch(&root, "dist/generated.js");
@@ -189,7 +222,9 @@ fn empty_files_field_keeps_workspace_ignores_active() {
     let mut out = packlist_with_options(
         &root,
         &manifest,
-        PacklistOptions { workspace_dir: Some(dir.path()) },
+        PacklistOptions {
+            workspace_dir: Some(dir.path()),
+        },
     )
     .unwrap();
     out.sort();
@@ -206,7 +241,10 @@ fn workspace_root_npmignore_takes_precedence_over_gitignore() {
     let dir = tempdir().unwrap();
     fs::write(dir.path().join(".gitignore"), "src/\n").unwrap();
     fs::write(dir.path().join(".npmignore"), "dist/\n").unwrap();
-    let root = dir.path().join("packages").join("pkg");
+    let root = dir
+        .path()
+        .join("packages")
+        .join("pkg");
     fs::create_dir_all(&root).unwrap();
     touch(&root, "package.json");
     touch(&root, "dist/generated.js");
@@ -216,7 +254,9 @@ fn workspace_root_npmignore_takes_precedence_over_gitignore() {
     let out = packlist_with_options(
         &root,
         &manifest,
-        PacklistOptions { workspace_dir: Some(dir.path()) },
+        PacklistOptions {
+            workspace_dir: Some(dir.path()),
+        },
     )
     .unwrap();
 
@@ -237,7 +277,10 @@ fn workspace_root_npmignore_takes_precedence_over_gitignore() {
 fn package_npmignore_negation_includes_workspace_gitignored_file() {
     let dir = tempdir().unwrap();
     fs::write(dir.path().join(".gitignore"), "dist/\n").unwrap();
-    let root = dir.path().join("packages").join("pkg");
+    let root = dir
+        .path()
+        .join("packages")
+        .join("pkg");
     fs::create_dir_all(&root).unwrap();
     touch(&root, "package.json");
     write(&root, ".npmignore", "!dist/\n");
@@ -248,7 +291,9 @@ fn package_npmignore_negation_includes_workspace_gitignored_file() {
     let out = packlist_with_options(
         &root,
         &manifest,
-        PacklistOptions { workspace_dir: Some(dir.path()) },
+        PacklistOptions {
+            workspace_dir: Some(dir.path()),
+        },
     )
     .unwrap();
 
@@ -263,7 +308,10 @@ fn package_npmignore_negation_includes_workspace_gitignored_file() {
 fn package_npmignore_disables_workspace_root_gitignore() {
     let dir = tempdir().unwrap();
     fs::write(dir.path().join(".gitignore"), "dist/\n").unwrap();
-    let root = dir.path().join("packages").join("pkg");
+    let root = dir
+        .path()
+        .join("packages")
+        .join("pkg");
     fs::create_dir_all(&root).unwrap();
     touch(&root, "package.json");
     write(&root, ".npmignore", "src/ignored.js\n");
@@ -275,7 +323,9 @@ fn package_npmignore_disables_workspace_root_gitignore() {
     let out = packlist_with_options(
         &root,
         &manifest,
-        PacklistOptions { workspace_dir: Some(dir.path()) },
+        PacklistOptions {
+            workspace_dir: Some(dir.path()),
+        },
     )
     .unwrap();
 
@@ -300,7 +350,9 @@ fn unrelated_workspace_dir_does_not_apply_workspace_gitignore() {
     let out = packlist_with_options(
         package.path(),
         &manifest,
-        PacklistOptions { workspace_dir: Some(workspace.path()) },
+        PacklistOptions {
+            workspace_dir: Some(workspace.path()),
+        },
     )
     .unwrap();
 

@@ -12,7 +12,11 @@ pub enum PublishBodyError {
     #[display(
         "publish body declares a {field} of {declared} bytes, more than the {remaining} left"
     )]
-    LengthOverrun { field: &'static str, declared: usize, remaining: usize },
+    LengthOverrun {
+        field: &'static str,
+        declared: usize,
+        remaining: usize,
+    },
     #[display("publish body has {trailing} trailing bytes after the crate archive")]
     TrailingBytes { trailing: usize },
     #[display("publish metadata is not valid JSON: {_0}")]
@@ -123,26 +127,30 @@ impl PublishMetadata {
     /// Reject metadata whose names or versions no registry could index.
     pub fn validate(&self) -> Result<(), PublishMetadataError> {
         validate_crate_name(&self.name).map_err(PublishMetadataError::CrateName)?;
-        semver::Version::parse(&self.vers).map_err(|source| PublishMetadataError::Version {
-            version: self.vers.clone(),
-            source,
-        })?;
-        for dep in &self.deps {
-            validate_crate_name(&dep.name).map_err(|source| {
-                PublishMetadataError::DependencyName { name: dep.name.clone(), source }
+        semver::Version::parse(&self.vers)
+            .map_err(|source| PublishMetadataError::Version {
+                version: self.vers.clone(),
+                source,
             })?;
-            if let Some(alias) = &dep.explicit_name_in_toml {
-                validate_crate_name(alias).map_err(|source| {
-                    PublishMetadataError::DependencyName { name: alias.clone(), source }
+        for dep in &self.deps {
+            validate_crate_name(&dep.name)
+                .map_err(|source| PublishMetadataError::DependencyName {
+                    name: dep.name.clone(),
+                    source,
                 })?;
+            if let Some(alias) = &dep.explicit_name_in_toml {
+                validate_crate_name(alias)
+                    .map_err(|source| PublishMetadataError::DependencyName {
+                        name: alias.clone(),
+                        source,
+                    })?;
             }
-            semver::VersionReq::parse(&dep.version_req).map_err(|source| {
-                PublishMetadataError::DependencyRequirement {
+            semver::VersionReq::parse(&dep.version_req)
+                .map_err(|source| PublishMetadataError::DependencyRequirement {
                     name: dep.name.clone(),
                     req: dep.version_req.clone(),
                     source,
-                }
-            })?;
+                })?;
         }
         Ok(())
     }
@@ -153,8 +161,7 @@ impl PublishMetadata {
     /// understand them does not read them.
     #[must_use]
     pub fn into_index_entry(self, cksum: String) -> IndexEntry {
-        let deps = self
-            .deps
+        let deps = self.deps
             .into_iter()
             .map(|dep| {
                 let (name, package) = match dep.explicit_name_in_toml {
@@ -174,9 +181,12 @@ impl PublishMetadata {
                 }
             })
             .collect();
-        let (features, features2): (BTreeMap<_, _>, BTreeMap<_, _>) =
-            self.features.into_iter().partition(|(_, values)| {
-                !values.iter().any(|value| value.starts_with("dep:") || value.contains("?/"))
+        let (features, features2): (BTreeMap<_, _>, BTreeMap<_, _>) = self.features
+            .into_iter()
+            .partition(|(_, values)| {
+                !values
+                    .iter()
+                    .any(|value| value.starts_with("dep:") || value.contains("?/"))
             });
         let schema_version = if features2.is_empty() { 1 } else { 2 };
         IndexEntry {
@@ -201,7 +211,9 @@ pub fn parse_publish_body(body: &[u8]) -> Result<(PublishMetadata, &[u8]), Publi
     let (metadata, rest) = take_length_prefixed(body, "metadata")?;
     let (archive, rest) = take_length_prefixed(rest, "crate archive")?;
     if !rest.is_empty() {
-        return Err(PublishBodyError::TrailingBytes { trailing: rest.len() });
+        return Err(PublishBodyError::TrailingBytes {
+            trailing: rest.len(),
+        });
     }
     let metadata = serde_json::from_slice(metadata).map_err(PublishBodyError::Metadata)?;
     Ok((metadata, archive))
@@ -212,11 +224,17 @@ pub(super) fn take_length_prefixed<'body>(
     field: &'static str,
 ) -> Result<(&'body [u8], &'body [u8]), PublishBodyError> {
     let Some((length, rest)) = body.split_first_chunk::<4>() else {
-        return Err(PublishBodyError::Truncated { expected: 4 - body.len() });
+        return Err(PublishBodyError::Truncated {
+            expected: 4 - body.len(),
+        });
     };
     let declared = u32::from_le_bytes(*length) as usize;
     if declared > rest.len() {
-        return Err(PublishBodyError::LengthOverrun { field, declared, remaining: rest.len() });
+        return Err(PublishBodyError::LengthOverrun {
+            field,
+            declared,
+            remaining: rest.len(),
+        });
     }
     Ok(rest.split_at(declared))
 }
@@ -266,7 +284,12 @@ pub(super) fn validate_crate_archive_with_limit(
         let Some(inner) = crate_entry_path(&entry, &expected)? else {
             continue;
         };
-        if inner == "Cargo.toml" && entry.header().entry_type().is_file() {
+        if inner == "Cargo.toml"
+            && entry
+                .header()
+                .entry_type()
+                .is_file()
+        {
             validate_crate_manifest(&mut entry, name, version)?;
             found_manifest = true;
         }
@@ -276,7 +299,9 @@ pub(super) fn validate_crate_archive_with_limit(
         return Err(CrateArchiveError::TooLarge);
     }
     if !found_manifest {
-        return Err(CrateArchiveError::MissingManifest { expected });
+        return Err(CrateArchiveError::MissingManifest {
+            expected,
+        });
     }
     Ok(())
 }
@@ -298,14 +323,23 @@ pub(super) fn crate_entry_path<Reader: io::Read>(
         path: path.clone(),
         expected: expected.to_string(),
     };
-    let Some(inner) = path.strip_prefix(expected).and_then(|rest| rest.strip_prefix('/')) else {
+    let Some(inner) = path
+        .strip_prefix(expected)
+        .and_then(|rest| rest.strip_prefix('/'))
+    else {
         return Err(outside());
     };
-    if path.contains(['\\', ':']) || inner.split('/').any(|part| part == "..") {
+    if path.contains(['\\', ':'])
+        || inner
+            .split('/')
+            .any(|part| part == "..")
+    {
         return Err(outside());
     }
     if !entry_type.is_file() && !entry_type.is_dir() {
-        return Err(CrateArchiveError::UnsupportedEntry { path });
+        return Err(CrateArchiveError::UnsupportedEntry {
+            path,
+        });
     }
     Ok(Some(inner.to_string()))
 }
@@ -318,14 +352,22 @@ pub(super) fn validate_crate_manifest<Reader: io::Read>(
 ) -> Result<(), CrateArchiveError> {
     let mut manifest = String::new();
     entry.read_to_string(&mut manifest).map_err(CrateArchiveError::Read)?;
-    let matches = toml::from_str::<toml::Value>(&manifest).ok().is_some_and(|manifest| {
-        let package = manifest.get("package");
-        let field =
-            |key| package.and_then(|package| package.get(key)).and_then(toml::Value::as_str);
-        field("name") == Some(name) && field("version") == Some(version)
-    });
+    let matches = toml::from_str::<toml::Value>(&manifest)
+        .ok()
+        .is_some_and(|manifest| {
+            let package = manifest.get("package");
+            let field = |key| {
+                package
+                    .and_then(|package| package.get(key))
+                    .and_then(toml::Value::as_str)
+            };
+            field("name") == Some(name) && field("version") == Some(version)
+        });
     if matches {
         return Ok(());
     }
-    Err(CrateArchiveError::InvalidManifest { name: name.to_string(), version: version.to_string() })
+    Err(CrateArchiveError::InvalidManifest {
+        name: name.to_string(),
+        version: version.to_string(),
+    })
 }

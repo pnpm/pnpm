@@ -62,7 +62,9 @@ impl<Db> SqlAuth<Db> {
         {
             return Ok(());
         }
-        Err(RegistryError::TooManyUsers { max })
+        Err(RegistryError::TooManyUsers {
+            max,
+        })
     }
 
     async fn reconcile_capped_counter_once_per_interval(&self) -> Result<bool>
@@ -75,8 +77,7 @@ impl<Db> SqlAuth<Db> {
             return Ok(false);
         }
         let updated_next = now.saturating_add(CAP_RECONCILE_INTERVAL_SECS);
-        if self
-            .next_cap_reconcile_at
+        if self.next_cap_reconcile_at
             .compare_exchange(next, updated_next, Ordering::Relaxed, Ordering::Relaxed)
             .is_err()
         {
@@ -142,10 +143,12 @@ where
                 verify_returning_user(&stored.username, password, stored.bcrypt_hash).await
             }
             InsertUser::CapReached => match self.max_users {
-                MaxUsers::Limited(max) => Err(RegistryError::TooManyUsers { max }),
-                MaxUsers::Disabled | MaxUsers::Unlimited => {
-                    Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
-                }
+                MaxUsers::Limited(max) => Err(RegistryError::TooManyUsers {
+                    max,
+                }),
+                MaxUsers::Disabled | MaxUsers::Unlimited => Err(RegistryError::Unauthenticated {
+                    resource: format!("user {username:?}"),
+                }),
             },
         }
     }
@@ -201,9 +204,10 @@ fn invalid_pool_size(backend: &str) -> RegistryError {
 }
 
 fn sql_max_users(max: u64, backend: &str) -> Result<i64> {
-    i64::try_from(max).map_err(|_| RegistryError::InvalidConfig {
-        reason: format!("backend.{backend} auth max_users must fit a signed BIGINT"),
-    })
+    i64::try_from(max)
+        .map_err(|_| RegistryError::InvalidConfig {
+            reason: format!("backend.{backend} auth max_users must fit a signed BIGINT"),
+        })
 }
 
 #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]

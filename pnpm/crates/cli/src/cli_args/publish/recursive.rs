@@ -35,7 +35,6 @@ use std::{
     collections::HashSet,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
-    time::Duration,
 };
 
 impl PublishArgs {
@@ -55,14 +54,26 @@ impl PublishArgs {
             .iter()
             .map(|(root, dependencies)| (root.clone(), dependencies.clone()))
             .collect();
-        let order =
-            graph_sequencer(&edges, &project_dependencies.keys().cloned().collect::<Vec<_>>())
-                .order;
-        for root in order.into_iter().filter(|root| to_publish.contains(root)) {
-            packed
-                .push(self.pack_directory::<Reporter>(&root, config, before_packing_hooks).await?);
+        let order = graph_sequencer(
+            &edges,
+            &project_dependencies
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>(),
+        )
+        .order;
+        for root in order
+            .into_iter()
+            .filter(|root| to_publish.contains(root))
+        {
+            packed.push(
+                self.pack_directory::<Reporter>(&root, config, before_packing_hooks).await?,
+            );
         }
-        let packages = packed.iter().map(|package| package.packed_pkg()).collect::<Vec<_>>();
+        let packages = packed
+            .iter()
+            .map(|package| package.packed_pkg())
+            .collect::<Vec<_>>();
         batch_publish_packed_pkgs::<Reporter, _, miette::Report>(
             &packages,
             opts,
@@ -151,7 +162,10 @@ impl PublishArgs {
         }
 
         let http_client = build_registry_client(config)?;
-        let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
+        let network = PublishNetwork {
+            client: &http_client,
+            auth_headers: &config.auth_headers,
+        };
         let opts = self.checked_recursive_publish_options(config, stage)?;
 
         // Filter the selected graph: keep only packages that have a name and
@@ -159,9 +173,9 @@ impl PublishArgs {
         // their registry. The already-published probes are independent registry
         // reads, so run them concurrently rather than one round-trip at a time
         // (the `ThrottledClient` still bounds the actual in-flight fan-out).
-        let to_publish = self
-            .projects_to_publish(graph, config, &http_client, retry_opts_from_config(config))
-            .await;
+        let to_publish =
+            self.projects_to_publish(graph, config, &http_client, retry_opts_from_config(config))
+                .await;
 
         if to_publish.is_empty() {
             emit_info::<Reporter>("There are no new packages that should be published", dir);
@@ -175,16 +189,15 @@ impl PublishArgs {
             selection.prod_all.as_ref(),
             &selection.prod_only_selected,
         );
-        let published = self
-            .publish_selected::<Reporter>(
-                config,
-                &opts,
-                &network,
-                before_packing_hooks,
-                &to_publish,
-                &project_dependencies,
-            )
-            .await?;
+        let published = self.publish_selected::<Reporter>(
+            config,
+            &opts,
+            &network,
+            before_packing_hooks,
+            &to_publish,
+            &project_dependencies,
+        )
+        .await?;
         self.write_summary(workspace_root, &published)?;
         Ok(published)
     }
@@ -209,15 +222,14 @@ impl PublishArgs {
                 if !to_publish.contains(&root) {
                     return TaskCompletion::Passed;
                 }
-                let result = self
-                    .publish_directory::<Reporter>(
-                        &root,
-                        config,
-                        opts,
-                        network,
-                        before_packing_hooks,
-                    )
-                    .await;
+                let result = self.publish_directory::<Reporter>(
+                    &root,
+                    config,
+                    opts,
+                    network,
+                    before_packing_hooks,
+                )
+                .await;
                 record_publish_outcome(published, first_error, result)
             }
         };
@@ -246,25 +258,26 @@ impl PublishArgs {
         http_client: &pnpm_network::ThrottledClient,
         retry_opts: pnpm_network::RetryOpts,
     ) -> HashSet<PathBuf> {
-        let probes = graph.iter().filter_map(|(root, node)| {
-            let manifest = node.package.project.manifest.value();
-            let (name, version) = publish_eligible(manifest)?;
-            Some(async move {
-                let already = !self.flags.force
-                    && is_already_published(
-                        name,
-                        version,
-                        manifest,
-                        config,
-                        http_client,
-                        retry_opts,
-                    )
-                    .await;
-                (root, already)
-            })
-        });
-        futures_util::future::join_all(probes)
-            .await
+        let probes = graph
+            .iter()
+            .filter_map(|(root, node)| {
+                let manifest = node.package.project.manifest.value();
+                let (name, version) = publish_eligible(manifest)?;
+                Some(async move {
+                    let already = !self.flags.force
+                        && is_already_published(
+                            name,
+                            version,
+                            manifest,
+                            config,
+                            http_client,
+                            retry_opts,
+                        )
+                        .await;
+                    (root, already)
+                })
+            });
+        futures_util::future::join_all(probes).await
             .into_iter()
             .filter(|(_, already)| !already)
             .map(|(root, _)| root.clone())
@@ -294,7 +307,11 @@ impl PublishArgs {
 /// the one the registry knows — the `publishConfig.name` rename, when the
 /// project has one — since it is only used to address the registry.
 fn publish_eligible(manifest: &Value) -> Option<(&str, &str)> {
-    if manifest.get("private").and_then(Value::as_bool).unwrap_or(false) {
+    if manifest
+        .get("private")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
         return None;
     }
     let name = manifest.get("name").and_then(Value::as_str)?;
@@ -360,12 +377,7 @@ fn write_publish_summary(dir: &Path, published: &[PublishSummary]) -> miette::Re
 }
 
 fn retry_opts_from_config(config: &Config) -> RetryOpts {
-    RetryOpts {
-        retries: config.fetch_retries,
-        factor: config.fetch_retry_factor,
-        min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-        max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-    }
+    config.retry_opts()
 }
 
 /// Emit on the generic `pnpm` channel with a project prefix (rather than the
@@ -390,11 +402,17 @@ fn record_publish_outcome(
 ) -> TaskCompletion {
     match result {
         Ok(summary) => {
-            published.lock().expect("publish results lock is not poisoned").push(summary);
+            published
+                .lock()
+                .expect("publish results lock is not poisoned")
+                .push(summary);
             TaskCompletion::Passed
         }
         Err(error) => {
-            first_error.lock().expect("publish error lock is not poisoned").get_or_insert(error);
+            first_error
+                .lock()
+                .expect("publish error lock is not poisoned")
+                .get_or_insert(error);
             TaskCompletion::Failed
         }
     }

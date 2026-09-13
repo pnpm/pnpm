@@ -65,19 +65,24 @@ pub(super) async fn resolve_via_pnpr(
     index: &str,
     requires_python: Option<String>,
 ) -> Result<Option<Lockfile>> {
-    let Some(pnpr_server) = config.pnpr_server.as_deref().filter(|_| !config.offline) else {
+    let Some(pnpr_server) = config.pnpr_server
+        .as_deref()
+        .filter(|_| !config.offline)
+    else {
         return Ok(None);
     };
     let client = PnprClient::new(pnpr_server);
-    if !pnpm_pnpr_client::server_resolves(&client, pnpr_server, PYPI_ECOSYSTEM)
-        .await
+    if !pnpm_pnpr_client::server_resolves(&client, pnpr_server, PYPI_ECOSYSTEM).await
         .wrap_err("negotiate Python resolution with the pnpr server")?
     {
         return Ok(None);
     }
     client
         .resolve_pypi(PypiResolveOptions {
-            requirements: requirements.iter().map(ToString::to_string).collect(),
+            requirements: requirements
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
             target: target.clone(),
             index: index.to_string(),
             requires_python,
@@ -101,7 +106,10 @@ pub(super) fn ensure_environment_parent(root: &Path) -> Result<()> {
         if !fs::symlink_metadata(&path).into_diagnostic()?.is_dir()
             || pnpm_fs::is_symlink_or_junction(&path).into_diagnostic()?
         {
-            bail!("managed Python directory must be a real directory: {}", path.display());
+            bail!(
+                "managed Python directory must be a real directory: {}",
+                path.display(),
+            );
         }
     }
     Ok(())
@@ -114,26 +122,36 @@ pub(super) fn validate_environment_link(root: &Path) -> Result<Option<PathBuf>> 
         Err(error) => Err(error).into_diagnostic(),
         Ok(_) => {
             if !pnpm_fs::is_symlink_or_junction(&link).into_diagnostic()? {
-                bail!("pnpm will not replace an unmanaged Python environment: {}", link.display());
+                bail!(
+                    "pnpm will not replace an unmanaged Python environment: {}",
+                    link.display(),
+                );
             }
             let target = root.join(pnpm_fs::read_symlink_dir(&link).into_diagnostic()?);
-            let target = dunce::canonicalize(&target).into_diagnostic().wrap_err_with(|| {
-                format!(
-                    "resolve Python environment target {} for {}",
-                    target.display(),
-                    link.display(),
-                )
-            })?;
+            let target = dunce::canonicalize(&target)
+                .into_diagnostic()
+                .wrap_err_with(|| {
+                    format!(
+                        "resolve Python environment target {} for {}",
+                        target.display(),
+                        link.display(),
+                    )
+                })?;
             let managed = root.join(".pnpm/python-envs");
-            let managed = dunce::canonicalize(&managed).into_diagnostic().wrap_err_with(|| {
-                format!(
-                    "resolve managed Python directory {} for {}",
-                    managed.display(),
-                    link.display(),
-                )
-            })?;
+            let managed = dunce::canonicalize(&managed)
+                .into_diagnostic()
+                .wrap_err_with(|| {
+                    format!(
+                        "resolve managed Python directory {} for {}",
+                        managed.display(),
+                        link.display(),
+                    )
+                })?;
             if target.parent() != Some(managed.as_path()) {
-                bail!("pnpm will not replace an unmanaged Python environment: {}", link.display());
+                bail!(
+                    "pnpm will not replace an unmanaged Python environment: {}",
+                    link.display(),
+                );
             }
             Ok(Some(target))
         }

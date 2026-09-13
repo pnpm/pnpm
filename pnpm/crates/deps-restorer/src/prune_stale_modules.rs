@@ -65,8 +65,11 @@ pub struct PruneStaleModules<'a> {
 /// Every group an importer snapshot records; the current lockfile was
 /// written filtered by the groups of the install that produced it, so
 /// its whole recorded set is subject to the diff.
-const RECORDED_GROUPS: [DependencyGroup; 3] =
-    [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+const RECORDED_GROUPS: [DependencyGroup; 3] = [
+    DependencyGroup::Prod,
+    DependencyGroup::Dev,
+    DependencyGroup::Optional,
+];
 
 impl<'a> PruneStaleModules<'a> {
     /// Returns the count of unique orphan *packages* (dep-paths
@@ -74,8 +77,7 @@ impl<'a> PruneStaleModules<'a> {
     /// `orphanPkgIds`), for the caller's single `pnpm:stats`
     /// `removed` emission. `0` when the orphan diff is skipped.
     pub fn run<Reporter: self::Reporter>(self) -> Result<u64, PruneDirectDepsError> {
-        let modules_dir_name: &OsStr =
-            self.config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
+        let modules_dir_name = modules_directory_name(self.config);
         let wanted_root_deps = self.wanted_root_deps();
 
         for (importer_id, current_snapshot) in &self.current_lockfile.importers {
@@ -97,8 +99,9 @@ impl<'a> PruneStaleModules<'a> {
             let wanted_specs = direct_deps_of(wanted_snapshot, self.included_groups);
             // Root is what the others dedupe *against*; it keeps every
             // link the wanted lockfile still records.
-            let dedupe_against_root =
-                (importer_id != ".").then_some(wanted_root_deps.as_ref()).flatten();
+            let dedupe_against_root = (importer_id != ".")
+                .then_some(wanted_root_deps.as_ref())
+                .flatten();
             unlink_stale_direct_deps::<Reporter>(
                 &modules_dir,
                 &importer_dir.display().to_string(),
@@ -152,7 +155,9 @@ fn unlink_stale_direct_deps<Reporter: self::Reporter>(
             .iter()
             .any(|(name, spec, _)| *name == alias && spec.version == current_spec.version);
         let deduped_by_root = dedupe_against_root.is_some_and(|root_deps| {
-            root_deps.get(alias).is_some_and(|version| **version == current_spec.version)
+            root_deps
+                .get(alias)
+                .is_some_and(|version| **version == current_spec.version)
         });
         if still_wanted && !deduped_by_root {
             continue;
@@ -185,11 +190,15 @@ fn prune_orphan_snapshots(
     let empty = HashMap::new();
     let current_snapshots = current_lockfile.snapshots.as_ref().unwrap_or(&empty);
     let wanted_snapshots = wanted_lockfile.snapshots.as_ref().unwrap_or(&empty);
-    let orphan_keys: Vec<_> =
-        current_snapshots.keys().filter(|key| !wanted_snapshots.contains_key(*key)).collect();
+    let orphan_keys: Vec<_> = current_snapshots
+        .keys()
+        .filter(|key| !wanted_snapshots.contains_key(*key))
+        .collect();
 
-    let orphan_pkg_ids: HashSet<String> =
-        orphan_keys.iter().map(|key| format!("{}@{}", key.name, key.suffix.version())).collect();
+    let orphan_pkg_ids: HashSet<String> = orphan_keys
+        .iter()
+        .map(|key| format!("{}@{}", key.name, key.suffix.version()))
+        .collect();
     let removed = orphan_pkg_ids.len() as u64;
 
     let Some(prior_hoisted) = prior_hoisted_dependencies else {
@@ -237,7 +246,11 @@ fn direct_deps_of<'a>(
     let mut deps = Vec::new();
     let mut push = |map: &'a Option<ResolvedDependencyMap>, group: DependencyGroup| {
         if let Some(map) = map {
-            deps.extend(map.iter().map(move |(alias, spec)| (alias, spec, group)));
+            deps.extend(
+                map
+                    .iter()
+                    .map(move |(alias, spec)| (alias, spec, group)),
+            );
         }
     };
     for group in groups {
@@ -271,4 +284,10 @@ fn dependency_type(group: DependencyGroup) -> DependencyType {
         DependencyGroup::Optional => DependencyType::Optional,
         DependencyGroup::Peer => unreachable!("peers are not an importer dependency map"),
     }
+}
+
+fn modules_directory_name(config: &pnpm_config::Config) -> &OsStr {
+    config.modules_dir
+        .file_name()
+        .unwrap_or_else(|| OsStr::new("node_modules"))
 }

@@ -149,7 +149,11 @@ pub fn assemble_release_plan(
             return Ok(plan);
         };
         let before = selected.len();
-        selected.extend(plan.releases.iter().map(|release| release.dir.clone()));
+        selected.extend(
+            plan.releases
+                .iter()
+                .map(|release| release.dir.clone()),
+        );
         if selected.len() == before {
             return Ok(plan);
         }
@@ -178,7 +182,13 @@ fn resolve_workspace<'a>(
     validate_fixed_group_lanes(&fixed_groups, &lanes_by_dir, versioning)?;
     let epics = resolve_epics(&refs, &participants, versioning)?;
     validate_epics(&epics, &fixed_groups)?;
-    Ok(ResolvedWorkspace { refs, participants, lanes_by_dir, fixed_groups, epics })
+    Ok(ResolvedWorkspace {
+        refs,
+        participants,
+        lanes_by_dir,
+        fixed_groups,
+        epics,
+    })
 }
 
 /// The kind of committed-version invariant [`check_versioning_invariants`]
@@ -256,8 +266,10 @@ fn push_fixed_group_violations(
     violations: &mut Vec<VersioningInvariantViolation>,
 ) {
     for (index, group) in workspace.fixed_groups.iter().enumerate() {
-        let distinct: BTreeSet<&str> =
-            group.iter().map(|dir| workspace.participants[dir.as_str()].current_version).collect();
+        let distinct: BTreeSet<&str> = group
+            .iter()
+            .map(|dir| workspace.participants[dir.as_str()].current_version)
+            .collect();
         if distinct.len() > 1 {
             let detail = group
                 .iter()
@@ -267,8 +279,9 @@ fn push_fixed_group_violations(
                 })
                 .collect::<Vec<_>>()
                 .join(", ");
-            let declared =
-                versioning.map(|settings| settings.fixed[index].join(", ")).unwrap_or_default();
+            let declared = versioning
+                .map(|settings| settings.fixed[index].join(", "))
+                .unwrap_or_default();
             violations.push(VersioningInvariantViolation {
                 code: VersioningInvariantCode::FixedGroupMismatch,
                 message: format!("The fixed group [{declared}] is not in lockstep: {detail}."),
@@ -320,7 +333,10 @@ struct AssembleContext<'a> {
 
 impl AssembleContext<'_> {
     fn intent_bump_for(&self, intent: &ChangeIntent, dir: &str) -> Option<IntentBumpType> {
-        self.intent_bumps.get(&intent.id).and_then(|by_dir| by_dir.get(dir)).copied()
+        self.intent_bumps
+            .get(&intent.id)
+            .and_then(|by_dir| by_dir.get(dir))
+            .copied()
     }
 }
 
@@ -347,11 +363,17 @@ fn assemble(
     let releases = planned_releases(ctx, &intents, &state, &new_versions);
     assert_no_duplicate_release_identity(&releases)?;
     if ctx.opts.snapshot_suffix.is_none() {
-        enforce_epic_bands(&ctx.workspace.epics, &ctx.workspace.participants, &new_versions)?;
+        enforce_epic_bands(
+            &ctx.workspace.epics,
+            &ctx.workspace.participants,
+            &new_versions,
+        )?;
         enforce_max_bump(&releases, ctx.versioning)?;
     }
 
-    Ok(ReleasePlan { releases })
+    Ok(ReleasePlan {
+        releases,
+    })
 }
 
 #[cfg(test)]

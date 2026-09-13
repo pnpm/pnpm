@@ -259,26 +259,20 @@ impl VirtualStoreLayout {
                 lockfile_dir,
             );
         };
-        let mut hasher =
-            GvsHasher::new(snapshots, packages, engine, allow_build_policy, lockfile_dir);
+        let mut hasher = GvsHasher::new(
+            snapshots,
+            packages,
+            engine,
+            allow_build_policy,
+            lockfile_dir,
+        );
         let fingerprint = hasher.fingerprint(snapshots);
         let cache_file = lockfile_dir.map(|lockfile_dir| gvs_layout_cache::CacheFile {
             cache_dir: &config.cache_dir,
             lockfile_dir,
             fingerprint: &fingerprint,
         });
-        if let Some(cache_file) = cache_file
-            && let Some(gvs_suffixes) = gvs_layout_cache::load(
-                cache_file,
-                gvs_layout_cache::Expected { snapshots, packages },
-            )
-        {
-            tracing::info!(
-                target: "pacquet::install::phase",
-                phase = "gvs.layout_cache_hit",
-                entries = gvs_suffixes.len(),
-                "phase complete",
-            );
+        if let Some(gvs_suffixes) = load_layout_suffixes(cache_file, snapshots, packages) {
             return Self::with_cached_suffixes(config, gvs_suffixes, lockfile_dir);
         }
         let gvs_suffixes = hasher.suffixes(snapshots);
@@ -327,8 +321,13 @@ impl VirtualStoreLayout {
                 lockfile_dir: lockfile_dir.map(Path::to_path_buf),
             };
         };
-        let mut hasher =
-            GvsHasher::new(snapshots, packages, engine, allow_build_policy, lockfile_dir);
+        let mut hasher = GvsHasher::new(
+            snapshots,
+            packages,
+            engine,
+            allow_build_policy,
+            lockfile_dir,
+        );
         VirtualStoreLayout {
             package_store_dir,
             gvs_suffixes: Some(hasher.suffixes(snapshots)),
@@ -376,7 +375,10 @@ impl VirtualStoreLayout {
     #[must_use]
     pub fn hashed_slot_dir(&self, key: &PackageKey) -> Option<PathBuf> {
         let suffix = self.gvs_suffixes.as_ref()?.get(key)?;
-        Some(join_global_virtual_store_path(&self.package_store_dir, suffix))
+        Some(join_global_virtual_store_path(
+            &self.package_store_dir,
+            suffix,
+        ))
     }
 
     #[must_use]
@@ -490,27 +492,31 @@ pub fn collect_injected_deps(
     let pnpm_lockfile::LockfileEntries { packages, snapshots } = entries;
     let mut injected: std::collections::BTreeMap<String, Vec<String>> =
         std::collections::BTreeMap::new();
-    let Some(snapshots) = snapshots else { return injected };
+    let Some(snapshots) = snapshots else {
+        return injected;
+    };
     for key in snapshots.keys() {
-        let VersionPart::File(path) = key.suffix.version() else { continue };
+        let VersionPart::File(path) = key.suffix.version() else {
+            continue;
+        };
         if skipped.contains(key) {
             continue;
         }
         // `packages:` keys are peer-stripped; require a directory
         // resolution (an injected project copy, not a file: tarball).
-        let is_directory = packages
-            .and_then(|packages| packages.get(&key.without_peer()))
-            .is_some_and(|meta| matches!(meta.resolution, LockfileResolution::Directory(_)));
-        if !is_directory {
+        if !is_injected_directory(packages, key) {
             continue;
         }
         let source = path.strip_prefix("./").unwrap_or(path);
-        injected.entry(source.to_string()).or_default().extend(injected_targets(
-            layout,
-            lockfile_dir,
-            key,
-            hoisted_locations,
-        ));
+        injected
+            .entry(source.to_string())
+            .or_default()
+            .extend(injected_targets(
+                layout,
+                lockfile_dir,
+                key,
+                hoisted_locations,
+            ));
     }
     // A source project whose every snapshot contributed no target
     // (e.g. hoisted entries the walker never placed) would round-trip
@@ -536,12 +542,18 @@ fn injected_targets(
     // Hoisted linker: the walker already recorded every
     // lockfile-relative dir this depPath was placed at.
     if let Some(locations) = hoisted_locations {
-        return locations.get(&key.to_string()).cloned().unwrap_or_default();
+        return locations
+            .get(&key.to_string())
+            .cloned()
+            .unwrap_or_default();
     }
     // Isolated linker: one virtual-store slot per snapshot. The
     // separator normalization matches the `hoistedLocations` entries the
     // hoisted branch reuses (see `path_relative_to_lockfile_dir`).
-    let target = layout.slot_dir(key).join("node_modules").join(key.name.to_string());
+    let target = layout
+        .slot_dir(key)
+        .join("node_modules")
+        .join(key.name.to_string());
     let target = match target.strip_prefix(lockfile_dir) {
         Ok(relative) => relative.to_path_buf(),
         Err(_) => target,
@@ -649,3 +661,37 @@ mod tests;
 /// what keeps them in step; a key taken from a re-read of the lockfile
 /// could describe a revision the suffixes did not come from.
 mod gvs_layout_cache;
+
+fn report_layout_cache_hit(entries: usize) {
+    tracing::info!(
+        target: "pacquet::install::phase",
+        phase = "gvs.layout_cache_hit",
+        entries,
+        "phase complete",
+    );
+}
+
+fn is_injected_directory(
+    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+    key: &PackageKey,
+) -> bool {
+    packages
+        .and_then(|packages| packages.get(&key.without_peer()))
+        .is_some_and(|meta| matches!(meta.resolution, LockfileResolution::Directory(_)))
+}
+
+fn load_layout_suffixes(
+    cache_file: Option<gvs_layout_cache::CacheFile<'_>>,
+    snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+) -> Option<HashMap<PackageKey, String>> {
+    let suffixes = gvs_layout_cache::load(
+        cache_file?,
+        gvs_layout_cache::Expected {
+            snapshots,
+            packages,
+        },
+    )?;
+    report_layout_cache_hit(suffixes.len());
+    Some(suffixes)
+}

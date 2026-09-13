@@ -11,7 +11,10 @@ use tempfile::tempdir;
 #[test]
 fn file_path_matches_upstream() {
     let dir = std::path::Path::new("/tmp/example");
-    assert_eq!(get_file_path(dir), dir.join("node_modules").join(".pnpm-workspace-state-v1.json"));
+    assert_eq!(
+        get_file_path(dir),
+        dir.join("node_modules").join(".pnpm-workspace-state-v1.json"),
+    );
 }
 
 #[test]
@@ -22,7 +25,10 @@ fn write_and_load_round_trip() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_dir.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("my-pkg".into()), version: Some("1.2.3".into()) },
+        ProjectEntry {
+            name: Some("my-pkg".into()),
+            version: Some("1.2.3".into()),
+        },
     );
 
     let mut patched = IndexMap::new();
@@ -55,7 +61,10 @@ fn write_and_load_round_trip() {
     assert!(path.is_file(), "state file should exist at {path:?}");
 
     let on_disk = std::fs::read_to_string(&path).expect("read state");
-    assert!(on_disk.ends_with('\n'), "upstream appends a trailing newline");
+    assert!(
+        on_disk.ends_with('\n'),
+        "upstream appends a trailing newline",
+    );
 
     let loaded = load_workspace_state(workspace_dir).expect("load state").expect("file present");
     assert_eq!(loaded, state);
@@ -76,13 +85,25 @@ fn omits_settings_that_are_none() {
         pnpmfiles: vec![],
         filtered_install: false,
         config_dependencies: None,
-        settings: WorkspaceStateSettings { auto_install_peers: Some(true), ..Default::default() },
+        settings: WorkspaceStateSettings {
+            auto_install_peers: Some(true),
+            ..Default::default()
+        },
     };
     let serialized = serde_json::to_string(&state).expect("serialize");
-    assert!(serialized.contains(r#""autoInstallPeers":true"#), "got: {serialized}");
-    assert!(!serialized.contains("dedupePeerDependents"), "got: {serialized}");
+    assert!(
+        serialized.contains(r#""autoInstallPeers":true"#),
+        "got: {serialized}",
+    );
+    assert!(
+        !serialized.contains("dedupePeerDependents"),
+        "got: {serialized}",
+    );
     assert!(!serialized.contains("nodeLinker"), "got: {serialized}");
-    assert!(!serialized.contains("configDependencies"), "got: {serialized}");
+    assert!(
+        !serialized.contains("configDependencies"),
+        "got: {serialized}",
+    );
 }
 
 /// `packageExtensions` round-trips through `WorkspaceStateSettings`
@@ -111,7 +132,10 @@ fn package_extensions_round_trip() {
     let tmp = tempdir().expect("create temp dir");
     update_workspace_state(tmp.path(), &state).expect("write state");
     let loaded = load_workspace_state(tmp.path()).expect("load state").expect("file present");
-    assert_eq!(loaded.settings.package_extensions.as_ref(), Some(&extensions));
+    assert_eq!(
+        loaded.settings.package_extensions.as_ref(),
+        Some(&extensions),
+    );
 
     let on_disk = std::fs::read_to_string(get_file_path(tmp.path())).expect("read state");
     assert!(on_disk.contains(r#""packageExtensions""#), "got: {on_disk}");

@@ -47,26 +47,15 @@ pub(super) fn build_policy_snapshot(
         "namedRegistriesRouting".to_string(),
         JsonValue::String(opts.named_registries_routing.to_string()),
     );
-    map.insert("minimumReleaseAge".to_string(), JsonValue::from(opts.minimum_release_age));
+    map.insert(
+        "minimumReleaseAge".to_string(),
+        JsonValue::from(opts.minimum_release_age),
+    );
     map.insert(
         "minimumReleaseAgeExclude".to_string(),
         policy_patterns_json(opts.sorted_min_age_excludes),
     );
-    map.insert(
-        "trustPolicy".to_string(),
-        match opts.trust_policy {
-            Some(TrustPolicy::NoDowngrade) => JsonValue::String("no-downgrade".to_string()),
-            Some(TrustPolicy::Off) | None => JsonValue::Null,
-        },
-    );
-    map.insert("trustPolicyExclude".to_string(), policy_patterns_json(opts.sorted_trust_excludes));
-    map.insert(
-        "trustPolicyIgnoreAfter".to_string(),
-        match opts.trust_policy_ignore_after {
-            Some(value) => JsonValue::from(value),
-            None => JsonValue::Null,
-        },
-    );
+    insert_trust_policy(&mut map, opts);
     map.insert(
         "minimumReleaseAgeIgnoreMissingTime".to_string(),
         JsonValue::Bool(opts.ignore_missing_time_field),
@@ -102,11 +91,43 @@ pub(super) fn cached_policy_patterns(
         .get(key)
         .and_then(JsonValue::as_array)
         .map(|values| {
-            values.iter().filter_map(|value| value.as_str().map(str::to_string)).collect()
+            values
+                .iter()
+                .filter_map(|value| value.as_str().map(str::to_string))
+                .collect()
         })
         .unwrap_or_default()
 }
 
 pub(super) fn policy_patterns_json(patterns: &[String]) -> JsonValue {
-    JsonValue::Array(patterns.iter().map(|spec| JsonValue::String(spec.clone())).collect())
+    JsonValue::Array(
+        patterns
+            .iter()
+            .map(|spec| JsonValue::String(spec.clone()))
+            .collect(),
+    )
+}
+
+fn insert_trust_policy(
+    map: &mut serde_json::Map<String, JsonValue>,
+    opts: &BuildPolicySnapshot<'_>,
+) {
+    map.insert(
+        "trustPolicy".to_string(),
+        match opts.trust_policy {
+            Some(TrustPolicy::NoDowngrade) => JsonValue::String("no-downgrade".to_string()),
+            Some(TrustPolicy::Off) | None => JsonValue::Null,
+        },
+    );
+    map.insert(
+        "trustPolicyExclude".to_string(),
+        policy_patterns_json(opts.sorted_trust_excludes),
+    );
+    map.insert(
+        "trustPolicyIgnoreAfter".to_string(),
+        match opts.trust_policy_ignore_after {
+            Some(value) => JsonValue::from(value),
+            None => JsonValue::Null,
+        },
+    );
 }

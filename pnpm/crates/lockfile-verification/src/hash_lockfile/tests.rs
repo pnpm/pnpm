@@ -51,8 +51,14 @@ fn parse(yaml: &str) -> Lockfile {
 #[test]
 fn hash_matches_pinned_digests() {
     for (yaml, expected) in [
-        (LOCKFILE_YAML, "c8991e89c9a1098fa78aeb75d8bc7f4c6e5d2781258875e4f9436e03913351ea"),
-        (NESTED_LOCKFILE_YAML, "48e073ddc4599b78202df75cd29b986928e7823a2535c6e9d4f001f44e546361"),
+        (
+            LOCKFILE_YAML,
+            "c8991e89c9a1098fa78aeb75d8bc7f4c6e5d2781258875e4f9436e03913351ea",
+        ),
+        (
+            NESTED_LOCKFILE_YAML,
+            "48e073ddc4599b78202df75cd29b986928e7823a2535c6e9d4f001f44e546361",
+        ),
     ] {
         assert_eq!(hash_lockfile(&parse(yaml)), expected);
     }

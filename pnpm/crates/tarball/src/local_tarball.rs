@@ -17,17 +17,24 @@ use tar::Archive;
 pub(crate) async fn open_local_tarball(
     path: &Path,
 ) -> Result<(tokio::fs::File, u64), TarballError> {
-    let metadata = tokio::fs::metadata(path)
-        .await
-        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
+    let metadata = tokio::fs::metadata(path).await
+        .map_err(|source| TarballError::ReadLocalTarball {
+            path: path.to_path_buf(),
+            source,
+        })?;
     reject_non_file_local_tarball(path, &metadata)?;
-    let file = tokio::fs::File::open(path)
-        .await
-        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
+    let file = tokio::fs::File::open(path).await
+        .map_err(|source| TarballError::ReadLocalTarball {
+            path: path.to_path_buf(),
+            source,
+        })?;
     let metadata = file
         .metadata()
         .await
-        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
+        .map_err(|source| TarballError::ReadLocalTarball {
+            path: path.to_path_buf(),
+            source,
+        })?;
     reject_non_file_local_tarball(path, &metadata)?;
     Ok((file, metadata.len()))
 }
@@ -54,19 +61,24 @@ pub(crate) async fn read_local_tarball_buffer(
 ) -> Result<Vec<u8>, TarballError> {
     use tokio::io::AsyncReadExt;
 
-    let read_limit = size.checked_add(1).ok_or_else(|| {
-        read_local_tarball_error(
-            path,
-            io::ErrorKind::InvalidData,
-            format!("local tarball is too large to read into memory ({size} bytes)"),
-        )
-    })?;
+    let read_limit = size
+        .checked_add(1)
+        .ok_or_else(|| {
+            read_local_tarball_error(
+                path,
+                io::ErrorKind::InvalidData,
+                format!("local tarball is too large to read into memory ({size} bytes)"),
+            )
+        })?;
     let mut buffer = allocate_local_tarball_buffer(path, package_url, size)?;
     let mut reader = file.take(read_limit);
     reader
         .read_to_end(&mut buffer)
         .await
-        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
+        .map_err(|source| TarballError::ReadLocalTarball {
+            path: path.to_path_buf(),
+            source,
+        })?;
     if u64::try_from(buffer.len()).unwrap_or(u64::MAX) > size {
         return Err(read_local_tarball_error(
             path,
@@ -82,14 +94,15 @@ pub(crate) fn allocate_local_tarball_buffer(
     package_url: &str,
     size: u64,
 ) -> Result<Vec<u8>, TarballError> {
-    allocate_tarball_buffer(Some(size), package_url).map_err(|error| match error {
-        TarballError::TarballTooLarge { .. } => read_local_tarball_error(
-            path,
-            io::ErrorKind::InvalidData,
-            format!("local tarball is too large to read into memory ({size} bytes)"),
-        ),
-        other => other,
-    })
+    allocate_tarball_buffer(Some(size), package_url)
+        .map_err(|error| match error {
+            TarballError::TarballTooLarge { .. } => read_local_tarball_error(
+                path,
+                io::ErrorKind::InvalidData,
+                format!("local tarball is too large to read into memory ({size} bytes)"),
+            ),
+            other => other,
+        })
 }
 
 pub(crate) fn read_local_tarball_error(
@@ -142,10 +155,14 @@ pub(crate) async fn read_subdir_manifest(
     // top-level prefix strip; the resolution's `path` keeps the leading
     // slash it was written with (`#path:/packages/foo`).
     let key = format!("{}/package.json", subdir.trim_matches('/'));
-    let Some(cas_path) = cas_paths.get(&key) else { return Ok(None) };
-    let bytes = tokio::fs::read(cas_path)
-        .await
-        .map_err(|source| TarballError::ReadLocalTarball { path: cas_path.clone(), source })?;
+    let Some(cas_path) = cas_paths.get(&key) else {
+        return Ok(None);
+    };
+    let bytes = tokio::fs::read(cas_path).await
+        .map_err(|source| TarballError::ReadLocalTarball {
+            path: cas_path.clone(),
+            source,
+        })?;
     match parse_manifest_bytes(&bytes) {
         Ok(parsed) => Ok(normalize_bundled_manifest(&parsed)),
         Err(error) => {
@@ -211,7 +228,11 @@ pub async fn read_local_tarball_metadata(
         let integrity = verify_tarball_integrity(&buffer, None, package_url)?;
         let (manifest, has_manifest_entry) =
             read_bundled_manifest_from_archive(&buffer, &tarball_path)?;
-        Ok(LocalTarballMetadata { integrity, manifest, has_manifest_entry })
+        Ok(LocalTarballMetadata {
+            integrity,
+            manifest,
+            has_manifest_entry,
+        })
     })
     .await
     .map_err(TarballError::TaskJoin)?
@@ -258,7 +279,11 @@ pub(crate) fn read_bundled_manifest(
     let mut payload = None;
     for entry in archive.entries_with_seek().map_err(TarballError::ReadTarballEntries)? {
         let entry = entry.map_err(TarballError::ReadTarballEntries)?;
-        if !entry.header().entry_type().is_file() {
+        if !entry
+            .header()
+            .entry_type()
+            .is_file()
+        {
             continue;
         }
         let path = entry.path().map_err(TarballError::ReadTarballEntries)?;
@@ -270,7 +295,9 @@ pub(crate) fn read_bundled_manifest(
         // that a later one supersedes can't fail the read.
         payload = Some(tar_entry_payload(tar_data, &entry)?);
     }
-    let Some(payload) = payload else { return Ok((None, false)) };
+    let Some(payload) = payload else {
+        return Ok((None, false));
+    };
     finish_bundled_manifest(payload, tarball_path)
 }
 
@@ -285,7 +312,11 @@ fn read_bundled_manifest_streaming(
     let mut payload: Option<Vec<u8>> = None;
     for entry in archive.entries().map_err(TarballError::ReadTarballEntries)? {
         let mut entry = entry.map_err(TarballError::ReadTarballEntries)?;
-        if !entry.header().entry_type().is_file() {
+        if !entry
+            .header()
+            .entry_type()
+            .is_file()
+        {
             continue;
         }
         let is_manifest = {
@@ -295,7 +326,10 @@ fn read_bundled_manifest_streaming(
         if !is_manifest {
             continue;
         }
-        let file_size = entry.header().size().map_err(TarballError::ReadTarballEntries)?;
+        let file_size = entry
+            .header()
+            .size()
+            .map_err(TarballError::ReadTarballEntries)?;
         if file_size > MAX_UNTRUSTED_PREALLOC_BYTES as u64 {
             return Err(oversized_manifest_error(file_size));
         }
@@ -303,7 +337,9 @@ fn read_bundled_manifest_streaming(
         entry.read_to_end(&mut data).map_err(TarballError::ReadTarballEntries)?;
         payload = Some(data);
     }
-    let Some(payload) = payload else { return Ok((None, false)) };
+    let Some(payload) = payload else {
+        return Ok((None, false));
+    };
     finish_bundled_manifest(&payload, tarball_path)
 }
 
@@ -325,8 +361,10 @@ fn finish_bundled_manifest(
     payload: &[u8],
     tarball_path: &str,
 ) -> Result<(Option<serde_json::Value>, bool), TarballError> {
-    let parsed = parse_manifest_bytes(payload).map_err(|source| {
-        TarballError::ParseBundledManifest { tarball: tarball_path.to_string(), source }
-    })?;
+    let parsed = parse_manifest_bytes(payload)
+        .map_err(|source| TarballError::ParseBundledManifest {
+            tarball: tarball_path.to_string(),
+            source,
+        })?;
     Ok((normalize_bundled_manifest(&parsed), true))
 }

@@ -139,7 +139,12 @@ fn collect_engine_components(
 ) -> Result<Vec<EngineComponent>, SelfUpdateError> {
     let package_label = engine.package_label();
     verify_engine_pin(env, engine, &package_label)?;
-    let mut to_verify = vec![engine_component(env, config, engine.package, engine.version)?];
+    let mut to_verify = vec![engine_component(
+        env,
+        config,
+        engine.package,
+        engine.version,
+    )?];
 
     // `link_exe_platform_binary` hardlinks the host's platform binary over
     // the engine's own `pnpm` bin, so whenever the lockfile carries a
@@ -152,8 +157,7 @@ fn collect_engine_components(
             ),
         }
     })?;
-    let optional_deps = env
-        .snapshots
+    let optional_deps = env.snapshots
         .get(&snapshot_key)
         .and_then(|snapshot| snapshot.optional_dependencies.as_ref());
     if let Some((platform_name, version)) = optional_deps.and_then(host_platform_package) {
@@ -193,13 +197,18 @@ fn host_platform_package(
     let libc = host_libc();
     let candidate_names = [
         format!("@pnpm/{}", exe_platform_pkg_dir_name(platform, arch, libc)),
-        format!("@pnpm/{}", exe_platform_pkg_dir_name_next(platform, arch, libc)),
+        format!(
+            "@pnpm/{}",
+            exe_platform_pkg_dir_name_next(platform, arch, libc),
+        ),
     ];
-    candidate_names.iter().find_map(|platform_name| {
-        let key = platform_name.parse().ok()?;
-        let version = plain_version(optional_deps.get(&key)?)?;
-        Some((platform_name.clone(), version))
-    })
+    candidate_names
+        .iter()
+        .find_map(|platform_name| {
+            let key = platform_name.parse().ok()?;
+            let version = plain_version(optional_deps.get(&key)?)?;
+            Some((platform_name.clone(), version))
+        })
 }
 
 /// Build the [`EngineComponent`] for `name@version`, reading its integrity
@@ -214,7 +223,11 @@ fn engine_component(
     let integrity = format!("{name}@{version}")
         .parse::<PackageKey>()
         .ok()
-        .and_then(|key| env.packages.get(&key).map(|metadata| metadata.resolution.integrity()))
+        .and_then(|key| {
+            env.packages
+                .get(&key)
+                .map(|metadata| metadata.resolution.integrity())
+        })
         .flatten()
         .map(ToString::to_string);
     let Some(integrity) = integrity.filter(|integrity| !integrity.is_empty()) else {
@@ -238,7 +251,14 @@ fn plain_version(reference: &SnapshotDepRef) -> Option<String> {
         SnapshotDepRef::Plain(ver_peer) => {
             // Strip any peer suffix; an `@pnpm/exe` platform optional dep
             // is always an exact, peerless version.
-            Some(ver_peer.to_string().split('(').next().unwrap_or_default().to_string())
+            Some(
+                ver_peer
+                    .to_string()
+                    .split('(')
+                    .next()
+                    .unwrap_or_default()
+                    .to_string(),
+            )
         }
         SnapshotDepRef::Alias(_) | SnapshotDepRef::Link(_) => None,
     }
@@ -255,7 +275,11 @@ fn report_identity_failures(
         return Ok(None);
     }
     failures.sort_by(|left, right| left.label.cmp(&right.label));
-    let described = failures.iter().map(SignatureFailure::describe).collect::<Vec<_>>().join("; ");
+    let described = failures
+        .iter()
+        .map(SignatureFailure::describe)
+        .collect::<Vec<_>>()
+        .join("; ");
 
     if failures.iter().all(SignatureFailure::tolerable_without_signature) {
         return Ok(Some(format!(
@@ -266,17 +290,22 @@ fn report_identity_failures(
         )));
     }
 
-    let only_unreachable =
-        failures.iter().all(|failure| failure.category == FailureCategory::Unreachable);
+    let only_unreachable = failures
+        .iter()
+        .all(|failure| failure.category == FailureCategory::Unreachable);
     let message = format!(
         "Refusing to run {label}: its npm registry signature could not be verified \
          ({described}). The bytes its environment lockfile pins, resolved through the configured \
          package-manager registry, do not match a published, signed release.",
     );
     if only_unreachable {
-        Err(SelfUpdateError::EngineIdentityUnverifiable { message })
+        Err(SelfUpdateError::EngineIdentityUnverifiable {
+            message,
+        })
     } else {
-        Err(SelfUpdateError::EngineIdentityMismatch { message })
+        Err(SelfUpdateError::EngineIdentityMismatch {
+            message,
+        })
     }
 }
 
@@ -286,8 +315,7 @@ fn verify_engine_pin(
     engine: &EngineToVerify<'_>,
     package_label: &str,
 ) -> Result<(), SelfUpdateError> {
-    let pinned = env
-        .importers
+    let pinned = env.importers
         .get(EnvLockfile::ROOT_IMPORTER_KEY)
         .and_then(|importer| importer.package_manager_dependencies.as_ref())
         .and_then(|pm_deps| pm_deps.get(engine.package));

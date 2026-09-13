@@ -66,9 +66,18 @@ pub(super) fn routes(prefixed: bool) -> Router<AppState> {
         router = router
             .route(&format!("{base}/{SIMPLE_PATH}"), get(get_project_list))
             .route(&format!("{base}/{SIMPLE_PATH}/"), get(get_project_list))
-            .route(&format!("{base}/{SIMPLE_PATH}/{{project}}"), get(get_project_page))
-            .route(&format!("{base}/{SIMPLE_PATH}/{{project}}/"), get(get_project_page))
-            .route(&format!("{base}/{FILES_PATH}/{{project}}/{{filename}}"), get(get_file))
+            .route(
+                &format!("{base}/{SIMPLE_PATH}/{{project}}"),
+                get(get_project_page),
+            )
+            .route(
+                &format!("{base}/{SIMPLE_PATH}/{{project}}/"),
+                get(get_project_page),
+            )
+            .route(
+                &format!("{base}/{FILES_PATH}/{{project}}/{{filename}}"),
+                get(get_file),
+            )
             .route(&format!("{base}/{UPLOAD_PATH}"), post(post_upload))
             .route(&format!("{base}/{UPLOAD_PATH}/"), post(post_upload));
     }
@@ -84,13 +93,20 @@ struct CachedPage {
 }
 
 fn bad_request(reason: impl std::fmt::Display) -> RegistryError {
-    RegistryError::BadRequest { reason: reason.to_string() }
+    RegistryError::BadRequest {
+        reason: reason.to_string(),
+    }
 }
 
 fn html_response(headers: &HeaderMap, html: String) -> Response {
-    let accept = headers.get(header::ACCEPT).and_then(|value| value.to_str().ok());
-    let content_type =
-        if wants_versioned_html(accept) { HTML_CONTENT_TYPE } else { "text/html; charset=utf-8" };
+    let accept = headers
+        .get(header::ACCEPT)
+        .and_then(|value| value.to_str().ok());
+    let content_type = if wants_versioned_html(accept) {
+        HTML_CONTENT_TYPE
+    } else {
+        "text/html; charset=utf-8"
+    };
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, content_type)
@@ -102,12 +118,18 @@ fn json_page_response(json: &serde_json::Value) -> Response {
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, JSON_CONTENT_TYPE)
-        .body(Body::from(serde_json::to_vec(json).expect("static-shape JSON serializes")))
+        .body(Body::from(
+            serde_json::to_vec(json).expect("static-shape JSON serializes"),
+        ))
         .expect("static-shape response always builds")
 }
 
 fn accepts_json(headers: &HeaderMap) -> bool {
-    wants_json(headers.get(header::ACCEPT).and_then(|value| value.to_str().ok()))
+    wants_json(
+        headers
+            .get(header::ACCEPT)
+            .and_then(|value| value.to_str().ok()),
+    )
 }
 
 /// One listed name, and the hosted source it was listed from.
@@ -132,8 +154,10 @@ async fn get_project_list(
     let response = if accepts_json(&headers) {
         json_page_response(&render_project_list_json(names.iter().map(String::as_str)))
     } else {
-        let simple_base =
-            format!("{}/{SIMPLE_PATH}", registry_endpoint(&state, ECOSYSTEM, registry.as_deref()));
+        let simple_base = format!(
+            "{}/{SIMPLE_PATH}",
+            registry_endpoint(&state, ECOSYSTEM, registry.as_deref()),
+        );
         html_response(
             &headers,
             render_project_list_html(&simple_base, names.iter().map(String::as_str)),
@@ -156,11 +180,20 @@ async fn visible_project_names(
 ) -> Result<BTreeSet<String>, RegistryError> {
     let mut names = BTreeSet::new();
     for source in hosted_sources(state, target, ECOSYSTEM) {
-        let Some(hosted) = state.inner.config.routing.hosted.get(&source) else { continue };
+        let Some(hosted) = state.inner.config.routing.hosted.get(&source) else {
+            continue;
+        };
         let listed = state.inner.storage.for_hosted(&hosted.org).hosted_package_names().await?;
         for name in listed {
-            if visible_here(state, identity, target, &VisibleName { source: &source, name: &name })
-            {
+            if visible_here(
+                state,
+                identity,
+                target,
+                &VisibleName {
+                    source: &source,
+                    name: &name,
+                },
+            ) {
                 names.insert(name);
             }
         }
@@ -195,16 +228,16 @@ async fn get_project_page(
     headers: HeaderMap,
     Path(params): Path<HashMap<String, String>>,
 ) -> Response {
-    let Some(raw_project) = params.get("project") else { return not_found() };
-    let Ok(key) = CanonicalPackageName::parse(raw_project, ECOSYSTEM) else { return not_found() };
+    let Some(raw_project) = params.get("project") else {
+        return not_found();
+    };
+    let Ok(key) = CanonicalPackageName::parse(raw_project, ECOSYSTEM) else {
+        return not_found();
+    };
     let project = key.as_str();
     let endpoint = registry_endpoint(&state, ECOSYSTEM, registry.as_deref());
     if project != *raw_project {
-        return Response::builder()
-            .status(StatusCode::MOVED_PERMANENTLY)
-            .header(header::LOCATION, format!("{endpoint}/{SIMPLE_PATH}/{project}/"))
-            .body(Body::empty())
-            .expect("static-shape response always builds");
+        return canonical_project_redirect(&endpoint, project);
     }
     let Some(target) = addressed_registry(&state, registry.as_deref(), ECOSYSTEM) else {
         return not_found();
@@ -214,25 +247,19 @@ async fn get_project_page(
             read_hosted_document::<ProjectDocument>(&state, &identity, &source, &key).await
         }
         source @ RegistrySource::Upstream(_) => {
-            load_upstream_page(&state, &identity, &source, &key, project)
-                .await
+            load_upstream_page(&state, &identity, &source, &key, project).await
                 .map(|page| page.map(|(document, _)| document))
         }
         RegistrySource::Unclaimed | RegistrySource::NotFound => Ok(None),
     };
-    let response = match document {
-        Ok(Some(document)) => {
-            let file_base = format!("{endpoint}/{FILES_PATH}/{project}");
-            if accepts_json(&headers) {
-                json_page_response(&document.render_json(&file_base))
-            } else {
-                html_response(&headers, document.render_html(&file_base))
-            }
-        }
-        Ok(None) => not_found(),
-        Err(err) => err.into_response(),
-    };
-    caller_scoped(&state, ECOSYSTEM, registry.as_deref(), Some(project), response)
+    let response = project_page_response(document, &headers, &endpoint, project);
+    caller_scoped(
+        &state,
+        ECOSYSTEM,
+        registry.as_deref(),
+        Some(project),
+        response,
+    )
 }
 
 /// An upstream project's page through the cache, as the parsed document plus
@@ -253,13 +280,15 @@ async fn load_upstream_page(
         limit: PAGE_LIMIT,
     };
     let Some(bytes) = load_upstream_document(state, upstream, &namespace, request, |document| {
-        let body = serde_json::from_slice::<Box<RawValue>>(&document.bytes).map_err(|_| {
-            RegistryError::UpstreamResponse {
+        let body = serde_json::from_slice::<Box<RawValue>>(&document.bytes)
+            .map_err(|_| RegistryError::UpstreamResponse {
                 url: document.url.clone(),
                 reason: "the upstream index must support the Simple JSON API (PEP 691)".to_string(),
-            }
-        })?;
-        Ok(serde_json::to_vec(&CachedPage { url: document.url, body })?)
+            })?;
+        Ok(serde_json::to_vec(&CachedPage {
+            url: document.url,
+            body,
+        })?)
     })
     .await?
     else {
@@ -267,10 +296,11 @@ async fn load_upstream_page(
     };
     let page: CachedPage = serde_json::from_slice(&bytes)?;
     let document = ProjectDocument::parse(page.body.get().as_bytes())?;
-    let base = url::Url::parse(&page.url).map_err(|err| RegistryError::UpstreamResponse {
-        url: page.url.clone(),
-        reason: format!("cached page URL is invalid: {err}"),
-    })?;
+    let base = url::Url::parse(&page.url)
+        .map_err(|err| RegistryError::UpstreamResponse {
+            url: page.url.clone(),
+            reason: format!("cached page URL is invalid: {err}"),
+        })?;
     Ok(Some((document, base)))
 }
 
@@ -285,7 +315,9 @@ async fn get_file(
     else {
         return not_found();
     };
-    let Ok(key) = CanonicalPackageName::parse(raw_project, ECOSYSTEM) else { return not_found() };
+    let Ok(key) = CanonicalPackageName::parse(raw_project, ECOSYSTEM) else {
+        return not_found();
+    };
     let project = key.as_str();
     if !is_safe_path_segment(filename) {
         return not_found();
@@ -297,8 +329,7 @@ async fn get_file(
         RegistrySource::Hosted(source) => {
             match read_hosted_document::<ProjectDocument>(&state, &identity, &source, &key).await {
                 Ok(Some(document)) if document.file(filename).is_some() => {
-                    serve_hosted_blob(&state, &identity, &source, &key, filename)
-                        .await
+                    serve_hosted_blob(&state, &identity, &source, &key, filename).await
                         .unwrap_or_else(IntoResponse::into_response)
                 }
                 Ok(_) => not_found(),
@@ -310,7 +341,13 @@ async fn get_file(
         }
         RegistrySource::Unclaimed | RegistrySource::NotFound => not_found(),
     };
-    caller_scoped(&state, ECOSYSTEM, registry.as_deref(), Some(project), response)
+    caller_scoped(
+        &state,
+        ECOSYSTEM,
+        registry.as_deref(),
+        Some(project),
+        response,
+    )
 }
 
 /// Proxy a file download: bind the request to the page's entry for the
@@ -334,9 +371,15 @@ async fn file_via_upstream(
         Ok(None) => return not_found(),
         Err(err) => return err.into_response(),
     };
-    let Some(entry) = document.file(filename) else { return not_found() };
+    let Some(entry) = document.file(filename) else {
+        return not_found();
+    };
     let bad_entry = |reason: String| {
-        RegistryError::UpstreamResponse { url: base.to_string(), reason }.into_response()
+        RegistryError::UpstreamResponse {
+            url: base.to_string(),
+            reason,
+        }
+        .into_response()
     };
     let Some(origin) = entry.url.as_deref() else {
         return bad_entry(format!("file {filename} has no URL"));
@@ -348,6 +391,45 @@ async fn file_via_upstream(
     let Some(integrity) = entry.sha256().and_then(sha256_integrity) else {
         return bad_entry(format!("file {filename} has no SHA-256 hash"));
     };
-    serve_upstream_artifact(state, upstream, &namespace, key, filename, url.as_str(), &integrity)
-        .await
+    serve_upstream_artifact(
+        state,
+        upstream,
+        &namespace,
+        key,
+        filename,
+        url.as_str(),
+        &integrity,
+    )
+    .await
+}
+
+fn canonical_project_redirect(endpoint: &str, project: &str) -> Response {
+    Response::builder()
+        .status(StatusCode::MOVED_PERMANENTLY)
+        .header(
+            header::LOCATION,
+            format!("{endpoint}/{SIMPLE_PATH}/{project}/"),
+        )
+        .body(Body::empty())
+        .expect("static-shape response always builds")
+}
+
+fn project_page_response(
+    document: Result<Option<ProjectDocument>, RegistryError>,
+    headers: &HeaderMap,
+    endpoint: &str,
+    project: &str,
+) -> Response {
+    match document {
+        Ok(Some(document)) => {
+            let file_base = format!("{endpoint}/{FILES_PATH}/{project}");
+            if accepts_json(headers) {
+                json_page_response(&document.render_json(&file_base))
+            } else {
+                html_response(headers, document.render_html(&file_base))
+            }
+        }
+        Ok(None) => not_found(),
+        Err(err) => err.into_response(),
+    }
 }

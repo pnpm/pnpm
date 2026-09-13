@@ -31,7 +31,10 @@ fn unsafe_perm_force_true_on_windows() {
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("C:/irrelevant"));
-    assert!(config.unsafe_perm, "Windows forces unsafe_perm true regardless of yaml");
+    assert!(
+        config.unsafe_perm,
+        "Windows forces unsafe_perm true regardless of yaml",
+    );
 }
 
 #[test]
@@ -60,8 +63,16 @@ fn script_shell_and_node_options_null_clears_inherited_value() {
     config.script_shell = Some("/inherited/sh".to_string());
     config.node_options = Some("--inherited".to_string());
     absent.apply_to(&mut config, Path::new("/irrelevant"));
-    assert_eq!(config.script_shell.as_deref(), Some("/inherited/sh"), "absent must inherit");
-    assert_eq!(config.node_options.as_deref(), Some("--inherited"), "absent must inherit");
+    assert_eq!(
+        config.script_shell.as_deref(),
+        Some("/inherited/sh"),
+        "absent must inherit",
+    );
+    assert_eq!(
+        config.node_options.as_deref(),
+        Some("--inherited"),
+        "absent must inherit",
+    );
 
     let cleared: WorkspaceSettings =
         serde_saphyr::from_str("scriptShell: null\nnodeOptions: null").unwrap();
@@ -72,6 +83,12 @@ fn script_shell_and_node_options_null_clears_inherited_value() {
     config.script_shell = Some("/inherited/sh".to_string());
     config.node_options = Some("--inherited".to_string());
     cleared.apply_to(&mut config, Path::new("/irrelevant"));
-    assert_eq!(config.script_shell, None, "explicit null must clear the inherited shell");
-    assert_eq!(config.node_options, None, "explicit null must clear inherited NODE_OPTIONS");
+    assert_eq!(
+        config.script_shell, None,
+        "explicit null must clear the inherited shell",
+    );
+    assert_eq!(
+        config.node_options, None,
+        "explicit null must clear inherited NODE_OPTIONS",
+    );
 }

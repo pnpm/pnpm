@@ -25,7 +25,9 @@ pub(super) fn local_target_identity(
     spec: &str,
     project_dir: &Path,
 ) -> Result<Option<LocalTargetIdentity>, PackageManifestError> {
-    let path_without_protocol = spec.split_once(':').map_or(spec, |(_, path)| path);
+    let path_without_protocol = spec
+        .split_once(':')
+        .map_or(spec, |(_, path)| path);
     let Some(manifest) = read_manifest_of_local_target(&project_dir.join(path_without_protocol))?
     else {
         return Ok(None);
@@ -37,7 +39,10 @@ pub(super) fn local_target_identity(
         return Ok(None);
     }
     Ok(Some(LocalTargetIdentity {
-        name: manifest.get("name").and_then(serde_json::Value::as_str).map(str::to_string),
+        name: manifest
+            .get("name")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string),
         version: version.to_string(),
     }))
 }
@@ -79,9 +84,7 @@ pub(super) fn resolved_pkg_name(
     if let Some(name_ver) = result.package.name_ver.as_ref() {
         return Some(name_ver.name.to_string());
     }
-    result
-        .package
-        .manifest
+    result.package.manifest
         .as_deref()?
         .get("name")
         .and_then(serde_json::Value::as_str)
@@ -100,15 +103,17 @@ pub(super) fn build_workspace_root_deps(
     let mut out = Vec::with_capacity(direct.len());
     let mut named = HashSet::default();
     for dep in direct {
-        let Some(pkg) = snapshot.packages.get(dep.id.as_str()) else { continue };
-        let Some(pkg_name) = resolved_pkg_name(&pkg.result) else { continue };
+        let Some(pkg) = snapshot.packages.get(dep.id.as_str()) else {
+            continue;
+        };
+        let Some(pkg_name) = resolved_pkg_name(&pkg.result) else {
+            continue;
+        };
         named.insert(dep.alias.as_str());
         out.push(WorkspaceRootDep {
             alias: dep.alias.clone(),
             pkg_name,
-            normalized_bare_specifier: pkg
-                .result
-                .normalized_bare_specifier
+            normalized_bare_specifier: pkg.result.normalized_bare_specifier
                 .clone()
                 .or_else(|| declared.get(&dep.alias).cloned()),
         });
@@ -138,14 +143,18 @@ pub(super) fn apply_local_target_identity(
 ) -> Result<(), PackageManifestError> {
     // Cloned so the identity can be written back onto `dep`; only the
     // handful of root deps declared with a local protocol reach here.
-    let Some(spec) = dep.normalized_bare_specifier.clone() else { return Ok(()) };
+    let Some(spec) = dep.normalized_bare_specifier.clone() else {
+        return Ok(());
+    };
     if !is_project_relative_specifier(&spec) {
         return Ok(());
     }
     // A path is never hoistable, so a target that names no version to
     // stand in for it leaves the root offering no candidate at all.
     dep.normalized_bare_specifier = None;
-    let Some(identity) = local_target_identity(&spec, project_dir)? else { return Ok(()) };
+    let Some(identity) = local_target_identity(&spec, project_dir)? else {
+        return Ok(());
+    };
     if let Some(name) = identity.name {
         dep.pkg_name = name;
     }

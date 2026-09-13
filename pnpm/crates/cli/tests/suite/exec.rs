@@ -167,8 +167,15 @@ fn exec_runs_binary_from_node_modules_bin() {
         &format!("#!/bin/sh\ntouch \"{}\"\n", marker_path.display()),
     );
 
-    pacquet.with_arg("exec").with_arg("say-hi").assert().success();
-    assert!(marker_path.exists(), "the binary in node_modules/.bin should have run");
+    pacquet
+        .with_arg("exec")
+        .with_arg("say-hi")
+        .assert()
+        .success();
+    assert!(
+        marker_path.exists(),
+        "the binary in node_modules/.bin should have run",
+    );
 
     drop(root);
 }
@@ -193,7 +200,11 @@ fn exec_runs_in_the_cwd_with_the_projects_binaries() {
     let subdir = workspace.join("src/utils");
     fs::create_dir_all(&subdir).expect("create the subdirectory");
 
-    pacquet.with_current_dir(&subdir).with_args(["exec", "record-cwd"]).assert().success();
+    pacquet
+        .with_current_dir(&subdir)
+        .with_args(["exec", "record-cwd"])
+        .assert()
+        .success();
 
     let recorded = fs::read_to_string(&marker_path).expect("read the recorded cwd");
     assert_eq!(
@@ -214,10 +225,18 @@ fn exec_passes_arguments_to_the_command() {
     let marker_path = workspace.join("args.txt");
     write_executable(
         &bin_dir.join("write-arg"),
-        &format!("#!/bin/sh\nprintf %s \"$1\" > \"{}\"\n", marker_path.display()),
+        &format!(
+            "#!/bin/sh\nprintf %s \"$1\" > \"{}\"\n",
+            marker_path.display(),
+        ),
     );
 
-    pacquet.with_arg("exec").with_arg("write-arg").with_arg("hello-world").assert().success();
+    pacquet
+        .with_arg("exec")
+        .with_arg("write-arg")
+        .with_arg("hello-world")
+        .assert()
+        .success();
     let written = fs::read_to_string(&marker_path).expect("read marker");
     assert_eq!(written, "hello-world");
 
@@ -230,7 +249,10 @@ fn exec_passes_arguments_to_the_command() {
 fn exec_errors_when_no_command_given() {
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
 
-    let output = pacquet.with_arg("exec").output().expect("spawn pacquet exec");
+    let output = pacquet
+        .with_arg("exec")
+        .output()
+        .expect("spawn pacquet exec");
     let stderr = String::from_utf8_lossy(&output.stderr);
     eprintln!("STDERR:\n{stderr}\n");
     assert!(!output.status.success(), "exec with no command must fail");
@@ -302,8 +324,14 @@ fn exec_shell_mode_preserves_embedded_quotes() {
         .output()
         .expect("spawn pacquet exec");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(output.status.success(), "shell-mode command must exit 0, got: {output:?}");
-    assert!(stdout.contains("shell-quote-ok"), "embedded quotes must survive; stdout: {stdout:?}");
+    assert!(
+        output.status.success(),
+        "shell-mode command must exit 0, got: {output:?}",
+    );
+    assert!(
+        stdout.contains("shell-quote-ok"),
+        "embedded quotes must survive; stdout: {stdout:?}",
+    );
 
     drop(root);
 }
@@ -323,7 +351,10 @@ fn exec_preserves_a_detached_process_after_success() {
 
     let marker_exists = wait_for_file(&marker_path);
     eprintln!("DETACHED MARKER EXISTS: {marker_exists}");
-    assert!(marker_exists, "the detached process should survive a successful pnpm exec");
+    assert!(
+        marker_exists,
+        "the detached process should survive a successful pnpm exec",
+    );
 
     drop(root);
 }
@@ -362,7 +393,10 @@ fn exec_cleans_up_a_detached_process_after_failure() {
     let ready_path = workspace.join("detached-ready.txt");
     let listener = TcpListener::bind(("127.0.0.1", 0)).expect("listen for detached child");
     listener.set_nonblocking(true).expect("set listener nonblocking");
-    let port = listener.local_addr().expect("read listener address").port();
+    let port = listener
+        .local_addr()
+        .expect("read listener address")
+        .port();
 
     let mut pacquet_process = pacquet
         .with_arg("exec")
@@ -374,7 +408,11 @@ fn exec_cleans_up_a_detached_process_after_failure() {
 
     let connection = accept_detached_connection(&listener, &mut pacquet_process);
     let status = pacquet_process.wait().expect("wait for pacquet exec");
-    assert_eq!(status.code(), Some(1), "the fixture must reach its intentional failure");
+    assert_eq!(
+        status.code(),
+        Some(1),
+        "the fixture must reach its intentional failure",
+    );
     assert_connection_closes(connection);
 
     drop(root);
@@ -394,7 +432,10 @@ fn exec_cleans_up_a_detached_process_after_failure_when_node_launches_pnpm() {
     let release_path = workspace.join("release-node.txt");
     let listener = TcpListener::bind(("127.0.0.1", 0)).expect("listen for detached child");
     listener.set_nonblocking(true).expect("set listener nonblocking");
-    let port = listener.local_addr().expect("read listener address").port();
+    let port = listener
+        .local_addr()
+        .expect("read listener address")
+        .port();
     let detached_script = make_connected_detached_node_script(&ready_path, port);
 
     let mut node_process = node_launching_pacquet(
@@ -416,7 +457,11 @@ fn exec_cleans_up_a_detached_process_after_failure_when_node_launches_pnpm() {
 
     fs::write(&release_path, "").expect("release node");
     let status = node_process.wait().expect("wait for node launching pacquet exec");
-    assert_eq!(status.code(), Some(1), "node must forward the fixture's intentional failure");
+    assert_eq!(
+        status.code(),
+        Some(1),
+        "node must forward the fixture's intentional failure",
+    );
 
     drop(root);
 }
@@ -441,7 +486,11 @@ fn exec_propagates_nonzero_exit_code() {
         .with_arg("exit 3")
         .output()
         .expect("spawn pacquet exec");
-    assert_eq!(output.status.code(), Some(3), "the child's exit code must propagate");
+    assert_eq!(
+        output.status.code(),
+        Some(3),
+        "the child's exit code must propagate",
+    );
 
     drop(root);
 }
@@ -466,7 +515,10 @@ fn exec_stamps_pnpm_package_name_from_manifest() {
         .with_arg("exec")
         .with_arg("sh")
         .with_arg("-c")
-        .with_arg(format!(r#"printf %s "$PNPM_PACKAGE_NAME" > "{}""#, marker.display()))
+        .with_arg(format!(
+            r#"printf %s "$PNPM_PACKAGE_NAME" > "{}""#,
+            marker.display(),
+        ))
         .assert()
         .success();
 

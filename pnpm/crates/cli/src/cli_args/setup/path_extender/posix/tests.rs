@@ -139,7 +139,10 @@ fn proxy_value_is_single_quote_escaped_against_injection() {
     // shell never expands `$(...)` when the rc file is sourced.
     let settings = render_posix_settings("/home/u/$(touch pwned)/it's", &opts(false));
     let first_line = settings.lines().next();
-    assert_eq!(first_line, Some(r"export PNPM_HOME='/home/u/$(touch pwned)/it'\''s'"));
+    assert_eq!(
+        first_line,
+        Some(r"export PNPM_HOME='/home/u/$(touch pwned)/it'\''s'"),
+    );
 }
 
 #[test]
@@ -148,13 +151,22 @@ fn rejects_pnpm_home_with_a_path_separator() {
     // entries, so it is rejected before any rc file is touched.
     let err = add_dir_to_posix_env_path(Path::new("/home/pnpm:/tmp/evil"), &opts(false))
         .expect_err("a colon in PNPM_HOME must be rejected");
-    assert!(matches!(err, PathExtenderError::UnsafePnpmHome { character: ':', .. }));
+    assert!(matches!(
+        err,
+        PathExtenderError::UnsafePnpmHome {
+            character: ':',
+            ..
+        }
+    ));
 }
 
 #[test]
 fn create_config_file_when_it_does_not_exist() {
     let dir = tempfile::tempdir().expect("create temp dir");
-    let config_file = dir.path().join("sub").join(".bashrc");
+    let config_file = dir
+        .path()
+        .join("sub")
+        .join(".bashrc");
     let content = wrap_settings("pnpm", "export FOO=1");
 
     let (change_type, old_settings) =
@@ -234,7 +246,10 @@ fn find_section_extracts_the_inner_settings() {
     let content = "head\n# pnpm\nbody line 1\nbody line 2\n# pnpm end\ntail";
     let (range, inner) = find_section(content, "pnpm").expect("section is present");
     assert_eq!(inner, "body line 1\nbody line 2");
-    assert_eq!(&content[range], "# pnpm\nbody line 1\nbody line 2\n# pnpm end");
+    assert_eq!(
+        &content[range],
+        "# pnpm\nbody line 1\nbody line 2\n# pnpm end",
+    );
 }
 
 #[test]

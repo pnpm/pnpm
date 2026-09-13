@@ -22,9 +22,28 @@ fn patch_commit_diff_dirs_strips_absolute_temp_paths() {
 
     let diff = diff_folders(before.path(), after.path()).expect("diff dirs");
 
-    assert!(diff.contains("diff --git a/index.js b/index.js"), "diff: {diff}");
-    assert!(!diff.contains(&before.path().display().to_string()), "diff: {diff}");
-    assert!(!diff.contains(&after.path().display().to_string()), "diff: {diff}");
+    assert!(
+        diff.contains("diff --git a/index.js b/index.js"),
+        "diff: {diff}",
+    );
+    assert!(
+        !diff.contains(
+            &before
+                .path()
+                .display()
+                .to_string()
+        ),
+        "diff: {diff}",
+    );
+    assert!(
+        !diff.contains(
+            &after
+                .path()
+                .display()
+                .to_string()
+        ),
+        "diff: {diff}",
+    );
 }
 
 #[test]
@@ -39,8 +58,14 @@ fn patch_commit_diff_dirs_supports_non_ascii_paths() {
 
     let diff = diff_folders(&before, &after).expect("diff dirs");
 
-    assert!(diff.contains("diff --git a/index.js b/index.js"), "diff: {diff}");
-    assert!(!diff.contains(&before.display().to_string()), "diff: {diff}");
+    assert!(
+        diff.contains("diff --git a/index.js b/index.js"),
+        "diff: {diff}",
+    );
+    assert!(
+        !diff.contains(&before.display().to_string()),
+        "diff: {diff}",
+    );
     assert!(!diff.contains(&after.display().to_string()), "diff: {diff}");
 }
 
@@ -84,7 +109,10 @@ fn patch_commit_diff_dirs_accepts_paths_that_start_with_dash() {
 
     let diff = diff_folders(&before, &after).expect("diff dirs");
 
-    assert!(diff.contains("diff --git a/index.js b/index.js"), "diff: {diff}");
+    assert!(
+        diff.contains("diff --git a/index.js b/index.js"),
+        "diff: {diff}",
+    );
 }
 
 #[cfg(unix)]
@@ -92,7 +120,10 @@ fn patch_commit_diff_dirs_accepts_paths_that_start_with_dash() {
 fn patch_commit_diff_temp_files_are_owner_only() {
     let temp_file = DiffTempFile::new("stdout").expect("diff temp file");
 
-    let mode = fs::metadata(&temp_file.path).expect("diff temp metadata").permissions().mode();
+    let mode = fs::metadata(&temp_file.path)
+        .expect("diff temp metadata")
+        .permissions()
+        .mode();
 
     assert_eq!(mode & 0o777, 0o600);
 }
@@ -137,7 +168,10 @@ fn patch_commit_prepare_pkg_files_for_diff_creates_nested_parent_dirs() {
         panic!("files field should require a temporary filtered dir");
     };
 
-    assert_eq!(fs::read_to_string(path.join("lib/index.js")).unwrap(), "included\n");
+    assert_eq!(
+        fs::read_to_string(path.join("lib/index.js")).unwrap(),
+        "included\n",
+    );
     assert!(!path.join("ignore.txt").exists());
 
     fs::remove_dir_all(path).unwrap();
@@ -157,7 +191,10 @@ fn patch_commit_prepare_pkg_files_for_diff_reports_nested_parent_create_errors()
 
     let err = prepare_pkg_files_for_diff_with_fs(
         edit_dir.path(),
-        &CreateDirErrorFs { fail_on: "lib", created_dirs: Cell::new(0) },
+        &CreateDirErrorFs {
+            fail_on: "lib",
+            created_dirs: Cell::new(0),
+        },
     )
     .expect_err("nested parent creation should fail");
 
@@ -189,7 +226,11 @@ fn patch_commit_prepare_pkg_files_for_diff_reports_hard_link_errors() {
 /// surfaces one.
 #[test]
 fn safe_package_file_path_rejects_paths_that_escape_source() {
-    for path in ["../secret.js", "a/../../secret.js", "nested/../../escape.js"] {
+    for path in [
+        "../secret.js",
+        "a/../../secret.js",
+        "nested/../../escape.js",
+    ] {
         assert!(
             matches!(
                 safe_package_file_path(path),
@@ -222,13 +263,20 @@ fn patch_commit_prepare_pkg_files_for_diff_drops_escaping_main_field() {
         panic!("package files should be prepared in a temporary filtered dir");
     };
     assert!(path.join("index.js").exists());
-    assert!(!path.join("secret.js").exists(), "the escaping main must not be materialized");
+    assert!(
+        !path.join("secret.js").exists(),
+        "the escaping main must not be materialized",
+    );
 }
 
 #[test]
 fn patch_commit_prepare_pkg_files_for_diff_uses_filtered_view_when_packlist_matches_all_files() {
     let edit_dir = tempdir().expect("edit dir");
-    fs::write(edit_dir.path().join("package.json"), r#"{"name":"pkg","version":"1.0.0"}"#).unwrap();
+    fs::write(
+        edit_dir.path().join("package.json"),
+        r#"{"name":"pkg","version":"1.0.0"}"#,
+    )
+    .unwrap();
     fs::write(edit_dir.path().join("index.js"), "included\n").unwrap();
 
     let filtered = prepare_pkg_files_for_diff(edit_dir.path()).expect("prepare files");
@@ -237,7 +285,10 @@ fn patch_commit_prepare_pkg_files_for_diff_uses_filtered_view_when_packlist_matc
     };
 
     assert_eq!(path, temporary_filtered_dir(edit_dir.path()));
-    assert_eq!(fs::read_to_string(path.join("index.js")).unwrap(), "included\n");
+    assert_eq!(
+        fs::read_to_string(path.join("index.js")).unwrap(),
+        "included\n",
+    );
     fs::remove_dir_all(path).unwrap();
 }
 
@@ -269,7 +320,10 @@ index 123..456 100644
 
     let normalized = normalize_diff_output(diff, "/tmp/before", "/tmp/after");
 
-    assert!(normalized.contains("diff --git a/index.js b/index.js"), "{normalized}");
+    assert!(
+        normalized.contains("diff --git a/index.js b/index.js"),
+        "{normalized}",
+    );
     assert!(normalized.contains("--- a/index.js"), "{normalized}");
     assert!(normalized.contains("+++ b/index.js"), "{normalized}");
     assert!(normalized.contains(r#"-console.log("/tmp/before/ must stay in content")"#));
@@ -288,9 +342,20 @@ fn patch_commit_diff_dirs_strips_temp_paths_from_deleted_files() {
 
     let diff = diff_folders(before.path(), after.path()).expect("diff dirs");
 
-    assert!(diff.contains("diff --git a/readme.md b/readme.md\n"), "diff: {diff}");
+    assert!(
+        diff.contains("diff --git a/readme.md b/readme.md\n"),
+        "diff: {diff}",
+    );
     assert!(diff.contains("deleted file mode 100644\n"), "diff: {diff}");
-    assert!(!diff.contains(&before.path().display().to_string()), "diff: {diff}");
+    assert!(
+        !diff.contains(
+            &before
+                .path()
+                .display()
+                .to_string()
+        ),
+        "diff: {diff}",
+    );
 }
 
 #[test]
@@ -323,10 +388,21 @@ fn patch_commit_diff_dirs_strips_temp_paths_from_added_files() {
 
     let diff = diff_folders(before.path(), after.path()).expect("diff dirs");
 
-    assert!(diff.contains("diff --git a/added.txt b/added.txt\n"), "diff: {diff}");
+    assert!(
+        diff.contains("diff --git a/added.txt b/added.txt\n"),
+        "diff: {diff}",
+    );
     assert!(diff.contains("new file mode 100644\n"), "diff: {diff}");
     assert!(diff.contains("+++ b/added.txt\n"), "diff: {diff}");
-    assert!(!diff.contains(&after.path().display().to_string()), "diff: {diff}");
+    assert!(
+        !diff.contains(
+            &after
+                .path()
+                .display()
+                .to_string()
+        ),
+        "diff: {diff}",
+    );
 }
 
 #[test]
@@ -364,12 +440,18 @@ fn patch_commit_diff_dirs_writes_a_parseable_deleted_file_patch() {
     let diff = diff_folders(before.path(), after.path()).expect("diff dirs");
 
     let mut patches = PatchSet::parse(&diff, ParseOptions::gitdiff());
-    let patch = patches.next().expect("deleted file patch").expect("parse generated patch");
+    let patch = patches
+        .next()
+        .expect("deleted file patch")
+        .expect("parse generated patch");
     let FileOperation::Delete(path) = patch.operation().strip_prefix(1) else {
         panic!("expected a file deletion, diff: {diff}");
     };
     assert_eq!(path.as_ref(), "readme.md");
-    assert!(patches.next().is_none(), "expected one file patch, diff: {diff}");
+    assert!(
+        patches.next().is_none(),
+        "expected one file patch, diff: {diff}",
+    );
 }
 
 /// See [`patch_commit_diff_dirs_writes_a_parseable_deleted_file_patch`]. The `+++` marker lets
@@ -380,18 +462,34 @@ fn patch_commit_diff_dirs_writes_a_parseable_nested_added_file_patch() {
     let before = tempdir().expect("before dir");
     let after = tempdir().expect("after dir");
     fs::create_dir(after.path().join("docs")).unwrap();
-    fs::write(after.path().join("docs").join("readme.md"), "package documentation\n").unwrap();
+    fs::write(
+        after
+            .path()
+            .join("docs")
+            .join("readme.md"),
+        "package documentation\n",
+    )
+    .unwrap();
 
     let diff = diff_folders(before.path(), after.path()).expect("diff dirs");
 
-    assert_eq!(diff.lines().next(), Some("diff --git a/docs/readme.md b/docs/readme.md"));
+    assert_eq!(
+        diff.lines().next(),
+        Some("diff --git a/docs/readme.md b/docs/readme.md"),
+    );
     let mut patches = PatchSet::parse(&diff, ParseOptions::gitdiff());
-    let patch = patches.next().expect("added file patch").expect("parse generated patch");
+    let patch = patches
+        .next()
+        .expect("added file patch")
+        .expect("parse generated patch");
     let FileOperation::Create(path) = patch.operation().strip_prefix(1) else {
         panic!("expected a file creation, diff: {diff}");
     };
     assert_eq!(path.as_ref(), "docs/readme.md");
-    assert!(patches.next().is_none(), "expected one file patch, diff: {diff}");
+    assert!(
+        patches.next().is_none(),
+        "expected one file patch, diff: {diff}",
+    );
 }
 
 #[test]
@@ -441,7 +539,10 @@ fn patch_commit_remove_existing_temp_dir_rejects_symlinked_temp_dir() {
         .expect_err("symlinked temp dir should be rejected");
 
     assert!(matches!(err, PatchCommitError::UnsafeTempDir { .. }));
-    assert_eq!(fs::read_to_string(outside.join("sentinel")).unwrap(), "keep");
+    assert_eq!(
+        fs::read_to_string(outside.join("sentinel")).unwrap(),
+        "keep",
+    );
 }
 
 struct CreateDirErrorFs {
@@ -456,7 +557,10 @@ impl PatchCommitFs for CreateDirErrorFs {
 
     fn create_dir_all(&self, path: &Path) -> io::Result<()> {
         if path.ends_with(self.fail_on) {
-            return Err(io::Error::new(io::ErrorKind::PermissionDenied, "blocked create_dir_all"));
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "blocked create_dir_all",
+            ));
         }
         self.created_dirs.set(self.created_dirs.get() + 1);
         fs::create_dir_all(path)
@@ -487,7 +591,10 @@ impl PatchCommitFs for HardLinkErrorFs {
     }
 
     fn hard_link(&self, _source: &Path, _target: &Path) -> io::Result<()> {
-        Err(io::Error::new(io::ErrorKind::PermissionDenied, "blocked hard_link"))
+        Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "blocked hard_link",
+        ))
     }
 
     fn remove_dir_all(&self, path: &Path) -> io::Result<()> {
@@ -515,6 +622,9 @@ impl PatchCommitFs for RemoveDirErrorFs {
     }
 
     fn remove_dir_all(&self, _path: &Path) -> io::Result<()> {
-        Err(io::Error::new(io::ErrorKind::PermissionDenied, "blocked remove_dir_all"))
+        Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "blocked remove_dir_all",
+        ))
     }
 }

@@ -27,7 +27,10 @@ fn resolved_config_applies_trust_lockfile() {
         let mut options = install_options();
         options.trust_lockfile = trust_lockfile;
         let overlay = build_overlay(&options, false).expect("overlay");
-        assert_eq!(resolve_config(dir.path(), &overlay).expect("config").trust_lockfile, expected);
+        assert_eq!(
+            resolve_config(dir.path(), &overlay).expect("config").trust_lockfile,
+            expected,
+        );
     }
 }
 
@@ -85,5 +88,8 @@ fn a_configured_store_dir_outranks_pnpm_home_dir() {
     let overlay = build_overlay(&options, false).expect("overlay");
     let config = resolve_config(&project_dir, &overlay).expect("config");
 
-    assert_eq!(config.store_dir.root(), configured_store.join(STORE_VERSION));
+    assert_eq!(
+        config.store_dir.root(),
+        configured_store.join(STORE_VERSION),
+    );
 }

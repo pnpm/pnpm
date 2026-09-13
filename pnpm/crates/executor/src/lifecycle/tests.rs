@@ -14,12 +14,18 @@ use tempfile::tempdir;
 #[test]
 fn streamed_output_splits_newline_free_data_into_bounded_chunks() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().expect("lock").clear();
+    EVENTS
+        .lock()
+        .expect("lock")
+        .clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS
+                .lock()
+                .expect("lock")
+                .push(event.clone());
         }
     }
 
@@ -66,12 +72,18 @@ fn streamed_output_splits_newline_free_data_into_bounded_chunks() {
 #[test]
 fn lifecycle_emits_script_stdio_and_exit_in_order() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().expect("lock").clear();
+    EVENTS
+        .lock()
+        .expect("lock")
+        .clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS
+                .lock()
+                .expect("lock")
+                .push(event.clone());
         }
     }
 
@@ -114,7 +126,10 @@ fn lifecycle_emits_script_stdio_and_exit_in_order() {
     let ran = run_postinstall_hooks::<RecordingReporter>(&opts).expect("postinstall");
     assert!(ran, "postinstall script should report executed");
 
-    let captured = EVENTS.lock().expect("lock").clone();
+    let captured = EVENTS
+        .lock()
+        .expect("lock")
+        .clone();
     dbg!(&captured);
 
     let first = captured.first().expect("at least one event");
@@ -152,11 +167,15 @@ fn lifecycle_emits_script_stdio_and_exit_in_order() {
     let stdio = stdio_lines(&captured);
     dbg!(&stdio);
     assert!(
-        stdio.iter().any(|(s, l)| **s == LifecycleStdio::Stdout && *l == "HELLO"),
+        stdio
+            .iter()
+            .any(|(s, l)| **s == LifecycleStdio::Stdout && *l == "HELLO"),
         "stdout 'HELLO' must be emitted: {stdio:?}",
     );
     assert!(
-        stdio.iter().any(|(s, l)| **s == LifecycleStdio::Stderr && *l == "BAD"),
+        stdio
+            .iter()
+            .any(|(s, l)| **s == LifecycleStdio::Stderr && *l == "BAD"),
         "stderr 'BAD' must be emitted: {stdio:?}",
     );
 }
@@ -167,7 +186,9 @@ fn stdio_lines(captured: &[LogEvent]) -> Vec<(&LifecycleStdio, &str)> {
     captured
         .iter()
         .filter_map(|event| {
-            let LogEvent::Lifecycle(lifecycle) = event else { return None };
+            let LogEvent::Lifecycle(lifecycle) = event else {
+                return None;
+            };
             let LifecycleMessage::Stdio { line, stdio, .. } = &lifecycle.message else {
                 return None;
             };
@@ -180,12 +201,18 @@ fn stdio_lines(captured: &[LogEvent]) -> Vec<(&LifecycleStdio, &str)> {
 #[test]
 fn lifecycle_events_carry_optional_flag() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().expect("lock").clear();
+    EVENTS
+        .lock()
+        .expect("lock")
+        .clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS
+                .lock()
+                .expect("lock")
+                .push(event.clone());
         }
     }
 
@@ -227,7 +254,10 @@ fn lifecycle_events_carry_optional_flag() {
 
     run_postinstall_hooks::<RecordingReporter>(&opts).expect("postinstall");
 
-    let captured = EVENTS.lock().expect("lock").clone();
+    let captured = EVENTS
+        .lock()
+        .expect("lock")
+        .clone();
     let lifecycle_events: Vec<_> = captured
         .iter()
         .filter_map(|event| match event {
@@ -257,12 +287,18 @@ fn lifecycle_events_carry_optional_flag() {
 #[test]
 fn lifecycle_emits_exit_with_nonzero_code_on_failure() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().expect("lock").clear();
+    EVENTS
+        .lock()
+        .expect("lock")
+        .clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS
+                .lock()
+                .expect("lock")
+                .push(event.clone());
         }
     }
 
@@ -305,7 +341,10 @@ fn lifecycle_emits_exit_with_nonzero_code_on_failure() {
     let err = run_postinstall_hooks::<RecordingReporter>(&opts).expect_err("script must fail");
     eprintln!("ERR: {err}");
 
-    let captured = EVENTS.lock().expect("lock").clone();
+    let captured = EVENTS
+        .lock()
+        .expect("lock")
+        .clone();
     dbg!(&captured);
 
     let last = captured.last().expect("at least one event");
@@ -393,7 +432,10 @@ fn missing_manifest_returns_false() {
     };
 
     let ran = run_postinstall_hooks::<SilentReporter>(&opts).expect("missing manifest is OK");
-    assert!(!ran, "missing manifest must report no scripts ran: ran={ran}");
+    assert!(
+        !ran,
+        "missing manifest must report no scripts ran: ran={ran}",
+    );
 }
 
 /// Unix-only: relies on `printf` and `$VAR` expansion, which `cmd`
@@ -412,7 +454,10 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
     }
     impl EnvGuard {
         fn new(key: &'static str) -> Self {
-            EnvGuard { key, prev: std::env::var_os(key) }
+            EnvGuard {
+                key,
+                prev: std::env::var_os(key),
+            }
         }
     }
     impl Drop for EnvGuard {
@@ -485,7 +530,10 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
     };
 
     let ran = run_postinstall_hooks::<SilentReporter>(&opts).expect("postinstall");
-    assert!(ran, "run_postinstall_hooks must report at least one script ran: ran={ran}");
+    assert!(
+        ran,
+        "run_postinstall_hooks must report at least one script ran: ran={ran}",
+    );
 
     let dump = fs::read_to_string(&dump_path).expect("read env dump");
 
@@ -501,9 +549,15 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
     ];
     for (k, v) in expected_pairs {
         let line = format!("{k}={v}\n");
-        assert!(dump.contains(&line), "missing line {line:?} in dump:\n{dump}");
+        assert!(
+            dump.contains(&line),
+            "missing line {line:?} in dump:\n{dump}",
+        );
     }
-    assert!(dump.contains("script=printf"), "missing script= line in dump:\n{dump}");
+    assert!(
+        dump.contains("script=printf"),
+        "missing script= line in dump:\n{dump}",
+    );
 }
 
 #[test]
@@ -543,7 +597,8 @@ fn malformed_manifest_propagates_error() {
     let err = run_postinstall_hooks::<SilentReporter>(&opts).expect_err("malformed JSON must fail");
     eprintln!("ERR: {err}");
     let LifecycleScriptError::ReadManifest {
-        source: PackageManifestError::Parse { path, .. }, ..
+        source: PackageManifestError::Parse { path, .. },
+        ..
     } = &err
     else {
         panic!("expected ReadManifest(Parse), got {err:?}")
@@ -558,12 +613,18 @@ fn malformed_manifest_propagates_error() {
 #[test]
 fn shell_emulator_lifecycle_emits_stdio_and_a_failing_exit() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().expect("lock").clear();
+    EVENTS
+        .lock()
+        .expect("lock")
+        .clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS
+                .lock()
+                .expect("lock")
+                .push(event.clone());
         }
     }
 
@@ -615,7 +676,10 @@ fn shell_emulator_lifecycle_emits_stdio_and_a_failing_exit() {
         "the emulated exit code must reach the caller: {error:?}",
     );
 
-    let captured = EVENTS.lock().expect("lock").clone();
+    let captured = EVENTS
+        .lock()
+        .expect("lock")
+        .clone();
     dbg!(&captured);
 
     let last = captured.last().expect("at least one event");
@@ -646,11 +710,15 @@ fn shell_emulator_lifecycle_emits_stdio_and_a_failing_exit() {
         .collect();
     dbg!(&stdio);
     assert!(
-        stdio.iter().any(|(s, l)| **s == LifecycleStdio::Stdout && *l == "HELLO"),
+        stdio
+            .iter()
+            .any(|(s, l)| **s == LifecycleStdio::Stdout && *l == "HELLO"),
         "stdout 'HELLO' must be emitted: {stdio:?}",
     );
     assert!(
-        stdio.iter().any(|(s, l)| **s == LifecycleStdio::Stderr && *l == "BAD"),
+        stdio
+            .iter()
+            .any(|(s, l)| **s == LifecycleStdio::Stderr && *l == "BAD"),
         "stderr 'BAD' must be emitted: {stdio:?}",
     );
 }

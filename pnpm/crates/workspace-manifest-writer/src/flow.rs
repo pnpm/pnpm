@@ -50,17 +50,24 @@ impl Collection {
 
     /// The entry keys, in document order. Empty for a sequence.
     pub(crate) fn keys(&self) -> Vec<String> {
-        self.entries.iter().filter_map(|entry| entry.key.clone()).collect()
+        self.entries
+            .iter()
+            .filter_map(|entry| entry.key.clone())
+            .collect()
     }
 
     fn position_of(&self, key: &str) -> Option<usize> {
-        self.entries.iter().position(|entry| entry.key.as_deref() == Some(key))
+        self.entries
+            .iter()
+            .position(|entry| entry.key.as_deref() == Some(key))
     }
 
     /// Byte offset where `key`'s value starts, for descending into a
     /// collection nested in this one.
     pub(crate) fn value_start(&self, key: &str) -> Option<usize> {
-        self.position_of(key).map(|position| self.entries[position].value.start)
+        self
+            .position_of(key)
+            .map(|position| self.entries[position].value.start)
     }
 }
 
@@ -80,24 +87,35 @@ pub(crate) fn parse(text: &str, open: usize) -> Option<Collection> {
         .into_iter()
         .map(|span| entry(text, span, kind))
         .collect::<Option<Vec<Entry>>>()?;
-    Some(Collection { kind, span: open..close + 1, entries })
+    Some(Collection {
+        kind,
+        span: open..close + 1,
+        entries,
+    })
 }
 
 /// Replace `key`'s value, or add the entry at the position the reorder pass
 /// would choose, and return the document with the rebuilt collection
 /// spliced in. `value_text` is already-rendered YAML.
 pub(crate) fn upsert(text: &str, collection: &Collection, key: &str, value_text: &str) -> String {
-    let mut entries: Vec<String> =
-        collection.entries.iter().map(|entry| text[entry.span.clone()].to_string()).collect();
+    let mut entries: Vec<String> = collection.entries
+        .iter()
+        .map(|entry| text[entry.span.clone()].to_string())
+        .collect();
     if let Some(position) = collection.position_of(key) {
         let entry = &collection.entries[position];
         let key_text = text[entry.span.start..entry.value.start].trim_end();
         entries[position] = format!("{key_text} {value_text}");
     } else {
         let order = crate::render::target_order(&collection.keys(), &[key.to_string()]);
-        let position =
-            order.iter().position(|ordered| ordered == key).expect("key is in the order");
-        entries.insert(position, format!("{}: {value_text}", crate::render::render_value(key)));
+        let position = order
+            .iter()
+            .position(|ordered| ordered == key)
+            .expect("key is in the order");
+        entries.insert(
+            position,
+            format!("{}: {value_text}", crate::render::render_value(key)),
+        );
     }
     splice(text, collection, &entries)
 }
@@ -105,10 +123,13 @@ pub(crate) fn upsert(text: &str, collection: &Collection, key: &str, value_text:
 /// Drop the entries whose key is in `keys` and return the document with the
 /// rebuilt collection spliced in.
 pub(crate) fn remove_keys(text: &str, collection: &Collection, keys: &[String]) -> String {
-    let entries: Vec<String> = collection
-        .entries
+    let entries: Vec<String> = collection.entries
         .iter()
-        .filter(|entry| !entry.key.as_ref().is_some_and(|key| keys.contains(key)))
+        .filter(|entry| {
+            !entry.key
+                .as_ref()
+                .is_some_and(|key| keys.contains(key))
+        })
         .map(|entry| text[entry.span.clone()].to_string())
         .collect();
     splice(text, collection, &entries)
@@ -171,7 +192,9 @@ pub(crate) fn closing_bracket_across_lines(text: &str, open: usize) -> Option<us
     while idx < bytes.len() {
         match bytes[idx] {
             b'#' if idx > open && bytes[idx - 1].is_ascii_whitespace() => {
-                idx = text[idx..].find('\n').map_or(bytes.len(), |offset| idx + offset + 1);
+                idx = text[idx..]
+                    .find('\n')
+                    .map_or(bytes.len(), |offset| idx + offset + 1);
             }
             b'{' | b'[' => {
                 depth += 1;
@@ -248,12 +271,20 @@ fn trim_span(text: &str, span: Range<usize>) -> Option<Range<usize>> {
 /// span of its value; for a sequence, the item alone.
 fn entry(text: &str, span: Range<usize>, kind: Kind) -> Option<Entry> {
     if kind == Kind::Sequence {
-        return Some(Entry { key: None, span: span.clone(), value: span });
+        return Some(Entry {
+            key: None,
+            span: span.clone(),
+            value: span,
+        });
     }
     let delimiter = key_delimiter(text, span.clone())?;
     let key = decode_key(text[span.start..delimiter].trim_end())?;
     let value = trim_span(text, delimiter + 1..span.end)?;
-    Some(Entry { key: Some(key), span, value })
+    Some(Entry {
+        key: Some(key),
+        span,
+        value,
+    })
 }
 
 /// Byte offset of the `:` separating a flow mapping entry's key from its
@@ -273,7 +304,9 @@ fn key_delimiter(text: &str, span: Range<usize>) -> Option<usize> {
         match bytes[idx] {
             b':' if depth == 0
                 && (after_quoted_key
-                    || bytes.get(idx + 1).is_none_or(u8::is_ascii_whitespace)
+                    || bytes
+                        .get(idx + 1)
+                        .is_none_or(u8::is_ascii_whitespace)
                     || idx + 1 == span.end) =>
             {
                 return Some(idx);

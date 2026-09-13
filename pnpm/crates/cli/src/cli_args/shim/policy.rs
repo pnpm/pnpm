@@ -70,9 +70,13 @@ pub(super) fn set_policy(
     fs::create_dir_all(&config_dir)
         .into_diagnostic()
         .wrap_err_with(|| format!("create {}", config_dir.display()))?;
-    update_manifest_field(&config_dir.join(GLOBAL_CONFIG_YAML_FILENAME), "globalShims", &value)
-        .map_err(miette::Report::new)
-        .wrap_err("record the globalShims setting")
+    update_manifest_field(
+        &config_dir.join(GLOBAL_CONFIG_YAML_FILENAME),
+        "globalShims",
+        &value,
+    )
+    .map_err(miette::Report::new)
+    .wrap_err("record the globalShims setting")
 }
 
 /// Opt every package manager among `packages` into project-aware
@@ -103,15 +107,18 @@ pub(crate) fn record_package_manager_shims<'a>(
         {
             continue;
         }
-        set_policy(config, package, Some(ShimPolicyValue::Named(NamedShimPolicy::Auto)))?;
+        set_policy(
+            config,
+            package,
+            Some(ShimPolicyValue::Named(NamedShimPolicy::Auto)),
+        )?;
         added.insert(package.to_string());
     }
     Ok(added)
 }
 
 pub(super) fn global_config_dir(config: &Config) -> miette::Result<PathBuf> {
-    config
-        .config_dir
+    config.config_dir
         .clone()
         .or_else(default_config_dir::<Host>)
         .ok_or_else(|| ShimError::NoGlobalDir.into())
@@ -127,7 +134,10 @@ pub(super) fn global_config_dir(config: &Config) -> miette::Result<PathBuf> {
 /// would read after this command.
 pub(super) fn would_dispatch(config: &Config, package: &str) -> miette::Result<bool> {
     let mut recorded = recorded_entries(&global_config_dir(config)?)?;
-    recorded.insert(package.to_string(), ShimPolicyValue::Named(NamedShimPolicy::Auto));
+    recorded.insert(
+        package.to_string(),
+        ShimPolicyValue::Named(NamedShimPolicy::Auto),
+    );
     let mut shims = GlobalShims::default();
     shims.apply(&GlobalShimsSetting::Entries(recorded));
     crate::shim_dispatch::apply_settings_above_global_config(&mut shims)
@@ -176,6 +186,11 @@ pub(super) fn recorded_entries(
 pub(super) fn default_entries() -> std::collections::HashMap<String, ShimPolicyValue> {
     GlobalShims::default()
         .entries()
-        .map(|(name, _)| (name.to_string(), ShimPolicyValue::Named(NamedShimPolicy::Auto)))
+        .map(|(name, _)| {
+            (
+                name.to_string(),
+                ShimPolicyValue::Named(NamedShimPolicy::Auto),
+            )
+        })
         .collect()
 }

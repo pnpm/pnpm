@@ -15,8 +15,13 @@ async fn forwards_optional_dependencies() {
     let outcome = client.resolve(opts).await.expect("install should succeed");
     let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
     assert!(
-        packages.keys().any(|key| key.to_string().starts_with("@foo/no-deps@1.0.0")),
+        packages
+            .keys()
+            .any(|key| key.to_string().starts_with("@foo/no-deps@1.0.0")),
         "the optional dependency should be resolved into the lockfile, got: {:?}",
-        packages.keys().map(ToString::to_string).collect::<Vec<_>>(),
+        packages
+            .keys()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>(),
     );
 }

@@ -118,8 +118,11 @@ fn preferred_version_specifier(
     let (versions, non_versions) = split_version_selectors(selectors);
     let range_for_match = get_peer_version_range(range);
     let is_semver_range = range_for_match.parse::<Range>().is_ok();
-    let satisfying_version =
-        if is_semver_range { max_satisfying(&versions, &range_for_match) } else { None };
+    let satisfying_version = if is_semver_range {
+        max_satisfying(&versions, &range_for_match)
+    } else {
+        None
+    };
     if let Some(satisfying) = satisfying_version {
         let mut parts: Vec<&str> = vec![satisfying];
         parts.extend(non_versions.iter().copied());
@@ -191,7 +194,9 @@ pub(crate) fn get_hoistable_optional_peers_with_locked_versions(
 ) -> BTreeMap<String, String> {
     let mut optional_dependencies = BTreeMap::new();
     for (peer_name, ranges) in all_missing_optional_peers {
-        let Some(selectors) = all_preferred_versions.get(peer_name) else { continue };
+        let Some(selectors) = all_preferred_versions.get(peer_name) else {
+            continue;
+        };
         let version = max_hoistable_optional_version(
             selectors,
             ranges,
@@ -215,8 +220,11 @@ fn max_hoistable_optional_version(
 ) -> Option<Version> {
     // An unparsable range is satisfied by nothing, so bailing on the
     // peer matches failing the check per candidate.
-    let parsed_ranges: Vec<Range> =
-        ranges.iter().map(|range| range.parse::<Range>()).collect::<Result<_, _>>().ok()?;
+    let parsed_ranges: Vec<Range> = ranges
+        .iter()
+        .map(|range| range.parse::<Range>())
+        .collect::<Result<_, _>>()
+        .ok()?;
     // The workspace root's own specifier bounds the candidates the
     // same way it short-circuits `hoist_peers` above. Maximizing over
     // every version in the graph instead lets one importer's newer
@@ -230,7 +238,11 @@ fn max_hoistable_optional_version(
     let root_range = root_dep
         .and_then(|dep| dep.normalized_bare_specifier.as_deref())
         .and_then(|spec| get_peer_version_range(spec).parse::<Range>().ok())
-        .filter(|root| parsed_ranges.iter().all(|parsed| root.allows_any(parsed)));
+        .filter(|root| {
+            parsed_ranges
+                .iter()
+                .all(|parsed| root.allows_any(parsed))
+        });
 
     let mut max_satisfying_version: Option<Version> = None;
     for (version_str, entry) in selectors {
@@ -243,7 +255,10 @@ fn max_hoistable_optional_version(
         ) else {
             continue;
         };
-        if max_satisfying_version.as_ref().is_none_or(|current| version > *current) {
+        if max_satisfying_version
+            .as_ref()
+            .is_none_or(|current| version > *current)
+        {
             max_satisfying_version = Some(version);
         }
     }
@@ -278,7 +293,10 @@ fn hoistable_optional_candidate(
     // peer nobody declared is installed only to deduplicate, so a
     // prerelease its range rejects is not worth splitting a
     // package family over.
-    parsed_ranges.iter().all(|parsed| parsed.satisfies(&version)).then_some(version)
+    parsed_ranges
+        .iter()
+        .all(|parsed| parsed.satisfies(&version))
+        .then_some(version)
 }
 
 /// The root dependency that provides `peer_name`: an alias match wins
@@ -291,13 +309,18 @@ fn find_workspace_root_dep<'a>(
     workspace_root_deps: &'a [WorkspaceRootDep],
     peer_name: &str,
 ) -> Option<&'a WorkspaceRootDep> {
-    let candidates =
-        || workspace_root_deps.iter().filter(|dep| dep.normalized_bare_specifier.is_some());
-    candidates().find(|root_dep| root_dep.alias == peer_name).or_else(|| {
-        candidates()
-            .filter(|root_dep| root_dep.pkg_name == peer_name)
-            .min_by(|a, b| a.alias.cmp(&b.alias))
-    })
+    let candidates = || {
+        workspace_root_deps
+            .iter()
+            .filter(|dep| dep.normalized_bare_specifier.is_some())
+    };
+    candidates()
+        .find(|root_dep| root_dep.alias == peer_name)
+        .or_else(|| {
+            candidates()
+                .filter(|root_dep| root_dep.pkg_name == peer_name)
+                .min_by(|a, b| a.alias.cmp(&b.alias))
+        })
 }
 
 /// Highest version from `versions` that satisfies `range` under npm's
@@ -307,11 +330,16 @@ fn max_satisfying<'a>(versions: &'a [&'a str], range: &str) -> Option<&'a str> {
     let parsed_range = IncludePrereleaseRange::parse(range);
     let mut best: Option<(&str, Version)> = None;
     for spec in versions {
-        let Ok(parsed_version) = spec.parse::<Version>() else { continue };
+        let Ok(parsed_version) = spec.parse::<Version>() else {
+            continue;
+        };
         if !parsed_range.satisfies(&parsed_version) {
             continue;
         }
-        if best.as_ref().is_none_or(|(_, cur)| parsed_version > *cur) {
+        if best
+            .as_ref()
+            .is_none_or(|(_, cur)| parsed_version > *cur)
+        {
             best = Some((*spec, parsed_version));
         }
     }
@@ -323,8 +351,13 @@ fn max_satisfying<'a>(versions: &'a [&'a str], range: &str) -> Option<&'a str> {
 fn max_satisfying_any<'a>(versions: &'a [&'a str]) -> Option<&'a str> {
     let mut best: Option<(&str, Version)> = None;
     for spec in versions {
-        let Ok(v) = spec.parse::<Version>() else { continue };
-        if best.as_ref().is_none_or(|(_, cur)| v > *cur) {
+        let Ok(v) = spec.parse::<Version>() else {
+            continue;
+        };
+        if best
+            .as_ref()
+            .is_none_or(|(_, cur)| v > *cur)
+        {
             best = Some((*spec, v));
         }
     }

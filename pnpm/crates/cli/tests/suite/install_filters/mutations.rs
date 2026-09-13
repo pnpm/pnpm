@@ -15,7 +15,10 @@ fn filtered_add_mutates_only_selected_importers() {
     let unselected = fixture.project(
         "unselected",
         "unselected",
-        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(PARENT, "100.0.0")],
+            ..Default::default()
+        },
     );
     fixture.run(["install", "--lockfile-only"]);
     let before = fixture.wanted();
@@ -31,16 +34,29 @@ fn filtered_add_mutates_only_selected_importers() {
     ]);
     let after = fixture.wanted();
 
-    assert_eq!(dependency_spec(&selected_a, "dependencies", HELLO).as_deref(), Some("^1.0.0"));
-    assert_eq!(dependency_spec(&selected_b, "dependencies", HELLO).as_deref(), Some("^1.0.0"));
+    assert_eq!(
+        dependency_spec(&selected_a, "dependencies", HELLO).as_deref(),
+        Some("^1.0.0"),
+    );
+    assert_eq!(
+        dependency_spec(&selected_b, "dependencies", HELLO).as_deref(),
+        Some("^1.0.0"),
+    );
     assert_eq!(
         fs::read(unselected.join("package.json")).expect("read manifest"),
         unselected_manifest,
     );
-    assert_eq!(importer(&after, "packages/unselected"), importer(&before, "packages/unselected"));
+    assert_eq!(
+        importer(&after, "packages/unselected"),
+        importer(&before, "packages/unselected"),
+    );
     assert_full_wanted(
         &after,
-        &["packages/selected-a", "packages/selected-b", "packages/unselected"],
+        &[
+            "packages/selected-a",
+            "packages/selected-b",
+            "packages/unselected",
+        ],
     );
     assert_stage_once(&records);
 }
@@ -51,17 +67,26 @@ fn filtered_update_mutates_only_selected_importers() {
     let selected_a = fixture.project(
         "selected-a",
         "selected-a",
-        ManifestDeps { prod: &[(DEP, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(DEP, "100.0.0")],
+            ..Default::default()
+        },
     );
     let selected_b = fixture.project(
         "selected-b",
         "selected-b",
-        ManifestDeps { prod: &[(DEP, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(DEP, "100.0.0")],
+            ..Default::default()
+        },
     );
     let unselected = fixture.project(
         "unselected",
         "unselected",
-        ManifestDeps { prod: &[(DEP, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(DEP, "100.0.0")],
+            ..Default::default()
+        },
     );
     fixture.run(["install", "--lockfile-only"]);
     for project in [&selected_a, &selected_b, &unselected] {
@@ -81,17 +106,33 @@ fn filtered_update_mutates_only_selected_importers() {
     ]);
     let after = fixture.wanted();
 
-    assert_eq!(dependency_spec(&selected_a, "dependencies", DEP).as_deref(), Some("^101.0.0"));
-    assert_eq!(dependency_spec(&selected_b, "dependencies", DEP).as_deref(), Some("^101.0.0"));
+    assert_eq!(
+        dependency_spec(&selected_a, "dependencies", DEP).as_deref(),
+        Some("^101.0.0"),
+    );
+    assert_eq!(
+        dependency_spec(&selected_b, "dependencies", DEP).as_deref(),
+        Some("^101.0.0"),
+    );
     assert_eq!(
         fs::read(unselected.join("package.json")).expect("read manifest"),
         unselected_manifest,
     );
-    assert_eq!(importer(&after, "packages/unselected"), importer(&before, "packages/unselected"));
-    assert_eq!(importer_version(&after, "packages/unselected", DEP), "100.0.0");
+    assert_eq!(
+        importer(&after, "packages/unselected"),
+        importer(&before, "packages/unselected"),
+    );
+    assert_eq!(
+        importer_version(&after, "packages/unselected", DEP),
+        "100.0.0",
+    );
     assert_full_wanted(
         &after,
-        &["packages/selected-a", "packages/selected-b", "packages/unselected"],
+        &[
+            "packages/selected-a",
+            "packages/selected-b",
+            "packages/unselected",
+        ],
     );
     assert_stage_once(&records);
 }
@@ -102,17 +143,26 @@ fn filtered_remove_mutates_only_selected_importers() {
     let selected_a = fixture.project(
         "selected-a",
         "selected-a",
-        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(HELLO, "1.0.0")],
+            ..Default::default()
+        },
     );
     let selected_b = fixture.project(
         "selected-b",
         "selected-b",
-        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(PARENT, "100.0.0")],
+            ..Default::default()
+        },
     );
     let unselected = fixture.project(
         "unselected",
         "unselected",
-        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(HELLO, "1.0.0")],
+            ..Default::default()
+        },
     );
     fixture.run(["install", "--lockfile-only"]);
     let before = fixture.wanted();
@@ -130,15 +180,25 @@ fn filtered_remove_mutates_only_selected_importers() {
 
     assert_eq!(dependency_spec(&selected_a, "dependencies", HELLO), None);
     assert_eq!(dependency_spec(&selected_b, "dependencies", HELLO), None);
-    assert_eq!(dependency_spec(&selected_b, "dependencies", PARENT).as_deref(), Some("100.0.0"));
+    assert_eq!(
+        dependency_spec(&selected_b, "dependencies", PARENT).as_deref(),
+        Some("100.0.0"),
+    );
     assert_eq!(
         fs::read(unselected.join("package.json")).expect("read manifest"),
         unselected_manifest,
     );
-    assert_eq!(importer(&after, "packages/unselected"), importer(&before, "packages/unselected"));
+    assert_eq!(
+        importer(&after, "packages/unselected"),
+        importer(&before, "packages/unselected"),
+    );
     assert_full_wanted(
         &after,
-        &["packages/selected-a", "packages/selected-b", "packages/unselected"],
+        &[
+            "packages/selected-a",
+            "packages/selected-b",
+            "packages/unselected",
+        ],
     );
     assert_stage_once(&records);
 }
@@ -151,7 +211,10 @@ fn filtered_add_materializes_the_workspace_root_without_mutating_it() {
     fixture.run(["--filter", "selected", "add", PARENT]);
 
     assert_root_and_selected_are_materialized(&fixture, &selected, &unselected, PARENT);
-    assert_eq!(dependency_spec(&selected, "dependencies", PARENT).as_deref(), Some("^100.1.0"));
+    assert_eq!(
+        dependency_spec(&selected, "dependencies", PARENT).as_deref(),
+        Some("^100.1.0"),
+    );
     assert_eq!(
         fs::read(fixture.workspace.join("package.json")).expect("read manifest"),
         root_manifest,
@@ -169,7 +232,10 @@ fn filtered_update_materializes_the_workspace_root_without_mutating_it() {
     fixture.run(["--filter", "selected", "update", DEP, "--latest"]);
 
     assert_root_and_selected_are_materialized(&fixture, &selected, &unselected, DEP);
-    assert_eq!(dependency_spec(&selected, "dependencies", DEP).as_deref(), Some("101.0.0"));
+    assert_eq!(
+        dependency_spec(&selected, "dependencies", DEP).as_deref(),
+        Some("101.0.0"),
+    );
     assert_eq!(
         fs::read(fixture.workspace.join("package.json")).expect("read manifest"),
         root_manifest,
@@ -200,25 +266,59 @@ fn filtered_update_from_selected_child_uses_discovered_manifest_as_source_of_tru
     let selected = fixture.project(
         "selected",
         "selected",
-        ManifestDeps { prod: &[(HELLO, "0.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(HELLO, "0.0.0")],
+            ..Default::default()
+        },
     );
     let sibling = fixture.project(
         "sibling",
         "sibling",
-        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(PARENT, "100.0.0")],
+            ..Default::default()
+        },
     );
     fixture.run(["install", "--lockfile-only"]);
     let before = fixture.wanted();
     let sibling_manifest = fs::read(sibling.join("package.json")).expect("read manifest");
-    fixture.run_at(&selected, ["--filter", ".", "update", HELLO, "--latest", "--lockfile-only"]);
+    fixture.run_at(
+        &selected,
+        [
+            "--filter",
+            ".",
+            "update",
+            HELLO,
+            "--latest",
+            "--lockfile-only",
+        ],
+    );
     let after = fixture.wanted();
 
-    assert_eq!(dependency_spec(&selected, "dependencies", HELLO).as_deref(), Some("1.0.0"));
-    assert_eq!(importer_specifier(&after, "packages/selected", HELLO), "1.0.0");
-    assert_eq!(importer_version(&after, "packages/selected", HELLO), "1.0.0");
-    assert_eq!(fs::read(sibling.join("package.json")).expect("read manifest"), sibling_manifest);
-    assert_eq!(importer(&after, "packages/sibling"), importer(&before, "packages/sibling"));
-    assert!(!after.importers.contains_key("."), "missing root must not become an importer");
+    assert_eq!(
+        dependency_spec(&selected, "dependencies", HELLO).as_deref(),
+        Some("1.0.0"),
+    );
+    assert_eq!(
+        importer_specifier(&after, "packages/selected", HELLO),
+        "1.0.0",
+    );
+    assert_eq!(
+        importer_version(&after, "packages/selected", HELLO),
+        "1.0.0",
+    );
+    assert_eq!(
+        fs::read(sibling.join("package.json")).expect("read manifest"),
+        sibling_manifest,
+    );
+    assert_eq!(
+        importer(&after, "packages/sibling"),
+        importer(&before, "packages/sibling"),
+    );
+    assert!(
+        !after.importers.contains_key("."),
+        "missing root must not become an importer",
+    );
 }
 
 #[test]
@@ -227,12 +327,18 @@ fn filtered_update_preserves_prior_importer_when_unselected_manifest_changed_ext
     let selected = fixture.project(
         "selected",
         "selected",
-        ManifestDeps { prod: &[(HELLO, "0.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(HELLO, "0.0.0")],
+            ..Default::default()
+        },
     );
     let unselected = fixture.project(
         "unselected",
         "unselected",
-        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(PARENT, "100.0.0")],
+            ..Default::default()
+        },
     );
     fixture.run(["install", "--lockfile-only"]);
     let before = fixture.wanted();
@@ -241,7 +347,14 @@ fn filtered_update_preserves_prior_importer_when_unselected_manifest_changed_ext
     let prior_child = snapshot_entries(&before, DEP);
     replace_dependencies(&unselected, &[(HELLO_PARENT, "1.0.0")]);
     let external_manifest = fs::read(unselected.join("package.json")).expect("read manifest");
-    fixture.run(["--filter", "selected", "update", HELLO, "--latest", "--lockfile-only"]);
+    fixture.run([
+        "--filter",
+        "selected",
+        "update",
+        HELLO,
+        "--latest",
+        "--lockfile-only",
+    ]);
     let after = fixture.wanted();
 
     assert_eq!(
@@ -252,8 +365,14 @@ fn filtered_update_preserves_prior_importer_when_unselected_manifest_changed_ext
     assert_eq!(snapshot_entries(&after, PARENT), prior_parent);
     assert_eq!(snapshot_entries(&after, DEP), prior_child);
     assert!(snapshot_entries(&after, HELLO_PARENT).is_empty());
-    assert_eq!(dependency_spec(&selected, "dependencies", HELLO).as_deref(), Some("1.0.0"));
-    assert_eq!(importer_version(&after, "packages/selected", HELLO), "1.0.0");
+    assert_eq!(
+        dependency_spec(&selected, "dependencies", HELLO).as_deref(),
+        Some("1.0.0"),
+    );
+    assert_eq!(
+        importer_version(&after, "packages/selected", HELLO),
+        "1.0.0",
+    );
 }
 
 #[test]
@@ -268,12 +387,18 @@ fn filtered_compatible_update_keeps_workspace_manifest_preferences() {
     let selected = fixture.project(
         "selected",
         "selected",
-        ManifestDeps { prod: &[(DEP, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(DEP, "100.0.0")],
+            ..Default::default()
+        },
     );
     let unselected = fixture.project(
         "unselected",
         "unselected",
-        ManifestDeps { prod: &[(DEP, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(DEP, "100.0.0")],
+            ..Default::default()
+        },
     );
     fixture.run(["install", "--lockfile-only"]);
     set_dependency(&selected, "dependencies", DEP, "^100.0.0");
@@ -282,8 +407,14 @@ fn filtered_compatible_update_keeps_workspace_manifest_preferences() {
     fixture.run(["--filter", "selected", "update", DEP, "--lockfile-only"]);
     let lockfile = fixture.wanted();
 
-    assert_eq!(importer_version(&lockfile, "packages/selected", DEP), "100.0.0");
-    assert_eq!(importer_version(&lockfile, "packages/unselected", DEP), "100.0.0");
+    assert_eq!(
+        importer_version(&lockfile, "packages/selected", DEP),
+        "100.0.0",
+    );
+    assert_eq!(
+        importer_version(&lockfile, "packages/unselected", DEP),
+        "100.0.0",
+    );
     assert_eq!(
         fs::read(unselected.join("package.json")).expect("read manifest"),
         unselected_manifest,
@@ -309,11 +440,17 @@ fn filtered_add_with_dedicated_lockfiles_mutates_only_selected_project() {
 
     fixture.run(["--filter", "selected", "add", HELLO, "--lockfile-only"]);
 
-    assert_eq!(dependency_spec(&selected, "dependencies", HELLO).as_deref(), Some("^1.0.0"));
+    assert_eq!(
+        dependency_spec(&selected, "dependencies", HELLO).as_deref(),
+        Some("^1.0.0"),
+    );
     assert_eq!(dependency_spec(&unselected, "dependencies", HELLO), None);
     let selected_lockfile = read_lockfile(&selected.join("pnpm-lock.yaml"));
     assert_eq!(importer_version(&selected_lockfile, ".", HELLO), "1.0.0");
-    assert!(!unselected.join("pnpm-lock.yaml").exists(), "unselected must not be mutated");
+    assert!(
+        !unselected.join("pnpm-lock.yaml").exists(),
+        "unselected must not be mutated",
+    );
     assert!(!fixture.workspace.join("pnpm-lock.yaml").exists());
 }
 
@@ -327,9 +464,18 @@ fn recursive_add_with_dedicated_lockfiles_excludes_workspace_root() {
 
     fixture.run(["-r", "add", HELLO, "--lockfile-only"]);
 
-    assert_eq!(dependency_spec(&fixture.workspace, "dependencies", HELLO), None);
-    assert_eq!(dependency_spec(&member_a, "dependencies", HELLO).as_deref(), Some("^1.0.0"));
-    assert_eq!(dependency_spec(&member_b, "dependencies", HELLO).as_deref(), Some("^1.0.0"));
+    assert_eq!(
+        dependency_spec(&fixture.workspace, "dependencies", HELLO),
+        None,
+    );
+    assert_eq!(
+        dependency_spec(&member_a, "dependencies", HELLO).as_deref(),
+        Some("^1.0.0"),
+    );
+    assert_eq!(
+        dependency_spec(&member_b, "dependencies", HELLO).as_deref(),
+        Some("^1.0.0"),
+    );
     for member in [&member_a, &member_b] {
         assert_eq!(
             importer_version(&read_lockfile(&member.join("pnpm-lock.yaml")), ".", HELLO),
@@ -349,12 +495,18 @@ fn filtered_update_with_dedicated_lockfiles_mutates_only_selected_project() {
     let selected = fixture.project(
         "selected",
         "selected",
-        ManifestDeps { prod: &[(DEP, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(DEP, "100.0.0")],
+            ..Default::default()
+        },
     );
     let unselected = fixture.project(
         "unselected",
         "unselected",
-        ManifestDeps { prod: &[(DEP, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(DEP, "100.0.0")],
+            ..Default::default()
+        },
     );
     fixture.run(["install", "--lockfile-only"]);
     for project in [&selected, &unselected] {
@@ -364,9 +516,19 @@ fn filtered_update_with_dedicated_lockfiles_mutates_only_selected_project() {
     let unselected_lockfile_before =
         fs::read(unselected.join("pnpm-lock.yaml")).expect("read lockfile");
 
-    fixture.run(["--filter", "selected", "update", DEP, "--latest", "--lockfile-only"]);
+    fixture.run([
+        "--filter",
+        "selected",
+        "update",
+        DEP,
+        "--latest",
+        "--lockfile-only",
+    ]);
 
-    assert_eq!(dependency_spec(&selected, "dependencies", DEP).as_deref(), Some("^101.0.0"));
+    assert_eq!(
+        dependency_spec(&selected, "dependencies", DEP).as_deref(),
+        Some("^101.0.0"),
+    );
     assert_eq!(
         importer_version(&read_lockfile(&selected.join("pnpm-lock.yaml")), ".", DEP),
         "101.0.0",
@@ -389,12 +551,18 @@ fn filtered_remove_with_dedicated_lockfiles_mutates_only_selected_project() {
     let selected = fixture.project(
         "selected",
         "selected",
-        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(HELLO, "1.0.0")],
+            ..Default::default()
+        },
     );
     let unselected = fixture.project(
         "unselected",
         "unselected",
-        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(HELLO, "1.0.0")],
+            ..Default::default()
+        },
     );
     fixture.run(["install", "--lockfile-only"]);
     let unselected_manifest = fs::read(unselected.join("package.json")).expect("read manifest");
@@ -426,10 +594,34 @@ fn recursive_add_auto_excludes_workspace_root() {
     fixture.run(["-r", "add", HELLO, "--lockfile-only"]);
     let wanted = fixture.wanted();
 
-    assert_eq!(dependency_spec(&fixture.workspace, "dependencies", HELLO), None);
-    assert_eq!(dependency_spec(&member_a, "dependencies", HELLO).as_deref(), Some("^1.0.0"));
-    assert_eq!(dependency_spec(&member_b, "dependencies", HELLO).as_deref(), Some("^1.0.0"));
-    assert!(!importer_has_group_dependency(&wanted, ".", "dependencies", HELLO));
-    assert!(importer_has_group_dependency(&wanted, "packages/member-a", "dependencies", HELLO,));
-    assert!(importer_has_group_dependency(&wanted, "packages/member-b", "dependencies", HELLO,));
+    assert_eq!(
+        dependency_spec(&fixture.workspace, "dependencies", HELLO),
+        None,
+    );
+    assert_eq!(
+        dependency_spec(&member_a, "dependencies", HELLO).as_deref(),
+        Some("^1.0.0"),
+    );
+    assert_eq!(
+        dependency_spec(&member_b, "dependencies", HELLO).as_deref(),
+        Some("^1.0.0"),
+    );
+    assert!(!importer_has_group_dependency(
+        &wanted,
+        ".",
+        "dependencies",
+        HELLO
+    ));
+    assert!(importer_has_group_dependency(
+        &wanted,
+        "packages/member-a",
+        "dependencies",
+        HELLO,
+    ));
+    assert!(importer_has_group_dependency(
+        &wanted,
+        "packages/member-b",
+        "dependencies",
+        HELLO,
+    ));
 }

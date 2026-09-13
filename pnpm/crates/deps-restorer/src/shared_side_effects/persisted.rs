@@ -20,12 +20,18 @@ pub(super) fn take_persisted_remote_side_effects(
     for (snapshot_key, diffs) in side_effects_by_snapshot {
         let remote_keys: Vec<&String> = diffs
             .iter()
-            .filter_map(|(cache_key, diff)| diff.remote_origin.as_ref().map(|_| cache_key))
+            .filter_map(|(cache_key, diff)| {
+                diff.remote_origin
+                    .as_ref()
+                    .map(|_| cache_key)
+            })
             .collect();
         if remote_keys.is_empty() {
             continue;
         }
-        let Some(existing) = side_effects_maps_by_snapshot.get(snapshot_key) else { continue };
+        let Some(existing) = side_effects_maps_by_snapshot.get(snapshot_key) else {
+            continue;
+        };
         let mut maps = (**existing).clone();
         take_snapshot_overlays(&mut maps, remote_keys, snapshot_key, &mut persisted);
         if maps.is_empty() {
@@ -69,15 +75,21 @@ pub(super) fn stored_remote_side_effects_are_verified(
     supported_tags: &[String],
     trusted_keys: &BTreeMap<String, Vec<u8>>,
 ) -> bool {
-    let Some(origin) = &diff.remote_origin else { return false };
+    let Some(origin) = &diff.remote_origin else {
+        return false;
+    };
     if origin.verification != "verified"
         || origin.signer_key_id != origin.envelope.key_id
         || configured_channel.is_some_and(|channel| origin.channel != channel)
     {
         return false;
     }
-    let Some(public_key) = trusted_keys.get(&origin.signer_key_id) else { return false };
-    let Ok(payload) = origin.envelope.verify(public_key) else { return false };
+    let Some(public_key) = trusted_keys.get(&origin.signer_key_id) else {
+        return false;
+    };
+    let Ok(payload) = origin.envelope.verify(public_key) else {
+        return false;
+    };
     if payload.input_key != candidate.key {
         return false;
     }
@@ -95,29 +107,41 @@ pub(super) fn manifest_matches_diff(manifest: &ArtifactManifest, diff: &SideEffe
         return false;
     }
     for file in &manifest.added {
-        let Ok(digest) = blob_id(&file.integrity) else { return false };
-        if !added.get(&file.path).is_some_and(|stored| {
-            stored.digest == digest && stored.mode == file.mode && stored.size == file.size
-        }) {
+        let Ok(digest) = blob_id(&file.integrity) else {
+            return false;
+        };
+        if !added
+            .get(&file.path)
+            .is_some_and(|stored| {
+                stored.digest == digest && stored.mode == file.mode && stored.size == file.size
+            })
+        {
             return false;
         }
     }
     let deleted = diff.deleted.as_deref().unwrap_or_default();
     deleted.len() == manifest.deleted.len()
-        && deleted.iter().collect::<HashSet<_>>().len() == deleted.len()
-        && deleted.iter().all(|path| manifest.deleted.contains(path))
+        && deleted
+            .iter()
+            .collect::<HashSet<_>>()
+            .len()
+            == deleted.len()
+        && deleted
+            .iter()
+            .all(|path| manifest.deleted.contains(path))
 }
 pub(super) async fn stored_remote_side_effects_blobs_are_valid(
     diff: &SideEffectsDiff,
     overlay: &HashMap<String, PathBuf>,
 ) -> Result<bool, String> {
     for (file_path, info) in diff.added.iter().flatten() {
-        let Some(path) = overlay.get(file_path) else { return Ok(false) };
+        let Some(path) = overlay.get(file_path) else {
+            return Ok(false);
+        };
         if !store_holds(path, &info.digest).await? {
             return Ok(false);
         }
-        let metadata = tokio::fs::metadata(path)
-            .await
+        let metadata = tokio::fs::metadata(path).await
             .map_err(|error| format!("failed to inspect {}: {error}", path.display()))?;
         if metadata.len() != info.size {
             return Ok(false);
@@ -131,7 +155,9 @@ pub(super) fn quarantine_remote_side_effects(
     channel: &str,
     store_index_writer: &StoreIndexWriter,
 ) {
-    let Some(group) = groups.get(&rejected.input_key) else { return };
+    let Some(group) = groups.get(&rejected.input_key) else {
+        return;
+    };
     let mut rows = HashSet::new();
     for (_, _, store_index_key) in &group.snapshots {
         if rows.insert(store_index_key) {
@@ -156,7 +182,9 @@ pub(super) fn quarantine_remote_side_effects(
 pub(super) fn decoded_trusted_keys(
     settings: &pnpm_config::RemoteSideEffectsCacheSettings,
 ) -> Option<BTreeMap<String, Vec<u8>>> {
-    let encoded = settings.trusted_keys.as_ref().filter(|keys| !keys.is_empty())?;
+    let encoded = settings.trusted_keys
+        .as_ref()
+        .filter(|keys| !keys.is_empty())?;
     let mut trusted_keys = BTreeMap::new();
     for (key_id, public_key) in encoded {
         let public_key = match BASE64.decode(public_key) {
@@ -213,7 +241,11 @@ pub(super) async fn store_holds(path: &Path, digest: &str) -> Result<bool, Strin
     let Ok(file) = options.open(path).await else {
         return Ok(false);
     };
-    if !file.metadata().await.is_ok_and(|metadata| metadata.is_file()) {
+    if !file
+        .metadata()
+        .await
+        .is_ok_and(|metadata| metadata.is_file())
+    {
         return Ok(false);
     }
     let mut reader = tokio::io::BufReader::with_capacity(STORE_READ_CHUNK, file);

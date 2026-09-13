@@ -1,3 +1,4 @@
+use identity::{invocation_hash, task_id, task_identity};
 use journal::{current_generation, remove_state_file, validate_real_directory};
 use miette::{IntoDiagnostic, WrapErr as _};
 use pnpm_crypto_hash::create_hex_hash;
@@ -95,8 +96,10 @@ pub struct TaskRunExecutionSettings<'a> {
 }
 
 pub fn task_run_execution_settings(opts: &TaskRunExecutionSettings<'_>) -> Vec<String> {
-    let extra_bin_paths: Vec<String> =
-        opts.extra_bin_paths.iter().map(|path| path.to_string_lossy().into_owned()).collect();
+    let extra_bin_paths: Vec<String> = opts.extra_bin_paths
+        .iter()
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect();
     let mut extra_env: Vec<(&String, &String)> = opts.extra_env.iter().collect();
     extra_env.sort_by_key(|(key, _)| *key);
     vec![
@@ -109,7 +112,10 @@ pub fn task_run_execution_settings(opts: &TaskRunExecutionSettings<'_>) -> Vec<S
             serde_json::to_string(&extra_env).expect("extra environment serializes")
         ),
         format!("modules-dir={}", opts.modules_dir.to_string_lossy()),
-        format!("node-experimental-package-map={}", opts.node_experimental_package_map),
+        format!(
+            "node-experimental-package-map={}",
+            opts.node_experimental_package_map
+        ),
         format!("node-options={}", opts.node_options.unwrap_or_default()),
         format!("user-agent={}", opts.user_agent),
     ]
@@ -146,11 +152,19 @@ impl TaskRunStateContext {
         let invocation = invocation_hash(command, params, settings, tasks);
         let state_dir = workspace_dir.join("node_modules").join(STATE_DIR);
         let latest_state_path = state_dir.join(LATEST_STATE_FILE);
-        Self { state_dir, latest_state_path, invocation, keys_by_id, ids_by_key }
+        Self {
+            state_dir,
+            latest_state_path,
+            invocation,
+            keys_by_id,
+            ids_by_key,
+        }
     }
 
     pub fn read_completed_tasks(&self) -> miette::Result<Option<HashSet<TaskKey>>> {
-        let Some(latest_run) = self.resumable_latest_run()? else { return Ok(None) };
+        let Some(latest_run) = self.resumable_latest_run()? else {
+            return Ok(None);
+        };
         let (run, finished) = match self.newest_state(&latest_run) {
             Ok(state) => state,
             Err(error) if error.is_unavailable() => return Ok(None),
@@ -178,8 +192,10 @@ impl TaskRunStateContext {
     }
 
     pub fn start(&self, completed_tasks: &HashSet<TaskKey>) -> miette::Result<TaskRunState> {
-        let mut completed: Vec<&TaskId> =
-            completed_tasks.iter().map(|key| &self.ids_by_key[key]).collect();
+        let mut completed: Vec<&TaskId> = completed_tasks
+            .iter()
+            .map(|key| &self.ids_by_key[key])
+            .collect();
         completed.sort();
         let (file_path, run, file) = match self.start_file(&completed) {
             Ok(state) => state,
@@ -250,7 +266,11 @@ impl TaskRunState {
             return Ok(());
         }
         let id = task_id(node, workspace_dir);
-        let record = TaskRecord { run: writer.run.clone(), project: id.project, task: id.task };
+        let record = TaskRecord {
+            run: writer.run.clone(),
+            project: id.project,
+            task: id.task,
+        };
         let line = serde_json::to_string(&record).expect("task record serializes");
         let result = writeln!(
             writer.file.as_mut().expect("unfinished task state has an open file"),
@@ -277,7 +297,10 @@ impl TaskRunState {
         let Some(mut file) = writer.file.take() else {
             return Ok(());
         };
-        let finish_record = FinishRecord { run: writer.run.clone(), finished: true };
+        let finish_record = FinishRecord {
+            run: writer.run.clone(),
+            finished: true,
+        };
         let line = serde_json::to_string(&finish_record).expect("finish record serializes");
         if let Err(error) = writeln!(file, "{line}")
             && !is_state_unavailable_error(&error)
@@ -304,71 +327,22 @@ impl TaskRunState {
     }
 }
 
-fn task_id(node: &TaskNode, workspace_dir: &Path) -> TaskId {
-    let relative = pnpm_fs::relative_path(workspace_dir, &node.project);
-    let project = if relative.as_os_str().is_empty() {
-        ".".to_string()
-    } else {
-        relative.to_string_lossy().replace(std::path::MAIN_SEPARATOR, "/")
-    };
-    TaskId { project, task: node.task_name.clone() }
-}
-
-fn task_identity(
-    node: &TaskNode,
-    id: TaskId,
-    graph: &TaskGraph,
-    workspace_dir: &Path,
-    script_commands: &impl Fn(&TaskNode, &str) -> Vec<String>,
-) -> TaskIdentity {
-    let mut scripts: Vec<ScriptIdentity> = node
-        .scripts
-        .iter()
-        .map(|name| ScriptIdentity { name: name.clone(), commands: script_commands(node, name) })
-        .collect();
-    scripts.sort_by(|left, right| left.name.cmp(&right.name));
-    let mut dependencies: Vec<TaskId> = node
-        .dependencies
-        .iter()
-        .map(|dependency| task_id(&graph[dependency], workspace_dir))
-        .collect();
-    dependencies.sort();
-    TaskIdentity {
-        project: id.project,
-        task: id.task,
-        scripts,
-        requested: node.requested,
-        dependencies,
-    }
-}
-
-/// The invocation's identity hash over its command line and the sorted
-/// settings and tasks.
-fn invocation_hash(
-    command: &str,
-    params: &[String],
-    settings: &[String],
-    mut tasks: Vec<TaskIdentity>,
-) -> String {
-    tasks.sort_by(|left, right| {
-        left.project.cmp(&right.project).then_with(|| left.task.cmp(&right.task))
-    });
-    let mut settings = settings.to_vec();
-    settings.sort();
-    let identity =
-        serde_json::to_string(&InvocationIdentity { command, params, settings: &settings, tasks })
-            .expect("task invocation identity serializes");
-    create_hex_hash(&identity)
-}
-
 enum StateStorageError {
-    Io { error: io::Error, operation: &'static str, path: PathBuf },
+    Io {
+        error: io::Error,
+        operation: &'static str,
+        path: PathBuf,
+    },
     UnsafePath(PathBuf),
 }
 
 impl StateStorageError {
     fn io(error: io::Error, operation: &'static str, path: &Path) -> Self {
-        Self::Io { error, operation, path: path.to_path_buf() }
+        Self::Io {
+            error,
+            operation,
+            path: path.to_path_buf(),
+        }
     }
 
     fn is_unavailable(&self) -> bool {
@@ -396,7 +370,10 @@ impl StateStorageError {
 }
 
 fn is_state_unavailable_error(error: &io::Error) -> bool {
-    matches!(error.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::ReadOnlyFilesystem)
+    matches!(
+        error.kind(),
+        io::ErrorKind::PermissionDenied | io::ErrorKind::ReadOnlyFilesystem,
+    )
 }
 
 fn run_id(generation: u64) -> String {
@@ -424,10 +401,15 @@ fn initial_journal_contents(header: &StateHeader, completed: &[&TaskId]) -> Stri
 
 /// Remove an unpublished journal if it cannot be reopened for appending.
 fn open_journal_for_append(file_path: &Path) -> Result<File, StateStorageError> {
-    OpenOptions::new().append(true).open(file_path).map_err(|error| {
-        let _ = fs::remove_file(file_path);
-        StateStorageError::io(error, "opening", file_path)
-    })
+    OpenOptions::new()
+        .append(true)
+        .open(file_path)
+        .map_err(|error| {
+            let _ = fs::remove_file(file_path);
+            StateStorageError::io(error, "opening", file_path)
+        })
 }
 
 mod journal;
+
+mod identity;

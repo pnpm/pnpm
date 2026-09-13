@@ -91,8 +91,10 @@ impl AliasChanges {
                     self.0.insert(alias.clone(), AliasChange::Added(new_value.clone()));
                 }
                 Some(old_value) if old_value != new_value => {
-                    let change =
-                        AliasChange::Updated { prev: old_value.clone(), next: new_value.clone() };
+                    let change = AliasChange::Updated {
+                        prev: old_value.clone(),
+                        next: new_value.clone(),
+                    };
                     self.0.insert(alias.clone(), change);
                 }
                 Some(_) => {}
@@ -106,8 +108,12 @@ impl AliasChanges {
     }
 
     fn into_diff(self, id: String) -> SnapshotDiff {
-        let mut diff =
-            SnapshotDiff { id, added: Vec::new(), removed: Vec::new(), updated: Vec::new() };
+        let mut diff = SnapshotDiff {
+            id,
+            added: Vec::new(),
+            removed: Vec::new(),
+            updated: Vec::new(),
+        };
         for (alias, change) in self.0 {
             match change {
                 AliasChange::Added(next) => diff.added.push((alias, next)),
@@ -144,7 +150,10 @@ pub fn diff_lockfiles(
 
     let mut diff = LockfileDiff::default();
 
-    let mut importer_ids: BTreeSet<&str> = new.importers.keys().map(String::as_str).collect();
+    let mut importer_ids: BTreeSet<&str> = new.importers
+        .keys()
+        .map(String::as_str)
+        .collect();
     if let Some(old) = old {
         importer_ids.extend(old.importers.keys().map(String::as_str));
     }
@@ -188,7 +197,11 @@ fn diff_snapshots(old: Option<&Lockfile>, new: Option<&Lockfile>, diff: &mut Loc
             Some(_) => {}
         }
     }
-    for key in old_snapshots.into_iter().flatten().map(|(key, _)| key) {
+    for key in old_snapshots
+        .into_iter()
+        .flatten()
+        .map(|(key, _)| key)
+    {
         if new_snapshots.is_none_or(|snapshots| !snapshots.contains_key(key)) {
             diff.removed_packages.push(key.to_string());
         }
@@ -210,7 +223,10 @@ fn snapshot_wiring_differs(old: &SnapshotEntry, new: &SnapshotEntry) -> bool {
 /// `optionalDependencies` only — pnpm's `PACKAGE_SNAPSHOT_DEP_FIELDS`.
 fn diff_snapshot_entry(key: String, old: &SnapshotEntry, new: &SnapshotEntry) -> SnapshotDiff {
     let mut changes = AliasChanges::default();
-    changes.merge(&dep_refs(old.dependencies.as_ref()), &dep_refs(new.dependencies.as_ref()));
+    changes.merge(
+        &dep_refs(old.dependencies.as_ref()),
+        &dep_refs(new.dependencies.as_ref()),
+    );
     changes.merge(
         &dep_refs(old.optional_dependencies.as_ref()),
         &dep_refs(new.optional_dependencies.as_ref()),
@@ -221,7 +237,8 @@ fn diff_snapshot_entry(key: String, old: &SnapshotEntry, new: &SnapshotEntry) ->
 /// One dependency group of a `snapshots:` entry as an
 /// `alias -> resolved reference` map.
 fn dep_refs(deps: Option<&HashMap<PkgName, SnapshotDepRef>>) -> BTreeMap<String, String> {
-    deps.into_iter()
+    deps
+        .into_iter()
         .flatten()
         .map(|(name, dep_ref)| (name.to_string(), dep_ref.to_string()))
         .collect()
@@ -242,8 +259,11 @@ fn diff_importer(
 
 /// The importer dependency groups, in pnpm's `DEPENDENCIES_FIELDS` order —
 /// which decides the winner for an alias that moves between them.
-const IMPORTER_GROUPS: [ImporterGroup; 3] =
-    [ImporterGroup::Optional, ImporterGroup::Prod, ImporterGroup::Dev];
+const IMPORTER_GROUPS: [ImporterGroup; 3] = [
+    ImporterGroup::Optional,
+    ImporterGroup::Prod,
+    ImporterGroup::Dev,
+];
 
 #[derive(Debug, Clone, Copy)]
 enum ImporterGroup {

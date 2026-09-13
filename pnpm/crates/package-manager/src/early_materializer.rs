@@ -90,25 +90,18 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
     }
 
     fn schedule(&self, package: &FinalizedPackage) {
-        let Some(name_ver) = package.result.package.name_ver.as_ref() else { return };
-        let Ok((package_url, _)) = extract_tarball(&package.result.resolution) else { return };
-        // The prefetch keys its cache by the plain URL and skips these
-        // shapes altogether; see `PrefetchingResolver::maybe_kickoff_download`.
-        let revision_addressed = matches!(
-            &package.result.resolution,
-            LockfileResolution::Tarball(tarball) if tarball.revision.is_some(),
-        );
-        if revision_addressed
-            || package_url.starts_with("file:")
-            || is_git_hosted_tarball_url(package_url)
-        {
+        let Some(name_ver) = package.result.package.name_ver.as_ref() else {
+            return;
+        };
+        let Ok((package_url, _)) = extract_tarball(&package.result.resolution) else {
+            return;
+        };
+        if !can_prefetch_finalized_package(package, package_url) {
             return;
         }
-        // A patched package is imported and patched by the normal path.
-        if package.pkg_id.contains("(patch_hash=") {
+        let Ok(key) = package.pkg_id.parse::<PackageKey>() else {
             return;
-        }
-        let Ok(key) = package.pkg_id.parse::<PackageKey>() else { return };
+        };
         let slot_dir = self.shared.layout.slot_dir(&key);
         let virtual_node_modules_dir = slot_dir.join("node_modules");
         let Ok(package_dir) =
@@ -139,8 +132,10 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
         self.shared.closing.store(true, Ordering::Release);
         let mut tasks = std::mem::take(&mut *lock(&self.tasks));
         while tasks.join_next().await.is_some() {}
-        logged_methods
-            .fetch_or(self.shared.logged_methods.load(Ordering::Acquire), Ordering::AcqRel);
+        logged_methods.fetch_or(
+            self.shared.logged_methods.load(Ordering::Acquire),
+            Ordering::AcqRel,
+        );
         let orphans: Vec<PathBuf> = std::mem::take(&mut *lock(&self.slots))
             .into_iter()
             .filter(|(key, _)| !is_wanted(key))
@@ -185,8 +180,12 @@ struct SlotJob {
 
 impl SlotJob {
     async fn run<Reporter: pnpm_reporter::Reporter>(mut self, shared: &Arc<Shared>) {
-        let Some(cas_paths) = wait_for_cas_paths(shared, &self.package_url).await else { return };
-        let Ok(_permit) = shared.permits.acquire().await else { return };
+        let Some(cas_paths) = wait_for_cas_paths(shared, &self.package_url).await else {
+            return;
+        };
+        let Ok(_permit) = shared.permits.acquire().await else {
+            return;
+        };
         // Once the install is linking, the link phase's own parallel
         // pass takes the slot; finishing it here would only delay that.
         if shared.closing.load(Ordering::Acquire) {
@@ -218,8 +217,7 @@ impl SlotJob {
         shared: &Shared,
         cas_paths: &HashMap<String, PathBuf>,
     ) -> Result<(), String> {
-        std::fs::create_dir_all(&self.virtual_node_modules_dir)
-            .map_err(|error| error.to_string())?;
+        std::fs::create_dir_all(&self.virtual_node_modules_dir).map_err(|error| error.to_string())?;
         import_indexed_dir::<Reporter>(
             &shared.logged_methods,
             shared.import_method,
@@ -255,7 +253,9 @@ async fn wait_for_cas_paths(
     package_url: &str,
 ) -> Option<Arc<HashMap<String, PathBuf>>> {
     loop {
-        let slot = shared.mem_cache.get(package_url).map(|entry| Arc::clone(entry.value()));
+        let slot = shared.mem_cache
+            .get(package_url)
+            .map(|entry| Arc::clone(entry.value()));
         let Some(slot) = slot else {
             if shared.closing.load(Ordering::Acquire) {
                 return None;
@@ -280,4 +280,24 @@ async fn wait_for_cas_paths(
 
 fn lock<Inner>(mutex: &Mutex<Inner>) -> std::sync::MutexGuard<'_, Inner> {
     mutex.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+fn can_prefetch_finalized_package(package: &FinalizedPackage, package_url: &str) -> bool {
+    // The prefetch keys its cache by the plain URL and skips these
+    // shapes altogether; see `PrefetchingResolver::maybe_kickoff_download`.
+    let revision_addressed = matches!(
+        &package.result.resolution,
+        LockfileResolution::Tarball(tarball) if tarball.revision.is_some(),
+    );
+    if revision_addressed
+        || package_url.starts_with("file:")
+        || is_git_hosted_tarball_url(package_url)
+    {
+        return false;
+    }
+    // A patched package is imported and patched by the normal path.
+    if package.pkg_id.contains("(patch_hash=") {
+        return false;
+    }
+    true
 }

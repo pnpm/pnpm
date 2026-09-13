@@ -27,9 +27,11 @@ pub(super) fn ensure_workspace_directory(
     }
     #[cfg(windows)]
     {
-        let root = fs::canonicalize(root_dir).into_diagnostic().wrap_err_with(|| {
-            format!("resolve Cargo workspace directory {}", root_dir.display())
-        })?;
+        let root = fs::canonicalize(root_dir)
+            .into_diagnostic()
+            .wrap_err_with(|| {
+                format!("resolve Cargo workspace directory {}", root_dir.display())
+            })?;
         ensure_workspace_directory_windows(root, components)
     }
 }
@@ -39,7 +41,9 @@ fn ensure_workspace_directory_unix(root: PathBuf, components: &[&str]) -> Result
     use std::os::unix::fs::OpenOptionsExt as _;
 
     let mut options = fs::OpenOptions::new();
-    options.read(true).custom_flags(libc::O_CLOEXEC | libc::O_DIRECTORY);
+    options
+        .read(true)
+        .custom_flags(libc::O_CLOEXEC | libc::O_DIRECTORY);
     let mut handle = options
         .open(&root)
         .into_diagnostic()
@@ -49,7 +53,10 @@ fn ensure_workspace_directory_unix(root: PathBuf, components: &[&str]) -> Result
         path.push(component);
         handle = open_or_create_directory_at(&handle, component, &path)?;
     }
-    Ok(ManagedDirectory { path, handle })
+    Ok(ManagedDirectory {
+        path,
+        handle,
+    })
 }
 
 /// Open `component` under `parent`, creating it if it is not there yet.
@@ -158,7 +165,10 @@ pub(super) fn read_workspace_file(
         )
     };
     let file = file_from_descriptor(descriptor)?;
-    let mode = file.metadata()?.permissions().mode();
+    let mode = file
+        .metadata()?
+        .permissions()
+        .mode();
     let contents = io::read_to_string(file)?;
     Ok((contents, Some(mode)))
 }
@@ -231,27 +241,31 @@ pub(super) fn force_workspace_symlink(
     target: &Path,
     name: &str,
 ) -> io::Result<pnpm_fs::ForceSymlinkOutcome> {
-    use std::os::{fd::AsRawFd as _, unix::ffi::OsStrExt as _};
+    use std::os::unix::ffi::OsStrExt as _;
 
     let wanted = pnpm_fs::relative_path(&directory.path, target);
     let wanted_c = std::ffi::CString::new(wanted.as_os_str().as_bytes())?;
     let name_c = std::ffi::CString::new(std::ffi::OsStr::new(name).as_bytes())?;
     let mut warning = None;
     loop {
-        // SAFETY: both paths are NUL-terminated and the directory handle is valid.
-        if unsafe {
-            libc::symlinkat(wanted_c.as_ptr(), directory.handle.as_raw_fd(), name_c.as_ptr())
-        } == 0
-        {
-            return Ok(pnpm_fs::ForceSymlinkOutcome { reused: false, warning });
-        }
-        let error = io::Error::last_os_error();
+        let error = match symlink_at(&wanted_c, &directory.handle, &name_c) {
+            Ok(()) => {
+                return Ok(pnpm_fs::ForceSymlinkOutcome {
+                    reused: false,
+                    warning,
+                });
+            }
+            Err(error) => error,
+        };
         if error.kind() != io::ErrorKind::AlreadyExists {
             return Err(error);
         }
         match read_link_at(&directory.handle, &name_c) {
             Ok(existing) if existing == wanted => {
-                return Ok(pnpm_fs::ForceSymlinkOutcome { reused: true, warning });
+                return Ok(pnpm_fs::ForceSymlinkOutcome {
+                    reused: true,
+                    warning,
+                });
             }
             // A symlink pointing somewhere else is ours to replace.
             Ok(_) => unlink_at(directory, &name_c)?,
@@ -394,3 +408,18 @@ fn create_workspace_temporary(
 
 #[cfg(windows)]
 mod windows;
+
+#[cfg(unix)]
+fn symlink_at(
+    wanted: &std::ffi::CStr,
+    directory: &fs::File,
+    name: &std::ffi::CStr,
+) -> io::Result<()> {
+    use std::os::fd::AsRawFd as _;
+    // SAFETY: both paths are NUL-terminated and the directory handle is valid.
+    if unsafe { libc::symlinkat(wanted.as_ptr(), directory.as_raw_fd(), name.as_ptr()) } == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}

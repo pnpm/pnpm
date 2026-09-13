@@ -48,7 +48,9 @@ fn ecosystem_capability(
     ecosystem: Ecosystem,
 ) -> (String, Value) {
     let name = ecosystem.to_string();
-    let available = entries.iter().any(|entry| entry["ecosystem"] == name);
+    let available = entries
+        .iter()
+        .any(|entry| entry["ecosystem"] == name);
     let prefixed = ecosystem != Ecosystem::Oci && !registries.is_only_ecosystem(ecosystem);
     let mut capability = json!({ "available": available, "prefixed": prefixed });
     if ecosystem == Ecosystem::Oci {
@@ -61,17 +63,17 @@ fn ecosystem_capability(
 /// access admits them.
 fn registry_is_visible(config: &Config, identity: &Identity, key: &str) -> bool {
     match config.routing.registries.get(key) {
-        Some(Registry::Hosted { .. }) => config
-            .routing
-            .hosted
+        Some(Registry::Hosted { .. }) => config.routing.hosted
             .get(key)
             .is_some_and(|hosted| hosted.rules.default_access().allows(identity)),
-        Some(Registry::Upstream { .. }) => {
-            config.routing.upstreams.get(key).is_some_and(|upstream| {
-                upstream.access.as_ref().is_none_or(|access| access.allows(identity))
+        Some(Registry::Upstream { .. }) => config.routing.upstreams
+            .get(key)
+            .is_some_and(|upstream| {
+                upstream.access
+                    .as_ref()
+                    .is_none_or(|access| access.allows(identity))
                     && upstream.rules.default_access().allows(identity)
-            })
-        }
+            }),
         _ => false,
     }
 }
@@ -85,21 +87,31 @@ fn directory_entry(
     visible: &impl Fn(&str) -> bool,
 ) -> Option<Value> {
     let registries = &config.routing.registries;
-    if registries.ecosystem(key).is_some_and(|declared| declared != ecosystem) {
+    if registries
+        .ecosystem(key)
+        .is_some_and(|declared| declared != ecosystem)
+    {
         return None;
     }
     let sources = registries.sources(key, ecosystem);
-    if !sources.iter().any(|source| visible(source)) {
+    if !sources
+        .iter()
+        .any(|source| visible(source))
+    {
         return None;
     }
     let registry = registries.get(key)?;
     let (kind, patterns, route_sources) = match registry {
-        Registry::Hosted { patterns } => {
-            ("hosted", disclosed_patterns(&config.routing.hosted[key].rules, patterns), None)
-        }
-        Registry::Upstream { patterns } => {
-            ("upstream", disclosed_patterns(&config.routing.upstreams[key].rules, patterns), None)
-        }
+        Registry::Hosted { patterns } => (
+            "hosted",
+            disclosed_patterns(&config.routing.hosted[key].rules, patterns),
+            None,
+        ),
+        Registry::Upstream { patterns } => (
+            "upstream",
+            disclosed_patterns(&config.routing.upstreams[key].rules, patterns),
+            None,
+        ),
         Registry::Router { .. } => ("router", None, disclosed_sources(&sources, visible)),
     };
     Some(json!({
@@ -114,7 +126,12 @@ fn disclosed_sources(sources: &[&str], visible: &impl Fn(&str) -> bool) -> Optio
     sources
         .iter()
         .all(|source| visible(source))
-        .then(|| sources.iter().map(|source| Registries::local_name(source).to_string()).collect())
+        .then(|| {
+            sources
+                .iter()
+                .map(|source| Registries::local_name(source).to_string())
+                .collect()
+        })
 }
 
 /// A registry's claimed patterns, disclosed only when its rules do not refine
@@ -125,7 +142,10 @@ fn disclosed_patterns(rules: &PackageRules, patterns: &[PackagePattern]) -> Opti
         if patterns.is_empty() {
             vec!["**".to_string()]
         } else {
-            patterns.iter().map(ToString::to_string).collect()
+            patterns
+                .iter()
+                .map(ToString::to_string)
+                .collect()
         }
     })
 }

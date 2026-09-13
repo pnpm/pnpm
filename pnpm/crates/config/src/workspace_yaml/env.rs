@@ -74,13 +74,22 @@ impl WorkspaceSettings {
         for dir in [&mut self.global_dir, &mut self.global_bin_dir] {
             let Some(relative) = dir
                 .as_deref()
-                .and_then(|dir| dir.strip_prefix("~/").or_else(|| dir.strip_prefix(r"~\")))
+                .and_then(|dir| {
+                    dir
+                        .strip_prefix("~/")
+                        .or_else(|| dir.strip_prefix(r"~\"))
+                })
             else {
                 continue;
             };
             if let Some(expanded) = Sys::home_dir()
                 .map(|home_dir| join_fragment(&home_dir, relative))
-                .and_then(|expanded| expanded.into_os_string().into_string().ok())
+                .and_then(|expanded| {
+                    expanded
+                        .into_os_string()
+                        .into_string()
+                        .ok()
+                })
             {
                 *dir = Some(expanded);
             }
@@ -115,7 +124,9 @@ impl WorkspaceSettings {
     /// Call this after environment substitution and before
     /// [`Self::apply_to`], which copies the value verbatim.
     pub fn resolve_script_shell(&mut self, workspace_dir: &Path) {
-        let Some(Some(script_shell)) = self.script_shell.as_mut() else { return };
+        let Some(Some(script_shell)) = self.script_shell.as_mut() else {
+            return;
+        };
         // `has_root` rather than `is_absolute`: Node's win32 `isAbsolute`
         // accepts a rooted path without a drive (`\tools\bash.exe`), which
         // Rust's `is_absolute` rejects. On POSIX the two agree.

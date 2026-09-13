@@ -12,7 +12,14 @@ fn includes_everything_when_files_field_absent() {
     let mut out = packlist(root, &manifest).unwrap();
     out.sort();
 
-    assert_eq!(out, vec!["index.js".to_string(), "lib/inner.js".into(), "package.json".into()]);
+    assert_eq!(
+        out,
+        vec![
+            "index.js".to_string(),
+            "lib/inner.js".into(),
+            "package.json".into()
+        ],
+    );
 }
 
 #[test]
@@ -83,7 +90,9 @@ fn question_mark_does_not_cross_directory() {
     let out = packlist(root, &manifest).unwrap();
 
     assert!(
-        !out.iter().any(|path| path == "a/b/index.js"),
+        !out
+            .iter()
+            .any(|path| path == "a/b/index.js"),
         "`?` must not match `/`; received {out:?}",
     );
 }
@@ -124,7 +133,9 @@ fn npmignore_excludes_listed_paths() {
     assert!(out.contains(&"index.js".to_string()));
     assert!(out.contains(&"package.json".to_string()));
     assert!(
-        !out.iter().any(|p| p.starts_with("test/")),
+        !out
+            .iter()
+            .any(|p| p.starts_with("test/")),
         "`.npmignore` must exclude `test/`; received {out:?}",
     );
 }
@@ -144,7 +155,9 @@ fn gitignore_excludes_when_no_npmignore() {
 
     assert!(out.contains(&"index.js".to_string()));
     assert!(
-        !out.iter().any(|p| p.starts_with("build/")),
+        !out
+            .iter()
+            .any(|p| p.starts_with("build/")),
         "`.gitignore` must exclude `build/` when no `.npmignore` exists; received {out:?}",
     );
 }
@@ -162,8 +175,14 @@ fn npmignore_does_not_drop_always_included_files() {
     let manifest = json!({ "name": "x", "version": "0.0.0" });
     let out = packlist(root, &manifest).unwrap();
 
-    assert!(out.contains(&"README.md".to_string()), "README.md is always-included: {out:?}");
-    assert!(out.contains(&"LICENSE".to_string()), "LICENSE is always-included: {out:?}");
+    assert!(
+        out.contains(&"README.md".to_string()),
+        "README.md is always-included: {out:?}",
+    );
+    assert!(
+        out.contains(&"LICENSE".to_string()),
+        "LICENSE is always-included: {out:?}",
+    );
     assert!(out.contains(&"package.json".to_string()));
     assert!(out.contains(&"index.js".to_string()));
 }
@@ -230,11 +249,15 @@ fn always_excluded_dir_segments_only_match_vcs() {
 
     assert!(out.contains(&"lib/cvs-tools.txt".to_string()));
     assert!(
-        !out.iter().any(|p| p.starts_with("lib/CVS/")),
+        !out
+            .iter()
+            .any(|p| p.starts_with("lib/CVS/")),
         "CVS/ subdirectory must be excluded at any depth: {out:?}",
     );
     assert!(
-        !out.iter().any(|p| p.contains("/.git/")),
+        !out
+            .iter()
+            .any(|p| p.contains("/.git/")),
         ".git/ subdirectory must be excluded at any depth: {out:?}",
     );
 }
@@ -300,7 +323,9 @@ fn npmignore_disables_gitignore_in_same_directory() {
         "`.npmignore` must supersede `.gitignore`; `build/` should be included: {out:?}",
     );
     assert!(
-        !out.iter().any(|p| p.starts_with("test/")),
+        !out
+            .iter()
+            .any(|p| p.starts_with("test/")),
         "`.npmignore` must exclude `test/`: {out:?}",
     );
 }
@@ -353,7 +378,11 @@ fn files_field_entries_are_anchored_to_the_package_root() {
 
     assert_eq!(
         out,
-        vec!["android/src/Main.java".to_string(), "package.json".into(), "src/index.js".into(),],
+        vec![
+            "android/src/Main.java".to_string(),
+            "package.json".into(),
+            "src/index.js".into(),
+        ],
     );
 }
 

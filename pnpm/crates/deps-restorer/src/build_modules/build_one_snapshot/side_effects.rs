@@ -218,12 +218,13 @@ pub(super) fn upload_side_effects_cache(
     ) else {
         return;
     };
-    let Some(metadata) = packages.get(upload.metadata_key) else { return };
+    let Some(metadata) = packages.get(upload.metadata_key) else {
+        return;
+    };
     let publishes_remotely = upload.has_side_effects
-        && context
-            .cache
-            .publisher
-            .is_some_and(|publisher| publisher.can_publish(upload.metadata_key, metadata));
+        && context.cache.publisher.is_some_and(|publisher| {
+            publisher.can_publish(upload.metadata_key, metadata)
+        });
     if !context.cache.write && !publishes_remotely {
         return;
     }
@@ -240,12 +241,7 @@ pub(super) fn upload_side_effects_cache(
         (store, writer, &files_index_file, cache_key),
         (upload, metadata),
     ) {
-        tracing::warn!(
-            target: "pacquet::build",
-            ?err,
-            dep_path = %snapshot_key,
-            "side-effects cache upload failed; build proceeds",
-        );
+        report_upload_error(snapshot_key, &err);
     }
 }
 pub(super) fn upload_and_publish(
@@ -291,4 +287,13 @@ pub(super) fn upload_and_publish(
         );
     }
     Ok(())
+}
+
+fn report_upload_error(snapshot_key: &PackageKey, err: &pnpm_store_dir::UploadError) {
+    tracing::warn!(
+        target: "pacquet::build",
+        ?err,
+        dep_path = %snapshot_key,
+        "side-effects cache upload failed; build proceeds",
+    );
 }

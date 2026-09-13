@@ -89,7 +89,10 @@ pub enum LinkHoistedModulesError {
     /// linker can't conjure files it wasn't given.
     #[display("Missing CAS paths for required package {pkg_id_with_patch_hash:?} at {dir:?}")]
     #[diagnostic(code(ERR_PNPM_LINK_HOISTED_MISSING_CAS))]
-    MissingCasPaths { pkg_id_with_patch_hash: PkgIdWithPatchHash, dir: PathBuf },
+    MissingCasPaths {
+        pkg_id_with_patch_hash: PkgIdWithPatchHash,
+        dir: PathBuf,
+    },
 
     /// A hierarchy entry referenced a directory that has no
     /// corresponding entry in `graph`. Slice 4's walker inserts
@@ -132,8 +135,7 @@ pub fn link_hoisted_modules<Reporter: self::Reporter>(
     // installs (Slice 9) will have multiple importers; the
     // single-importer case has one and rayon's overhead is
     // negligible.
-    let added: u64 = opts
-        .hierarchy
+    let added: u64 = opts.hierarchy
         .par_iter()
         .map(|(parent_dir, deps_hierarchy)| {
             link_all_pkgs_in_order::<Reporter>(deps_hierarchy, parent_dir, opts)
@@ -152,11 +154,17 @@ pub fn link_hoisted_modules<Reporter: self::Reporter>(
     // isolated linker emit the pair in.
     Reporter::emit(&LogEvent::Stats(StatsLog {
         level: LogLevel::Debug,
-        message: StatsMessage::Added { prefix: opts.import.requester.to_owned(), added },
+        message: StatsMessage::Added {
+            prefix: opts.import.requester.to_owned(),
+            added,
+        },
     }));
     Reporter::emit(&LogEvent::Stats(StatsLog {
         level: LogLevel::Debug,
-        message: StatsMessage::Removed { prefix: opts.import.requester.to_owned(), removed },
+        message: StatsMessage::Removed {
+            prefix: opts.import.requester.to_owned(),
+            removed,
+        },
     }));
 
     Ok(())
@@ -180,7 +188,9 @@ fn remove_orphans(
         .filter(|dir| !graph.contains_key(*dir))
         .filter(|dir| {
             let confined = dir.starts_with(confine_root)
-                && dir.components().all(|part| !matches!(part, std::path::Component::ParentDir));
+                && dir
+                    .components()
+                    .all(|part| !matches!(part, std::path::Component::ParentDir));
             if !confined {
                 tracing::warn!(
                     ?dir,
@@ -191,9 +201,11 @@ fn remove_orphans(
             confined
         })
         .collect();
-    orphan_dirs.par_iter().for_each(|dir| {
-        let _ = try_remove_dir(dir);
-    });
+    orphan_dirs
+        .par_iter()
+        .for_each(|dir| {
+            let _ = try_remove_dir(dir);
+        });
     orphan_dirs.len() as u64
 }
 
@@ -230,14 +242,14 @@ fn link_all_pkgs_in_order<Reporter: self::Reporter>(
     // one's children. `par_iter` is sufficient — the side effects
     // are on disk and target disjoint directories. Returns how many
     // packages this subtree imported.
-    let imported: u64 = hierarchy
-        .0
+    let imported: u64 = hierarchy.0
         .par_iter()
         .map(|(dir, sub_hierarchy)| {
-            let node = opts
-                .graph
+            let node = opts.graph
                 .get(dir)
-                .ok_or_else(|| LinkHoistedModulesError::MissingGraphNode { dir: dir.clone() })?;
+                .ok_or_else(|| LinkHoistedModulesError::MissingGraphNode {
+                    dir: dir.clone(),
+                })?;
             let here = u64::from(import_node::<Reporter>(node, opts)?);
             Ok(here + link_all_pkgs_in_order::<Reporter>(sub_hierarchy, dir, opts)?)
         })
@@ -257,8 +269,7 @@ fn link_hierarchy_bins(
     opts: &LinkHoistedModulesOpts<'_>,
 ) -> Result<(), LinkHoistedModulesError> {
     let modules_dir = parent_dir.join("node_modules");
-    let dep_names: Vec<String> = hierarchy
-        .0
+    let dep_names: Vec<String> = hierarchy.0
         .keys()
         .filter_map(|child_dir| opts.graph.get(child_dir))
         .filter_map(|node| node.alias.clone())
@@ -272,8 +283,9 @@ fn link_hierarchy_bins(
     // nodes, so the pass above never sees them; their bins are reachable
     // only from inside the bundling package.
     for child_dir in hierarchy.0.keys() {
-        let bundles =
-            opts.graph.get(child_dir).is_some_and(|node| node.package.has_bundled_dependencies);
+        let bundles = opts.graph
+            .get(child_dir)
+            .is_some_and(|node| node.package.has_bundled_dependencies);
         if !bundles {
             continue;
         }

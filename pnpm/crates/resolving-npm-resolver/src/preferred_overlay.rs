@@ -22,7 +22,10 @@ pub(crate) fn overlay_merged_selectors(
     if versions.is_empty() {
         return None;
     }
-    let mut selectors = opts.version.preferred_versions.get(name).cloned().unwrap_or_default();
+    let mut selectors = opts.version.preferred_versions
+        .get(name)
+        .cloned()
+        .unwrap_or_default();
     for version in versions {
         selectors
             .entry(version.to_string())
@@ -68,7 +71,10 @@ pub(crate) fn warn_once_on_held_back_update(
     let Some(preferred) = held_back_preferred(opts, spec, selectors, meta, picked_version) else {
         return;
     };
-    let key = format!("{}@{}:{picked_version}<{preferred}", spec.name, spec.fetch_spec);
+    let key = format!(
+        "{}@{}:{picked_version}<{preferred}",
+        spec.name, spec.fetch_spec,
+    );
     let mut warned = WARNED_HELD_BACK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     if warned.contains(&key) {
         return;

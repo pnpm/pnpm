@@ -1,3 +1,5 @@
+pub use errors::DlxError;
+
 use crate::{
     State,
     cli_args::{
@@ -13,6 +15,7 @@ use cache::{
 };
 use clap::Args;
 use derive_more::{Display, Error};
+
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_resolver::{
@@ -92,67 +95,12 @@ pub struct DlxArgs {
     pub libc: Vec<String>,
 }
 
-/// Errors from `pacquet dlx`.
-#[derive(Debug, Display, Error, Diagnostic)]
-#[non_exhaustive]
-pub enum DlxError {
-    #[display("'pnpm dlx' requires a command to run")]
-    #[diagnostic(code(ERR_PNPM_DLX_MISSING_COMMAND))]
-    MissingCommand,
-
-    #[display(r#"dlx was unable to find the installed dependency in "dependencies""#)]
-    #[diagnostic(code(ERR_PNPM_DLX_NO_DEP))]
-    NoDep,
-
-    #[display("No binaries found in {package}")]
-    #[diagnostic(code(ERR_PNPM_DLX_NO_BIN))]
-    NoBin { package: String },
-
-    #[display("Could not determine executable to run. {package} has multiple binaries: {bins}")]
-    #[diagnostic(
-        code(ERR_PNPM_DLX_MULTIPLE_BINS),
-        help("Pass --package=<name> and choose one of: {bins}")
-    )]
-    MultipleBins { package: String, bins: String },
-
-    #[display("Command \"{command}\" not found")]
-    #[diagnostic(code(ERR_PNPM_DLX_COMMAND_NOT_FOUND))]
-    CommandNotFound { command: String },
-
-    #[display(
-        "Cannot add {dir} to PATH because it contains the path delimiter character ({delimiter})"
-    )]
-    #[diagnostic(code(ERR_PNPM_BAD_PATH_DIR))]
-    BadPathDir { dir: String, delimiter: char },
-
-    #[display("Failed to read the installed manifest at {path}: {source}")]
-    #[diagnostic(code(ERR_PNPM_CLI_DLX_READ_MANIFEST))]
-    ReadManifest {
-        path: String,
-        #[error(source)]
-        source: std::io::Error,
-    },
-
-    #[display("Failed to prepare the dlx cache directory {dir}: {source}")]
-    #[diagnostic(code(ERR_PNPM_CLI_DLX_CACHE))]
-    Cache {
-        dir: String,
-        #[error(source)]
-        source: std::io::Error,
-    },
-
-    #[display("Failed to spawn command \"{command}\": {source}")]
-    #[diagnostic(code(ERR_PNPM_CLI_DLX_SPAWN))]
-    Spawn {
-        command: String,
-        #[error(source)]
-        source: std::io::Error,
-    },
-}
-
 impl From<BadPathDir> for DlxError {
     fn from(BadPathDir { dir, delimiter }: BadPathDir) -> Self {
-        DlxError::BadPathDir { dir, delimiter }
+        DlxError::BadPathDir {
+            dir,
+            delimiter,
+        }
     }
 }
 
@@ -166,8 +114,11 @@ impl DlxArgs {
         dir: &Path,
         config: &'static mut Config,
     ) -> miette::Result<()> {
-        let supported_architectures =
-            SupportedArchitecturesArgs { cpu: self.cpu, os: self.os, libc: self.libc };
+        let supported_architectures = SupportedArchitecturesArgs {
+            cpu: self.cpu,
+            os: self.os,
+            libc: self.libc,
+        };
         let Some((bin_command, args)) = self.command.split_first() else {
             return Err(DlxError::MissingCommand.into());
         };
@@ -181,8 +132,11 @@ impl DlxArgs {
 
         // `pkgs = package ?? [command]`. With `--package`, the command
         // names the bin to run; otherwise the command is also the package.
-        let pkgs: Vec<String> =
-            if self.package.is_empty() { vec![bin_command.clone()] } else { self.package.clone() };
+        let pkgs: Vec<String> = if self.package.is_empty() {
+            vec![bin_command.clone()]
+        } else {
+            self.package.clone()
+        };
         // Resolved here rather than in the install below so the catalog's
         // version also feeds the cache key: two callers whose catalogs pin
         // different versions of the same package must not share a cache
@@ -193,28 +147,19 @@ impl DlxArgs {
         // is part of the cache key: it changes which platform-tagged
         // optional dependencies get installed, so two invocations that
         // differ only by architecture must not share a cache entry.
-        let dlx_command_cache_dir =
-            command_cache_dir(config, &pkgs, &self.allow_build, &supported_architectures)?;
-        let cache_link = dlx_command_cache_dir.join("pkg");
+        let cached_dir = resolve_command_cache::<Reporter>(
+            config,
+            &pkgs,
+            &self.allow_build,
+            &supported_architectures,
+        )
+        .await?;
 
-        let cached_dir =
-            match get_valid_cache_dir(&cache_link, config.dlx_cache_max_age, SystemTime::now()) {
-                Some(cached_dir) => cached_dir,
-                None => {
-                    prepare_cache_dir::<Reporter>(
-                        &dlx_command_cache_dir,
-                        &cache_link,
-                        &pkgs,
-                        &self.allow_build,
-                        &supported_architectures,
-                        config,
-                    )
-                    .await?
-                }
-            };
-
-        let bin_name =
-            if self.package.is_empty() { get_bin_name(&cached_dir)? } else { bin_command.clone() };
+        let bin_name = if self.package.is_empty() {
+            get_bin_name(&cached_dir)?
+        } else {
+            bin_command.clone()
+        };
 
         run_bin(
             DlxProgram::Named(&bin_name),
@@ -277,7 +222,15 @@ async fn run_provisioned<Reporter: self::Reporter + 'static>(
             run_package_manager::<Reporter>(config, pm, version_spec, spec, bin, args, spawn).await
         }
         ProvisionedTool::Runtime { name, version_spec } => {
-            run_runtime(&config.state_dir, name, version_spec, bin_command, args, spawn).await
+            run_runtime(
+                &config.state_dir,
+                name,
+                version_spec,
+                bin_command,
+                args,
+                spawn,
+            )
+            .await
         }
     }
 }
@@ -302,7 +255,10 @@ enum DlxProgram<'a> {
     /// name: an engine's directory can hold another executable named the
     /// way a user would type it — Yarn 6's archive ships a `yarn` launcher
     /// beside the `yarn-bin` that is the engine itself.
-    Provisioned { command: &'a str, executable: &'a Path },
+    Provisioned {
+        command: &'a str,
+        executable: &'a Path,
+    },
 }
 
 impl DlxProgram<'_> {
@@ -337,32 +293,7 @@ fn run_bin(
     prepend.extend(spawn.extra_bin_paths.iter().cloned());
     let path = prepend_dirs_to_path(&prepend).map_err(DlxError::from)?;
 
-    let mut cmd = if spawn.shell_mode {
-        let shell = pnpm_executor::select_shell(None, cfg!(windows))
-            .expect("default shell selection never fails");
-        let word = program
-            .shell_word()
-            .ok_or_else(|| DlxError::CommandNotFound { command: program.command().to_string() })?;
-        let mut joined = vec![word.to_string()];
-        joined.extend(args.iter().cloned());
-        let mut cmd = Command::new(&shell.program);
-        cmd.args(&shell.args);
-        // Append the joined command through `push_script_arg` so the
-        // Windows `cmd /d /s /c` verbatim path uses `raw_arg`, matching
-        // execa's `windowsVerbatimArguments` and preserving embedded
-        // quoting (same as exec's shell mode).
-        pnpm_executor::push_script_arg(&mut cmd, &joined.join(" "), shell.windows_verbatim_args);
-        cmd
-    } else {
-        let executable = match program {
-            DlxProgram::Named(name) => which::which_in(name, Some(&path), spawn.cwd)
-                .map_err(|_| DlxError::CommandNotFound { command: name.to_string() })?,
-            DlxProgram::Provisioned { executable, .. } => executable.to_path_buf(),
-        };
-        let mut cmd = Command::new(executable);
-        cmd.args(args);
-        cmd
-    };
+    let mut cmd = dlx_command(program, args, &path, spawn)?;
 
     cmd.current_dir(spawn.cwd);
     // `updateConfig`-provided env, applied first so pnpm's own keys win
@@ -376,7 +307,10 @@ fn run_bin(
 
     let status = pnpm_executor::spawn_child(&mut cmd, None)
         .and_then(|mut child| child.wait())
-        .map_err(|source| DlxError::Spawn { command: program.command().to_string(), source })?;
+        .map_err(|source| DlxError::Spawn {
+            command: program.command().to_string(),
+            source,
+        })?;
     if !status.success() {
         pnpm_executor::exit_like(pnpm_executor::ScriptExit::Process(status));
     }
@@ -391,16 +325,31 @@ fn get_bin_name(cached_dir: &Path) -> Result<String, DlxError> {
     let bins = get_bins_from_package_manifest::<CmdShimHost>(&manifest, &pkg_dir);
 
     match bins.as_slice() {
-        [] => Err(DlxError::NoBin { package: pkg_name }),
+        [] => Err(DlxError::NoBin {
+            package: pkg_name,
+        }),
         [bin] => Ok(bin.name.clone()),
         bins => {
-            let manifest_name = manifest.get("name").and_then(Value::as_str).unwrap_or(&pkg_name);
+            let manifest_name = manifest
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or(&pkg_name);
             let scopeless_name = scopeless(manifest_name);
-            if let Some(bin) = bins.iter().find(|bin| bin.name == scopeless_name) {
+            if let Some(bin) = bins
+                .iter()
+                .find(|bin| bin.name == scopeless_name)
+            {
                 return Ok(bin.name.clone());
             }
-            let names = bins.iter().map(|bin| bin.name.as_str()).collect::<Vec<_>>().join(", ");
-            Err(DlxError::MultipleBins { package: pkg_name, bins: names })
+            let names = bins
+                .iter()
+                .map(|bin| bin.name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            Err(DlxError::MultipleBins {
+                package: pkg_name,
+                bins: names,
+            })
         }
     }
 }
@@ -425,7 +374,9 @@ fn get_pkg_name(cached_dir: &Path) -> Result<String, DlxError> {
 /// The package name with any `@scope/` prefix removed.
 fn scopeless(pkg_name: &str) -> &str {
     if let Some(rest) = pkg_name.strip_prefix('@') {
-        rest.split_once('/').map_or(pkg_name, |(_, name)| name)
+        rest
+            .split_once('/')
+            .map_or(pkg_name, |(_, name)| name)
     } else {
         pkg_name
     }
@@ -437,3 +388,72 @@ mod tests;
 mod cache;
 
 mod provision;
+
+mod errors;
+
+fn dlx_command(
+    program: DlxProgram<'_>,
+    args: &[String],
+    path: &std::ffi::OsStr,
+    spawn: &DlxSpawn<'_>,
+) -> miette::Result<Command> {
+    let cmd = if spawn.shell_mode {
+        let shell = pnpm_executor::select_shell(None, cfg!(windows))
+            .expect("default shell selection never fails");
+        let word = program
+            .shell_word()
+            .ok_or_else(|| DlxError::CommandNotFound {
+                command: program.command().to_string(),
+            })?;
+        let mut joined = vec![word.to_string()];
+        joined.extend(args.iter().cloned());
+        let mut cmd = Command::new(&shell.program);
+        cmd.args(&shell.args);
+        // Append the joined command through `push_script_arg` so the
+        // Windows `cmd /d /s /c` verbatim path uses `raw_arg`, matching
+        // execa's `windowsVerbatimArguments` and preserving embedded
+        // quoting (same as exec's shell mode).
+        pnpm_executor::push_script_arg(&mut cmd, &joined.join(" "), shell.windows_verbatim_args);
+        cmd
+    } else {
+        let executable = match program {
+            DlxProgram::Named(name) => which::which_in(name, Some(path), spawn.cwd)
+                .map_err(|_| DlxError::CommandNotFound {
+                    command: name.to_string(),
+                })?,
+            DlxProgram::Provisioned { executable, .. } => executable.to_path_buf(),
+        };
+        let mut cmd = Command::new(executable);
+        cmd.args(args);
+        cmd
+    };
+    Ok(cmd)
+}
+
+async fn resolve_command_cache<Reporter: self::Reporter + 'static>(
+    config: &'static mut Config,
+    pkgs: &[String],
+    allow_build: &[String],
+    supported_architectures: &SupportedArchitecturesArgs,
+) -> miette::Result<PathBuf> {
+    let dlx_command_cache_dir =
+        command_cache_dir(config, pkgs, allow_build, supported_architectures)?;
+    let cache_link = dlx_command_cache_dir.join("pkg");
+
+    let cached_dir =
+        match get_valid_cache_dir(&cache_link, config.dlx_cache_max_age, SystemTime::now()) {
+            Some(cached_dir) => cached_dir,
+            None => {
+                prepare_cache_dir::<Reporter>(
+                    &dlx_command_cache_dir,
+                    &cache_link,
+                    pkgs,
+                    allow_build,
+                    supported_architectures,
+                    config,
+                )
+                .await?
+            }
+        };
+    Ok(cached_dir)
+}

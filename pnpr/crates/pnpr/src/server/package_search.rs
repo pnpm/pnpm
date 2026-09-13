@@ -24,7 +24,12 @@ pub(super) struct SearchPage<Item> {
 
 impl<Item> SearchPage<Item> {
     pub(super) fn new(from: usize, size: usize) -> Self {
-        Self { objects: Vec::new(), names: HashSet::new(), from, size }
+        Self {
+            objects: Vec::new(),
+            names: HashSet::new(),
+            from,
+            size,
+        }
     }
 
     pub(super) fn push_name(&mut self, name: &str) -> bool {
@@ -126,8 +131,9 @@ pub(super) async fn serve_search(
     let Some(params) = pnpr_search::parse_params(query_string, 20) else {
         return search_response(&[], 0);
     };
-    let Some(registry) =
-        registry.map(str::to_string).or_else(|| default_registry_target(state, Ecosystem::Npm))
+    let Some(registry) = registry
+        .map(str::to_string)
+        .or_else(|| default_registry_target(state, Ecosystem::Npm))
     else {
         return search_response(&[], 0);
     };
@@ -137,13 +143,12 @@ pub(super) async fn serve_search(
     for source in discovery_sources(state, &registry, Ecosystem::Npm) {
         let searched = match source {
             DiscoverySource::Hosted(source) => {
-                append_hosted_search(
-                    state,
-                    identity,
-                    HostedSearch { registry: &registry, source: &source, text: &params.text },
-                    &mut page,
-                )
-                .await
+                let search = HostedSearch {
+                    registry: &registry,
+                    source: &source,
+                    text: &params.text,
+                };
+                append_hosted_search(state, identity, search, &mut page).await
             }
             DiscoverySource::Upstream(source) => {
                 let search = UpstreamSearch {
@@ -237,7 +242,11 @@ pub(super) async fn append_upstream_source(
     let Some(upstream) = state.inner.proxy.upstreams.get(search.source) else {
         return Ok(());
     };
-    if search.from > page.total().saturating_add(budget.remaining_results()) {
+    if search.from
+        > page
+            .total()
+            .saturating_add(budget.remaining_results())
+    {
         return Err(RegistryError::BadRequest {
             reason: format!(
                 "search `from` would require scanning more than {MAX_UPSTREAM_SEARCH_RESULTS} upstream results",
@@ -260,7 +269,9 @@ pub(super) fn upstream_search_admits(
     config: &pnpr_config::UpstreamConfig,
     identity: &Identity,
 ) -> bool {
-    config.access.as_ref().is_none_or(|access| access.allows(identity))
+    config.access
+        .as_ref()
+        .is_none_or(|access| access.allows(identity))
         && config.rules.all_access_admit(identity)
 }
 
@@ -287,7 +298,10 @@ pub(super) async fn hosted_search_names(
         matches!(
             resolve_ecosystem_source(state, registry, ecosystem, name),
             RegistrySource::Hosted(resolved) if resolved == source,
-        ) && matches!(hosted_gate(state, identity, source, name), HostedGate::Allowed(_))
+        ) && matches!(
+            hosted_gate(state, identity, source, name),
+            HostedGate::Allowed(_),
+        )
     };
     let names = pnpr_search::local_search_names(&storage, text, keep).await?;
     Ok(Some((storage, names)))
@@ -320,7 +334,10 @@ pub(super) async fn append_upstream_search(
         if object_count == 0 {
             return Err(RegistryError::UpstreamResponse {
                 url: format!("{}/-/v1/search", context.source),
-                reason: format!("reported {} results but returned an empty page", response.total),
+                reason: format!(
+                    "reported {} results but returned an empty page",
+                    response.total,
+                ),
             });
         }
     }
@@ -353,7 +370,14 @@ pub(super) fn search_result_is_visible(
     matches!(
         resolve_registry_source(context.state, context.registry, name),
         RegistrySource::Upstream(candidate) if candidate == context.source,
-    ) && authorize(context.state, context.identity, resolved, name, Action::Access).is_ok()
+    ) && authorize(
+        context.state,
+        context.identity,
+        resolved,
+        name,
+        Action::Access,
+    )
+    .is_ok()
 }
 
 pub(super) fn discovery_sources(
@@ -374,7 +398,10 @@ pub(super) fn discovery_sources(
 }
 
 pub(super) fn search_object_name(object: &Value) -> Option<&str> {
-    object.get("package")?.get("name")?.as_str()
+    object
+        .get("package")?
+        .get("name")?
+        .as_str()
 }
 
 pub(super) fn upstream_search_query(query_string: &str, from: usize, size: usize) -> String {

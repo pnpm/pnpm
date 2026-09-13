@@ -190,31 +190,31 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         let package_url = tarball.tarball.clone();
         // Scope credentials are selected from `name@version` when the
         // resolver knows it; direct URL tarballs fall back to URL identity.
-        let package_id = result
-            .package
-            .name_ver
+        let package_id = result.package.name_ver
             .as_ref()
-            .map_or_else(|| package_url.clone(), |nv| format!("{}@{}", nv.name, nv.suffix));
+            .map_or_else(
+                || package_url.clone(),
+                |nv| format!("{}@{}", nv.name, nv.suffix),
+            );
         // Hooks can select different content for the same URL. Native discovery
         // shares by URL; custom discovery also includes the package and resolution.
         let cache_key = self.integrity_cache_key(result, &package_url, &package_id)?;
         let cell = Arc::clone(&self.integrity_cache.entry(cache_key).or_default());
-        let resolution = cell
-            .get_or_try_init(|| async {
-                match self.ctx.policy.custom_session.as_ref() {
-                    Some(session) => {
-                        self.discover_integrity_by_custom_fetcher(
-                            session,
-                            result,
-                            (&package_url, &package_id),
-                            lockfile_dir,
-                        )
-                        .await
-                    }
-                    None => self.fetch_tarball_integrity(tarball, &package_url, &package_id).await,
+        let resolution = cell.get_or_try_init(|| async {
+            match self.ctx.policy.custom_session.as_ref() {
+                Some(session) => {
+                    self.discover_integrity_by_custom_fetcher(
+                        session,
+                        result,
+                        (&package_url, &package_id),
+                        lockfile_dir,
+                    )
+                    .await
                 }
-            })
-            .await?;
+                None => self.fetch_tarball_integrity(tarball, &package_url, &package_id).await,
+            }
+        })
+        .await?;
         if self.ctx.policy.custom_session.is_some() {
             result.resolution = resolution.clone();
         } else if let LockfileResolution::Tarball(tarball) = &mut result.resolution {
@@ -232,7 +232,10 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         package_id: &str,
     ) -> Result<String, ResolveError> {
         Ok(if self.ctx.policy.custom_session.is_some() {
-            format!("{package_id}:{}", serde_json::to_string(&result.resolution)?)
+            format!(
+                "{package_id}:{}",
+                serde_json::to_string(&result.resolution)?,
+            )
         } else {
             package_url.to_string()
         })
@@ -335,7 +338,9 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         // those cases the install path's `InstallPackageFromRegistry`
         // also fails, so skipping here matches the install-side
         // behaviour without adding a divergence.
-        let Some(name_ver) = result.package.name_ver.as_ref() else { return };
+        let Some(name_ver) = result.package.name_ver.as_ref() else {
+            return;
+        };
 
         // Per-occurrence atomic dedup: the deps resolver calls
         // `resolve()` once per (parent, child) edge. Concurrent calls
@@ -510,7 +515,9 @@ impl<Reporter: self::Reporter + 'static> Resolver for PrefetchingResolver<Report
 }
 
 fn is_remote_tarball(resolution: &LockfileResolution) -> bool {
-    let LockfileResolution::Tarball(tarball) = resolution else { return false };
+    let LockfileResolution::Tarball(tarball) = resolution else {
+        return false;
+    };
     !tarball.tarball.starts_with("file:") && !is_git_hosted_tarball_url(&tarball.tarball)
 }
 

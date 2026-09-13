@@ -34,7 +34,10 @@ impl StageRegistryError {
         } else {
             format!("Failed to {action} (status {status_display}): {trimmed}")
         };
-        StageRegistryError { message, status }
+        StageRegistryError {
+            message,
+            status,
+        }
     }
 }
 
@@ -45,14 +48,12 @@ pub(super) async fn fetch_stage_tarball(
 ) -> miette::Result<Vec<u8>> {
     let url = stage_endpoint_url(&context.registry, &format!("-/stage/{stage_id}/tarball"))?;
     let action = format!("download staged package {stage_id}");
-    let (_guard, response) = stage_send(context, reqwest::Method::GET, url.as_str(), None)
-        .await
+    let (_guard, response) = stage_send(context, reqwest::Method::GET, url.as_str(), None).await
         .map_err(|source| request_failed(&action, source))?;
     if !response.status().is_success() {
         return Err(registry_error_from_response(response, &action).await.into());
     }
-    let tarball_data = read_limited_body(response, STAGE_TARBALL_BODY_LIMIT)
-        .await
+    let tarball_data = read_limited_body(response, STAGE_TARBALL_BODY_LIMIT).await
         .map_err(|source| request_failed(&action, source))?;
     if tarball_data.truncated {
         return Err(StageError::RequestFailed {
@@ -160,26 +161,33 @@ async fn stage_mutation(
     action: &str,
     otp: Option<&str>,
 ) -> Result<(), StageHttpError> {
-    let (_guard, response) = stage_send(context, method, url, otp).await.map_err(|source| {
-        StageHttpError::Request(Box::new(request_failed_error(action, source)))
-    })?;
+    let (_guard, response) = stage_send(context, method, url, otp).await
+        .map_err(|source| {
+            StageHttpError::Request(Box::new(request_failed_error(action, source)))
+        })?;
     let status = response.status();
     if status.is_success() {
         return Ok(());
     }
-    let status_text = status.canonical_reason().unwrap_or_default().to_owned();
+    let status_text = status
+        .canonical_reason()
+        .unwrap_or_default()
+        .to_owned();
     let www_authenticate = response
         .headers()
         .get(reqwest::header::WWW_AUTHENTICATE)
         .and_then(|value| value.to_str().ok())
         .map(str::to_owned);
-    let body = read_limited_body(response, STAGE_ERROR_BODY_LIMIT).await.map_err(|source| {
-        StageHttpError::Request(Box::new(request_failed_error(action, source)))
-    })?;
+    let body = read_limited_body(response, STAGE_ERROR_BODY_LIMIT).await
+        .map_err(|source| {
+            StageHttpError::Request(Box::new(request_failed_error(action, source)))
+        })?;
     if status.as_u16() == 401
         && let Some(challenge) = parse_stage_otp_challenge(www_authenticate.as_deref(), &body.bytes)
     {
-        return Err(StageHttpError::Otp { challenge });
+        return Err(StageHttpError::Otp {
+            challenge,
+        });
     }
     Err(StageHttpError::Registry(StageRegistryError::new(
         action,
@@ -199,7 +207,8 @@ pub(super) async fn fetch_stage_items(
     let mut page: usize = 0;
     loop {
         let mut url = stage_endpoint_url(&context.registry, "-/stage")?;
-        url.query_pairs_mut()
+        url
+            .query_pairs_mut()
             .append_pair("page", &page.to_string())
             .append_pair("perPage", &PER_PAGE.to_string());
         if let Some(package) = package_filter {
@@ -226,14 +235,12 @@ pub(super) async fn stage_json_request<Body: serde::de::DeserializeOwned>(
     url: &str,
     action: &str,
 ) -> miette::Result<Body> {
-    let (_guard, response) = stage_send(context, reqwest::Method::GET, url, None)
-        .await
+    let (_guard, response) = stage_send(context, reqwest::Method::GET, url, None).await
         .map_err(|source| request_failed(action, source))?;
     if !response.status().is_success() {
         return Err(registry_error_from_response(response, action).await.into());
     }
-    let body = read_limited_body(response, STAGE_BODY_LIMIT)
-        .await
+    let body = read_limited_body(response, STAGE_BODY_LIMIT).await
         .map_err(|source| request_failed(action, source))?;
     if body.truncated {
         return Err(StageError::RequestFailed {
@@ -253,7 +260,13 @@ async fn stage_send<'client>(
     method: reqwest::Method,
     url: &str,
     otp: Option<&str>,
-) -> Result<(pnpm_network::ThrottledClientGuard<'client>, reqwest::Response), reqwest::Error> {
+) -> Result<
+    (
+        pnpm_network::ThrottledClientGuard<'client>,
+        reqwest::Response,
+    ),
+    reqwest::Error,
+> {
     send_with_retry(&context.http_client, url, context.retry_opts, |client| {
         let mut builder = client
             .request(method.clone(), url)
@@ -276,7 +289,10 @@ async fn registry_error_from_response(
     action: &str,
 ) -> StageRegistryError {
     let status = response.status();
-    let status_text = status.canonical_reason().unwrap_or_default().to_owned();
+    let status_text = status
+        .canonical_reason()
+        .unwrap_or_default()
+        .to_owned();
     let body = match read_limited_body(response, STAGE_ERROR_BODY_LIMIT).await {
         Ok(body) => body_display_string(&body),
         Err(_) => String::new(),
@@ -289,8 +305,16 @@ async fn registry_error_from_response(
 /// `www-authenticate` header mentioning `otp` (classic TOTP).
 fn parse_stage_otp_challenge(www_authenticate: Option<&str>, body: &[u8]) -> Option<OtpChallenge> {
     let parsed: Option<Value> = serde_json::from_slice(body).ok();
-    let read =
-        |field: &str| parsed.as_ref().and_then(|json| json.get(field)?.as_str().map(str::to_owned));
+    let read = |field: &str| {
+        parsed
+            .as_ref()
+            .and_then(|json| {
+                json
+                    .get(field)?
+                    .as_str()
+                    .map(str::to_owned)
+            })
+    };
     let auth_url = read("authUrl");
     let done_url = read("doneUrl");
     let has_web_auth_urls = auth_url.is_some() && done_url.is_some();
@@ -299,7 +323,12 @@ fn parse_stage_otp_challenge(www_authenticate: Option<&str>, body: &[u8]) -> Opt
     if !has_web_auth_urls && !header_mentions_otp {
         return None;
     }
-    Some(OtpChallenge { body: Some(OtpErrorBody { auth_url, done_url }) })
+    Some(OtpChallenge {
+        body: Some(OtpErrorBody {
+            auth_url,
+            done_url,
+        }),
+    })
 }
 
 fn request_failed(action: &str, source: impl std::fmt::Display) -> miette::Report {

@@ -20,7 +20,12 @@ const TIMESTAMP: &str = "2020-01-01T00:00:00.000Z";
 /// and `@pnpm.e2e/needs-auth` (used by the auth-policy tests).
 pub fn build_storage() -> TempDir {
     let dir = TempDir::new().expect("create temp storage dir");
-    write_package(dir.path(), "@foo/no-deps", "no-deps-1.0.0.tgz", no_deps_packument());
+    write_package(
+        dir.path(),
+        "@foo/no-deps",
+        "no-deps-1.0.0.tgz",
+        no_deps_packument(),
+    );
     write_package(
         dir.path(),
         "@pnpm.e2e/needs-auth",
@@ -37,8 +42,11 @@ pub fn build_storage() -> TempDir {
 fn write_package(storage: &Path, name: &str, tarball: &str, packument: Value) {
     let package_dir = storage.join(name);
     std::fs::create_dir_all(&package_dir).expect("create package dir");
-    std::fs::write(package_dir.join("package.json"), serde_json::to_vec(&packument).unwrap())
-        .expect("write packument");
+    std::fs::write(
+        package_dir.join("package.json"),
+        serde_json::to_vec(&packument).unwrap(),
+    )
+    .expect("write packument");
     std::fs::write(package_dir.join(tarball), format!("fake {name} tarball"))
         .expect("write tarball");
 }

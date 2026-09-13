@@ -14,7 +14,12 @@ pub(crate) async fn execute_plan(
     match plan {
         PreCommandPlan::Switch(plan) => execute_switch(plan, child_argv).await,
         PreCommandPlan::SyncEnvLockfile(sync) => {
-            let EnvLockfileSync { config, env_root, package_manager, frozen_lockfile } = sync;
+            let EnvLockfileSync {
+                config,
+                env_root,
+                package_manager,
+                frozen_lockfile,
+            } = sync;
             config_deps::sync_package_manager_dependencies(
                 &config,
                 &env_root,
@@ -29,7 +34,10 @@ pub(crate) async fn execute_plan(
     }
 }
 
-#[expect(clippy::exit, reason = "delegated pnpm must preserve the child exit code")]
+#[expect(
+    clippy::exit,
+    reason = "delegated pnpm must preserve the child exit code"
+)]
 async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Result<bool> {
     let SwitchPlan { config, target } = plan;
     let SwitchTarget { spec, source } = target;
@@ -38,9 +46,12 @@ async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Re
         return Ok(false);
     };
 
-    let status =
-        spawn_pnpm(slice::from_ref(&bin_dir), child_argv.iter(), PackageManagerCheck::Enabled)
-            .wrap_err_with(|| format!("switch pnpm to v{version}"))?;
+    let status = spawn_pnpm(
+        slice::from_ref(&bin_dir),
+        child_argv.iter(),
+        PackageManagerCheck::Enabled,
+    )
+    .wrap_err_with(|| format!("switch pnpm to v{version}"))?;
     if !status.success() {
         std::process::exit(status.code().unwrap_or(1));
     }
@@ -70,7 +81,12 @@ async fn install_switch_target(
             .await?;
             Ok(Some((version, bin_dir)))
         }
-        SwitchSource::Resolve { env_root, frozen_lockfile, force_resync, locked_version } => {
+        SwitchSource::Resolve {
+            env_root,
+            frozen_lockfile,
+            force_resync,
+            locked_version,
+        } => {
             install_resolved_switch_target(
                 config,
                 spec,
@@ -122,15 +138,21 @@ async fn install_resolved_switch_target(
     let version = match locked_version.filter(|_| frozen_lockfile) {
         Some(locked) => locked,
         None => {
-            config_deps::resolve_engine_version(config, "pnpm", spec)
-                .await?
+            config_deps::resolve_engine_version(config, "pnpm", spec).await?
                 .ok_or_else(|| miette::miette!(r#"Cannot resolve pnpm version for "{}""#, spec))?
                 .version
         }
     };
     if version == PNPM_VERSION {
-        repair_recorded_entries(config, env_root, spec, &version, frozen_lockfile, force_resync)
-            .await?;
+        repair_recorded_entries(
+            config,
+            env_root,
+            spec,
+            &version,
+            frozen_lockfile,
+            force_resync,
+        )
+        .await?;
         return Ok(None);
     }
     assert_release_is_installable(&version)?;

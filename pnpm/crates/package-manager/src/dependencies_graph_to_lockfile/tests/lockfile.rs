@@ -29,10 +29,15 @@ fn recorded_publish_dates_reach_the_lockfiles_time_section() {
     );
     let mut graph = DependenciesGraph::default();
     graph.insert(node.dep_path.clone(), node);
-    let direct = BTreeMap::from([("react".to_string(), DepPath::from("react@17.0.2".to_string()))]);
+    let direct = BTreeMap::from([(
+        "react".to_string(),
+        DepPath::from("react@17.0.2".to_string()),
+    )]);
 
-    let time =
-        BTreeMap::from([("react@17.0.2".to_string(), "2021-03-22T14:00:00.000Z".to_string())]);
+    let time = BTreeMap::from([(
+        "react@17.0.2".to_string(),
+        "2021-03-22T14:00:00.000Z".to_string(),
+    )]);
     let mut opts = single_importer_opts(&manifest, &graph, direct, true, false, None, None);
     opts.time = time.clone();
 
@@ -56,13 +61,19 @@ fn empty_deprecation_message_is_not_written_to_the_lockfile() {
     let mut graph = DependenciesGraph::default();
     graph.insert(node.dep_path.clone(), node);
     let mut direct = BTreeMap::new();
-    direct.insert("legacy".to_string(), DepPath::from("legacy@1.0.0".to_string()));
+    direct.insert(
+        "legacy".to_string(),
+        DepPath::from("legacy@1.0.0".to_string()),
+    );
 
     let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
         &manifest, &graph, direct, true, false, None, None,
     ));
     let package_key: PackageKey = "legacy@1.0.0".parse().expect("package key");
-    assert_eq!(lockfile.packages.as_ref().expect("packages")[&package_key].deprecated, None);
+    assert_eq!(
+        lockfile.packages.as_ref().expect("packages")[&package_key].deprecated,
+        None,
+    );
 }
 #[test]
 fn generated_lockfile_preserves_libc_manifest_shape() {
@@ -75,7 +86,10 @@ fn generated_lockfile_preserves_libc_manifest_shape() {
         },
     }));
     let mut graph = DependenciesGraph::default();
-    for (name, libc) in [("list-libc", json!(["glibc"])), ("scalar-libc", json!("musl"))] {
+    for (name, libc) in [
+        ("list-libc", json!(["glibc"])),
+        ("scalar-libc", json!("musl")),
+    ] {
         let node = make_node(
             name,
             "1.0.0",
@@ -87,8 +101,14 @@ fn generated_lockfile_preserves_libc_manifest_shape() {
         graph.insert(node.dep_path.clone(), node);
     }
     let direct = BTreeMap::from([
-        ("list-libc".to_string(), DepPath::from("list-libc@1.0.0".to_string())),
-        ("scalar-libc".to_string(), DepPath::from("scalar-libc@1.0.0".to_string())),
+        (
+            "list-libc".to_string(),
+            DepPath::from("list-libc@1.0.0".to_string()),
+        ),
+        (
+            "scalar-libc".to_string(),
+            DepPath::from("scalar-libc@1.0.0".to_string()),
+        ),
     ]);
 
     let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
@@ -148,7 +168,10 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
     let mut importers = BTreeMap::new();
     importers.insert(
         ".".to_string(),
-        ImporterLockfileInput { manifest: &manifest, direct_dependencies_by_alias: direct.clone() },
+        ImporterLockfileInput {
+            manifest: &manifest,
+            direct_dependencies_by_alias: direct.clone(),
+        },
     );
     let on = dependencies_graph_to_lockfile(GraphToLockfileOptions {
         importers,
@@ -190,7 +213,10 @@ fn dedupe_peers_round_trips_through_lockfile_settings() {
     let mut importers = BTreeMap::new();
     importers.insert(
         ".".to_string(),
-        ImporterLockfileInput { manifest: &manifest, direct_dependencies_by_alias: direct },
+        ImporterLockfileInput {
+            manifest: &manifest,
+            direct_dependencies_by_alias: direct,
+        },
     );
     let off = dependencies_graph_to_lockfile(GraphToLockfileOptions {
         importers,
@@ -275,7 +301,10 @@ fn patched_dependencies_flow_into_lockfile_and_empty_is_omitted() {
     let mut graph = DependenciesGraph::default();
     graph.insert(node.dep_path.clone(), node);
     let mut direct = BTreeMap::new();
-    direct.insert("react".to_string(), DepPath::from("react@17.0.2".to_string()));
+    direct.insert(
+        "react".to_string(),
+        DepPath::from("react@17.0.2".to_string()),
+    );
 
     let build = |patched: Option<BTreeMap<String, String>>| {
         let mut importers = BTreeMap::new();
@@ -325,8 +354,7 @@ fn patched_dependencies_flow_into_lockfile_and_empty_is_omitted() {
         "68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1".to_string(),
     )])));
     assert_eq!(
-        with_patch
-            .patched_dependencies
+        with_patch.patched_dependencies
             .as_ref()
             .and_then(|map| map.get("graceful-fs@4.2.11"))
             .map(String::as_str),
@@ -348,8 +376,14 @@ fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
             "wrapper": "1.0.0",
         },
     }));
-    let shared = make_link_node("packages/shared", json!({ "name": "shared", "version": "1.0.0" }));
-    let peer = make_link_node("packages/peer", json!({ "name": "peer", "version": "1.0.0" }));
+    let shared = make_link_node(
+        "packages/shared",
+        json!({ "name": "shared", "version": "1.0.0" }),
+    );
+    let peer = make_link_node(
+        "packages/peer",
+        json!({ "name": "peer", "version": "1.0.0" }),
+    );
     let wrapper = make_node(
         "wrapper",
         "1.0.0",
@@ -369,7 +403,10 @@ fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
         BTreeMap::from([("peer".to_string(), peer.dep_path.clone())]),
         BTreeMap::from([(
             "peer".to_string(),
-            PeerDep { version: "*".to_string(), optional: false },
+            PeerDep {
+                version: "*".to_string(),
+                optional: false,
+            },
         )]),
         HashSet::default(),
     );
@@ -381,14 +418,26 @@ fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
         graph.insert(node.dep_path.clone(), node);
     }
     let direct = BTreeMap::from([
-        ("consumer".to_string(), DepPath::from("consumer@1.0.0(peer@packages+peer)")),
-        ("peer".to_string(), DepPath::from("link:../../../packages/peer")),
-        ("shared".to_string(), DepPath::from("link:../../../packages/shared")),
+        (
+            "consumer".to_string(),
+            DepPath::from("consumer@1.0.0(peer@packages+peer)"),
+        ),
+        (
+            "peer".to_string(),
+            DepPath::from("link:../../../packages/peer"),
+        ),
+        (
+            "shared".to_string(),
+            DepPath::from("link:../../../packages/shared"),
+        ),
         ("wrapper".to_string(), DepPath::from("wrapper@1.0.0")),
     ]);
     let importers = BTreeMap::from([(
         "apps/nested/app".to_string(),
-        ImporterLockfileInput { manifest: &manifest, direct_dependencies_by_alias: direct },
+        ImporterLockfileInput {
+            manifest: &manifest,
+            direct_dependencies_by_alias: direct,
+        },
     )]);
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
@@ -427,7 +476,9 @@ fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
     let importer = lockfile.importers.get("apps/nested/app").expect("nested importer");
     let importer_dependencies = importer.dependencies.as_ref().expect("importer dependencies");
     for name in ["shared", "peer"] {
-        let dependency = importer_dependencies.get(&PkgName::parse(name).unwrap()).unwrap();
+        let dependency = importer_dependencies
+            .get(&PkgName::parse(name).unwrap())
+            .unwrap();
         match &dependency.version {
             ImporterDepVersion::Link(target) => {
                 assert_eq!(target, &format!("../../../packages/{name}"));
@@ -449,7 +500,10 @@ fn snapshot_link_uses_lockfile_root_while_importer_link_uses_project_root() {
         .map(|(_, snapshot)| snapshot)
         .expect("consumer peer snapshot");
     assert_eq!(
-        consumer_snapshot.dependencies.as_ref().unwrap().get(&PkgName::parse("peer").unwrap()),
+        consumer_snapshot.dependencies
+            .as_ref()
+            .unwrap()
+            .get(&PkgName::parse("peer").unwrap()),
         Some(&SnapshotDepRef::Link("packages/peer".to_string())),
     );
 }
@@ -478,18 +532,30 @@ fn multi_importer_workspace_writes_per_project_lockfile_entries() {
     graph.insert(lodash.dep_path.clone(), lodash);
 
     let mut a_direct = BTreeMap::new();
-    a_direct.insert("lodash".to_string(), DepPath::from("lodash@4.17.21".to_string()));
+    a_direct.insert(
+        "lodash".to_string(),
+        DepPath::from("lodash@4.17.21".to_string()),
+    );
     let mut b_direct = BTreeMap::new();
-    b_direct.insert("lodash".to_string(), DepPath::from("lodash@4.17.21".to_string()));
+    b_direct.insert(
+        "lodash".to_string(),
+        DepPath::from("lodash@4.17.21".to_string()),
+    );
 
     let mut importers = BTreeMap::new();
     importers.insert(
         "packages/a".to_string(),
-        ImporterLockfileInput { manifest: &a_manifest, direct_dependencies_by_alias: a_direct },
+        ImporterLockfileInput {
+            manifest: &a_manifest,
+            direct_dependencies_by_alias: a_direct,
+        },
     );
     importers.insert(
         "packages/b".to_string(),
-        ImporterLockfileInput { manifest: &b_manifest, direct_dependencies_by_alias: b_direct },
+        ImporterLockfileInput {
+            manifest: &b_manifest,
+            direct_dependencies_by_alias: b_direct,
+        },
     );
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
@@ -528,8 +594,18 @@ fn multi_importer_workspace_writes_per_project_lockfile_entries() {
     let a_snap = lockfile.importers.get("packages/a").expect("importer a");
     let b_snap = lockfile.importers.get("packages/b").expect("importer b");
     let lodash_name = PkgName::parse("lodash").unwrap();
-    assert!(a_snap.dependencies.as_ref().unwrap().contains_key(&lodash_name));
-    assert!(b_snap.dependencies.as_ref().unwrap().contains_key(&lodash_name));
+    assert!(
+        a_snap.dependencies
+            .as_ref()
+            .unwrap()
+            .contains_key(&lodash_name),
+    );
+    assert!(
+        b_snap.dependencies
+            .as_ref()
+            .unwrap()
+            .contains_key(&lodash_name),
+    );
 
     let packages = lockfile.packages.as_ref().expect("packages");
     let lodash_key: PackageKey = "lodash@4.17.21".parse().unwrap();
@@ -547,8 +623,10 @@ fn external_link_direct_dep_omitted_from_importer_when_exclude_links_from_lockfi
         },
     }));
 
-    let link_node =
-        make_link_node("/abs/external-1", json!({ "name": "external-1", "version": "1.0.0" }));
+    let link_node = make_link_node(
+        "/abs/external-1",
+        json!({ "name": "external-1", "version": "1.0.0" }),
+    );
     let is_positive = make_node(
         "is-positive",
         "1.0.0",
@@ -564,7 +642,10 @@ fn external_link_direct_dep_omitted_from_importer_when_exclude_links_from_lockfi
 
     let mut direct = BTreeMap::new();
     direct.insert("external-1".to_string(), link_node.dep_path);
-    direct.insert("is-positive".to_string(), DepPath::from("is-positive@1.0.0".to_string()));
+    direct.insert(
+        "is-positive".to_string(),
+        DepPath::from("is-positive@1.0.0".to_string()),
+    );
 
     let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
         &manifest, &graph, direct, false, true, None, None,
@@ -611,7 +692,9 @@ fn workspace_link_direct_dep_kept_when_exclude_links_from_lockfile_true() {
 
     let importer = lockfile.root_project().expect("root importer");
     let deps = importer.dependencies.as_ref().expect("dependencies map");
-    let shared = deps.get(&PkgName::parse("shared").unwrap()).expect("shared entry");
+    let shared = deps
+        .get(&PkgName::parse("shared").unwrap())
+        .expect("shared entry");
     assert_eq!(shared.specifier, "workspace:*");
     match &shared.version {
         ImporterDepVersion::Link(target) => assert_eq!(target, "../shared"),
@@ -640,7 +723,10 @@ fn a_plain_package_leaves_the_lockfile_on_9_0() {
     graph.insert(node.dep_path.clone(), node);
 
     let mut direct = BTreeMap::new();
-    direct.insert("react".to_string(), DepPath::from("react@17.0.2".to_string()));
+    direct.insert(
+        "react".to_string(),
+        DepPath::from("react@17.0.2".to_string()),
+    );
 
     let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
         &manifest, &graph, direct, true, false, None, None,

@@ -16,7 +16,9 @@ use std::ffi::OsString;
 /// returning the argv clap should parse and whether the built-in command
 /// was forced.
 pub(crate) fn strip_prefix(mut argv: Vec<OsString>) -> (Vec<OsString>, bool) {
-    let builtin_command_forced = argv.get(1).is_some_and(|token| token == "pm");
+    let builtin_command_forced = argv
+        .get(1)
+        .is_some_and(|token| token == "pm");
     if builtin_command_forced {
         argv.remove(1);
     }

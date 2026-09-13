@@ -104,7 +104,10 @@ pub fn store_index_key_for_resolution(
     match resolution {
         pnpm_lockfile::LockfileResolution::Tarball(tarball) => {
             Some(pnpm_store_dir::pick_store_index_key(
-                tarball.integrity.as_ref().map(ToString::to_string).as_deref(),
+                tarball.integrity
+                    .as_ref()
+                    .map(ToString::to_string)
+                    .as_deref(),
                 tarball.is_git_hosted(),
                 pkg_id,
                 built,

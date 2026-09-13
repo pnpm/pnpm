@@ -5,16 +5,16 @@ use super::{
 /// Take one slot of the capped user counter, reporting whether the cap left
 /// one to take.
 pub(super) async fn claim_user_counter_slot(tx: &libsql::Transaction, max: u64) -> Result<bool> {
-    let sql_max = i64::try_from(max).map_err(|_| RegistryError::InvalidConfig {
-        reason: "backend.libsql auth max_users must fit a signed BIGINT".to_string(),
-    })?;
-    let updated = tx
-        .execute(
-            "UPDATE auth_counters SET value = value + 1
+    let sql_max = i64::try_from(max)
+        .map_err(|_| RegistryError::InvalidConfig {
+            reason: "backend.libsql auth max_users must fit a signed BIGINT".to_string(),
+        })?;
+    let updated = tx.execute(
+        "UPDATE auth_counters SET value = value + 1
                          WHERE name = ?1 AND value < ?2",
-            params!["users", sql_max],
-        )
-        .await?;
+        params!["users", sql_max],
+    )
+    .await?;
     Ok(updated > 0)
 }
 
@@ -33,9 +33,11 @@ pub(super) async fn ensure_user_counter(conn: &Connection) -> Result<()> {
     };
     let count: i64 = row.get(0)?;
     let tx = conn.transaction().await?;
-    let inserted = tx
-        .execute("INSERT INTO auth_counters (name, value) VALUES (?1, ?2)", params!["users", count])
-        .await;
+    let inserted = tx.execute(
+        "INSERT INTO auth_counters (name, value) VALUES (?1, ?2)",
+        params!["users", count],
+    )
+    .await;
     match inserted {
         Ok(_) => {}
         Err(err) if is_unique_violation(&err) => {}
@@ -57,8 +59,11 @@ pub(super) async fn ensure_user_counter(conn: &Connection) -> Result<()> {
 
 pub(super) async fn reconcile_user_counter_overcount(conn: &Connection) -> Result<bool> {
     let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate).await?;
-    let mut counter_rows =
-        tx.query("SELECT value FROM auth_counters WHERE name = ?1", params!["users"]).await?;
+    let mut counter_rows = tx.query(
+        "SELECT value FROM auth_counters WHERE name = ?1",
+        params!["users"],
+    )
+    .await?;
     let Some(counter_row) = counter_rows.next().await? else {
         drop(counter_rows);
         tx.commit().await?;
@@ -140,5 +145,7 @@ pub(super) fn is_unique_violation(err: &LibsqlError) -> bool {
 }
 
 pub(super) fn missing_count_row() -> RegistryError {
-    RegistryError::Internal { reason: "auth database COUNT(*) returned no rows".to_string() }
+    RegistryError::Internal {
+        reason: "auth database COUNT(*) returned no rows".to_string(),
+    }
 }

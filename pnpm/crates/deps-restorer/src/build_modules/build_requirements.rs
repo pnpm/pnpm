@@ -31,7 +31,10 @@ pub(super) fn patch_adds_build(
     patch_added_build: &HashMap<PackageKey, bool>,
     pkg_roots: PkgRoots<'_>,
 ) -> bool {
-    patch_added_build.get(&key.without_peer()).copied().unwrap_or(false)
+    patch_added_build
+        .get(&key.without_peer())
+        .copied()
+        .unwrap_or(false)
         && pkg_roots.canonical(key).is_some()
 }
 /// What [`requires_build_by_key`] reads to decide, per snapshot, whether
@@ -49,7 +52,13 @@ pub(super) struct RequiresBuildInputs<'a> {
 /// Whether each snapshot needs its build scripts run: what the package
 /// published, plus what its configured patch adds.
 pub(super) fn requires_build_by_key(inputs: RequiresBuildInputs<'_>) -> HashMap<PackageKey, bool> {
-    let RequiresBuildInputs { snapshots, skipped, pkg_roots, prefetched, patches } = inputs;
+    let RequiresBuildInputs {
+        snapshots,
+        skipped,
+        pkg_roots,
+        prefetched,
+        patches,
+    } = inputs;
     let published: HashMap<PackageKey, bool> = snapshots
         .keys()
         // Skip snapshots that never landed on disk. `pkg_requires_build`
@@ -107,7 +116,9 @@ pub(super) fn patch_added_build_by_package(
     published_requires_build: &HashMap<PackageKey, bool>,
     pkg_roots: PkgRoots<'_>,
 ) -> HashMap<PackageKey, bool> {
-    let Some(patches) = patches else { return HashMap::new() };
+    let Some(patches) = patches else {
+        return HashMap::new();
+    };
     let mut answers = HashMap::with_capacity(patches.len());
     for (key, published) in published_requires_build {
         // A package already bound for the build gate needs no preview: the
@@ -144,7 +155,9 @@ pub(super) fn previewed_patch_adds_build(
     let pkg_root = pkg_roots.canonical(key)?;
     let preview = preview_patch(&pkg_root, patch_file_path).ok()?;
     Some(
-        preview.written_paths.iter().any(|path| file_path_requires_build(path))
+        preview.written_paths
+            .iter()
+            .any(|path| file_path_requires_build(path))
             || preview.manifest.is_some_and(|manifest| {
                 parse_manifest(&manifest).is_ok_and(|manifest| manifest_requires_build(&manifest))
             }),

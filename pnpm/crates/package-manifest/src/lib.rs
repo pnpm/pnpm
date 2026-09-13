@@ -1,4 +1,8 @@
 pub mod package_manager_spec;
+pub use build_requirements::{
+    file_path_requires_build, files_include_install_scripts, manifest_requires_build,
+    pkg_requires_build,
+};
 pub use initialization::{InitAuthor, InitOptions};
 pub use runtime::{
     apply_runtime_on_fail_override, convert_dependencies_to_engines_runtime,
@@ -240,7 +244,11 @@ impl PackageManifest {
             .filter_map(|group| self.value.get::<&str>(group.into()))
             .filter_map(|dependencies| dependencies.as_object())
             .flatten()
-            .filter_map(|(name, version)| version.as_str().map(|value| (name.as_str(), value)))
+            .filter_map(|(name, version)| {
+                version
+                    .as_str()
+                    .map(|value| (name.as_str(), value))
+            })
     }
 
     /// Resolve a `(key, bare_specifier)` pair from a `package.json`
@@ -333,8 +341,11 @@ impl PackageManifest {
     /// A dependency belongs to one install group at a time, so adding it to
     /// one removes it from the other two.
     fn drop_from_other_install_groups(&mut self, name: &str, added_to: DependencyGroup) {
-        const INSTALL_GROUPS: [DependencyGroup; 3] =
-            [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+        const INSTALL_GROUPS: [DependencyGroup; 3] = [
+            DependencyGroup::Prod,
+            DependencyGroup::Dev,
+            DependencyGroup::Optional,
+        ];
         if !INSTALL_GROUPS.contains(&added_to) {
             return;
         }
@@ -357,10 +368,15 @@ impl PackageManifest {
     pub fn available_dependency_names(&self, save_type: Option<DependencyGroup>) -> Vec<String> {
         let groups: &[DependencyGroup] = match save_type {
             Some(ref group) => std::slice::from_ref(group),
-            None => &[DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional],
+            None => &[
+                DependencyGroup::Dev,
+                DependencyGroup::Prod,
+                DependencyGroup::Optional,
+            ],
         };
         let mut seen = std::collections::HashSet::new();
-        self.dependencies(groups.iter().copied())
+        self
+            .dependencies(groups.iter().copied())
             .filter(|(name, _)| seen.insert(*name))
             .map(|(name, _)| name.to_string())
             .collect()
@@ -380,7 +396,11 @@ impl PackageManifest {
     ) {
         let groups: &[DependencyGroup] = match save_type {
             Some(ref group) => std::slice::from_ref(group),
-            None => &[DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev],
+            None => &[
+                DependencyGroup::Optional,
+                DependencyGroup::Prod,
+                DependencyGroup::Dev,
+            ],
         };
         for group in groups {
             self.remove_from_object((*group).into(), removed_packages);
@@ -402,8 +422,7 @@ impl PackageManifest {
         command: &str,
         if_present: bool, // TODO: split this function into 2, one with --if-present, one without
     ) -> Result<Option<&str>, PackageManifestError> {
-        if let Some(script_str) = self
-            .value
+        if let Some(script_str) = self.value
             .get("scripts")
             .and_then(|scripts| scripts.get(command))
             .and_then(|script| script.as_str())
@@ -411,74 +430,13 @@ impl PackageManifest {
             return Ok(Some(script_str));
         }
 
-        if if_present { Ok(None) } else { Err(PackageManifestError::NoScript(command.to_string())) }
+        if if_present {
+            Ok(None)
+        } else {
+            Err(PackageManifestError::NoScript(command.to_string()))
+        }
     }
 }
-
-/// Decide whether a package directory needs a build pass.
-///
-/// True when the package's manifest declares any of `preinstall`, `install`,
-/// or `postinstall`, or when the package contains `binding.gyp` or a `.hooks/`
-/// directory. Missing manifests, IO errors, and parse errors all collapse to
-/// `false` — pacquet cannot meaningfully build a package whose extracted
-/// content cannot be inspected.
-#[must_use]
-pub fn pkg_requires_build(pkg_root: &Path) -> bool {
-    if pkg_root.join("binding.gyp").exists() || pkg_root.join(".hooks").is_dir() {
-        return true;
-    }
-    let Ok(Some(manifest)) = safe_read_package_json_from_dir(pkg_root) else { return false };
-    manifest_requires_build(&manifest)
-}
-
-/// Decide whether a parsed manifest declares lifecycle scripts that
-/// make its package a build candidate.
-///
-/// A script has to carry a value to count. An empty `postinstall` runs
-/// nothing, and pnpm v11's `pkgRequiresBuild` reads the same manifest as
-/// build-free, so treating the key's presence as build work would ask the
-/// user to approve a build that does not exist.
-#[must_use]
-pub fn manifest_requires_build(manifest: &Value) -> bool {
-    manifest.get("scripts").and_then(Value::as_object).is_some_and(|scripts| {
-        ["preinstall", "install", "postinstall"]
-            .iter()
-            .any(|name| scripts.get(*name).is_some_and(script_is_set))
-    })
-}
-
-/// Whether a `scripts` entry holds something to run.
-///
-/// Mirrors `Boolean(manifest.scripts.postinstall)` in pnpm v11's
-/// `pkgRequiresBuild`: `null`, `false`, `0`, and `""` are the falsy values
-/// a manifest can carry there.
-fn script_is_set(script: &Value) -> bool {
-    match script {
-        Value::String(script) => !script.is_empty(),
-        Value::Null | Value::Bool(false) => false,
-        Value::Number(number) => number.as_f64() != Some(0.0),
-        _ => true,
-    }
-}
-
-/// Decide whether a store-index file key implies build hooks.
-#[must_use]
-pub fn file_path_requires_build(filename: &str) -> bool {
-    filename == "binding.gyp"
-        || filename
-            .strip_prefix(".hooks")
-            .is_some_and(|suffix| suffix.starts_with('/') || suffix.starts_with('\\'))
-}
-
-#[must_use]
-pub fn files_include_install_scripts<Filenames, Filename>(filenames: Filenames) -> bool
-where
-    Filenames: IntoIterator<Item = Filename>,
-    Filename: AsRef<str>,
-{
-    filenames.into_iter().any(|filename| file_path_requires_build(filename.as_ref()))
-}
-
 #[cfg(test)]
 mod tests;
 
@@ -489,13 +447,18 @@ mod tests;
 #[must_use]
 pub fn extract_author(manifest: &serde_json::Value) -> Option<String> {
     let author = manifest.get("author")?;
-    let name = author.as_str().or_else(|| author.get("name")?.as_str())?;
+    let name = author
+        .as_str()
+        .or_else(|| author.get("name")?.as_str())?;
     (!name.trim().is_empty()).then(|| name.to_string())
 }
 
 /// Extracts the homepage field from a manifest.
 pub fn extract_homepage(manifest: &serde_json::Value) -> Option<String> {
-    manifest.get("homepage").and_then(|v| v.as_str()).map(ToString::to_string)
+    manifest
+        .get("homepage")
+        .and_then(|v| v.as_str())
+        .map(ToString::to_string)
 }
 
 /// Extracts the license from either the modern `license` field or the legacy
@@ -512,7 +475,10 @@ fn extract_license_field(field: &serde_json::Value) -> Option<String> {
         return (!license.is_empty()).then(|| license.to_string());
     }
     if let Some(entries) = field.as_array() {
-        let licenses: Vec<&str> = entries.iter().filter_map(extract_license_type).collect();
+        let licenses: Vec<&str> = entries
+            .iter()
+            .filter_map(extract_license_type)
+            .collect();
         return match licenses.as_slice() {
             [] => None,
             [license] => Some((*license).to_string()),
@@ -523,13 +489,18 @@ fn extract_license_field(field: &serde_json::Value) -> Option<String> {
 }
 
 fn extract_license_type(entry: &serde_json::Value) -> Option<&str> {
-    if let Some(license) = entry.as_str().filter(|license| !license.is_empty()) {
+    if let Some(license) = entry
+        .as_str()
+        .filter(|license| !license.is_empty())
+    {
         return Some(license);
     }
     let entry = entry.as_object()?;
     for key in ["type", "name"] {
-        if let Some(license) =
-            entry.get(key).and_then(serde_json::Value::as_str).filter(|license| !license.is_empty())
+        if let Some(license) = entry
+            .get(key)
+            .and_then(serde_json::Value::as_str)
+            .filter(|license| !license.is_empty())
         {
             return Some(license);
         }
@@ -543,3 +514,5 @@ mod initialization;
 
 mod serialization;
 use serialization::{normalize_dependency_fields, serialize_with_indent};
+
+mod build_requirements;

@@ -20,14 +20,7 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
         let (cargo_root, task) = cargo_deps::add::plan::<Reporter>(
             context.clone(),
             root.join("Cargo.toml"),
-            cargo_deps::add::AddOptions {
-                packages: crates,
-                dependency_kind: args
-                    .dependency_options
-                    .cargo_dependency_kind(has_node_packages)?,
-                save_exact: args.save.exact,
-                save_prefix: args.save.prefix.clone(),
-            },
+            cargo_add_options(args, crates, has_node_packages)?,
         )
         .await?;
         cargo_transaction_root = Some(cargo_root);
@@ -46,7 +39,10 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
         )?);
     }
     let mut plan = InstallPlan::new(
-        context.config.workspace_dir.clone().or(cargo_transaction_root).unwrap_or(root),
+        context.config.workspace_dir
+            .clone()
+            .or(cargo_transaction_root)
+            .unwrap_or(root),
     );
     for task in tasks {
         plan = plan.with_task(task);
@@ -61,14 +57,19 @@ fn validate_add_options(context: &InstallContext, args: &AddArgs) -> miette::Res
         ));
     }
     if args.save.catalog || args.save.catalog_name.is_some() {
-        return Err(miette::miette!("ecosystem dependencies cannot be saved to an npm catalog"));
+        return Err(miette::miette!(
+            "ecosystem dependencies cannot be saved to an npm catalog"
+        ));
     }
     Ok(())
 }
 
 fn partition_packages(
     packages: Vec<EcosystemPackageSpecifier>,
-) -> (Vec<crate::package_specifier::RegistryPackageSpecifier>, Vec<String>) {
+) -> (
+    Vec<crate::package_specifier::RegistryPackageSpecifier>,
+    Vec<String>,
+) {
     let mut crates = Vec::new();
     let mut requirements = Vec::new();
     for package in packages {
@@ -78,4 +79,17 @@ fn partition_packages(
         }
     }
     (crates, requirements)
+}
+
+fn cargo_add_options(
+    args: &AddArgs,
+    crates: Vec<crate::package_specifier::RegistryPackageSpecifier>,
+    has_node_packages: bool,
+) -> miette::Result<cargo_deps::add::AddOptions> {
+    Ok(cargo_deps::add::AddOptions {
+        packages: crates,
+        dependency_kind: args.dependency_options.cargo_dependency_kind(has_node_packages)?,
+        save_exact: args.save.exact,
+        save_prefix: args.save.prefix.clone(),
+    })
 }

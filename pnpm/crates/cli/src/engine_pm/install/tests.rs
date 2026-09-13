@@ -15,8 +15,11 @@ fn cache_hit_relinks_missing_pnpm_bin() {
         r#"{"name":"pnpm","version":"6.16.0","bin":{"pnpm":"bin/pnpm.cjs"}}"#,
     )
     .expect("write manifest");
-    fs::write(pkg_dir.join("bin").join("pnpm.cjs"), "#!/usr/bin/env node\n")
-        .expect("write pnpm bin");
+    fs::write(
+        pkg_dir.join("bin").join("pnpm.cjs"),
+        "#!/usr/bin/env node\n",
+    )
+    .expect("write pnpm bin");
     let bin_dir = slot.join("bin");
     fs::create_dir_all(&bin_dir).expect("create stale bin dir");
 
@@ -24,7 +27,11 @@ fn cache_hit_relinks_missing_pnpm_bin() {
 
     assert_eq!(linked, bin_dir);
     let pnpm_bin = bin_dir.join("pnpm");
-    assert!(pnpm_bin.exists(), "expected pnpm bin at {}", pnpm_bin.display());
+    assert!(
+        pnpm_bin.exists(),
+        "expected pnpm bin at {}",
+        pnpm_bin.display(),
+    );
 }
 
 #[test]
@@ -46,16 +53,28 @@ fn cache_hit_relinks_legacy_wrapper_native_binary() {
 
     assert_eq!(linked, bin_dir);
     let wrapper_bin = pkg_dir.join(host_executable());
-    assert!(wrapper_bin.exists(), "expected native wrapper at {}", wrapper_bin.display());
+    assert!(
+        wrapper_bin.exists(),
+        "expected native wrapper at {}",
+        wrapper_bin.display(),
+    );
     let pnpm_bin = bin_dir.join("pnpm");
-    assert!(pnpm_bin.exists(), "expected pnpm bin at {}", pnpm_bin.display());
+    assert!(
+        pnpm_bin.exists(),
+        "expected pnpm bin at {}",
+        pnpm_bin.display(),
+    );
 }
 
 #[test]
 fn package_manager_engine_config_uses_global_store() {
     let root = tempfile::TempDir::new().expect("tmp dir");
     let project_store_root = root.path().join("repo-controlled-store");
-    let global_pkg_dir = root.path().join("pnpm-home").join("global").join("v11");
+    let global_pkg_dir = root
+        .path()
+        .join("pnpm-home")
+        .join("global")
+        .join("v11");
     let config = Config {
         global_pkg_dir: Some(global_pkg_dir),
         store_dir: StoreDir::new(&project_store_root),
@@ -64,9 +83,15 @@ fn package_manager_engine_config_uses_global_store() {
 
     let engine_config = package_manager_engine_config(&config).expect("engine config");
 
-    let expected_store_root =
-        root.path().join("pnpm-home").join("package-manager-store").join("v11");
-    assert_eq!(engine_config.store_dir.root(), expected_store_root.as_path());
+    let expected_store_root = root
+        .path()
+        .join("pnpm-home")
+        .join("package-manager-store")
+        .join("v11");
+    assert_eq!(
+        engine_config.store_dir.root(),
+        expected_store_root.as_path(),
+    );
     assert!(
         !engine_config.store_dir.root().starts_with(&project_store_root),
         "engine store must not use project store at {}",
@@ -78,7 +103,13 @@ fn package_manager_engine_config_uses_global_store() {
 fn slot_resolution_follows_the_wrapper_symlink_into_the_store() {
     let root = tempfile::TempDir::new().expect("tmp dir");
     let install_dir = root.path().join("tmp-install");
-    let slot = root.path().join("links").join("@pnpm").join("exe").join("9.3.0").join("hash");
+    let slot = root
+        .path()
+        .join("links")
+        .join("@pnpm")
+        .join("exe")
+        .join("9.3.0")
+        .join("hash");
     let installed_pkg_dir = package_dir(&slot, "@pnpm/exe");
     fs::create_dir_all(&installed_pkg_dir).expect("create the store package dir");
     let link = package_dir(&install_dir, "@pnpm/exe");
@@ -87,7 +118,10 @@ fn slot_resolution_follows_the_wrapper_symlink_into_the_store() {
 
     let resolved = resolve_slot(&install_dir, "@pnpm/exe").expect("resolve the slot");
 
-    assert_eq!(resolved, fs::canonicalize(&slot).expect("canonicalize the slot"));
+    assert_eq!(
+        resolved,
+        fs::canonicalize(&slot).expect("canonicalize the slot"),
+    );
 }
 
 #[test]
@@ -108,7 +142,10 @@ fn slot_resolution_rejects_an_engine_materialized_in_the_install_dir() {
 fn write_host_native_binaries(slot: &Path) {
     let executable = host_executable();
     for platform_dir_name in platform_package_dir_names() {
-        let platform_dir = slot.join("node_modules").join("@pnpm").join(platform_dir_name);
+        let platform_dir = slot
+            .join("node_modules")
+            .join("@pnpm")
+            .join(platform_dir_name);
         fs::create_dir_all(&platform_dir).expect("create platform dir");
         fs::write(platform_dir.join(executable), b"#!/bin/sh\necho pnpm\n")
             .expect("write native binary");
@@ -116,7 +153,11 @@ fn write_host_native_binaries(slot: &Path) {
 }
 
 fn host_executable() -> &'static str {
-    if host_platform() == "win32" { "pnpm.exe" } else { "pnpm" }
+    if host_platform() == "win32" {
+        "pnpm.exe"
+    } else {
+        "pnpm"
+    }
 }
 
 fn platform_package_dir_names() -> [String; 2] {
@@ -130,7 +171,11 @@ fn platform_package_dir_names() -> [String; 2] {
         "linux" => "linux",
         other => other,
     };
-    let libc_suffix = if platform == "linux" && libc == "musl" { "-musl" } else { "" };
+    let libc_suffix = if platform == "linux" && libc == "musl" {
+        "-musl"
+    } else {
+        ""
+    };
     [
         format!("{legacy_platform}-{architecture}"),
         format!("exe.{platform}-{architecture}{libc_suffix}"),
@@ -141,5 +186,9 @@ fn normalized_arch<'architecture>(
     platform: &str,
     architecture: &'architecture str,
 ) -> &'architecture str {
-    if platform == "win32" && architecture == "ia32" { "x86" } else { architecture }
+    if platform == "win32" && architecture == "ia32" {
+        "x86"
+    } else {
+        architecture
+    }
 }

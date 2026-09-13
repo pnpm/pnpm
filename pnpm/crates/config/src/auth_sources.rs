@@ -33,15 +33,16 @@ where
             Sys::current_dir().is_ok_and(|cwd| cwd.join(user) == project_npmrc_path)
         }
     });
-    read_npmrc(project_npmrc_dir).map(|text| {
-        let mut auth = if project_is_trusted_auth_file {
-            NpmrcAuth::from_ini::<Sys>(&text, project_npmrc_dir)
-        } else {
-            NpmrcAuth::from_project_ini::<Sys>(&text, project_npmrc_dir)
-        };
-        auth.rescope_unscoped(&project_npmrc_path.display().to_string());
-        auth
-    })
+    read_npmrc(project_npmrc_dir)
+        .map(|text| {
+            let mut auth = if project_is_trusted_auth_file {
+                NpmrcAuth::from_ini::<Sys>(&text, project_npmrc_dir)
+            } else {
+                NpmrcAuth::from_project_ini::<Sys>(&text, project_npmrc_dir)
+            };
+            auth.rescope_unscoped(&project_npmrc_path.display().to_string());
+            auth
+        })
 }
 
 fn auth_ini_source<Sys: EnvVar>(global_config_dir: Option<&Path>) -> Option<NpmrcAuth> {
@@ -56,18 +57,23 @@ where
     Sys: EnvVar + GetHomeDir,
 {
     match user_npmrc_path {
-        Some(path) => read_npmrc_file(path).map(|text| {
-            // Relative `cafile`/`certfile` entries resolve against
-            // the file's directory; for a bare filename (no parent)
-            // that's the empty path — i.e. the process cwd — never
-            // the file itself.
-            let dir = path.parent().map(std::path::Path::to_path_buf).unwrap_or_default();
-            parse_trusted_source::<Sys>(&text, &dir, path)
-        }),
-        None => Sys::home_dir().and_then(|dir| {
-            let path = dir.join(".npmrc");
-            read_npmrc(&dir).map(|text| parse_trusted_source::<Sys>(&text, &dir, &path))
-        }),
+        Some(path) => read_npmrc_file(path)
+            .map(|text| {
+                // Relative `cafile`/`certfile` entries resolve against
+                // the file's directory; for a bare filename (no parent)
+                // that's the empty path — i.e. the process cwd — never
+                // the file itself.
+                let dir = path
+                    .parent()
+                    .map(std::path::Path::to_path_buf)
+                    .unwrap_or_default();
+                parse_trusted_source::<Sys>(&text, &dir, path)
+            }),
+        None => Sys::home_dir()
+            .and_then(|dir| {
+                let path = dir.join(".npmrc");
+                read_npmrc(&dir).map(|text| parse_trusted_source::<Sys>(&text, &dir, &path))
+            }),
     }
 }
 
@@ -96,7 +102,9 @@ fn env_json_auth_source<Sys: EnvVar>(
     let json_auth = global_settings
         .and_then(|settings| settings.auth.as_ref())
         .pipe(NpmrcAuth::from_json_sources::<Sys>)
-        .map_err(|source| LoadWorkspaceYamlError::InvalidJsonAuth { source })?;
+        .map_err(|source| LoadWorkspaceYamlError::InvalidJsonAuth {
+            source,
+        })?;
     let json_auth_has_content =
         !json_auth.creds_by_scope_by_uri.is_empty() || !json_auth.routes.json_env.is_empty();
     Ok(json_auth_has_content.then_some(json_auth))
@@ -167,8 +175,9 @@ impl Config {
         // parsed and rescoped independently before being folded together.
         // The rescope warning names the file it read, so each source
         // labels itself with the path it was actually loaded from.
-        let project_npmrc_dir =
-            workspace_yaml.as_ref().map_or(start_dir, |(base_dir, _)| base_dir.as_path());
+        let project_npmrc_dir = workspace_yaml
+            .as_ref()
+            .map_or(start_dir, |(base_dir, _)| base_dir.as_path());
         let project_source =
             project_auth_source::<Sys>(project_npmrc_dir, user_npmrc_path.as_deref());
         let auth_ini_source = auth_ini_source::<Sys>(global_config_dir);
@@ -210,7 +219,10 @@ impl Config {
         // trusted-only merge before either is consumed below.
         crate::npmrc_auth::enforce_token_helper_trust(&npmrc_auth, &trusted_auth)?;
 
-        Ok(AuthSources { npmrc_auth, trusted_auth })
+        Ok(AuthSources {
+            npmrc_auth,
+            trusted_auth,
+        })
     }
 
     /// Resolve the user-level `.npmrc` path. Precedence: the
@@ -222,16 +234,18 @@ impl Config {
         &self,
         global_settings: Option<&WorkspaceSettings>,
     ) -> Option<PathBuf> {
-        self.npmrc_auth_file.clone().or_else(|| {
-            read_pnpm_env::<Sys>("npmrc_auth_file", "NPMRC_AUTH_FILE")
-                .or_else(|| read_pnpm_env::<Sys>("userconfig", "USERCONFIG"))
-                .map(PathBuf::from)
-                .or_else(|| {
-                    global_settings
-                        .and_then(|settings| settings.npmrc_auth_file.clone())
-                        .map(PathBuf::from)
-                })
-                .or_else(|| read_npm_env::<Sys>("userconfig", "USERCONFIG").map(PathBuf::from))
-        })
+        self.npmrc_auth_file
+            .clone()
+            .or_else(|| {
+                read_pnpm_env::<Sys>("npmrc_auth_file", "NPMRC_AUTH_FILE")
+                    .or_else(|| read_pnpm_env::<Sys>("userconfig", "USERCONFIG"))
+                    .map(PathBuf::from)
+                    .or_else(|| {
+                        global_settings
+                            .and_then(|settings| settings.npmrc_auth_file.clone())
+                            .map(PathBuf::from)
+                    })
+                    .or_else(|| read_npm_env::<Sys>("userconfig", "USERCONFIG").map(PathBuf::from))
+            })
     }
 }

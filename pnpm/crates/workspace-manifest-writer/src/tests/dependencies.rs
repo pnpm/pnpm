@@ -2,15 +2,24 @@ use super::{IndexMap, TempDir, WORKSPACE_MANIFEST_FILENAME, fs, patched_deps, ru
 
 #[test]
 fn patched_dependency_creates_block_when_absent() {
-    let out = run_patched_deps(None, &[("is-positive@1.0.0", "patches/is-positive@1.0.0.patch")]);
-    assert_eq!(out, "patchedDependencies:\n  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n");
+    let out = run_patched_deps(
+        None,
+        &[("is-positive@1.0.0", "patches/is-positive@1.0.0.patch")],
+    );
+    assert_eq!(
+        out,
+        "patchedDependencies:\n  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n",
+    );
 }
 
 #[test]
 fn patched_dependency_quotes_scoped_keys_and_slash_paths() {
     let out = run_patched_deps(
         None,
-        &[("@pnpm.e2e/console-log", "patches/@pnpm.e2e__console-log.patch")],
+        &[(
+            "@pnpm.e2e/console-log",
+            "patches/@pnpm.e2e__console-log.patch",
+        )],
     );
     assert_eq!(
         out,
@@ -59,7 +68,10 @@ fn patched_dependency_remove_preserves_successor_comments() {
     let original = "packages:\n  - '*'\n\npatchedDependencies:\n  is-positive: patches/is-positive.patch\n\n# catalog pins\ncatalog:\n  react: 18.2.0\n";
     let out = run_patched_deps(Some(original), &[]);
 
-    assert_eq!(out, "packages:\n  - '*'\n\n# catalog pins\ncatalog:\n  react: 18.2.0\n");
+    assert_eq!(
+        out,
+        "packages:\n  - '*'\n\n# catalog pins\ncatalog:\n  react: 18.2.0\n",
+    );
 }
 
 #[test]
@@ -101,7 +113,10 @@ fn patched_dependency_missing_decoded_mapping_keeps_text_before_inserting_new_bl
 
     let text = manifest.document.into_text();
     assert!(text.contains("packages:\n  - '*'\n"), "text: {text}");
-    assert!(text.contains("is-positive: patches/is-positive.patch"), "text: {text}");
+    assert!(
+        text.contains("is-positive: patches/is-positive.patch"),
+        "text: {text}",
+    );
     assert!(!text.contains("is-negative"), "text: {text}");
 }
 
@@ -117,5 +132,8 @@ fn set_patched_dependencies_reports_read_errors() {
     )
     .expect_err("manifest directory should fail to read");
 
-    assert!(matches!(err, crate::UpdateWorkspaceManifestError::Read { .. }));
+    assert!(matches!(
+        err,
+        crate::UpdateWorkspaceManifestError::Read { .. }
+    ));
 }

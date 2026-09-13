@@ -62,7 +62,9 @@ pub(super) fn publication_charge(
     new_blobs
         .iter()
         .try_fold(envelope_size, |total, entry| {
-            total.checked_add(entry.1.len() as u64).ok_or_else(storage_quota_error)
+            total
+                .checked_add(entry.1.len() as u64)
+                .ok_or_else(storage_quota_error)
         })?
         .checked_add(scope_bytes)
         .ok_or_else(storage_quota_error)
@@ -71,12 +73,19 @@ pub(super) fn publication_charge(
 pub(super) fn quota_write_retry_delay(attempt: usize) -> Duration {
     let base = 1_u64 << attempt.min(6);
     let mut random = [0_u8; 1];
-    let jitter = if getrandom::fill(&mut random).is_ok() { u64::from(random[0]) % base } else { 0 };
+    let jitter = if getrandom::fill(&mut random).is_ok() {
+        u64::from(random[0]) % base
+    } else {
+        0
+    };
     Duration::from_millis(base + jitter)
 }
 
 pub(super) fn registered_now() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
 }
 
 /// Drops publications that registered longer ago than a publication can
@@ -93,23 +102,25 @@ pub(super) fn expire_stranded_publications(usage: &mut ArtifactUsage) -> bool {
     let before = usage.active_publications.len();
     let times = std::mem::take(&mut usage.active_publication_times);
     let mut stamped = false;
-    usage.active_publication_times = usage
-        .active_publications
+    usage.active_publication_times = usage.active_publications
         .iter()
         .map(|publication| {
-            let registered = times.get(publication).copied().unwrap_or_else(|| {
-                stamped = true;
-                now
-            });
+            let registered = times
+                .get(publication)
+                .copied()
+                .unwrap_or_else(|| {
+                    stamped = true;
+                    now
+                });
             (publication.clone(), registered)
         })
         .collect();
-    usage
-        .active_publications
-        .retain(|publication| usage.active_publication_times[publication] > expiry);
-    usage
-        .active_publication_times
-        .retain(|publication, _| usage.active_publications.contains(publication));
+    usage.active_publications.retain(|publication| {
+        usage.active_publication_times[publication] > expiry
+    });
+    usage.active_publication_times.retain(|publication, _| {
+        usage.active_publications.contains(publication)
+    });
     stamped
         || usage.active_publications.len() != before
         || times.len() != usage.active_publication_times.len()

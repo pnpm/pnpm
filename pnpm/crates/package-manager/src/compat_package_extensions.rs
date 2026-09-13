@@ -39,7 +39,10 @@ static COMPAT_PACKAGE_EXTENSIONS: LazyLock<IndexMap<String, PackageExtension>> =
     LazyLock::new(|| {
         let mut extensions = IndexMap::new();
         for (source, name) in [
-            (include_str!("compat_package_extensions.json"), "@yarnpkg/extensions"),
+            (
+                include_str!("compat_package_extensions.json"),
+                "@yarnpkg/extensions",
+            ),
             (include_str!("pnpm_compat_package_extensions.json"), "pnpm"),
         ] {
             let entries: Vec<(String, PackageExtension)> = serde_json::from_str(source)
@@ -77,9 +80,18 @@ fn merge_package_extension_entry(
 
 fn merge_package_extension(previous: &mut PackageExtension, next: &PackageExtension) {
     merge_string_map(&mut previous.dependencies, next.dependencies.as_ref());
-    merge_string_map(&mut previous.optional_dependencies, next.optional_dependencies.as_ref());
-    merge_string_map(&mut previous.peer_dependencies, next.peer_dependencies.as_ref());
-    merge_peer_meta_map(&mut previous.peer_dependencies_meta, next.peer_dependencies_meta.as_ref());
+    merge_string_map(
+        &mut previous.optional_dependencies,
+        next.optional_dependencies.as_ref(),
+    );
+    merge_string_map(
+        &mut previous.peer_dependencies,
+        next.peer_dependencies.as_ref(),
+    );
+    merge_peer_meta_map(
+        &mut previous.peer_dependencies_meta,
+        next.peer_dependencies_meta.as_ref(),
+    );
 }
 
 fn merge_string_map(

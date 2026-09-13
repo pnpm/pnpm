@@ -32,33 +32,11 @@ pub(in super::super) fn patch_commit<'a>(
     let dir = ctx.locations.dir;
     let state = ctx.loaders.state;
     Ok(match ctx.reporter {
-        ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
-            if Box::pin(args.run::<DefaultReporter>(dir, state(false)?)).await? {
-                Box::pin(
-                    InstallArgs::for_reresolving_install().run::<DefaultReporter>(state(false)?),
-                )
-                .await?;
-            }
-            Ok(())
-        }),
-        ReporterType::Ndjson => Box::pin(async move {
-            if Box::pin(args.run::<NdjsonReporter>(dir, state(false)?)).await? {
-                Box::pin(
-                    InstallArgs::for_reresolving_install().run::<NdjsonReporter>(state(false)?),
-                )
-                .await?;
-            }
-            Ok(())
-        }),
-        ReporterType::Silent => Box::pin(async move {
-            if Box::pin(args.run::<SilentReporter>(dir, state(false)?)).await? {
-                Box::pin(
-                    InstallArgs::for_reresolving_install().run::<SilentReporter>(state(false)?),
-                )
-                .await?;
-            }
-            Ok(())
-        }),
+        ReporterType::Default | ReporterType::AppendOnly => {
+            Box::pin(commit_and_reinstall::<DefaultReporter>(args, dir, state))
+        }
+        ReporterType::Ndjson => Box::pin(commit_and_reinstall::<NdjsonReporter>(args, dir, state)),
+        ReporterType::Silent => Box::pin(commit_and_reinstall::<SilentReporter>(args, dir, state)),
     })
 }
 
@@ -88,4 +66,15 @@ pub(in super::super) fn patch_remove<'a>(
             Ok(())
         }),
     })
+}
+
+async fn commit_and_reinstall<Reporter: pnpm_reporter::Reporter + 'static>(
+    args: PatchCommitArgs,
+    dir: &std::path::Path,
+    state: &(dyn Fn(bool) -> miette::Result<crate::State> + Sync),
+) -> miette::Result<()> {
+    if Box::pin(args.run::<Reporter>(dir, state(false)?)).await? {
+        Box::pin(InstallArgs::for_reresolving_install().run::<Reporter>(state(false)?)).await?;
+    }
+    Ok(())
 }

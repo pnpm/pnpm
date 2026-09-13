@@ -56,6 +56,9 @@ fn trailing_dots_and_plusses_are_trimmed() {
 #[test]
 fn non_ascii_path_segments_round_trip() {
     assert_eq!(link_path_to_peer_version("packages/café"), "packages+café");
-    assert_eq!(link_path_to_peer_version("パッケージ/foo"), "パッケージ+foo");
+    assert_eq!(
+        link_path_to_peer_version("パッケージ/foo"),
+        "パッケージ+foo",
+    );
     assert_eq!(link_path_to_peer_version("📦/pkg"), "📦+pkg");
 }

@@ -66,8 +66,10 @@ impl SignatureFailure {
     /// registry answering that no signed release exists), and the component
     /// resolves through a registry the user configured themselves.
     pub(super) fn tolerable_without_signature(&self) -> bool {
-        matches!(self.category, FailureCategory::Unreachable | FailureCategory::Uncovered)
-            && !equal_registries(&self.registry, CANONICAL_NPM_REGISTRY)
+        matches!(
+            self.category,
+            FailureCategory::Unreachable | FailureCategory::Uncovered,
+        ) && !equal_registries(&self.registry, CANONICAL_NPM_REGISTRY)
     }
 }
 
@@ -87,14 +89,7 @@ pub(super) async fn find_signature_failure(
     config: &Config,
 ) -> Option<SignatureFailure> {
     let label = format!("{}@{}", component.name, component.version);
-    let failure = |reason: String, category: FailureCategory| {
-        Some(SignatureFailure {
-            reason,
-            category,
-            label: label.clone(),
-            registry: redact_and_sanitize(&component.registry),
-        })
-    };
+    let failure = |reason, category| Some(signature_failure(component, reason, category));
 
     // npm registry signatures sign `name@version:integrity` with the sha512
     // integrity the registry published; any other installed form can never
@@ -131,7 +126,10 @@ pub(super) async fn find_signature_failure(
         fallback_registry,
         keys,
         client,
-        RetryOpts { retries: 0, ..retry_opts },
+        RetryOpts {
+            retries: 0,
+            ..retry_opts
+        },
         config,
     )
     .await?;
@@ -165,35 +163,7 @@ async fn attempt_signature_verification(
         Err(reason) => return Some((reason, FailureCategory::Unreachable)),
     };
 
-    let Some(version) = packument.versions.get(&component.version) else {
-        return Some((
-            format!("{label} was not found on {display_registry}"),
-            FailureCategory::Absent,
-        ));
-    };
-    let raw_signatures = version.dist.as_ref().and_then(|dist| dist.signatures.as_ref());
-    let Some(parsed_signatures) = parse_signatures(raw_signatures) else {
-        return Some((
-            format!("malformed registry signatures metadata for {label}"),
-            FailureCategory::Absent,
-        ));
-    };
-    if parsed_signatures.is_empty() {
-        return Some((
-            format!("{label} has no registry signature on {display_registry}"),
-            FailureCategory::Absent,
-        ));
-    }
-
-    let published_at = packument.time.get(&component.version).and_then(serde_json::Value::as_str);
-    // The message is built from the *lockfile* integrity, so a signature
-    // only validates when the installed bytes match what the registry
-    // signed.
-    if signature_validates_against(component, &parsed_signatures, published_at, keys) {
-        None
-    } else {
-        Some(("invalid registry signature".to_string(), FailureCategory::Invalid))
-    }
+    verify_packument_signatures(component, &packument, keys, &label, &display_registry)
 }
 
 /// The `dist.signatures` entries; empty when absent, `None` when malformed.
@@ -235,10 +205,16 @@ pub(super) fn signature_validates_against(
     published_at: Option<&str>,
     keys: &[NpmSigningKey<'_>],
 ) -> bool {
-    let message = format!("{}@{}:{}", component.name, component.version, component.integrity);
+    let message = format!(
+        "{}@{}:{}",
+        component.name, component.version, component.integrity,
+    );
     let published_time = published_at.and_then(parse_timestamp);
     for signature in signatures {
-        let Some(key) = keys.iter().find(|key| key.keyid == signature.keyid) else {
+        let Some(key) = keys
+            .iter()
+            .find(|key| key.keyid == signature.keyid)
+        else {
             continue;
         };
         let expired = match (key.expires.and_then(parse_timestamp), published_time) {
@@ -272,11 +248,15 @@ pub(super) fn verify_one(public_key_base64: &str, message: &str, signature_base6
     let Ok(signature) = Signature::from_der(&signature_der) else {
         return false;
     };
-    verifying_key.verify(message.as_bytes(), &signature).is_ok()
+    verifying_key
+        .verify(message.as_bytes(), &signature)
+        .is_ok()
 }
 
 fn parse_timestamp(value: &str) -> Option<i64> {
-    chrono::DateTime::parse_from_rfc3339(value).ok().map(|datetime| datetime.timestamp_millis())
+    chrono::DateTime::parse_from_rfc3339(value)
+        .ok()
+        .map(|datetime| datetime.timestamp_millis())
 }
 
 #[derive(Deserialize)]
@@ -316,16 +296,19 @@ async fn fetch_packument(
     retry_opts: RetryOpts,
     config: &Config,
 ) -> Result<Option<Packument>, String> {
-    let packument_url =
-        format!("{}{}", with_trailing_slash(registry), encode_package_name(&component.name));
+    let packument_url = format!(
+        "{}{}",
+        with_trailing_slash(registry),
+        encode_package_name(&component.name),
+    );
     let display_url = redact_and_sanitize(&packument_url);
     // Resolve auth against the request URL *and* the package name so a
     // `@scope:registry`-scoped token applies (plain `for_url` skips the
     // scope lookup, breaking bootstrap registries that require it).
-    let authorization = config
-        .package_manager_bootstrap
-        .auth_headers
-        .for_url_with_package(&packument_url, Some(&component.name));
+    let authorization = config.package_manager_bootstrap.auth_headers.for_url_with_package(
+        &packument_url,
+        Some(&component.name),
+    );
 
     let (_guard, response) = send_with_retry(client, &packument_url, retry_opts, |client| {
         let mut request = client.get(&packument_url).header("accept", "application/json");
@@ -335,7 +318,12 @@ async fn fetch_packument(
         request
     })
     .await
-    .map_err(|source| format!("{display_url}: {}", redact_and_sanitize(&source.to_string())))?;
+    .map_err(|source| {
+        format!(
+            "{display_url}: {}",
+            redact_and_sanitize(&source.to_string()),
+        )
+    })?;
 
     let status = response.status().as_u16();
     if status == 404 {
@@ -360,14 +348,19 @@ async fn read_bounded_body(
     if let Some(length) = response.content_length()
         && length > MAX_PACKUMENT_BYTES
     {
-        return Err(format!("{display_url} returned an oversized packument ({length} bytes)"));
+        return Err(format!(
+            "{display_url} returned an oversized packument ({length} bytes)",
+        ));
     }
     use futures_util::StreamExt as _;
     let mut stream = response.bytes_stream();
     let mut body_bytes = Vec::new();
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|source| {
-            format!("{display_url}: {}", redact_and_sanitize(&source.to_string()))
+            format!(
+                "{display_url}: {}",
+                redact_and_sanitize(&source.to_string()),
+            )
         })?;
         if (body_bytes.len() + chunk.len()) as u64 > MAX_PACKUMENT_BYTES {
             return Err(format!("{display_url} returned an oversized packument"));
@@ -386,7 +379,9 @@ const MAX_PACKUMENT_BYTES: u64 = 50 * 1024 * 1024;
 /// trusted package-manager bootstrap configuration.
 pub(super) fn pick_registry(name: &str, config: &Config) -> String {
     let bootstrap = &config.package_manager_bootstrap;
-    if let Some(scope) = name.strip_prefix('@').and_then(|rest| rest.split('/').next())
+    if let Some(scope) = name
+        .strip_prefix('@')
+        .and_then(|rest| rest.split('/').next())
         && let Some(registry) = bootstrap.registries.get(&format!("@{scope}"))
     {
         return registry.clone();
@@ -408,5 +403,65 @@ pub(super) fn build_client(config: &Config) -> Result<ThrottledClient, SelfUpdat
 }
 
 fn with_trailing_slash(registry: &str) -> String {
-    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
+    if registry.ends_with('/') {
+        registry.to_string()
+    } else {
+        format!("{registry}/")
+    }
+}
+
+fn verify_packument_signatures(
+    component: &EngineComponent,
+    packument: &Packument,
+    keys: &[NpmSigningKey<'_>],
+    label: &str,
+    display_registry: &str,
+) -> Option<(String, FailureCategory)> {
+    let Some(version) = packument.versions.get(&component.version) else {
+        return Some((
+            format!("{label} was not found on {display_registry}"),
+            FailureCategory::Absent,
+        ));
+    };
+    let raw_signatures = version.dist
+        .as_ref()
+        .and_then(|dist| dist.signatures.as_ref());
+    let Some(parsed_signatures) = parse_signatures(raw_signatures) else {
+        return Some((
+            format!("malformed registry signatures metadata for {label}"),
+            FailureCategory::Absent,
+        ));
+    };
+    if parsed_signatures.is_empty() {
+        return Some((
+            format!("{label} has no registry signature on {display_registry}"),
+            FailureCategory::Absent,
+        ));
+    }
+
+    let published_at = packument.time.get(&component.version).and_then(serde_json::Value::as_str);
+    // The message is built from the *lockfile* integrity, so a signature
+    // only validates when the installed bytes match what the registry
+    // signed.
+    if signature_validates_against(component, &parsed_signatures, published_at, keys) {
+        None
+    } else {
+        Some((
+            "invalid registry signature".to_string(),
+            FailureCategory::Invalid,
+        ))
+    }
+}
+
+fn signature_failure(
+    component: &EngineComponent,
+    reason: String,
+    category: FailureCategory,
+) -> SignatureFailure {
+    SignatureFailure {
+        reason,
+        category,
+        label: format!("{}@{}", component.name, component.version),
+        registry: redact_and_sanitize(&component.registry),
+    }
 }

@@ -112,7 +112,10 @@ impl ApprovalPrompt for DialoguerPrompt {
     async fn confirm(&mut self, message: &str) -> dialoguer::Result<bool> {
         let message = message.to_owned();
         tokio::task::spawn_blocking(move || {
-            dialoguer::Confirm::new().with_prompt(message).default(false).interact()
+            dialoguer::Confirm::new()
+                .with_prompt(message)
+                .default(false)
+                .interact()
         })
         .await
         .map_err(|error| dialoguer::Error::IO(std::io::Error::other(error)))?
@@ -186,8 +189,7 @@ fn persist_and_report_excludes<ReporterImpl: Reporter>(
         .iter()
         .map(|violation| format!("{}@{}", violation.name, violation.version))
         .collect();
-    let added =
-        merge_package_version_specs(&added).map_err(MinimumReleaseAgeError::VersionPolicy)?;
+    let added = merge_package_version_specs(&added).map_err(MinimumReleaseAgeError::VersionPolicy)?;
     update_workspace_manifest(
         workspace_dir,
         &UpdateWorkspaceManifestOptions {
@@ -225,7 +227,11 @@ fn format_violation_error(violations: &[&ResolutionPolicyViolation]) -> String {
     format!(
         "{} {} not meet the minimumReleaseAge constraint:\n{}",
         violations.len(),
-        if violations.len() == 1 { "version does" } else { "versions do" },
+        if violations.len() == 1 {
+            "version does"
+        } else {
+            "versions do"
+        },
         violations
             .iter()
             .map(|violation| format!(
@@ -241,7 +247,11 @@ fn format_prompt(violations: &[&ResolutionPolicyViolation]) -> String {
     format!(
         "{} {} not meet the minimumReleaseAge constraint:\n{}\nAdd to minimumReleaseAgeExclude in pnpm-workspace.yaml and proceed with the install?",
         violations.len(),
-        if violations.len() == 1 { "version does" } else { "versions do" },
+        if violations.len() == 1 {
+            "version does"
+        } else {
+            "versions do"
+        },
         violations
             .iter()
             .map(|violation| format!("  {}@{}", violation.name, violation.version))

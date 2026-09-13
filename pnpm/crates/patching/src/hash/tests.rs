@@ -40,9 +40,11 @@ fn maps_keys_to_hashes() {
     fs::write(&patch_a, b"hello\n").unwrap();
     fs::write(&patch_b, b"world\n").unwrap();
 
-    let hashes =
-        calc_patch_hashes(vec![("foo@1.0.0".to_string(), patch_a), ("bar".to_string(), patch_b)])
-            .unwrap();
+    let hashes = calc_patch_hashes(vec![
+        ("foo@1.0.0".to_string(), patch_a),
+        ("bar".to_string(), patch_b),
+    ])
+    .unwrap();
 
     assert_eq!(hashes.get("foo@1.0.0").unwrap(), HELLO_SHA256_HEX);
     assert_eq!(
@@ -59,7 +61,10 @@ fn missing_file_errors() {
     let err = create_hex_hash_from_file(&missing).unwrap_err();
     // Just confirm the error variant; `io::Error` formatting is
     // platform-specific.
-    assert!(matches!(err, super::CalcPatchHashError::ReadFile { .. }), "got: {err:?}");
+    assert!(
+        matches!(err, super::CalcPatchHashError::ReadFile { .. }),
+        "got: {err:?}",
+    );
 }
 
 /// Invalid UTF-8 bytes are replaced with U+FFFD rather than
@@ -74,5 +79,8 @@ fn non_utf8_uses_replacement_char_and_does_not_error() {
     let path = dir.path().join("invalid.patch");
     fs::write(&path, [0xffu8, 0xfeu8, 0xfdu8]).unwrap();
     let hash = create_hex_hash_from_file(&path).expect("lossy decoding must not error");
-    assert_eq!(hash, "a73f4cb996ceb6ee097888d897ae1004c9b1faab6c97629214139b9639aaf1af");
+    assert_eq!(
+        hash,
+        "a73f4cb996ceb6ee097888d897ae1004c9b1faab6c97629214139b9639aaf1af",
+    );
 }

@@ -39,12 +39,18 @@ fn pacquet(workspace: &Path) -> Command {
 fn stage(workspace: &Path, args: &[&str]) -> std::process::Output {
     let mut command = pacquet(workspace);
     apply_test_registry(&mut command, workspace);
-    command.with_arg("stage").with_args(args).output().expect("spawn pacquet stage")
+    command
+        .with_arg("stage")
+        .with_args(args)
+        .output()
+        .expect("spawn pacquet stage")
 }
 
 fn apply_test_registry(command: &mut Command, workspace: &Path) {
     if let Ok(npmrc) = fs::read_to_string(workspace.join(".npmrc"))
-        && let Some(registry) = npmrc.lines().find_map(|line| line.strip_prefix("registry="))
+        && let Some(registry) = npmrc
+            .lines()
+            .find_map(|line| line.strip_prefix("registry="))
     {
         command.env("PNPM_CONFIG_REGISTRY", registry);
     }
@@ -70,7 +76,10 @@ fn assert_success(output: &std::process::Output) {
 fn assert_failure_with_code(output: &std::process::Output, code: &str) {
     assert!(!output.status.success(), "stage must fail with {code}");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains(code), "stderr must carry {code}; stderr: {stderr}");
+    assert!(
+        stderr.contains(code),
+        "stderr must carry {code}; stderr: {stderr}",
+    );
 }
 
 #[test]
@@ -92,10 +101,20 @@ fn publish_dry_run_reports_that_the_package_would_be_staged() {
         "module.exports = { hooks: { updateConfig: config => ({ ...config, catalogs: { default: { 'is-odd': '3.0.1' } } }) } }",
     )
     .expect("write .pnpmfile.cjs");
-    let mock = server.mock("POST", Matcher::Any).expect(0).create();
+    let mock = server
+        .mock("POST", Matcher::Any)
+        .expect(0)
+        .create();
 
-    let output =
-        stage(dir.path(), &["publish", "--dry-run", "--no-git-checks", "--reporter=silent"]);
+    let output = stage(
+        dir.path(),
+        &[
+            "publish",
+            "--dry-run",
+            "--no-git-checks",
+            "--reporter=silent",
+        ],
+    );
 
     mock.assert();
     assert_success(&output);
@@ -127,7 +146,9 @@ fn list_stops_paginating_at_the_fail_safe_page_cap() {
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
     write_registry_config(dir.path(), &registry);
-    let full_page: Vec<Value> = (0..100).map(|_| staged_item()).collect();
+    let full_page: Vec<Value> = (0..100)
+        .map(|_| staged_item())
+        .collect();
     let mock = server
         .mock("GET", "/-/stage")
         .match_query(Matcher::Any)
@@ -225,7 +246,10 @@ fn download_rejects_traversal_through_the_tarball_manifest_version() {
     let output = stage(&download_dir, &["download", STAGE_ID]);
 
     assert_failure_with_code(&output, "ERR_PNPM_INVALID_PACKAGE_VERSION");
-    assert!(!outside_path.exists(), "nothing may be written outside the download dir");
+    assert!(
+        !outside_path.exists(),
+        "nothing may be written outside the download dir",
+    );
     assert_download_dir_untouched(&download_dir);
     drop(registry);
 }
@@ -249,7 +273,10 @@ fn download_rejects_traversal_through_the_tarball_manifest_name() {
     let output = stage(&download_dir, &["download", STAGE_ID]);
 
     assert_failure_with_code(&output, "ERR_PNPM_INVALID_PACKAGE_NAME");
-    assert!(!outside_path.exists(), "nothing may be written outside the download dir");
+    assert!(
+        !outside_path.exists(),
+        "nothing may be written outside the download dir",
+    );
     assert_download_dir_untouched(&download_dir);
     drop(registry);
 }
@@ -273,7 +300,10 @@ fn an_unknown_subcommand_is_rejected_with_the_stage_error_code() {
 
     assert_failure_with_code(&output, "ERR_PNPM_STAGE_UNKNOWN_SUBCOMMAND");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains(r#"Unknown stage subcommand "frobnicate""#), "stderr: {stderr}");
+    assert!(
+        stderr.contains(r#"Unknown stage subcommand "frobnicate""#),
+        "stderr: {stderr}",
+    );
 }
 
 #[test]
@@ -308,7 +338,10 @@ fn download_registry(
 }
 
 fn outside_tarball_path(download_dir: &Path, basename: &str) -> PathBuf {
-    download_dir.parent().expect("the download dir has a parent").join(format!("{basename}.tgz"))
+    download_dir
+        .parent()
+        .expect("the download dir has a parent")
+        .join(format!("{basename}.tgz"))
 }
 
 /// After a rejected download the workspace must hold only its `.npmrc`.
@@ -316,9 +349,18 @@ fn assert_download_dir_untouched(download_dir: &Path) {
     let entries: Vec<String> = fs::read_dir(download_dir)
         .expect("read the download dir")
         .flatten()
-        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .collect();
-    assert_eq!(entries, [".npmrc"], "no tarball may be written on a rejected download");
+    assert_eq!(
+        entries,
+        [".npmrc"],
+        "no tarball may be written on a rejected download",
+    );
 }
 
 fn gzipped_tarball(entries: &[(&str, &str)]) -> Vec<u8> {
@@ -328,7 +370,9 @@ fn gzipped_tarball(entries: &[(&str, &str)]) -> Vec<u8> {
         header.set_size(contents.len() as u64);
         header.set_mode(0o644);
         header.set_cksum();
-        builder.append_data(&mut header, path, contents.as_bytes()).expect("append tar entry");
+        builder
+            .append_data(&mut header, path, contents.as_bytes())
+            .expect("append tar entry");
     }
     let tar = builder.into_inner().expect("finish the tar archive");
     let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
@@ -406,11 +450,18 @@ fn add_user(registry: &str) -> String {
         "roles": [],
     });
     block_on(async {
-        let response =
-            http_client().put(&url).json(&body).send().await.expect("send the adduser request");
+        let response = http_client()
+            .put(&url)
+            .json(&body)
+            .send()
+            .await
+            .expect("send the adduser request");
         assert_eq!(response.status().as_u16(), 201, "adduser must succeed");
         let payload: Value = response.json().await.expect("parse the adduser response");
-        payload["token"].as_str().expect("token in the adduser response").to_owned()
+        payload["token"]
+            .as_str()
+            .expect("token in the adduser response")
+            .to_owned()
     })
 }
 
@@ -476,12 +527,22 @@ fn stage_lifecycle_against_pnpr_publishes_only_on_approval() {
         serde_json::from_str(&String::from_utf8_lossy(&publish.stdout)).expect("keyed JSON output");
     let summary = &keyed["@stage-e2e/lifecycle"];
     assert_eq!(summary["version"], "1.0.0");
-    let stage_id = summary["stageId"].as_str().expect("a stage id").to_owned();
+    let stage_id = summary["stageId"]
+        .as_str()
+        .expect("a stage id")
+        .to_owned();
 
     // Held back: not installable until approved.
-    assert_eq!(packument_status(&registry, &token, "@stage-e2e/lifecycle"), 404);
+    assert_eq!(
+        packument_status(&registry, &token, "@stage-e2e/lifecycle"),
+        404,
+    );
 
-    let list = stage_with_auth(dir.path(), &auth_file, &["list", "--json", "--reporter=silent"]);
+    let list = stage_with_auth(
+        dir.path(),
+        &auth_file,
+        &["list", "--json", "--reporter=silent"],
+    );
     assert_success(&list);
     let listed: Value =
         serde_json::from_str(&String::from_utf8_lossy(&list.stdout)).expect("list JSON output");
@@ -493,8 +554,14 @@ fn stage_lifecycle_against_pnpr_publishes_only_on_approval() {
     let view = stage_with_auth(dir.path(), &auth_file, &["view", &stage_id]);
     assert_success(&view);
     let stdout = String::from_utf8_lossy(&view.stdout);
-    assert!(stdout.contains("package name: @stage-e2e/lifecycle"), "stdout: {stdout}");
-    assert!(stdout.contains("staged by: alice (user)"), "stdout: {stdout}");
+    assert!(
+        stdout.contains("package name: @stage-e2e/lifecycle"),
+        "stdout: {stdout}",
+    );
+    assert!(
+        stdout.contains("staged by: alice (user)"),
+        "stdout: {stdout}",
+    );
 
     let download = stage_with_auth(
         dir.path(),
@@ -509,7 +576,13 @@ fn stage_lifecycle_against_pnpr_publishes_only_on_approval() {
         downloaded["@stage-e2e/lifecycle"]["filename"],
         Value::String(expected_filename.clone()),
     );
-    assert!(dir.path().join(&expected_filename).exists(), "the tarball must be written");
+    assert!(
+        dir
+            .path()
+            .join(&expected_filename)
+            .exists(),
+        "the tarball must be written",
+    );
 
     let approve = stage_with_auth(dir.path(), &auth_file, &["approve", &stage_id]);
     assert_success(&approve);
@@ -518,7 +591,10 @@ fn stage_lifecycle_against_pnpr_publishes_only_on_approval() {
         format!("Staged package {stage_id} approved and published successfully.\n"),
     );
 
-    assert_eq!(packument_status(&registry, &token, "@stage-e2e/lifecycle"), 200);
+    assert_eq!(
+        packument_status(&registry, &token, "@stage-e2e/lifecycle"),
+        200,
+    );
     let list = stage_with_auth(dir.path(), &auth_file, &["list"]);
     assert_success(&list);
     assert_eq!(
@@ -564,7 +640,10 @@ fn stage_reject_against_pnpr_deletes_the_staged_publish() {
         "stdout: {stdout}",
     );
 
-    assert_eq!(packument_status(&registry, &token, "stage-e2e-rejected"), 404);
+    assert_eq!(
+        packument_status(&registry, &token, "stage-e2e-rejected"),
+        404,
+    );
     let view = stage_with_auth(dir.path(), &auth_file, &["view", &stage_id]);
     assert_failure_with_code(&view, "ERR_PNPM_STAGE_REGISTRY_ERROR");
     let list = stage_with_auth(dir.path(), &auth_file, &["list", "stage-e2e-rejected"]);
@@ -611,11 +690,19 @@ fn stage_list_paginates_against_pnpr() {
                 .send()
                 .await
                 .expect("send the stage request");
-            assert_eq!(response.status().as_u16(), 201, "staging {name} must succeed");
+            assert_eq!(
+                response.status().as_u16(),
+                201,
+                "staging {name} must succeed",
+            );
         }
     });
 
-    let list = stage_with_auth(dir.path(), &auth_file, &["list", "--json", "--reporter=silent"]);
+    let list = stage_with_auth(
+        dir.path(),
+        &auth_file,
+        &["list", "--json", "--reporter=silent"],
+    );
     assert_success(&list);
     let listed: Value =
         serde_json::from_str(&String::from_utf8_lossy(&list.stdout)).expect("list JSON output");

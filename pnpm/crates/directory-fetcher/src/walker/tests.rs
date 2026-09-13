@@ -26,10 +26,17 @@ fn collect_rels(
             // Use `dunce::canonicalize` semantics indirectly: strip
             // the tmp root prefix off the absolute path and report
             // the remainder. That keeps assertions deterministic.
-            let stripped = abs.strip_prefix(root).map_or_else(
-                |_| abs.display().to_string(),
-                |path| path.display().to_string().replace('\\', "/"),
-            );
+            let stripped = abs
+                .strip_prefix(root)
+                .map_or_else(
+                    |_| abs.display().to_string(),
+                    |path| {
+                        path
+                            .display()
+                            .to_string()
+                            .replace('\\', "/")
+                    },
+                );
             (rel, stripped)
         })
         .collect()
@@ -48,7 +55,10 @@ fn walk_all_files_recurses_and_returns_relative_paths() {
     let rels: BTreeMap<_, _> = collect_rels(root, out);
 
     assert_eq!(
-        rels.keys().cloned().collect::<Vec<_>>(),
+        rels
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
         vec![
             "index.js".to_string(),
             "lib/inner.js".into(),
@@ -69,7 +79,13 @@ fn walk_all_files_skips_node_modules_at_root_and_nested() {
     let out = walk_all_files(root, false, true).unwrap();
     let rels: BTreeMap<_, _> = collect_rels(root, out);
 
-    assert_eq!(rels.keys().cloned().collect::<Vec<_>>(), vec!["index.js".to_string()]);
+    assert_eq!(
+        rels
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
+        vec!["index.js".to_string()],
+    );
 }
 
 #[test]
@@ -92,9 +108,14 @@ fn walk_all_files_terminates_on_symlink_cycle() {
     let out = walk_all_files(root, false, true).unwrap();
     let rels: BTreeMap<_, _> = collect_rels(root, out);
 
-    assert!(rels.contains_key("real.txt"), "direct children must still be walked: {rels:?}");
     assert!(
-        rels.keys().all(|key| !key.starts_with("loop/")),
+        rels.contains_key("real.txt"),
+        "direct children must still be walked: {rels:?}",
+    );
+    assert!(
+        rels
+            .keys()
+            .all(|key| !key.starts_with("loop/")),
         "cycle guard must short-circuit before any `loop/` descendant is recorded: {rels:?}",
     );
 }
@@ -112,7 +133,13 @@ fn walk_all_files_skips_broken_symlink_without_resolve_symlinks() {
     let out = walk_all_files(root, false, true).unwrap();
     let rels: BTreeMap<_, _> = collect_rels(root, out);
 
-    assert_eq!(rels.keys().cloned().collect::<Vec<_>>(), vec!["real.txt".to_string()]);
+    assert_eq!(
+        rels
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
+        vec!["real.txt".to_string()],
+    );
 }
 
 #[cfg(unix)]
@@ -128,7 +155,13 @@ fn walk_all_files_skips_broken_symlink_with_resolve_symlinks() {
     let out = walk_all_files(root, true, true).unwrap();
     let rels: BTreeMap<_, _> = collect_rels(root, out);
 
-    assert_eq!(rels.keys().cloned().collect::<Vec<_>>(), vec!["real.txt".to_string()]);
+    assert_eq!(
+        rels
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
+        vec!["real.txt".to_string()],
+    );
 }
 
 #[cfg(unix)]
@@ -273,12 +306,19 @@ fn walk_package_files_applies_npm_packlist_filter() {
     touch(root, "src/internal.ts");
 
     let out = walk_package_files(root).unwrap();
-    let mut rels: Vec<_> = out.keys().cloned().collect();
+    let mut rels: Vec<_> = out
+        .keys()
+        .cloned()
+        .collect();
     rels.sort();
 
     assert_eq!(
         rels,
-        vec!["dist/index.js".to_string(), "dist/sub/inner.js".into(), "package.json".into(),],
+        vec![
+            "dist/index.js".to_string(),
+            "dist/sub/inner.js".into(),
+            "package.json".into(),
+        ],
     );
 }
 
@@ -290,7 +330,10 @@ fn walk_package_files_works_without_a_manifest() {
     touch(root, ".DS_Store");
 
     let out = walk_package_files(root).unwrap();
-    let rels: Vec<_> = out.keys().cloned().collect();
+    let rels: Vec<_> = out
+        .keys()
+        .cloned()
+        .collect();
 
     assert_eq!(rels, vec!["index.js".to_string()]);
 }

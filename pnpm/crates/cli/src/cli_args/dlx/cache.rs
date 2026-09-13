@@ -50,11 +50,7 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     supported_architectures: &SupportedArchitecturesArgs,
     config: &'static mut Config,
 ) -> miette::Result<()> {
-    fs::create_dir_all(prepare_dir)
-        .map_err(|source| DlxError::Cache { dir: prepare_dir.display().to_string(), source })?;
-    let manifest_path = prepare_dir.join("package.json");
-    fs::write(&manifest_path, json!({ "name": "dlx", "version": "0.0.0" }).to_string())
-        .map_err(|source| DlxError::Cache { dir: manifest_path.display().to_string(), source })?;
+    let manifest_path = create_cache_project(prepare_dir)?;
 
     // Per-axis CLI overrides (`--cpu` / `--os` / `--libc`) replace the
     // matching axis of the config-derived value for the dlx install.
@@ -129,10 +125,11 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
 /// caller's project dir and mistake it for the dlx workspace.
 pub(super) fn dlx_command_cache_dir(config: &Config, cache_key: &str) -> miette::Result<PathBuf> {
     let dlx_command_cache_dir = config.cache_dir.join("dlx").join(cache_key);
-    fs::create_dir_all(&dlx_command_cache_dir).map_err(|source| DlxError::Cache {
-        dir: dlx_command_cache_dir.display().to_string(),
-        source,
-    })?;
+    fs::create_dir_all(&dlx_command_cache_dir)
+        .map_err(|source| DlxError::Cache {
+            dir: dlx_command_cache_dir.display().to_string(),
+            source,
+        })?;
     dunce::canonicalize(&dlx_command_cache_dir)
         .into_diagnostic()
         .wrap_err("canonicalizing the dlx cache directory")
@@ -148,21 +145,24 @@ pub(super) fn resolve_catalog_specs(
     config: &Config,
 ) -> miette::Result<Vec<String>> {
     let uses_catalog = |pkg: &String| {
-        parse_wanted_dependency(pkg)
-            .bare_specifier
+        parse_wanted_dependency(pkg).bare_specifier
             .is_some_and(|bare_specifier| parse_catalog_protocol(&bare_specifier).is_some())
     };
     if !pkgs.iter().any(uses_catalog) {
         return Ok(pkgs.to_vec());
     }
     let catalogs = configured_catalogs(config)?;
-    pkgs.iter()
+    pkgs
+        .iter()
         .map(|pkg| {
             let parsed = parse_wanted_dependency(pkg);
             let (Some(alias), Some(bare_specifier)) = (parsed.alias, parsed.bare_specifier) else {
                 return Ok(pkg.clone());
             };
-            let wanted = CatalogWantedDependency { alias: alias.clone(), bare_specifier };
+            let wanted = CatalogWantedDependency {
+                alias: alias.clone(),
+                bare_specifier,
+            };
             match resolve_from_catalog(&catalogs, &wanted) {
                 CatalogResolutionResult::Found(found) => {
                     Ok(format!("{alias}@{}", found.resolution.specifier))
@@ -199,22 +199,36 @@ pub(super) fn create_cache_key(
     allow_build: &[String],
     supported_architectures: Option<&SupportedArchitectures>,
 ) -> String {
-    let mut sorted: Vec<&str> = pkgs.iter().map(String::as_str).collect();
+    let mut sorted: Vec<&str> = pkgs
+        .iter()
+        .map(String::as_str)
+        .collect();
     sorted.sort_unstable();
-    let registry_pairs: Vec<(&str, &str)> =
-        registries.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+    let registry_pairs: Vec<(&str, &str)> = registries
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect();
     let mut args = vec![json!(sorted), json!(registry_pairs)];
     if !allow_build.is_empty() {
-        let mut sorted_allow: Vec<&str> = allow_build.iter().map(String::as_str).collect();
+        let mut sorted_allow: Vec<&str> = allow_build
+            .iter()
+            .map(String::as_str)
+            .collect();
         sorted_allow.sort_unstable();
         args.push(json!({ "allowBuild": sorted_allow }));
     }
     if let Some(arch) = supported_architectures {
         for (key, values) in [("cpu", &arch.cpu), ("libc", &arch.libc), ("os", &arch.os)] {
-            let Some(values) = values.as_ref().filter(|values| !values.is_empty()) else {
+            let Some(values) = values
+                .as_ref()
+                .filter(|values| !values.is_empty())
+            else {
                 continue;
             };
-            let mut deduped: Vec<&str> = values.iter().map(String::as_str).collect();
+            let mut deduped: Vec<&str> = values
+                .iter()
+                .map(String::as_str)
+                .collect();
             deduped.sort_unstable();
             deduped.dedup();
             args.push(json!({ "supportedArchitectures": { key: deduped } }));
@@ -253,13 +267,19 @@ pub(super) fn get_valid_cache_dir(
 /// The timestamped, pid-scoped subdirectory a fresh dlx install is
 /// prepared in.
 pub(super) fn get_prepare_dir(cache_path: &Path, now: SystemTime, pid: u32) -> PathBuf {
-    let millis = now.duration_since(UNIX_EPOCH).map_or(0, |elapsed| elapsed.as_millis());
+    let millis = now
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |elapsed| elapsed.as_millis());
     // base36 (vs hex) keeps this segment short: it sits between the cache key
     // and pnpm's deep virtual-store layout, and long dlx paths overflow
     // Windows' MAX_PATH (260), which makes lifecycle scripts fail with a
     // `spawn cmd.exe ENOENT` (the cwd no longer resolves). time+pid stays
     // unique across concurrent dlx processes and a process's own retries.
-    cache_path.join(format!("{}-{}", to_base36(millis), to_base36(u128::from(pid))))
+    cache_path.join(format!(
+        "{}-{}",
+        to_base36(millis),
+        to_base36(u128::from(pid)),
+    ))
 }
 
 /// Lowercase base36 (`0-9a-z`), matching JavaScript's
@@ -280,18 +300,24 @@ fn to_base36(mut n: u128) -> String {
 
 pub(super) fn read_json(path: &Path) -> Result<Value, DlxError> {
     let text = fs::read_to_string(path)
-        .map_err(|source| DlxError::ReadManifest { path: path.display().to_string(), source })?;
-    parse_manifest(&text).map_err(|error| DlxError::ReadManifest {
-        path: path.display().to_string(),
-        source: error.into(),
-    })
+        .map_err(|source| DlxError::ReadManifest {
+            path: path.display().to_string(),
+            source,
+        })?;
+    parse_manifest(&text)
+        .map_err(|error| DlxError::ReadManifest {
+            path: path.display().to_string(),
+            source: error.into(),
+        })
 }
 
 /// Resolve caller catalogs before the cache install severs its workspace anchor.
 fn resolve_cache_overrides(config: &mut Config) -> miette::Result<()> {
     if let Some(overrides) = config.overrides.as_ref()
         && config.workspace_dir.is_some()
-        && overrides.values().any(|spec| spec.starts_with("catalog:"))
+        && overrides
+            .values()
+            .any(|spec| spec.starts_with("catalog:"))
     {
         let catalogs = configured_catalogs(config)?;
         let resolved = parse_overrides_iter(overrides.iter(), &catalogs)
@@ -316,7 +342,9 @@ pub(super) fn command_cache_dir(
             pkgs,
             &build_registries_map(config),
             allow_build,
-            supported_architectures.apply_to(config.supported_architectures.clone()).as_ref(),
+            supported_architectures
+                .apply_to(config.supported_architectures.clone())
+                .as_ref(),
         ),
     )
 }
@@ -333,4 +361,23 @@ fn apply_dlx_build_policy(config: &mut Config, pkgs: &[String], allow_build: &[S
     for name in allow_build {
         config.allow_builds.insert(name.clone(), true);
     }
+}
+
+fn create_cache_project(prepare_dir: &Path) -> miette::Result<PathBuf> {
+    fs::create_dir_all(prepare_dir)
+        .map_err(|source| DlxError::Cache {
+            dir: prepare_dir.display().to_string(),
+            source,
+        })?;
+    let manifest_path = prepare_dir.join("package.json");
+    fs::write(
+        &manifest_path,
+        json!({ "name": "dlx", "version": "0.0.0" }).to_string(),
+    )
+    .map_err(|source| DlxError::Cache {
+        dir: manifest_path.display().to_string(),
+        source,
+    })?;
+
+    Ok(manifest_path)
 }

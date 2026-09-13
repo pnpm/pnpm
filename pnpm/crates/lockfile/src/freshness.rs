@@ -15,6 +15,7 @@
 
 pub(crate) use manifest::auto_installed_peer_deps;
 pub use manifest::satisfies_package_manifest;
+pub use spec_diff::SpecDiff;
 
 use crate::{Lockfile, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec};
 use derive_more::{Display, Error};
@@ -75,7 +76,10 @@ pub enum StalenessReason {
     /// the first drift branch checked, surfaced when
     /// `all_catalogs_are_up_to_date` fails.
     #[display("`catalogs` in the lockfile don't match the current config")]
-    CatalogsChanged { lockfile: Option<crate::CatalogSnapshots>, config: Catalogs },
+    CatalogsChanged {
+        lockfile: Option<crate::CatalogSnapshots>,
+        config: Catalogs,
+    },
 
     /// The lockfile has no `importers["."]` (or whatever id) entry,
     /// so we can't even start the comparison.
@@ -101,7 +105,10 @@ pub enum StalenessReason {
     #[display(
         "`publishDirectory` in the lockfile ({lockfile:?}) doesn't match `publishConfig.directory` in package.json ({manifest:?})"
     )]
-    PublishDirectoryMismatch { lockfile: Option<String>, manifest: Option<String> },
+    PublishDirectoryMismatch {
+        lockfile: Option<String>,
+        manifest: Option<String>,
+    },
 
     /// Whether workspace links use `publishDirectory` differs from the
     /// manifest's effective `publishConfig.linkDirectory` value.
@@ -122,7 +129,12 @@ pub enum StalenessReason {
     #[display(
         "importer {field}.{name} specifier {lockfile:?} doesn't match package manifest specifier ({manifest:?})"
     )]
-    DepSpecifierMismatch { field: &'static str, name: String, lockfile: String, manifest: String },
+    DepSpecifierMismatch {
+        field: &'static str,
+        name: String,
+        lockfile: String,
+        manifest: String,
+    },
 
     /// A semver resolution recorded for a direct dependency no longer
     /// satisfies its unchanged manifest range. This catches a broken
@@ -130,7 +142,11 @@ pub enum StalenessReason {
     #[display(
         "the importer resolution is broken at dependency {name:?}: version {version:?} doesn't satisfy range {range:?}"
     )]
-    ResolutionDoesNotSatisfy { name: String, version: String, range: String },
+    ResolutionDoesNotSatisfy {
+        name: String,
+        version: String,
+        range: String,
+    },
 
     /// The lockfile's `ignoredOptionalDependencies` (sorted) differs
     /// from the current install's `Config::ignored_optional_dependencies`
@@ -141,7 +157,10 @@ pub enum StalenessReason {
     #[display(
         "`ignoredOptionalDependencies` in the lockfile ({lockfile:?}) doesn't match the current config ({config:?})"
     )]
-    IgnoredOptionalDependenciesChanged { lockfile: Vec<String>, config: Vec<String> },
+    IgnoredOptionalDependenciesChanged {
+        lockfile: Vec<String>,
+        config: Vec<String>,
+    },
 
     /// The lockfile's `overrides` map doesn't match the current
     /// install's `Config::overrides`. This drift would otherwise
@@ -153,7 +172,10 @@ pub enum StalenessReason {
     #[display(
         "`overrides` in the lockfile ({lockfile:?}) doesn't match the current config ({config:?})"
     )]
-    OverridesChanged { lockfile: BTreeMap<String, String>, config: BTreeMap<String, String> },
+    OverridesChanged {
+        lockfile: BTreeMap<String, String>,
+        config: BTreeMap<String, String>,
+    },
 
     /// The lockfile's `settings.injectWorkspacePackages` differs from
     /// the current install's `Config::inject_workspace_packages`. The
@@ -184,7 +206,10 @@ pub enum StalenessReason {
     #[display(
         "`packageExtensionsChecksum` in the lockfile ({lockfile:?}) doesn't match the current config ({config:?})"
     )]
-    PackageExtensionsChecksumChanged { lockfile: Option<String>, config: Option<String> },
+    PackageExtensionsChecksumChanged {
+        lockfile: Option<String>,
+        config: Option<String>,
+    },
 
     /// The lockfile's `patchedDependencies` (key → patch-file hash)
     /// doesn't match the map the current install would write. This drift
@@ -240,7 +265,10 @@ pub enum StalenessReason {
     #[display(
         "`pnpmfileChecksum` in the lockfile ({lockfile:?}) doesn't match the current pnpmfile ({config:?})"
     )]
-    PnpmfileChecksumChanged { lockfile: Option<String>, config: Option<String> },
+    PnpmfileChecksumChanged {
+        lockfile: Option<String>,
+        config: Option<String>,
+    },
 }
 
 impl StalenessReason {
@@ -278,91 +306,8 @@ impl StalenessReason {
             StalenessReason::InjectWorkspacePackagesChanged { .. } => {
                 Some("settings.injectWorkspacePackages")
             }
-            StalenessReason::NoImporter { .. }
-            | StalenessReason::RemovedImporter { .. }
-            | StalenessReason::SpecifiersDiffer(_)
-            | StalenessReason::PublishDirectoryMismatch { .. }
-            | StalenessReason::LinkDirectoryMismatch { .. }
-            | StalenessReason::DependenciesMetaMismatch { .. }
-            | StalenessReason::DepSpecifierMismatch { .. }
-            | StalenessReason::ResolutionDoesNotSatisfy { .. } => None,
+            _ => None,
         }
-    }
-}
-
-/// Per-bucket diff against the manifest's flat union of deps.
-/// Identical entries are omitted. Empty buckets render as nothing in
-/// the `Display` impl so the resulting message lists only what the
-/// user needs to fix.
-#[derive(Debug, Default, Clone, PartialEq)]
-pub struct SpecDiff {
-    pub added: BTreeMap<String, String>,
-    pub removed: BTreeMap<String, String>,
-    pub modified: BTreeMap<String, (String, String)>,
-    /// The lockfile importer the diff belongs to, when the caller
-    /// checked a specific importer. Rendered into the message so a
-    /// workspace-wide freshness failure names the project whose
-    /// manifest drifted instead of only the dependency.
-    pub importer_id: Option<String>,
-}
-
-impl std::fmt::Display for SpecDiff {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let Some(importer_id) = &self.importer_id {
-            write!(f, "\n* in importers[{importer_id:?}]:")?;
-        }
-        write_spec_bucket(f, "added", &self.added)?;
-        write_spec_bucket(f, "removed", &self.removed)?;
-        if !self.modified.is_empty() {
-            let (dep, verb) = match self.modified.len() {
-                1 => ("dependency", "is"),
-                _ => ("dependencies", "are"),
-            };
-            write!(f, "\n* {} {dep} {verb} mismatched:", self.modified.len())?;
-            for (key, (left, right)) in &self.modified {
-                write!(f, "\n  - {key} (lockfile: {left}, manifest: {right})")?;
-            }
-        }
-        Ok(())
-    }
-}
-
-/// One `added` / `removed` bucket of [`SpecDiff`]'s `Display` impl.
-///
-/// Singular/plural matters here: the diff is rendered into
-/// `ERR_PNPM_OUTDATED_LOCKFILE` CI output, which users see and may quote in
-/// issues. "1 dependencies were added" reads wrong; the wording is pinned
-/// per count.
-fn write_spec_bucket(
-    f: &mut std::fmt::Formatter<'_>,
-    what: &str,
-    specs: &BTreeMap<String, String>,
-) -> std::fmt::Result {
-    if specs.is_empty() {
-        return Ok(());
-    }
-    let (dep, verb) = noun_verb_for(specs.len());
-    write!(f, "\n* {} {dep} {verb} {what}: ", specs.len())?;
-    let rendered: Vec<String> = specs.iter().map(|(key, value)| format!("{key}@{value}")).collect();
-    write!(f, "{}", rendered.join(", "))
-}
-
-/// Singular/plural noun + past-tense verb for the `added` and
-/// `removed` buckets in [`SpecDiff`]'s `Display` impl. Pulled out so
-/// the arms stay readable.
-fn noun_verb_for(n: usize) -> (&'static str, &'static str) {
-    match n {
-        1 => ("dependency", "was"),
-        _ => ("dependencies", "were"),
-    }
-}
-
-/// `true` when the flat-record diff is empty in all three buckets —
-/// the manifest and the lockfile agree on the set of specifiers.
-impl SpecDiff {
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.added.is_empty() && self.removed.is_empty() && self.modified.is_empty()
     }
 }
 
@@ -413,7 +358,9 @@ fn check_recorded_config(
 
     let mut lockfile_set: Vec<String> =
         lockfile.ignored_optional_dependencies.clone().unwrap_or_default();
-    let mut config_set: Vec<String> = check.ignored_optional_dependencies.unwrap_or(&[]).to_vec();
+    let mut config_set: Vec<String> = check.ignored_optional_dependencies
+        .unwrap_or(&[])
+        .to_vec();
     lockfile_set.sort();
     config_set.sort();
     if lockfile_set != config_set {
@@ -442,10 +389,14 @@ fn check_overrides(
     lockfile: &Lockfile,
     config_overrides: Option<&HashMap<String, String>>,
 ) -> Result<(), StalenessReason> {
-    let lockfile_overrides: BTreeMap<String, String> = lockfile
-        .overrides
+    let lockfile_overrides: BTreeMap<String, String> = lockfile.overrides
         .as_ref()
-        .map(|map| map.iter().map(|(key, value)| (key.clone(), value.clone())).collect())
+        .map(|map| {
+            map
+                .iter()
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect()
+        })
         .unwrap_or_default();
     let config_overrides: BTreeMap<String, String> = config_overrides
         .into_iter()
@@ -554,14 +505,17 @@ pub fn exclude_links_from_lockfile_changed(
     recorded: Option<&crate::LockfileSettings>,
     exclude_links_from_lockfile: bool,
 ) -> bool {
-    recorded
-        .is_some_and(|settings| settings.exclude_links_from_lockfile != exclude_links_from_lockfile)
+    recorded.is_some_and(|settings| {
+        settings.exclude_links_from_lockfile != exclude_links_from_lockfile
+    })
 }
 
 /// See [`auto_install_peers_changed`].
 #[must_use]
 pub fn recorded_dedupe_peers(recorded: Option<&crate::LockfileSettings>) -> bool {
-    recorded.and_then(|settings| settings.dedupe_peers).unwrap_or(false)
+    recorded
+        .and_then(|settings| settings.dedupe_peers)
+        .unwrap_or(false)
 }
 
 /// See [`auto_install_peers_changed`].
@@ -582,14 +536,21 @@ fn all_catalogs_are_up_to_date(
     catalogs_config: &Catalogs,
     snapshot: Option<&crate::CatalogSnapshots>,
 ) -> bool {
-    snapshot.iter().flat_map(|catalogs| catalogs.iter()).all(|(catalog_name, catalog)| {
-        catalog.iter().all(|(alias, entry)| {
-            catalogs_config
-                .get(catalog_name)
-                .and_then(|catalog| catalog.get(alias))
-                .is_some_and(|specifier| dependency_specifiers_equal(&entry.specifier, specifier))
+    snapshot
+        .iter()
+        .flat_map(|catalogs| catalogs.iter())
+        .all(|(catalog_name, catalog)| {
+            catalog
+                .iter()
+                .all(|(alias, entry)| {
+                    catalogs_config
+                        .get(catalog_name)
+                        .and_then(|catalog| catalog.get(alias))
+                        .is_some_and(|specifier| {
+                            dependency_specifiers_equal(&entry.specifier, specifier)
+                        })
+                })
         })
-    })
 }
 
 #[cfg(test)]
@@ -598,3 +559,5 @@ mod tests;
 mod manifest;
 
 use manifest::dependency_specifiers_equal;
+
+mod spec_diff;

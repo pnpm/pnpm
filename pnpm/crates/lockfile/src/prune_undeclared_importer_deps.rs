@@ -24,11 +24,25 @@ pub fn prune_undeclared_importer_deps(
     let declared = DeclaredNames::of(manifest, auto_install_peers);
     let mut pruned = false;
     for (declared_in_group, group, field) in [
-        (&declared.prod, DependencyGroup::Prod, &mut importer.dependencies),
-        (&declared.dev, DependencyGroup::Dev, &mut importer.dev_dependencies),
-        (&declared.optional, DependencyGroup::Optional, &mut importer.optional_dependencies),
+        (
+            &declared.prod,
+            DependencyGroup::Prod,
+            &mut importer.dependencies,
+        ),
+        (
+            &declared.dev,
+            DependencyGroup::Dev,
+            &mut importer.dev_dependencies,
+        ),
+        (
+            &declared.optional,
+            DependencyGroup::Optional,
+            &mut importer.optional_dependencies,
+        ),
     ] {
-        let Some(dependencies) = field.as_mut() else { continue };
+        let Some(dependencies) = field.as_mut() else {
+            continue;
+        };
         let before = dependencies.len();
         dependencies.retain(|name, _| {
             declared_in_group.contains(name)
@@ -41,14 +55,7 @@ pub fn prune_undeclared_importer_deps(
             *field = None;
         }
     }
-    if let Some(specifiers) = importer.specifiers.as_mut() {
-        specifiers.retain(|name, _| {
-            PkgName::parse(name.as_str()).is_ok_and(|parsed| declared.contains_anywhere(&parsed))
-                || pre_merge
-                    .and_then(|pre| pre.specifiers.as_ref())
-                    .is_some_and(|pre| pre.contains_key(name))
-        });
-    }
+    prune_specifiers(importer, pre_merge, &declared);
     pruned
 }
 
@@ -65,11 +72,14 @@ impl DeclaredNames {
     /// prod, prod over dev.
     fn of(manifest: &PackageManifest, auto_install_peers: bool) -> Self {
         let names_of = |group| {
-            manifest.dependencies([group]).filter_map(|(name, _)| PkgName::parse(name).ok())
+            manifest
+                .dependencies([group])
+                .filter_map(|(name, _)| PkgName::parse(name).ok())
         };
         let optional: HashSet<PkgName> = names_of(DependencyGroup::Optional).collect();
-        let mut prod: HashSet<PkgName> =
-            names_of(DependencyGroup::Prod).filter(|name| !optional.contains(name)).collect();
+        let mut prod: HashSet<PkgName> = names_of(DependencyGroup::Prod)
+            .filter(|name| !optional.contains(name))
+            .collect();
         let dev: HashSet<PkgName> = names_of(DependencyGroup::Dev)
             .filter(|name| !optional.contains(name) && !prod.contains(name))
             .collect();
@@ -78,7 +88,11 @@ impl DeclaredNames {
                 .into_keys()
                 .filter_map(|name| PkgName::parse(name).ok()),
         );
-        DeclaredNames { prod, dev, optional }
+        DeclaredNames {
+            prod,
+            dev,
+            optional,
+        }
     }
 
     fn contains_anywhere(&self, name: &PkgName) -> bool {
@@ -88,3 +102,18 @@ impl DeclaredNames {
 
 #[cfg(test)]
 mod tests;
+
+fn prune_specifiers(
+    importer: &mut ProjectSnapshot,
+    pre_merge: Option<&ProjectSnapshot>,
+    declared: &DeclaredNames,
+) {
+    if let Some(specifiers) = importer.specifiers.as_mut() {
+        specifiers.retain(|name, _| {
+            PkgName::parse(name.as_str()).is_ok_and(|parsed| declared.contains_anywhere(&parsed))
+                || pre_merge
+                    .and_then(|pre| pre.specifiers.as_ref())
+                    .is_some_and(|pre| pre.contains_key(name))
+        });
+    }
+}

@@ -15,7 +15,9 @@ impl Storage {
         }
         // Stage ids are minted from the CSPRNG, so a taken key is not a
         // publisher's doing.
-        Err(RegistryError::Internal { reason: format!("staged record {stage_id} already exists") })
+        Err(RegistryError::Internal {
+            reason: format!("staged record {stage_id} already exists"),
+        })
     }
 
     /// Rewrite a staged record's metadata only while it still holds
@@ -28,9 +30,13 @@ impl Storage {
         expected: &[u8],
         bytes: &[u8],
     ) -> Result<DocumentWrite> {
-        self.hosted
-            .replace_record_if_current(STAGED_DIR, &staged_meta_object(stage_id)?, expected, bytes)
-            .await
+        self.hosted.replace_record_if_current(
+            STAGED_DIR,
+            &staged_meta_object(stage_id)?,
+            expected,
+            bytes,
+        )
+        .await
     }
 
     pub async fn read_staged_body(&self, stage_id: &str) -> Result<Option<Vec<u8>>> {

@@ -33,8 +33,9 @@ pub(crate) fn modified_manifests_match_lockfile(
 ) -> Result<Option<Lockfile>, &'static str> {
     let mut loaded_current: Option<Lockfile> = None;
     let mut wanted_is_current = false;
-    let lockfile =
-        check.lockfile.get().map_err(|_| "the wanted lockfile cannot be read or parsed")?;
+    let lockfile = check.lockfile
+        .get()
+        .map_err(|_| "the wanted lockfile cannot be read or parsed")?;
     let (wanted, wanted_mtime): (&Lockfile, FileMtime) = if let Some(wanted) = lockfile {
         let Some(mtime) =
             file_mtime(&check.workspace_root.join(check.config.wanted_lockfile_name()))
@@ -45,14 +46,7 @@ pub(crate) fn modified_manifests_match_lockfile(
         };
         (wanted, mtime)
     } else {
-        let current_path = check.config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
-        let Some(mtime) = file_mtime(&current_path) else {
-            return Err("a manifest is newer than the last validation and no lockfile is loaded");
-        };
-        let current =
-            Lockfile::load_current_from_virtual_store_dir(&check.config.virtual_store_dir)
-                .map_err(|_| "the current lockfile cannot be loaded")?
-                .ok_or("a manifest is newer than the last validation and no lockfile is loaded")?;
+        let (current, mtime) = current_lockfile_with_mtime(check)?;
         wanted_is_current = true;
         (&*loaded_current.insert(current), mtime)
     };
@@ -61,7 +55,11 @@ pub(crate) fn modified_manifests_match_lockfile(
         check,
         state,
         modified,
-        &WantedLockfileStat { wanted, mtime: wanted_mtime, is_current: wanted_is_current },
+        &WantedLockfileStat {
+            wanted,
+            mtime: wanted_mtime,
+            is_current: wanted_is_current,
+        },
     )?;
     if !to_check.is_empty() {
         check_projects_content(check, wanted, to_check, dedupe_peers)?;
@@ -234,16 +232,18 @@ pub(crate) fn assert_wanted_lockfile_equals_current(
         .map_err(|_| "the current lockfile cannot be loaded")?;
     match current {
         None => {
-            let any_deps = wanted.importers.values().any(|snapshot| {
-                snapshot
-                    .dependencies_by_groups([
-                        DependencyGroup::Prod,
-                        DependencyGroup::Dev,
-                        DependencyGroup::Optional,
-                    ])
-                    .next()
-                    .is_some()
-            });
+            let any_deps = wanted.importers
+                .values()
+                .any(|snapshot| {
+                    snapshot
+                        .dependencies_by_groups([
+                            DependencyGroup::Prod,
+                            DependencyGroup::Dev,
+                            DependencyGroup::Optional,
+                        ])
+                        .next()
+                        .is_some()
+                });
             if any_deps {
                 Err("the lockfile requires dependencies but none were installed")
             } else {
@@ -292,8 +292,10 @@ pub(crate) fn linked_packages_are_up_to_date(
         let Some(lockfile_deps) = snapshot.get_map_by_group(group) else {
             continue;
         };
-        let Some(manifest_deps) =
-            manifest.value().get(manifest_field).and_then(|value| value.as_object())
+        let Some(manifest_deps) = manifest
+            .value()
+            .get(manifest_field)
+            .and_then(|value| value.as_object())
         else {
             continue;
         };
@@ -312,7 +314,10 @@ fn linked_group_is_up_to_date(
 ) -> bool {
     for (dep_name, dep) in lockfile_deps {
         let dep_name = dep_name.to_string();
-        let Some(current_spec) = manifest_deps.get(&dep_name).and_then(|v| v.as_str()) else {
+        let Some(current_spec) = manifest_deps
+            .get(&dep_name)
+            .and_then(|v| v.as_str())
+        else {
             continue;
         };
         if !linked_dep_is_up_to_date(ctx, project_dir, &dep_name, dep, current_spec) {
@@ -375,8 +380,7 @@ fn linked_package_dir<'a>(
 ) -> Option<std::borrow::Cow<'a, Path>> {
     match link_target {
         Some(target) => Some(std::borrow::Cow::Owned(project_dir.join(target))),
-        None => dep
-            .version
+        None => dep.version
             .as_regular()
             .map(std::string::ToString::to_string)
             .and_then(|version| ctx.workspace_packages.get(dep_name)?.get(&version))
@@ -401,7 +405,9 @@ pub(crate) fn ref_is_local_directory(specifier: &str) -> bool {
 pub(crate) fn spec_is_distribution_tag(spec: &str) -> bool {
     !spec.is_empty()
         && spec.parse::<node_semver::Range>().is_err()
-        && spec.chars().all(|char| char.is_ascii_alphanumeric() || matches!(char, '-' | '_' | '.'))
+        && spec
+            .chars()
+            .all(|char| char.is_ascii_alphanumeric() || matches!(char, '-' | '_' | '.'))
 }
 
 /// Strip the `workspace:` / `npm:` envelope so the remainder can be
@@ -413,7 +419,10 @@ pub(crate) fn version_range_of_spec(spec: &str) -> &str {
     if let Some(rest) = spec.strip_prefix("npm:") {
         // `npm:<alias>@<range>` — the `@` search starts at index 1 so a
         // leading scope `@` isn't mistaken for the separator.
-        return match rest.get(1..).and_then(|tail| tail.find('@')) {
+        return match rest
+            .get(1..)
+            .and_then(|tail| tail.find('@'))
+        {
             Some(at) => {
                 let range = &rest[at + 2..];
                 if range.is_empty() { "*" } else { range }
@@ -427,8 +436,12 @@ pub(crate) fn version_range_of_spec(spec: &str) -> &str {
 /// `semver.satisfies(version, range, { loose: true })` — a version or
 /// range that doesn't parse fails the match.
 pub(crate) fn semver_satisfies_loosely(version: &str, range: &str) -> bool {
-    let Ok(version) = version.parse::<node_semver::Version>() else { return false };
-    let Ok(range) = range.parse::<node_semver::Range>() else { return false };
+    let Ok(version) = version.parse::<node_semver::Version>() else {
+        return false;
+    };
+    let Ok(range) = range.parse::<node_semver::Range>() else {
+        return false;
+    };
     range.satisfies(&version)
 }
 
@@ -440,11 +453,25 @@ pub(crate) fn stat_manifests<'a>(
     project_manifests
         .iter()
         .map(|(root_dir, manifest)| {
-            file_mtime(manifest.path()).map(|mtime| ManifestStat {
-                root_dir: root_dir.as_path(),
-                manifest,
-                mtime,
-            })
+            file_mtime(manifest.path())
+                .map(|mtime| ManifestStat {
+                    root_dir: root_dir.as_path(),
+                    manifest,
+                    mtime,
+                })
         })
         .collect()
+}
+
+fn current_lockfile_with_mtime(
+    check: &OptimisticRepeatInstallCheck<'_>,
+) -> Result<(Lockfile, FileMtime), &'static str> {
+    let current_path = check.config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
+    let Some(mtime) = file_mtime(&current_path) else {
+        return Err("a manifest is newer than the last validation and no lockfile is loaded");
+    };
+    let current = Lockfile::load_current_from_virtual_store_dir(&check.config.virtual_store_dir)
+        .map_err(|_| "the current lockfile cannot be loaded")?
+        .ok_or("a manifest is newer than the last validation and no lockfile is loaded")?;
+    Ok((current, mtime))
 }

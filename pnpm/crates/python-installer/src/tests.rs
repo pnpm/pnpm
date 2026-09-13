@@ -17,7 +17,10 @@ fn target() -> Target {
         "sys_platform": "linux",
     }))
     .expect("marker environment fixture");
-    Target { environment, tags: vec!["py3-none-any".to_string()] }
+    Target {
+        environment,
+        tags: vec!["py3-none-any".to_string()],
+    }
 }
 
 fn handshake_body(ecosystems: &[&str]) -> String {
@@ -113,7 +116,11 @@ async fn a_server_without_python_support_leaves_resolution_local() {
         .with_body(handshake_body(&["npm", "cargo"]))
         .create_async()
         .await;
-    let resolve = server.mock("POST", "/-/pnpr/v0/resolve").expect(0).create_async().await;
+    let resolve = server
+        .mock("POST", "/-/pnpr/v0/resolve")
+        .expect(0)
+        .create_async()
+        .await;
 
     let resolved = resolve_via_pnpr(
         &config_for_pnpr(&server.url()),
@@ -133,7 +140,11 @@ async fn a_server_without_python_support_leaves_resolution_local() {
 #[tokio::test]
 async fn an_offline_install_does_not_reach_the_pnpr_server() {
     let mut server = mockito::Server::new_async().await;
-    let handshake = server.mock("GET", "/-/pnpr").expect(0).create_async().await;
+    let handshake = server
+        .mock("GET", "/-/pnpr")
+        .expect(0)
+        .create_async()
+        .await;
     let mut config = config_for_pnpr(&server.url());
     config.offline = true;
 

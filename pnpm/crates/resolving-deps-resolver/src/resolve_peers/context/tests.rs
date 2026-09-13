@@ -40,9 +40,11 @@ fn importer_relative_self_link_keeps_an_empty_target() {
 #[test]
 fn importer_relative_link_normalizes_the_project_dir() {
     let expected = DepPath::from("link:../lib");
-    for project_dir in
-        ["workspace/packages/app", "workspace/packages/./app", "workspace/packages/nested/../app"]
-    {
+    for project_dir in [
+        "workspace/packages/app",
+        "workspace/packages/./app",
+        "workspace/packages/nested/../app",
+    ] {
         assert_eq!(
             importer_relative_link_dep_path(
                 &DepPath::from("link:packages/lib"),
@@ -93,7 +95,10 @@ fn external_link_is_remapped_to_the_importers_modules_dir() {
 #[test]
 fn injected_workspace_dep_is_not_remapped() {
     let dep = linked_package("lib", "file:../outside/lib", "../outside/lib");
-    assert_eq!(remap_link_node_id(&exclude_links_opts(), "lib", &dep.result), None);
+    assert_eq!(
+        remap_link_node_id(&exclude_links_opts(), "lib", &dep.result),
+        None,
+    );
 }
 
 fn exclude_links_opts() -> ResolvePeersOptions {
@@ -113,7 +118,11 @@ fn parses_peer_suffix_after_patch_hash() {
     let dep_path = DepPath::from(PATCHED_WORKFLOWS_SDK);
     assert_eq!(
         peer_segment_names(&dep_path),
-        Some(vec!["@types/node".to_string(), "better-sqlite3".to_string(), "express".to_string(),]),
+        Some(vec![
+            "@types/node".to_string(),
+            "better-sqlite3".to_string(),
+            "express".to_string(),
+        ]),
     );
 }
 
@@ -126,7 +135,10 @@ fn satisfies_handles_basic_ranges() {
 
 #[test]
 fn satisfies_falls_back_to_equality_for_unparsable_ranges() {
-    assert!(satisfies_with_prereleases("workspace:^1.0.0", "workspace:^1.0.0"));
+    assert!(satisfies_with_prereleases(
+        "workspace:^1.0.0",
+        "workspace:^1.0.0"
+    ));
     assert!(!satisfies_with_prereleases("1.0.0", "workspace:^1.0.0"));
 }
 
@@ -144,7 +156,11 @@ fn link_strong_count(chain: &SharedChain<String>) -> usize {
 
 /// Build `root -> ... -> tip` and return the chain at the tip.
 fn chain_of(values: &[&str]) -> SharedChain<String> {
-    values.iter().fold(SharedChain::default(), |chain, value| chain.pushed((*value).to_string()))
+    values
+        .iter()
+        .fold(SharedChain::default(), |chain, value| {
+            chain.pushed((*value).to_string())
+        })
 }
 
 #[test]
@@ -160,15 +176,19 @@ fn memoized_any_matches_the_unmemoized_answer() {
     let mut fresh = ChainSuffixMemo::default();
     assert_eq!(
         with_match.any_memoized(&mut fresh, |value| value == "needle"),
-        with_match.iter().any(|value| value == "needle"),
+        with_match
+            .iter()
+            .any(|value| value == "needle"),
     );
 }
 
 #[test]
 fn a_match_in_a_shared_suffix_answers_every_chain_built_on_it() {
     let shared = chain_of(&["root", "needle"]);
-    let branches: Vec<_> =
-        ["a", "b", "c"].iter().map(|tip| shared.pushed((*tip).to_string())).collect();
+    let branches: Vec<_> = ["a", "b", "c"]
+        .iter()
+        .map(|tip| shared.pushed((*tip).to_string()))
+        .collect();
 
     let mut memo = ChainSuffixMemo::default();
     let mut visits = 0;
@@ -189,8 +209,10 @@ fn a_match_in_a_shared_suffix_answers_every_chain_built_on_it() {
 #[test]
 fn an_unmatched_shared_suffix_is_still_evaluated_only_once() {
     let shared = chain_of(&["root", "plain"]);
-    let branches: Vec<_> =
-        ["a", "b", "c"].iter().map(|tip| shared.pushed((*tip).to_string())).collect();
+    let branches: Vec<_> = ["a", "b", "c"]
+        .iter()
+        .map(|tip| shared.pushed((*tip).to_string()))
+        .collect();
 
     let mut memo = ChainSuffixMemo::default();
     let mut visits = 0;
@@ -201,7 +223,10 @@ fn an_unmatched_shared_suffix_is_still_evaluated_only_once() {
         }),);
     }
 
-    assert_eq!(visits, 5, "two shared links once, plus each branch's own tip");
+    assert_eq!(
+        visits, 5,
+        "two shared links once, plus each branch's own tip",
+    );
 }
 
 #[test]
@@ -229,6 +254,9 @@ fn a_memo_keeps_the_links_it_keyed_on_alive() {
     // The chain that produced the entry is gone, but the memo's own
     // reference keeps its link — and therefore its address — reserved,
     // so nothing else can be allocated there and inherit the answer.
-    assert_eq!(held_by, 2, "the memo holds a reference alongside the caller's");
+    assert_eq!(
+        held_by, 2,
+        "the memo holds a reference alongside the caller's",
+    );
     assert!(!chain_of(&["root", "other"]).any_memoized(&mut memo, |value| value == "temporary"));
 }

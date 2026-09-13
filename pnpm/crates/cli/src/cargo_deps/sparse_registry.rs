@@ -54,8 +54,7 @@ pub(super) fn download_auth_headers(
     if same_origin(&registry_config.dl, &config.cargo.index_url) {
         return Arc::new((*config.auth_headers).clone().with_secure_transport());
     }
-    let credential = registry_config
-        .auth_required
+    let credential = registry_config.auth_required
         .then(|| config.auth_headers.for_secure_url(&config.cargo.index_url))
         .flatten();
     let Some((credential, origin)) = credential.zip(origin_of(&registry_config.dl)) else {
@@ -79,7 +78,9 @@ fn same_origin(left: &str, right: &str) -> bool {
 /// for anything else, including a download template that is a bare path.
 fn origin_of(url: &str) -> Option<String> {
     let origin = url::Url::parse(url).ok()?.origin();
-    origin.is_tuple().then(|| origin.ascii_serialization())
+    origin
+        .is_tuple()
+        .then(|| origin.ascii_serialization())
 }
 
 pub(crate) fn cargo_auth_headers(config: &Config) -> Result<Arc<AuthHeaders>> {
@@ -138,7 +139,10 @@ fn cargo_index_cache_dir(config: &Config) -> PathBuf {
     } else {
         pnpm_crypto_hash::create_hex_hash(config.cargo.index_url.trim_end_matches('/'))
     };
-    config.cache_dir.join("v11").join("cargo-index").join(registry)
+    config.cache_dir
+        .join("v11")
+        .join("cargo-index")
+        .join(registry)
 }
 
 async fn fetch_registry_config(
@@ -155,9 +159,14 @@ async fn fetch_registry_config(
     }
     let cache_path = cargo_index_cache_dir(config).join(RegistryConfig::NAME);
     let bytes = if config.offline {
-        fs::read(&cache_path).into_diagnostic().wrap_err_with(|| {
-            format!("read cached Cargo registry config at {}", cache_path.display())
-        })?
+        fs::read(&cache_path)
+            .into_diagnostic()
+            .wrap_err_with(|| {
+                format!(
+                    "read cached Cargo registry config at {}",
+                    cache_path.display(),
+                )
+            })?
     } else {
         download_registry_config(config, http_client, auth_headers, &cache_path).await?
     };
@@ -228,7 +237,11 @@ async fn download_registry_config(
     auth_headers: &AuthHeaders,
     cache_path: &Path,
 ) -> Result<Vec<u8>> {
-    let url = format!("{}/{}", config.cargo.index_url.trim_end_matches('/'), RegistryConfig::NAME);
+    let url = format!(
+        "{}/{}",
+        config.cargo.index_url.trim_end_matches('/'),
+        RegistryConfig::NAME,
+    );
     let response = http_client
         .get_limited_bytes_with_secure_auth_and_retry(
             &url,

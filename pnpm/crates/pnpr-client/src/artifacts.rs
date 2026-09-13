@@ -97,8 +97,13 @@ fn index_candidates(
     }
     let mut by_key = BTreeMap::new();
     for candidate in candidates {
-        candidate.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-        if by_key.insert(candidate.key.as_str(), candidate).is_some() {
+        candidate
+            .validate()
+            .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+        if by_key
+            .insert(candidate.key.as_str(), candidate)
+            .is_some()
+        {
             return Err(PnprClientError::Protocol(format!(
                 "duplicate shared artifact candidate {:?}",
                 candidate.key,
@@ -151,10 +156,10 @@ fn verify_variant(
     let Ok(payload_bytes) = variant.envelope.verify_signature_bytes(public_key) else {
         return Ok(None);
     };
-    let envelope_digest =
-        variant.envelope.digest().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-    let quarantined = opts
-        .quarantined_envelope_digests
+    let envelope_digest = variant.envelope
+        .digest()
+        .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+    let quarantined = opts.quarantined_envelope_digests
         .get(candidate.key.as_str())
         .is_some_and(|digests| digests.contains(&envelope_digest));
     if quarantined {
@@ -170,21 +175,17 @@ fn verify_variant(
             });
         }
     };
-    let payload: ArtifactPayload = match serde_json::from_slice(&payload_bytes) {
-        Ok(payload) => payload,
-        Err(error) => {
-            reject(format!("payload is not valid JSON: {error}"));
-            return Ok(None);
-        }
-    };
-    if let Err(error) = payload.validate() {
-        reject(error.to_string());
+    let Some(payload) = decode_artifact_payload(&payload_bytes, reject) else {
         return Ok(None);
-    }
+    };
     if !artifact_matches_candidate(&payload, candidate) {
         return Ok(None);
     }
-    Ok(Some(VerifiedArtifact { payload, envelope: variant.envelope, envelope_digest }))
+    Ok(Some(VerifiedArtifact {
+        payload,
+        envelope: variant.envelope,
+        envelope_digest,
+    }))
 }
 
 fn artifact_matches_candidate(payload: &ArtifactPayload, candidate: &ArtifactCandidate) -> bool {
@@ -211,9 +212,10 @@ impl PnprClient {
         request: &PublishArtifactRequest,
         authorization: Option<&str>,
     ) -> Result<(), PnprClientError> {
-        request.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-        let mut put = self
-            .http
+        request
+            .validate()
+            .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+        let mut put = self.http
             .put(format!("{}-/pnpr/v0/artifacts", self.base_url))
             .timeout(self.artifact_request_timeout)
             .json(request);
@@ -278,9 +280,10 @@ impl PnprClient {
         &self,
         opts: &ResolveArtifactsOptions,
     ) -> Result<ResolveArtifactsResponse, PnprClientError> {
-        let request = ResolveArtifactsRequest { candidates: opts.candidates.clone() };
-        let mut post = self
-            .http
+        let request = ResolveArtifactsRequest {
+            candidates: opts.candidates.clone(),
+        };
+        let mut post = self.http
             .post(format!("{}-/pnpr/v0/artifacts/resolve", self.base_url))
             .timeout(self.artifact_request_timeout)
             .json(&request);
@@ -307,9 +310,10 @@ impl PnprClient {
         request: &ArtifactBlobRequest,
         authorization: Option<&str>,
     ) -> Result<Vec<u8>, PnprClientError> {
-        request.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-        let mut post = self
-            .http
+        request
+            .validate()
+            .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+        let mut post = self.http
             .post(format!("{}-/pnpr/v0/artifacts/blob", self.base_url))
             .timeout(self.artifact_request_timeout)
             .json(request);
@@ -330,4 +334,22 @@ impl PnprClient {
             .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
         Ok(bytes)
     }
+}
+
+fn decode_artifact_payload(
+    payload_bytes: &[u8],
+    reject: impl FnOnce(String),
+) -> Option<ArtifactPayload> {
+    let payload: ArtifactPayload = match serde_json::from_slice(payload_bytes) {
+        Ok(payload) => payload,
+        Err(error) => {
+            reject(format!("payload is not valid JSON: {error}"));
+            return None;
+        }
+    };
+    if let Err(error) = payload.validate() {
+        reject(error.to_string());
+        return None;
+    }
+    Some(payload)
 }

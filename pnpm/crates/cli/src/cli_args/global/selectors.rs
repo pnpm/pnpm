@@ -11,7 +11,10 @@ pub(super) fn tool_install_selectors(groups: Vec<Vec<String>>) -> Vec<Vec<String
     groups
         .into_iter()
         .map(|group| {
-            group.into_iter().map(|token| tool_install_selector(&token).unwrap_or(token)).collect()
+            group
+                .into_iter()
+                .map(|token| tool_install_selector(&token).unwrap_or(token))
+                .collect()
         })
         .collect()
 }
@@ -26,8 +29,14 @@ pub(super) fn groups_matching_params(
     if params.is_empty() {
         return Some(all);
     }
-    let filtered: Vec<GlobalPackageInfo> =
-        all.into_iter().filter(|pkg| params.iter().any(|param| pkg.has_alias(param))).collect();
+    let filtered: Vec<GlobalPackageInfo> = all
+        .into_iter()
+        .filter(|pkg| {
+            params
+                .iter()
+                .any(|param| pkg.has_alias(param))
+        })
+        .collect();
     if filtered.is_empty() {
         println!("No matching global packages found");
         return None;
@@ -63,9 +72,15 @@ pub(super) fn replacement_aliases(aliases: &[String]) -> Vec<String> {
     const PNPM_CLI_PACKAGE_ALIASES: [&str; 2] = ["pnpm", "@pnpm/exe"];
 
     let mut expanded = aliases.to_vec();
-    if aliases.iter().any(|alias| is_pnpm_cli_package_name(alias)) {
+    if aliases
+        .iter()
+        .any(|alias| is_pnpm_cli_package_name(alias))
+    {
         for alias in PNPM_CLI_PACKAGE_ALIASES {
-            if !expanded.iter().any(|existing| existing == alias) {
+            if !expanded
+                .iter()
+                .any(|existing| existing == alias)
+            {
                 expanded.push(alias.to_string());
             }
         }
@@ -78,37 +93,49 @@ pub(super) fn should_replace_existing_package(
     aliases: &[String],
     aliases_to_replace: &[String],
 ) -> bool {
-    if aliases.iter().any(|alias| pkg.has_alias(alias)) {
+    if aliases
+        .iter()
+        .any(|alias| pkg.has_alias(alias))
+    {
         return true;
     }
-    is_pnpm_cli_only_group(pkg) && aliases_to_replace.iter().any(|alias| pkg.has_alias(alias))
+    is_pnpm_cli_only_group(pkg)
+        && aliases_to_replace
+            .iter()
+            .any(|alias| pkg.has_alias(alias))
 }
 
 /// Whether `pkg` is a global group the pnpm CLI is installed in — the install
 /// that `pnpm self-update` owns. `update -g` leaves the whole group alone:
 /// reinstalling it would relink pnpm's bin whatever else the group holds.
 pub fn has_pnpm_cli_dependency(pkg: &GlobalPackageInfo) -> bool {
-    pkg.dependencies.iter().any(|(alias, spec)| is_pnpm_cli_dependency(alias, Some(spec)))
+    pkg.dependencies
+        .iter()
+        .any(|(alias, spec)| is_pnpm_cli_dependency(alias, Some(spec)))
 }
 
 /// Whether `pkg` is a global group holding nothing but the pnpm CLI. `add -g`
 /// refuses to create one.
 fn is_pnpm_cli_only_group(pkg: &GlobalPackageInfo) -> bool {
     !pkg.dependencies.is_empty()
-        && pkg.dependencies.iter().all(|(alias, spec)| is_pnpm_cli_dependency(alias, Some(spec)))
+        && pkg.dependencies
+            .iter()
+            .all(|(alias, spec)| is_pnpm_cli_dependency(alias, Some(spec)))
 }
 
 /// Whether any of `params` names the pnpm CLI itself. Each selector is
 /// normalized to the package it installs first, so neither a versioned form
 /// like `pnpm@9` nor an aliased one like `foo@npm:pnpm@9` bypasses the guard.
 pub fn selects_pnpm_cli<'a>(params: impl IntoIterator<Item = &'a String>) -> bool {
-    params.into_iter().any(|param| {
-        let parsed = parse_wanted_dependency(param);
-        is_pnpm_cli_dependency(
-            parsed.alias.as_deref().unwrap_or_default(),
-            parsed.bare_specifier.as_deref(),
-        )
-    })
+    params
+        .into_iter()
+        .any(|param| {
+            let parsed = parse_wanted_dependency(param);
+            is_pnpm_cli_dependency(
+                parsed.alias.as_deref().unwrap_or_default(),
+                parsed.bare_specifier.as_deref(),
+            )
+        })
 }
 
 /// Whether a dependency declared as `alias` at `spec` is the pnpm CLI. An
@@ -153,7 +180,12 @@ pub(super) fn split_comma_separated(param: &str, base_dir: &Path) -> Vec<String>
     if refers_to_existing_local_path(param, base_dir) {
         return vec![param.to_string()];
     }
-    param.split(',').map(str::trim).filter(|token| !token.is_empty()).map(str::to_string).collect()
+    param
+        .split(',')
+        .map(str::trim)
+        .filter(|token| !token.is_empty())
+        .map(str::to_string)
+        .collect()
 }
 
 fn refers_to_existing_local_path(param: &str, base_dir: &Path) -> bool {
@@ -186,7 +218,10 @@ pub(super) fn resolve_local_param(param: &str, base_dir: &Path) -> String {
     for prefix in ["file:", "link:"] {
         if let Some(rest) = param.strip_prefix(prefix) {
             if rest.starts_with('.') {
-                return format!("{prefix}{}", lexical_normalize(&base_dir.join(rest)).display());
+                return format!(
+                    "{prefix}{}",
+                    lexical_normalize(&base_dir.join(rest)).display(),
+                );
             }
             return param.to_string();
         }
@@ -202,18 +237,7 @@ pub(super) fn infer_local_package_alias(selector: &str) -> miette::Result<String
         return Ok(selector.to_string());
     };
     let path_display = path.display().to_string();
-    let metadata = match fs::metadata(path) {
-        Ok(metadata) => metadata,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Ok(selector.to_string());
-        }
-        Err(error) => {
-            return Err(error)
-                .into_diagnostic()
-                .wrap_err(format!("read local package metadata from {path_display}"));
-        }
-    };
-    if !metadata.is_dir() {
+    if !is_local_package_directory(path)? {
         return Ok(selector.to_string());
     }
     let manifest = safe_read_package_json_from_dir(path)
@@ -224,13 +248,20 @@ pub(super) fn infer_local_package_alias(selector: &str) -> miette::Result<String
         .get("name")
         .and_then(serde_json::Value::as_str)
         .filter(|name| !name.is_empty())
-        .or_else(|| path.file_name().and_then(|name| name.to_str()))
+        .or_else(|| {
+            path
+                .file_name()
+                .and_then(|name| name.to_str())
+        })
         .filter(|name| !name.is_empty())
         .ok_or_else(|| {
             miette::miette!("The local package at {path_display} has no package name")
         })?;
     if !is_valid_old_npm_package_name(name) {
-        return Err(GlobalError::InvalidPackageName { name: name.to_string() }.into());
+        return Err(GlobalError::InvalidPackageName {
+            name: name.to_string(),
+        }
+        .into());
     }
     Ok(format!("{name}@{selector}"))
 }
@@ -241,4 +272,14 @@ pub(super) fn is_windows_drive_path(param: &str) -> bool {
         && bytes[0].is_ascii_alphabetic()
         && bytes[1] == b':'
         && (bytes[2] == b'/' || bytes[2] == b'\\')
+}
+
+fn is_local_package_directory(path: &Path) -> miette::Result<bool> {
+    match fs::metadata(path) {
+        Ok(metadata) => Ok(metadata.is_dir()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("read local package metadata from {}", path.display())),
+    }
 }

@@ -80,14 +80,18 @@ impl Lockfile {
         // excluded is emptied here and contributes no seed.
         let mut seeds: VecDeque<PackageKey> = VecDeque::new();
         for importer_id in importer_ids {
-            let Some(importer) = filtered.importers.get_mut(&importer_id) else { continue };
+            let Some(importer) = filtered.importers.get_mut(&importer_id) else {
+                continue;
+            };
             *importer = filter_importer(importer, options.include);
             seeds.extend(importer_keys(importer));
         }
 
         let reachable = collect_reachable(&filtered, seeds, options)?;
-        let reachable_metadata: HashSet<_> =
-            reachable.iter().map(PkgNameVerPeer::without_peer).collect();
+        let reachable_metadata: HashSet<_> = reachable
+            .iter()
+            .map(PkgNameVerPeer::without_peer)
+            .collect();
         if let Some(snapshots) = filtered.snapshots.as_mut() {
             snapshots.retain(|key, _| reachable.contains(key));
         }
@@ -117,12 +121,18 @@ fn importer_keys(importer: &ProjectSnapshot) -> impl Iterator<Item = PackageKey>
 /// lockfile describes a dependency closure, not a publishable project.
 fn filter_importer(importer: &ProjectSnapshot, include: IncludedDependencies) -> ProjectSnapshot {
     let pick = |group: Option<&ResolvedDependencyMap>, included: bool| {
-        included.then(|| group.cloned()).flatten().unwrap_or_default()
+        included
+            .then(|| group.cloned())
+            .flatten()
+            .unwrap_or_default()
     };
     ProjectSnapshot {
         specifiers: importer.specifiers.clone(),
         dependencies: Some(pick(importer.dependencies.as_ref(), include.dependencies)),
-        dev_dependencies: Some(pick(importer.dev_dependencies.as_ref(), include.dev_dependencies)),
+        dev_dependencies: Some(pick(
+            importer.dev_dependencies.as_ref(),
+            include.dev_dependencies,
+        )),
         optional_dependencies: Some(pick(
             importer.optional_dependencies.as_ref(),
             include.optional_dependencies,
@@ -157,7 +167,10 @@ fn collect_reachable(
             continue;
         };
         reachable.insert(key);
-        queue.extend(snapshot_keys(snapshot, options.include.optional_dependencies));
+        queue.extend(snapshot_keys(
+            snapshot,
+            options.include.optional_dependencies,
+        ));
     }
     Ok(reachable)
 }
@@ -169,7 +182,9 @@ fn snapshot_keys(
 ) -> impl Iterator<Item = PackageKey> + '_ {
     [
         snapshot.dependencies.as_ref(),
-        include_optional.then_some(snapshot.optional_dependencies.as_ref()).flatten(),
+        include_optional
+            .then_some(snapshot.optional_dependencies.as_ref())
+            .flatten(),
     ]
     .into_iter()
     .flatten()

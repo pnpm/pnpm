@@ -24,7 +24,11 @@ pub struct WebAuthTimeoutError {
 impl WebAuthTimeoutError {
     #[must_use]
     pub fn new(end_time: u64, start_time: u64, timeout: u64) -> Self {
-        WebAuthTimeoutError { end_time, start_time, timeout }
+        WebAuthTimeoutError {
+            end_time,
+            start_time,
+            timeout,
+        }
     }
 }
 

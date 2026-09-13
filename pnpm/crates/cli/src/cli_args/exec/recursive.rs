@@ -97,14 +97,24 @@ pub async fn exec_recursive(
         &projects,
         config,
         dir,
-        AutoExcludeRoot::Enabled { workspace_patterns: patterns.as_deref() },
+        AutoExcludeRoot::Enabled {
+            workspace_patterns: patterns.as_deref(),
+        },
     )?;
     // An empty `--filter` selection is a no-op (exit 0).
     if selection.selected.is_empty() {
         return Ok(());
     }
 
-    execute_selection(args, config, dir, emit, &command, workspace_root, &selection)
+    execute_selection(
+        args,
+        config,
+        dir,
+        emit,
+        &command,
+        workspace_root,
+        &selection,
+    )
 }
 
 /// What identifies an exec run in the task-run state: its command line and
@@ -127,7 +137,10 @@ impl ExecStateInputs {
             node_options: config.node_options.as_deref(),
             user_agent: &config.user_agent,
         });
-        Self { params, settings }
+        Self {
+            params,
+            settings,
+        }
     }
 }
 
@@ -139,9 +152,7 @@ fn resumed_exec_task_graph(
     full_task_graph: &TaskGraph,
     task_run_state_context: &TaskRunStateContext,
 ) -> miette::Result<TaskGraph> {
-    let resume_anchor = args
-        .workspace
-        .resume_from
+    let resume_anchor = args.workspace.resume_from
         .as_ref()
         .map(|resume_from| find_resume_root(resume_from, graph))
         .transpose()?;
@@ -163,7 +174,11 @@ fn resumed_exec_task_graph(
 
 /// The tasks a resumed run starts with already completed.
 fn initially_completed(full_task_graph: &TaskGraph, task_graph: &TaskGraph) -> HashSet<TaskKey> {
-    full_task_graph.keys().filter(|key| !task_graph.contains_key(*key)).cloned().collect()
+    full_task_graph
+        .keys()
+        .filter(|key| !task_graph.contains_key(*key))
+        .cloned()
+        .collect()
 }
 
 /// One recursive exec, ready to be scheduled over its task graph.
@@ -234,7 +249,11 @@ fn exec_process_tracker(bail: bool, runs_concurrently: bool) -> Option<ProcessTr
     if !bail {
         return None;
     }
-    Some(if runs_concurrently { ProcessTracker::default() } else { ProcessTracker::foreground() })
+    Some(if runs_concurrently {
+        ProcessTracker::default()
+    } else {
+        ProcessTracker::foreground()
+    })
 }
 
 fn execute_selection(
@@ -317,7 +336,12 @@ fn queued_exec_results(task_graph: &TaskGraph) -> Mutex<IndexMap<String, Executi
     Mutex::new(
         task_graph
             .values()
-            .map(|node| (node.project.to_string_lossy().into_owned(), ExecutionStatus::queued()))
+            .map(|node| {
+                (
+                    node.project.to_string_lossy().into_owned(),
+                    ExecutionStatus::queued(),
+                )
+            })
             .collect(),
     )
 }

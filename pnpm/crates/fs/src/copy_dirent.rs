@@ -23,7 +23,11 @@ pub fn copy_dirent(src: &Path, dst: &Path) -> io::Result<()> {
 pub fn copy_dir_contents(src: &Path, dst: &Path) -> io::Result<()> {
     for entry in fs::read_dir(src)? {
         let entry = entry?;
-        copy_entry(&entry.path(), &dst.join(entry.file_name()), &entry.metadata()?)?;
+        copy_entry(
+            &entry.path(),
+            &dst.join(entry.file_name()),
+            &entry.metadata()?,
+        )?;
     }
     Ok(())
 }
@@ -43,7 +47,10 @@ fn copy_entry(src: &Path, dst: &Path, metadata: &fs::Metadata) -> io::Result<()>
     if !file_type.is_file() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            format!("cannot copy {}: it is neither a file, a directory, nor a link", src.display()),
+            format!(
+                "cannot copy {}: it is neither a file, a directory, nor a link",
+                src.display(),
+            ),
         ));
     }
     fs::copy(src, dst).map(drop)

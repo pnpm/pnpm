@@ -158,12 +158,14 @@ pub(in super::super) fn claim_children_owner(
         }
     };
     if owns_children {
-        let mut first_importer = lock_recoverable(&ctx.workspace.children.first_importer_by_pkg);
-        if first_importer.map().get(pkg_id) != Some(&owner.importer_id) {
-            first_importer.map_mut().insert(pkg_id.to_string(), owner.importer_id.clone());
-        }
+        record_first_importer(ctx, pkg_id, &owner);
     }
-    ChildrenOwnerClaim { owner, owns_children, peer_shadowed, children_context_unchanged }
+    ChildrenOwnerClaim {
+        owner,
+        owns_children,
+        peer_shadowed,
+        children_context_unchanged,
+    }
 }
 
 /// Whether this occurrence is the first to offer to warm its package's
@@ -187,10 +189,12 @@ pub(in super::super) fn recorded_children_match(
     pkg_id: &str,
     context: &RecordedChildrenContext,
 ) -> bool {
-    lock_recoverable(&ctx.workspace.children.by_id).get(pkg_id).is_some_and(|recorded| {
-        recorded.context.produces_same_children_as(context)
-            || recorded.context.pins_children_over(context)
-    })
+    lock_recoverable(&ctx.workspace.children.by_id)
+        .get(pkg_id)
+        .is_some_and(|recorded| {
+            recorded.context.produces_same_children_as(context)
+                || recorded.context.pins_children_over(context)
+        })
 }
 
 /// What [`fn@record_children`] did with a walk's child edges.
@@ -220,12 +224,14 @@ impl ChildrenRecording {
     ) -> (crate::resolved_tree::TreeChildren, bool) {
         match self {
             ChildrenRecording::Declined => (lazy_children(parent_ids), false),
-            ChildrenRecording::Published => {
-                (crate::resolved_tree::TreeChildren::Realized(std::sync::Arc::new(realized)), false)
-            }
-            ChildrenRecording::PublishedOverStale => {
-                (crate::resolved_tree::TreeChildren::Realized(std::sync::Arc::new(realized)), true)
-            }
+            ChildrenRecording::Published => (
+                crate::resolved_tree::TreeChildren::Realized(std::sync::Arc::new(realized)),
+                false,
+            ),
+            ChildrenRecording::PublishedOverStale => (
+                crate::resolved_tree::TreeChildren::Realized(std::sync::Arc::new(realized)),
+                true,
+            ),
         }
     }
 }
@@ -256,40 +262,35 @@ pub(in super::super) fn record_children(
 ) -> ChildrenRecording {
     let recording = {
         let owners = lock_recoverable(&ctx.workspace.children.owner_by_id);
-        if owners.get(pkg_id).is_none_or(|entry| entry.owner != *owner) {
+        if owners
+            .get(pkg_id)
+            .is_none_or(|entry| entry.owner != *owner)
+        {
             return ChildrenRecording::Declined;
         }
         let mut children = lock_recoverable(&ctx.workspace.children.by_id);
-        let recording = match children.get(pkg_id) {
-            // Nothing recorded yet, so no occurrence node can hold
-            // realized children of this package to stale.
-            None => ChildrenRecording::Published,
-            // A recording the prior lockfile pinned outlives a fresh
-            // walk's answer, so this walk publishes nothing and reads
-            // the pinned children like every occurrence that reused the
-            // subtree. Publishing over them would re-resolve the open
-            // ranges reuse exists to hold still, and would leave those
-            // occurrences realizing children the record no longer
-            // holds. This comes before the equal-edge arm because
-            // republishing even the same edges would carry this walk's
-            // unpinned context onto the record, leaving the next fresh
-            // walk to land on different edges nothing to hold it back.
-            Some(recorded) if recorded.context.pins_children_over(&context) => {
-                return ChildrenRecording::Declined;
-            }
-            Some(recorded) if *recorded.edges == edges => ChildrenRecording::Published,
-            Some(_) => ChildrenRecording::PublishedOverStale,
-        };
+        let recording = children_recording(children.get(pkg_id), &edges, &context);
+        if matches!(recording, ChildrenRecording::Declined) {
+            return recording;
+        }
         let edges = Arc::new(edges);
         if ctx.workspace.hooks.finalized_package.is_some() {
             update_parent_index(
                 &mut lock_recoverable(&ctx.workspace.finalization.parents_by_id),
                 pkg_id,
-                children.get(pkg_id).map(|recorded| recorded.edges.as_slice()),
+                children
+                    .get(pkg_id)
+                    .map(|recorded| recorded.edges.as_slice()),
                 &edges,
             );
         }
-        children.insert(Arc::from(pkg_id.to_string()), RecordedChildren { edges, context });
+        children.insert(
+            Arc::from(pkg_id.to_string()),
+            RecordedChildren {
+                edges,
+                context,
+            },
+        );
         recording
     };
     ctx.workspace.tree.record_children_by_id_write(pkg_id);
@@ -310,7 +311,10 @@ pub(super) fn update_parent_index(
     if previous.is_some_and(|previous| previous == next) {
         return;
     }
-    let kept: HashSet<&str> = next.iter().map(|edge| edge.pkg_id.as_ref()).collect();
+    let kept: HashSet<&str> = next
+        .iter()
+        .map(|edge| edge.pkg_id.as_ref())
+        .collect();
     for edge in previous.into_iter().flatten() {
         if kept.contains(edge.pkg_id.as_ref()) {
             continue;
@@ -323,7 +327,10 @@ pub(super) fn update_parent_index(
         }
     }
     for edge in next {
-        parents_by_id.entry(Arc::clone(&edge.pkg_id)).or_default().insert(Arc::from(pkg_id));
+        parents_by_id
+            .entry(Arc::clone(&edge.pkg_id))
+            .or_default()
+            .insert(Arc::from(pkg_id));
     }
 }
 
@@ -430,7 +437,10 @@ pub(in super::super) fn make_non_owner_nodes_lazy(
         // discovery engine rebuild from scratch. In a peer-heavy graph
         // most occurrences of a package are already lazy.
         if let Some(node) = tree.get_mut(&node_id)
-            && !matches!(node.children, crate::resolved_tree::TreeChildren::Lazy { .. })
+            && !matches!(
+                node.children,
+                crate::resolved_tree::TreeChildren::Lazy { .. },
+            )
         {
             node.children = crate::resolved_tree::TreeChildren::Lazy {
                 parent_ids: AncestorIds::from(parent_ids),
@@ -445,5 +455,41 @@ pub(in super::super) fn make_non_owner_nodes_lazy(
     }
     if rewrote_any {
         ctx.workspace.tree.record_children_rewrite();
+    }
+}
+
+fn record_first_importer(ctx: &TreeCtx, pkg_id: &str, owner: &ChildrenOwner) {
+    let mut first_importer = lock_recoverable(&ctx.workspace.children.first_importer_by_pkg);
+    if first_importer.map().get(pkg_id) != Some(&owner.importer_id) {
+        first_importer
+            .map_mut()
+            .insert(pkg_id.to_string(), owner.importer_id.clone());
+    }
+}
+
+fn children_recording(
+    previous: Option<&RecordedChildren>,
+    edges: &[crate::resolved_tree::ChildEdge],
+    context: &RecordedChildrenContext,
+) -> ChildrenRecording {
+    match previous {
+        // Nothing recorded yet, so no occurrence node can hold
+        // realized children of this package to stale.
+        None => ChildrenRecording::Published,
+        // A recording the prior lockfile pinned outlives a fresh
+        // walk's answer, so this walk publishes nothing and reads
+        // the pinned children like every occurrence that reused the
+        // subtree. Publishing over them would re-resolve the open
+        // ranges reuse exists to hold still, and would leave those
+        // occurrences realizing children the record no longer
+        // holds. This comes before the equal-edge arm because
+        // republishing even the same edges would carry this walk's
+        // unpinned context onto the record, leaving the next fresh
+        // walk to land on different edges nothing to hold it back.
+        Some(recorded) if recorded.context.pins_children_over(context) => {
+            ChildrenRecording::Declined
+        }
+        Some(recorded) if recorded.edges.as_slice() == edges => ChildrenRecording::Published,
+        Some(_) => ChildrenRecording::PublishedOverStale,
     }
 }

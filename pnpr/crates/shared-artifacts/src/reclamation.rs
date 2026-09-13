@@ -27,21 +27,20 @@ impl SharedArtifactStore {
     /// Take the reclamation slot in the usage document. A write that fails but
     /// landed anyway still holds the slot.
     pub(super) async fn acquire_reclamation(&self, reclamation: &str) -> Result<bool> {
-        let acquired = self
-            .mutate_usage(|usage| {
-                // Dropped here rather than merely disregarded, so that the
-                // check on completion sees a publication that started during
-                // this run rather than one this run decided to ignore.
-                if !usage.reclamation_needed
-                    || !usage.active_publications.is_empty()
-                    || usage.reclamation.is_some()
-                {
-                    return Ok(false);
-                }
-                usage.reclamation = Some(reclamation.to_string());
-                Ok(true)
-            })
-            .await;
+        let acquired = self.mutate_usage(|usage| {
+            // Dropped here rather than merely disregarded, so that the
+            // check on completion sees a publication that started during
+            // this run rather than one this run decided to ignore.
+            if !usage.reclamation_needed
+                || !usage.active_publications.is_empty()
+                || usage.reclamation.is_some()
+            {
+                return Ok(false);
+            }
+            usage.reclamation = Some(reclamation.to_string());
+            Ok(true)
+        })
+        .await;
         match acquired {
             Ok(acquired) => Ok(acquired),
             Err(error) => {
@@ -58,7 +57,9 @@ impl SharedArtifactStore {
         let mut listing = self.list_objects(None);
         while let Some(entry) = listing.next().await {
             let entry = entry?;
-            let Some(relative) = self.relative_path(&entry.location) else { continue };
+            let Some(relative) = self.relative_path(&entry.location) else {
+                continue;
+            };
             if is_blob_path(relative) && !artifacts.referenced_blobs.contains(relative) {
                 self.store.delete(&entry.location).await?;
                 continue;
@@ -87,7 +88,9 @@ impl SharedArtifactStore {
         location: &ObjectPath,
         stored_artifacts: &HashSet<String>,
     ) -> Result<bool> {
-        let Some(scope) = scope_name(location) else { return Ok(false) };
+        let Some(scope) = scope_name(location) else {
+            return Ok(false);
+        };
         if scope == BACKFILLED_SCOPE {
             return Ok(false);
         }
@@ -113,8 +116,12 @@ impl SharedArtifactStore {
         let mut listing = self.list_objects(None);
         while let Some(entry) = listing.next().await {
             let entry = entry?;
-            let Some(relative) = self.relative_path(&entry.location) else { continue };
-            let Some(owner) = entry_owner(relative).map(str::to_string) else { continue };
+            let Some(relative) = self.relative_path(&entry.location) else {
+                continue;
+            };
+            let Some(owner) = entry_owner(relative).map(str::to_string) else {
+                continue;
+            };
             self.read_stored_artifact(&entry, &owner, &mut artifacts).await?;
         }
         Ok(artifacts)
@@ -160,7 +167,9 @@ impl SharedArtifactStore {
             }
         }
         for file in payload.manifest.added {
-            let Ok(id) = blob_id(&file.integrity) else { continue };
+            let Ok(id) = blob_id(&file.integrity) else {
+                continue;
+            };
             artifacts.referenced_blobs.insert(format!("{owner}/blobs/{id}"));
         }
         Ok(())
@@ -173,23 +182,21 @@ impl SharedArtifactStore {
     ) -> Result<()> {
         rebuilt.reclamation = None;
         rebuilt.reclamation_needed = false;
-        let changed = self
-            .mutate_usage(|usage| {
-                if usage.reclamation.as_deref() != Some(reclamation) {
-                    return Err(RegistryError::Internal {
-                        reason: "shared artifact reclamation ownership changed".to_string(),
-                    });
-                }
-                if !usage.active_publications.is_empty() {
-                    return Err(RegistryError::Internal {
-                        reason: "shared artifact publication started during reclamation"
-                            .to_string(),
-                    });
-                }
-                *usage = rebuilt.clone();
-                Ok(true)
-            })
-            .await?;
+        let changed = self.mutate_usage(|usage| {
+            if usage.reclamation.as_deref() != Some(reclamation) {
+                return Err(RegistryError::Internal {
+                    reason: "shared artifact reclamation ownership changed".to_string(),
+                });
+            }
+            if !usage.active_publications.is_empty() {
+                return Err(RegistryError::Internal {
+                    reason: "shared artifact publication started during reclamation".to_string(),
+                });
+            }
+            *usage = rebuilt.clone();
+            Ok(true)
+        })
+        .await?;
         if !changed {
             return Err(RegistryError::Internal {
                 reason: "shared artifact reclamation did not update usage".to_string(),

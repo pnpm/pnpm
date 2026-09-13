@@ -58,7 +58,10 @@ impl PackagePattern {
         if pattern == "@*/*" {
             return Ok(PackagePattern::AnyScoped);
         }
-        if let Some(scope) = pattern.strip_prefix('@').and_then(|rest| rest.strip_suffix("/*")) {
+        if let Some(scope) = pattern
+            .strip_prefix('@')
+            .and_then(|rest| rest.strip_suffix("/*"))
+        {
             // A wildcard inside the scope is an unsupported glob; a scope
             // that request parsing would reject — `@.acme`, `@..`, a
             // separator — is a claim no valid package name can ever match.
@@ -87,9 +90,11 @@ impl PackagePattern {
         if namespace.contains('*') || namespace.contains('/') {
             return Err(invalid_pattern(pattern, Ecosystem::Oci));
         }
-        pnpr_package_name::canonicalize_oci_name(namespace).map(PackagePattern::Namespace).map_err(
-            |_| RegistryConfigError::NamespacePatternNotANamespace { pattern: pattern.to_string() },
-        )
+        pnpr_package_name::canonicalize_oci_name(namespace)
+            .map(PackagePattern::Namespace)
+            .map_err(|_| RegistryConfigError::NamespacePatternNotANamespace {
+                pattern: pattern.to_string(),
+            })
     }
 
     /// A literal name, canonicalized the way a request for it will be.
@@ -102,7 +107,9 @@ impl PackagePattern {
         }
         CanonicalPackageName::parse(pattern, ecosystem)
             .map(|name| PackagePattern::Exact(name.as_str().to_string()))
-            .map_err(|_| RegistryConfigError::ExactPatternNotAName { pattern: pattern.to_string() })
+            .map_err(|_| RegistryConfigError::ExactPatternNotAName {
+                pattern: pattern.to_string(),
+            })
     }
 
     /// How specific this pattern is: an exact name beats `@scope/*` beats
@@ -134,7 +141,9 @@ impl PackagePattern {
     /// namespace-tier key a specificity lookup consults.
     #[must_use]
     pub fn namespace_of(package: &str) -> Option<&str> {
-        package.split_once('/').map(|(namespace, _)| namespace)
+        package
+            .split_once('/')
+            .map(|(namespace, _)| namespace)
     }
 
     /// Whether this pattern matches `package`.
@@ -222,5 +231,8 @@ pub(super) fn wildcard_shapes(ecosystem: Ecosystem) -> &'static str {
 }
 
 pub(super) fn invalid_pattern(pattern: &str, ecosystem: Ecosystem) -> RegistryConfigError {
-    RegistryConfigError::InvalidPattern { pattern: pattern.to_string(), ecosystem }
+    RegistryConfigError::InvalidPattern {
+        pattern: pattern.to_string(),
+        ecosystem,
+    }
 }

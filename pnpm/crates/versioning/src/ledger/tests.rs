@@ -51,7 +51,10 @@ fn control_characters_are_escaped_and_round_trip() {
         },
     );
     let rendered = render_ledger(&ledger);
-    assert!(!rendered.contains('\r'), "carriage return must be escaped, not literal");
+    assert!(
+        !rendered.contains('\r'),
+        "carriage return must be escaped, not literal",
+    );
     assert!(!rendered.contains('\0'), "NUL must be escaped, not literal");
     let parsed: Ledger = serde_saphyr::from_str(&rendered).expect("render output parses back");
     assert_eq!(parsed, ledger);
@@ -62,7 +65,10 @@ fn empty_intent_lists_render_as_flow_sequences_and_round_trip() {
     let mut ledger = Ledger::new();
     ledger.insert(
         "pacquet@12.0.0-alpha.13".to_string(),
-        LedgerEntry::Attributed { dir: "pnpm/npm/pnpm".to_string(), intents: Vec::new() },
+        LedgerEntry::Attributed {
+            dir: "pnpm/npm/pnpm".to_string(),
+            intents: Vec::new(),
+        },
     );
     ledger.insert("pkg@1.0.0".to_string(), LedgerEntry::Ids(Vec::new()));
     let rendered = render_ledger(&ledger);
@@ -84,12 +90,18 @@ fn null_and_missing_intent_lists_parse_as_empty() {
     .expect("bare and intents-less keys parse");
     assert_eq!(
         parsed.get("pacquet@12.0.0-alpha.13"),
-        Some(&LedgerEntry::Attributed { dir: "pnpm/npm/pnpm".to_string(), intents: Vec::new() }),
+        Some(&LedgerEntry::Attributed {
+            dir: "pnpm/npm/pnpm".to_string(),
+            intents: Vec::new()
+        }),
     );
     assert_eq!(parsed.get("pkg@1.0.0"), Some(&LedgerEntry::Ids(Vec::new())));
     assert_eq!(
         parsed.get("other@2.0.0"),
-        Some(&LedgerEntry::Attributed { dir: "packages/other".to_string(), intents: Vec::new() }),
+        Some(&LedgerEntry::Attributed {
+            dir: "packages/other".to_string(),
+            intents: Vec::new()
+        }),
     );
 }
 

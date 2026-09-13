@@ -7,21 +7,39 @@ fn recognizes_equivalent_git_specifiers() {
             "git://github.com/kevva/is-positive.git#97edff6",
             "git+https://github.com/kevva/is-positive.git#97edff6",
         ),
-        ("git://github.com/org/lsp-mcp#main", "git+https://github.com/org/lsp-mcp.git#main"),
+        (
+            "git://github.com/org/lsp-mcp#main",
+            "git+https://github.com/org/lsp-mcp.git#main",
+        ),
         (
             "github:kevva/is-positive#97edff6",
             "git+https://github.com/kevva/is-positive.git#97edff6",
         ),
-        ("gitlab:group/repository#main", "git+https://gitlab.com/group/repository.git#main"),
-        ("bitbucket:group/repository#main", "git+https://bitbucket.org/group/repository.git#main"),
-        ("kevva/is-positive#97edff6", "https://github.com/kevva/is-positive.git#97edff6"),
-        ("github:kevva/is-positive", "GIT+HTTPS://github.com/kevva/is-positive.git"),
+        (
+            "gitlab:group/repository#main",
+            "git+https://gitlab.com/group/repository.git#main",
+        ),
+        (
+            "bitbucket:group/repository#main",
+            "git+https://bitbucket.org/group/repository.git#main",
+        ),
+        (
+            "kevva/is-positive#97edff6",
+            "https://github.com/kevva/is-positive.git#97edff6",
+        ),
+        (
+            "github:kevva/is-positive",
+            "GIT+HTTPS://github.com/kevva/is-positive.git",
+        ),
         (
             "git+https://GitHub.com/kevva/is-positive.git#97edff6",
             "git+https://github.com/kevva/is-positive.git#97edff6",
         ),
     ] {
-        assert!(git_specifiers_are_equivalent(left, right), "LEFT: {left}\nRIGHT: {right}");
+        assert!(
+            git_specifiers_are_equivalent(left, right),
+            "LEFT: {left}\nRIGHT: {right}",
+        );
     }
 }
 

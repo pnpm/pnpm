@@ -47,8 +47,14 @@ use std::{fs, io, path::Path};
 /// Lifecycle scripts removed from the published manifest's `scripts`
 /// map during obfuscation, so they don't re-run when the package is
 /// installed from the registry.
-const PREPUBLISH_SCRIPTS: &[&str] =
-    &["prepublishOnly", "prepack", "prepare", "postpack", "publish", "postpublish"];
+const PREPUBLISH_SCRIPTS: &[&str] = &[
+    "prepublishOnly",
+    "prepack",
+    "prepare",
+    "postpack",
+    "publish",
+    "postpublish",
+];
 
 /// Manifest keys hoisted from `publishConfig` onto the manifest root.
 ///
@@ -130,18 +136,7 @@ pub fn create_exportable_manifest(
     let empty = Map::new();
     let original = original_manifest.as_object().unwrap_or(&empty);
 
-    let mut publish = if opts.skip_manifest_obfuscation {
-        omit_keys(original, &["pnpm"])
-    } else {
-        let mut publish = omit_keys(original, &["scripts", "packageManager", "pnpm"]);
-        if let Some(scripts) = original.get("scripts").and_then(Value::as_object) {
-            publish.insert(
-                "scripts".to_string(),
-                Value::Object(omit_keys(scripts, PREPUBLISH_SCRIPTS)),
-            );
-        }
-        publish
-    };
+    let mut publish = publish_manifest_fields(original, opts.skip_manifest_obfuscation);
 
     for field in ["dependencies", "devDependencies", "optionalDependencies"] {
         if let Some(deps) =
@@ -163,9 +158,11 @@ pub fn create_exportable_manifest(
 
     if opts.embed_readme
         && !publish.contains_key("readme")
-        && let Some(readme) = read_readme_file(dir).map_err(|source| {
-            CreateExportableManifestError::ReadReadme { dir: dir.display().to_string(), source }
-        })?
+        && let Some(readme) = read_readme_file(dir)
+            .map_err(|source| CreateExportableManifestError::ReadReadme {
+                dir: dir.display().to_string(),
+                source,
+            })?
     {
         publish.insert("readme".to_string(), Value::String(readme));
     }
@@ -241,13 +238,16 @@ fn replace_catalog_protocol(
     spec: &str,
     catalogs: &Catalogs,
 ) -> Result<String, CreateExportableManifestError> {
-    let wanted = WantedDependency { alias: alias.to_string(), bare_specifier: spec.to_string() };
+    let wanted = WantedDependency {
+        alias: alias.to_string(),
+        bare_specifier: spec.to_string(),
+    };
     match resolve_from_catalog(catalogs, &wanted) {
         CatalogResolutionResult::Found(found) => Ok(found.resolution.specifier),
         CatalogResolutionResult::Unused => Ok(spec.to_string()),
-        CatalogResolutionResult::Misconfiguration(misconfiguration) => {
-            Err(CreateExportableManifestError::Catalog(misconfiguration.error))
-        }
+        CatalogResolutionResult::Misconfiguration(misconfiguration) => Err(
+            CreateExportableManifestError::Catalog(misconfiguration.error),
+        ),
     }
 }
 
@@ -258,9 +258,10 @@ fn replace_jsr_protocol(
     spec: &str,
 ) -> Result<String, CreateExportableManifestError> {
     match parse_jsr_specifier(spec, Some(dep_name)).map_err(CreateExportableManifestError::Jsr)? {
-        Some(jsr) => {
-            Ok(create_npm_aliased_specifier(&jsr.npm_pkg_name, jsr.version_selector.as_deref()))
-        }
+        Some(jsr) => Ok(create_npm_aliased_specifier(
+            &jsr.npm_pkg_name,
+            jsr.version_selector.as_deref(),
+        )),
         None => Ok(spec.to_string()),
     }
 }
@@ -277,7 +278,10 @@ fn create_npm_aliased_specifier(npm_pkg_name: &str, version_selector: Option<&st
 /// dropping them from `publishConfig` (and removing `publishConfig`
 /// entirely once empty).
 fn override_publish_config(publish: &mut Map<String, Value>) {
-    let Some(publish_config) = publish.get("publishConfig").and_then(Value::as_object).cloned()
+    let Some(publish_config) = publish
+        .get("publishConfig")
+        .and_then(Value::as_object)
+        .cloned()
     else {
         return;
     };
@@ -312,7 +316,11 @@ pub fn read_readme_file(dir: &Path) -> io::Result<Option<String>> {
         if !entry.file_type()?.is_file() {
             continue;
         }
-        if entry.file_name().to_string_lossy().eq_ignore_ascii_case("readme.md") {
+        if entry
+            .file_name()
+            .to_string_lossy()
+            .eq_ignore_ascii_case("readme.md")
+        {
             return read_regular_file(&entry.path());
         }
     }
@@ -328,7 +336,11 @@ pub fn read_readme_file(dir: &Path) -> io::Result<Option<String>> {
 #[cfg(unix)]
 fn read_regular_file(path: &Path) -> io::Result<Option<String>> {
     use std::os::unix::fs::OpenOptionsExt;
-    let file = match fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(path) {
+    let file = match fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(path)
+    {
         Ok(file) => file,
         Err(err) if err.raw_os_error() == Some(libc::ELOOP) => return Ok(None),
         Err(err) => return Err(err),
@@ -344,7 +356,8 @@ fn read_regular_file(path: &Path) -> io::Result<Option<String>> {
 /// Clone `map` without the entries named in `keys`, preserving the
 /// order of the surviving entries.
 fn omit_keys(map: &Map<String, Value>, keys: &[&str]) -> Map<String, Value> {
-    map.iter()
+    map
+        .iter()
         .filter(|(key, _)| !keys.contains(&key.as_str()))
         .map(|(key, value)| (key.clone(), value.clone()))
         .collect()
@@ -352,3 +365,21 @@ fn omit_keys(map: &Map<String, Value>, keys: &[&str]) -> Map<String, Value> {
 
 #[cfg(test)]
 mod tests;
+
+fn publish_manifest_fields(
+    original: &Map<String, Value>,
+    skip_manifest_obfuscation: bool,
+) -> Map<String, Value> {
+    if skip_manifest_obfuscation {
+        omit_keys(original, &["pnpm"])
+    } else {
+        let mut publish = omit_keys(original, &["scripts", "packageManager", "pnpm"]);
+        if let Some(scripts) = original.get("scripts").and_then(Value::as_object) {
+            publish.insert(
+                "scripts".to_string(),
+                Value::Object(omit_keys(scripts, PREPUBLISH_SCRIPTS)),
+            );
+        }
+        publish
+    }
+}

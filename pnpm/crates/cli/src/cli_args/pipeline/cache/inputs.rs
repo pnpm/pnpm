@@ -17,12 +17,16 @@ fn input_globs(inputs: Option<&[String]>) -> miette::Result<(Vec<Glob<'_>>, Vec<
     let Some(patterns) = inputs else {
         return Ok((Vec::new(), Vec::new()));
     };
-    let (add, replace): (Vec<&String>, Vec<&String>) =
-        patterns.iter().partition(|pattern| pattern.starts_with('+'));
+    let (add, replace): (Vec<&String>, Vec<&String>) = patterns
+        .iter()
+        .partition(|pattern| pattern.starts_with('+'));
     Ok((
         compile_globs_ref(&replace)?,
         compile_globs_owned(
-            &add.iter().map(|pattern| pattern[1..].to_string()).collect::<Vec<_>>(),
+            &add
+                .iter()
+                .map(|pattern| pattern[1..].to_string())
+                .collect::<Vec<_>>(),
         )?,
     ))
 }
@@ -90,21 +94,32 @@ fn compile_globs_owned(patterns: &[String]) -> miette::Result<Vec<Glob<'static>>
 fn has_submodule_inputs(project: &Path) -> miette::Result<bool> {
     let superproject =
         git_input_metadata(project, &["rev-parse", "--show-superproject-working-tree"])?;
-    if superproject.iter().any(|byte| !byte.is_ascii_whitespace()) {
+    if superproject
+        .iter()
+        .any(|byte| !byte.is_ascii_whitespace())
+    {
         return Ok(true);
     }
     let index = git_input_metadata(project, &["ls-files", "--stage", "-z"])?;
-    Ok(index.split(|byte| *byte == 0).any(|entry| entry.starts_with(b"160000 ")))
+    Ok(index
+        .split(|byte| *byte == 0)
+        .any(|entry| entry.starts_with(b"160000 ")))
 }
 
 fn git_input_metadata(project: &Path, args: &[&str]) -> miette::Result<Vec<u8>> {
     let project_display = project.display();
-    let output = Command::new("git").args(args).current_dir(project).output().map_err(|error| {
-        miette::miette!("reading Git input metadata in {project_display}: {error}")
-    })?;
+    let output = Command::new("git")
+        .args(args)
+        .current_dir(project)
+        .output()
+        .map_err(|error| {
+            miette::miette!("reading Git input metadata in {project_display}: {error}")
+        })?;
     if !output.status.success() {
         let error = String::from_utf8_lossy(&output.stderr);
-        return Err(miette::miette!("reading Git input metadata in {project_display}: {error}"));
+        return Err(miette::miette!(
+            "reading Git input metadata in {project_display}: {error}"
+        ));
     }
     Ok(output.stdout)
 }
@@ -112,14 +127,22 @@ fn git_input_metadata(project: &Path, args: &[&str]) -> miette::Result<Vec<u8>> 
 fn tracked_input_files(project: &Path) -> miette::Result<std::process::Output> {
     let project_display = project.display();
     let output = Command::new("git")
-        .args(["ls-files", "-z", "--cached", "--others", "--exclude-standard"])
+        .args([
+            "ls-files",
+            "-z",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+        ])
         .current_dir(project)
         .output()
         .map_err(|error| miette::miette!("running git ls-files in {project_display}: {error}"))?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stderr = stderr.trim();
-        return Err(miette::miette!("git ls-files failed in {project_display}: {stderr}"));
+        return Err(miette::miette!(
+            "git ls-files failed in {project_display}: {stderr}"
+        ));
     }
     Ok(output)
 }
@@ -132,21 +155,26 @@ fn hash_tracked_inputs(project: &Path) -> miette::Result<Vec<HashedFile>> {
         if rel_path.is_empty() {
             continue;
         }
-        let rel_path = std::str::from_utf8(rel_path).map_err(|error| {
-            let display_path = String::from_utf8_lossy(rel_path);
-            miette::miette!(
-                "non-UTF-8 cache input path {display_path:?} in {project_display}: {error}",
-            )
-        })?;
+        let rel_path = std::str::from_utf8(rel_path)
+            .map_err(|error| {
+                let display_path = String::from_utf8_lossy(rel_path);
+                miette::miette!(
+                    "non-UTF-8 cache input path {display_path:?} in {project_display}: {error}",
+                )
+            })?;
         if rel_path == "node_modules" || rel_path.starts_with("node_modules/") {
             continue;
         }
         check_input_directories(project, Path::new(rel_path)).into_diagnostic()?;
-        let hash = hash_input(&project.join(rel_path)).map_err(|error| {
-            miette::miette!("hashing cache input {rel_path:?} in {project_display}: {error}")
-        })?;
+        let hash = hash_input(&project.join(rel_path))
+            .map_err(|error| {
+                miette::miette!("hashing cache input {rel_path:?} in {project_display}: {error}")
+            })?;
         let Some(hash) = hash else { continue };
-        files.push(HashedFile { rel_path: rel_path.to_string(), hash });
+        files.push(HashedFile {
+            rel_path: rel_path.to_string(),
+            hash,
+        });
     }
     Ok(files)
 }
@@ -158,7 +186,10 @@ impl TaskCache {
         let mut components: Vec<String> = vec![
             "pnpm-pipeline-task:v1".to_string(),
             format!("platform:{}:{}", env::consts::OS, env::consts::ARCH),
-            format!("outputs:{:?}", inputs.settings.and_then(|settings| settings.outputs.as_ref())),
+            format!(
+                "outputs:{:?}",
+                inputs.settings.and_then(|settings| settings.outputs.as_ref())
+            ),
             self.project_rel(&inputs.node.project),
             inputs.node.task_name.clone(),
             format!("lockfile:{}", self.lockfile_hash),
@@ -167,12 +198,19 @@ impl TaskCache {
         for (stage, body) in inputs.script_bodies {
             components.push(format!("script:{stage}={body}"));
         }
-        for name in inputs.settings.and_then(|settings| settings.env.as_deref()).unwrap_or_default()
+        for name in inputs.settings
+            .and_then(|settings| settings.env.as_deref())
+            .unwrap_or_default()
         {
-            let value = inputs.environment.get(name).cloned().or_else(|| env::var(name).ok());
+            let value = inputs.environment
+                .get(name)
+                .cloned()
+                .or_else(|| env::var(name).ok());
             components.push(format!("env:{name}={value:?}"));
         }
-        let Some(files) = self.input_files(inputs.node, inputs.settings)? else { return Ok(None) };
+        let Some(files) = self.input_files(inputs.node, inputs.settings)? else {
+            return Ok(None);
+        };
         for file in files.iter() {
             components.push(format!("file:{}={}", file.rel_path, file.hash));
         }
@@ -199,21 +237,28 @@ impl TaskCache {
         node: &TaskNode,
         settings: Option<&TaskSettings>,
     ) -> miette::Result<ProjectInputHashes> {
-        let Some(all) = self.hashed_project_files(&node.project)? else { return Ok(None) };
+        let Some(all) = self.hashed_project_files(&node.project)? else {
+            return Ok(None);
+        };
         let output_globs = compile_globs(
-            settings.and_then(|settings| settings.outputs.as_deref()).unwrap_or_default(),
+            settings
+                .and_then(|settings| settings.outputs.as_deref())
+                .unwrap_or_default(),
         )?;
         let (replace_globs, add_globs) =
             input_globs(settings.and_then(|settings| settings.inputs.as_deref()))?;
         let filtered: Vec<HashedFile> = all
             .iter()
-            .filter(|file| !output_globs.iter().any(|glob| glob.is_match(file.rel_path.as_str())))
+            .filter(|file| !matches_input_globs(&output_globs, &file.rel_path))
             .filter(|file| {
-                let in_default = replace_globs.is_empty()
-                    || replace_globs.iter().any(|glob| glob.is_match(file.rel_path.as_str()));
-                in_default || add_globs.iter().any(|glob| glob.is_match(file.rel_path.as_str()))
+                replace_globs.is_empty()
+                    || matches_input_globs(&replace_globs, &file.rel_path)
+                    || matches_input_globs(&add_globs, &file.rel_path)
             })
-            .map(|file| HashedFile { rel_path: file.rel_path.clone(), hash: file.hash.clone() })
+            .map(|file| HashedFile {
+                rel_path: file.rel_path.clone(),
+                hash: file.hash.clone(),
+            })
             .collect();
         Ok(Some(Arc::new(filtered)))
     }
@@ -222,8 +267,10 @@ impl TaskCache {
         &self,
         project: &Path,
     ) -> miette::Result<ProjectInputHashes> {
-        if let Some(files) =
-            self.project_files.lock().expect("project-files lock is not poisoned").get(project)
+        if let Some(files) = self.project_files
+            .lock()
+            .expect("project-files lock is not poisoned")
+            .get(project)
         {
             return Ok(files.as_ref().map(Arc::clone));
         }
@@ -243,4 +290,10 @@ impl TaskCache {
             .insert(project.to_path_buf(), Some(Arc::clone(&files)));
         Ok(Some(files))
     }
+}
+
+fn matches_input_globs(globs: &[Glob<'_>], path: &str) -> bool {
+    globs
+        .iter()
+        .any(|glob| glob.is_match(path))
 }

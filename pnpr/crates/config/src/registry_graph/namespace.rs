@@ -96,3 +96,19 @@ pub(in super::super) fn validate_org_namespace(name: &str, org: &str) -> Result<
         ),
     })
 }
+
+pub(in super::super) fn set_group_ecosystem(
+    name: &str,
+    declared: &mut Option<Ecosystem>,
+    ecosystem: Ecosystem,
+) -> Result<(), RegistryError> {
+    if declared.is_some_and(|declared| declared != ecosystem) {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "registry {name:?} declares an ecosystem different from its {ecosystem} group",
+            ),
+        });
+    }
+    *declared = Some(ecosystem);
+    Ok(())
+}

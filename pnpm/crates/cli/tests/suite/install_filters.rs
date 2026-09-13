@@ -35,34 +35,56 @@ fn initial_manifest_prefixes(records: &[Value]) -> Vec<String> {
             record.get("name").and_then(Value::as_str) == Some("pnpm:package-manifest")
                 && record.get("initial").is_some()
         })
-        .filter_map(|record| record.get("prefix").and_then(Value::as_str).map(str::to_string))
+        .filter_map(|record| {
+            record
+                .get("prefix")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
         .collect()
 }
 
 fn assert_stage_once(records: &[Value]) {
-    assert_eq!(importing_started_count(records), 1, "one install pipeline must import once");
+    assert_eq!(
+        importing_started_count(records),
+        1,
+        "one install pipeline must import once",
+    );
 }
 
 fn reports_up_to_date(records: &[Value]) -> bool {
-    records.iter().any(|record| {
-        record.get("name").and_then(Value::as_str) == Some("pnpm")
-            && record.get("message").and_then(Value::as_str) == Some("Already up to date")
-    })
+    records
+        .iter()
+        .any(|record| {
+            record.get("name").and_then(Value::as_str) == Some("pnpm")
+                && record.get("message").and_then(Value::as_str) == Some("Already up to date")
+        })
 }
 
 fn workspace_with_installable_root(
     selected_deps: ManifestDeps<'_>,
-) -> (WorkspaceFixture, std::path::PathBuf, std::path::PathBuf, Vec<u8>) {
+) -> (
+    WorkspaceFixture,
+    std::path::PathBuf,
+    std::path::PathBuf,
+    Vec<u8>,
+) {
     let fixture = WorkspaceFixture::new();
     fixture.write_root_manifest(
         "workspace-root",
-        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(HELLO, "1.0.0")],
+            ..Default::default()
+        },
     );
     let selected = fixture.project("selected", "selected", selected_deps);
     let unselected = fixture.project(
         "unselected",
         "unselected",
-        ManifestDeps { prod: &[(DEP, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(DEP, "100.0.0")],
+            ..Default::default()
+        },
     );
     let root_manifest = fs::read(fixture.workspace.join("package.json")).expect("read manifest");
     (fixture, selected, unselected, root_manifest)
@@ -74,8 +96,14 @@ fn assert_root_and_selected_are_materialized(
     unselected: &Path,
     selected_dependency: &str,
 ) {
-    assert!(has_link(&fixture.workspace, HELLO), "workspace root dependency must be linked");
-    assert!(has_link(selected, selected_dependency), "selected dependency must be linked");
+    assert!(
+        has_link(&fixture.workspace, HELLO),
+        "workspace root dependency must be linked",
+    );
+    assert!(
+        has_link(selected, selected_dependency),
+        "selected dependency must be linked",
+    );
     assert!(
         !unselected.join("node_modules").exists(),
         "unselected project must not be materialized",
@@ -108,12 +136,18 @@ fn compatible_update_scenario(selected_dir: &str, unselected_dir: &str) {
     let selected = fixture.project(
         selected_dir,
         "selected",
-        ManifestDeps { prod: &[(DEP, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(DEP, "100.0.0")],
+            ..Default::default()
+        },
     );
     let unselected = fixture.project(
         unselected_dir,
         "unselected",
-        ManifestDeps { prod: &[(DEP, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(DEP, "100.0.0")],
+            ..Default::default()
+        },
     );
     fixture.run(["install", "--lockfile-only"]);
     set_dependency(&selected, "dependencies", DEP, "^100.0.0");
@@ -122,8 +156,14 @@ fn compatible_update_scenario(selected_dir: &str, unselected_dir: &str) {
     fixture.run(["--filter", "selected", "update", DEP, "--lockfile-only"]);
     let lockfile = fixture.wanted();
 
-    assert_eq!(importer_version(&lockfile, &format!("packages/{selected_dir}"), DEP), "100.1.0");
-    assert_eq!(importer_version(&lockfile, &format!("packages/{unselected_dir}"), DEP), "100.0.0");
+    assert_eq!(
+        importer_version(&lockfile, &format!("packages/{selected_dir}"), DEP),
+        "100.1.0",
+    );
+    assert_eq!(
+        importer_version(&lockfile, &format!("packages/{unselected_dir}"), DEP),
+        "100.0.0",
+    );
     assert_eq!(
         fs::read(unselected.join("package.json")).expect("read manifest"),
         unselected_manifest,
@@ -135,7 +175,10 @@ fn transitive_update_scenario(
     unselected_dir: &str,
 ) -> (HashMap<pnpm_lockfile::PackageKey, SnapshotEntry>, String) {
     let fixture = WorkspaceFixture::new();
-    let deps = || ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() };
+    let deps = || ManifestDeps {
+        prod: &[(PARENT, "100.0.0")],
+        ..Default::default()
+    };
     let selected = fixture.project(selected_dir, "selected", deps());
     let unselected = fixture.project(unselected_dir, "unselected", deps());
     fixture.run(["install", "--lockfile-only"]);
@@ -147,22 +190,30 @@ fn transitive_update_scenario(
     fixture.run(["--filter", "selected", "update", DEP, "--lockfile-only"]);
     let after = fixture.wanted();
 
-    assert_eq!(fs::read(selected.join("package.json")).expect("read manifest"), selected_manifest);
+    assert_eq!(
+        fs::read(selected.join("package.json")).expect("read manifest"),
+        selected_manifest,
+    );
     assert_eq!(
         fs::read(unselected.join("package.json")).expect("read manifest"),
         unselected_manifest,
     );
-    assert_eq!(importer_version(&after, &format!("packages/{selected_dir}"), PARENT), selected_ref);
+    assert_eq!(
+        importer_version(&after, &format!("packages/{selected_dir}"), PARENT),
+        selected_ref,
+    );
     assert_eq!(
         importer_version(&after, &format!("packages/{unselected_dir}"), PARENT),
         unselected_ref,
     );
     let parents = snapshot_entries(&after, PARENT);
-    assert_eq!(parents.len(), 1, "one parent snapshot must have one canonical child set");
+    assert_eq!(
+        parents.len(),
+        1,
+        "one parent snapshot must have one canonical child set",
+    );
     let child_name: PkgName = DEP.parse().expect("parse child package name");
-    let child = parents[0]
-        .1
-        .dependencies
+    let child = parents[0].1.dependencies
         .as_ref()
         .and_then(|dependencies| dependencies.get(&child_name))
         .expect("parent snapshot has child")
@@ -177,22 +228,43 @@ fn assert_selected_isolated_closure(
     unselected: &Path,
 ) {
     assert!(has_link(selected, HELLO), "selected direct link must exist");
-    assert!(fixture.slot(HELLO, "1.0.0").exists(), "selected virtual-store slot must exist");
-    assert!(!unselected.join("node_modules").exists(), "unselected node_modules must be absent");
-    assert!(!fixture.slot(PARENT, "100.0.0").exists(), "unselected direct slot must be absent");
-    assert!(!fixture.slot(DEP, "100.1.0").exists(), "unselected transitive slot must be absent");
+    assert!(
+        fixture.slot(HELLO, "1.0.0").exists(),
+        "selected virtual-store slot must exist",
+    );
+    assert!(
+        !unselected.join("node_modules").exists(),
+        "unselected node_modules must be absent",
+    );
+    assert!(
+        !fixture.slot(PARENT, "100.0.0").exists(),
+        "unselected direct slot must be absent",
+    );
+    assert!(
+        !fixture.slot(DEP, "100.1.0").exists(),
+        "unselected transitive slot must be absent",
+    );
     let wanted = fixture.wanted();
     assert_full_wanted(&wanted, &["packages/selected", "packages/unselected"]);
     assert!(has_snapshot(&wanted, PARENT, "100.0.0"));
     assert!(has_snapshot(&wanted, DEP, "100.1.0"));
     let current = fixture.current();
-    assert_eq!(importer_ids(&current), BTreeSet::from(["packages/selected".to_string()]));
+    assert_eq!(
+        importer_ids(&current),
+        BTreeSet::from(["packages/selected".to_string()]),
+    );
     assert!(!has_snapshot(&current, PARENT, "100.0.0"));
     assert!(!has_snapshot(&current, DEP, "100.1.0"));
     let state = fixture.state();
     assert_eq!(
-        state.projects.keys().cloned().collect::<BTreeSet<_>>(),
-        [selected, unselected].into_iter().map(canonical_path).collect(),
+        state.projects
+            .keys()
+            .cloned()
+            .collect::<BTreeSet<_>>(),
+        [selected, unselected]
+            .into_iter()
+            .map(canonical_path)
+            .collect(),
     );
     assert!(state.filtered_install);
 }
@@ -203,12 +275,18 @@ fn filtered_fresh_install_materializes_only_selected_isolated_closure() {
     let selected = fixture.project(
         "selected",
         "selected",
-        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(HELLO, "1.0.0")],
+            ..Default::default()
+        },
     );
     let unselected = fixture.project(
         "unselected",
         "unselected",
-        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(PARENT, "100.0.0")],
+            ..Default::default()
+        },
     );
     fixture.run(["--filter", "selected", "install"]);
     assert_selected_isolated_closure(&fixture, &selected, &unselected);
@@ -220,12 +298,18 @@ fn filtered_frozen_install_materializes_only_selected_isolated_closure() {
     let selected = fixture.project(
         "selected",
         "selected",
-        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(HELLO, "1.0.0")],
+            ..Default::default()
+        },
     );
     let unselected = fixture.project(
         "unselected",
         "unselected",
-        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(PARENT, "100.0.0")],
+            ..Default::default()
+        },
     );
     fixture.run(["install", "--lockfile-only"]);
     fixture.run(["--filter", "selected", "install", "--frozen-lockfile"]);
@@ -238,12 +322,18 @@ fn unfiltered_install_after_filtered_install_restores_all_projects() {
     let selected = fixture.project(
         "selected",
         "selected",
-        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(HELLO, "1.0.0")],
+            ..Default::default()
+        },
     );
     let unselected = fixture.project(
         "unselected",
         "unselected",
-        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(PARENT, "100.0.0")],
+            ..Default::default()
+        },
     );
     fixture.run(["--filter", "selected", "install"]);
     assert_selected_isolated_closure(&fixture, &selected, &unselected);
@@ -253,7 +343,10 @@ fn unfiltered_install_after_filtered_install_restores_all_projects() {
     assert!(has_link(&unselected, PARENT));
     assert!(fixture.slot(PARENT, "100.0.0").exists());
     assert!(fixture.slot(DEP, "100.1.0").exists());
-    assert_full_wanted(&fixture.current(), &["packages/selected", "packages/unselected"]);
+    assert_full_wanted(
+        &fixture.current(),
+        &["packages/selected", "packages/unselected"],
+    );
     assert!(!fixture.state().filtered_install);
 }
 
@@ -263,12 +356,18 @@ fn filtered_frozen_install_checks_only_selected_manifest_specifiers() {
     let selected = fixture.project(
         "selected",
         "selected",
-        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(HELLO, "1.0.0")],
+            ..Default::default()
+        },
     );
     let unselected = fixture.project(
         "unselected",
         "unselected",
-        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(PARENT, "100.0.0")],
+            ..Default::default()
+        },
     );
     fixture.run(["install", "--lockfile-only"]);
     let before = fixture.wanted();
@@ -291,9 +390,14 @@ fn filtered_frozen_install_checks_only_selected_manifest_specifiers() {
     assert_eq!(snapshot_entries(&after, DEP), prior_child);
 
     replace_dependencies(&selected, &[(NO_DEPS, "1.0.0")]);
-    let output = fixture
-        .command_at(&fixture.workspace, ["--filter", "selected", "install", "--frozen-lockfile"]);
-    assert!(!output.status.success(), "selected manifest mismatch must fail");
+    let output = fixture.command_at(
+        &fixture.workspace,
+        ["--filter", "selected", "install", "--frozen-lockfile"],
+    );
+    assert!(
+        !output.status.success(),
+        "selected manifest mismatch must fail",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE")
@@ -305,10 +409,12 @@ fn filtered_frozen_install_checks_only_selected_manifest_specifiers() {
 
 fn map_contains(value: &Value, needle: &str) -> bool {
     match value {
-        Value::Object(object) => {
-            object.iter().any(|(key, value)| key.contains(needle) || map_contains(value, needle))
-        }
-        Value::Array(array) => array.iter().any(|value| map_contains(value, needle)),
+        Value::Object(object) => object
+            .iter()
+            .any(|(key, value)| key.contains(needle) || map_contains(value, needle)),
+        Value::Array(array) => array
+            .iter()
+            .any(|value| map_contains(value, needle)),
         Value::String(value) => value.contains(needle),
         Value::Null | Value::Bool(_) | Value::Number(_) => false,
     }
@@ -323,12 +429,18 @@ fn filtered_install_after_full_install_preserves_unselected_materialization() {
     let selected = fixture.project(
         "selected",
         "selected",
-        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(HELLO, "1.0.0")],
+            ..Default::default()
+        },
     );
     let unselected = fixture.project(
         "unselected",
         "unselected",
-        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(PARENT, "100.0.0")],
+            ..Default::default()
+        },
     );
     fixture.run(["install"]);
     let before_wanted = fixture.wanted();
@@ -343,13 +455,15 @@ fn filtered_install_after_full_install_preserves_unselected_materialization() {
     assert!(map_contains(&prior_package_map, PARENT));
     assert!(map_contains(&prior_package_map, DEP));
     let mut modules = fixture.modules();
-    let prior_hoisted: HashMap<_, _> = modules
-        .hoisted_dependencies
+    let prior_hoisted: HashMap<_, _> = modules.hoisted_dependencies
         .iter()
         .filter(|(key, _)| key.contains(PARENT) || key.contains(DEP))
         .map(|(key, value)| (key.clone(), value.clone()))
         .collect();
-    assert!(!prior_hoisted.is_empty(), "unselected hoist metadata must be present");
+    assert!(
+        !prior_hoisted.is_empty(),
+        "unselected hoist metadata must be present",
+    );
     let pending_id = snapshot_entries(&before_wanted, PARENT)[0].0.clone();
     modules.pending_builds.push(pending_id.clone());
     fixture.write_modules(modules);
@@ -373,15 +487,24 @@ fn filtered_install_after_full_install_preserves_unselected_materialization() {
         fs::read(unselected.join("package.json")).expect("read manifest"),
         external_manifest,
     );
-    assert_eq!(importer(&after_wanted, "packages/unselected"), &prior_wanted_importer);
+    assert_eq!(
+        importer(&after_wanted, "packages/unselected"),
+        &prior_wanted_importer,
+    );
     assert_eq!(snapshot_entries(&after_wanted, PARENT), prior_parent);
     assert_eq!(snapshot_entries(&after_wanted, DEP), prior_child);
     assert!(snapshot_entries(&after_wanted, HELLO_PARENT).is_empty());
     assert!(retained_link.exists());
     assert!(retained_parent_slot.exists());
     assert!(retained_child_slot.exists());
-    assert_eq!(importer(&after_current, "packages/unselected"), &prior_current_importer);
-    assert_eq!(snapshot_entries(&after_current, PARENT), prior_current_parent);
+    assert_eq!(
+        importer(&after_current, "packages/unselected"),
+        &prior_current_importer,
+    );
+    assert_eq!(
+        snapshot_entries(&after_current, PARENT),
+        prior_current_parent,
+    );
     assert_eq!(snapshot_entries(&after_current, DEP), prior_current_child);
     let after_package_map = fixture.package_map();
     assert!(map_contains(&after_package_map, PARENT));
@@ -395,8 +518,14 @@ fn filtered_install_after_full_install_preserves_unselected_materialization() {
     assert!(!has_snapshot(&after_current, HELLO, "1.0.0"));
     assert!(has_link(&selected, NO_DEPS));
     assert!(fixture.slot(NO_DEPS, "1.0.0").exists());
-    assert_eq!(importer_version(&after_wanted, "packages/selected", NO_DEPS), "1.0.0");
-    assert_eq!(importer_version(&after_current, "packages/selected", NO_DEPS), "1.0.0");
+    assert_eq!(
+        importer_version(&after_wanted, "packages/selected", NO_DEPS),
+        "1.0.0",
+    );
+    assert_eq!(
+        importer_version(&after_current, "packages/selected", NO_DEPS),
+        "1.0.0",
+    );
 }
 
 #[test]
@@ -461,7 +590,10 @@ fn filtered_prod_install_preserves_shallow_workspace_link_targets() {
     let selected = fixture.project(
         "selected",
         "selected",
-        ManifestDeps { prod: &[("linked", "workspace:*")], ..Default::default() },
+        ManifestDeps {
+            prod: &[("linked", "workspace:*")],
+            ..Default::default()
+        },
     );
     let linked = fixture.project(
         "linked",
@@ -492,12 +624,18 @@ fn filtered_install_keeps_full_cleanup_for_shared_layout_drift() {
     let selected = fixture.project(
         "selected",
         "selected",
-        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(HELLO, "1.0.0")],
+            ..Default::default()
+        },
     );
     let _unselected = fixture.project(
         "unselected",
         "unselected",
-        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(PARENT, "100.0.0")],
+            ..Default::default()
+        },
     );
     fixture.run(["install"]);
     let root_sentinel = fixture.workspace.join("node_modules/shared-layout-sentinel");
@@ -520,11 +658,22 @@ fn filtered_install_keeps_full_cleanup_for_shared_layout_drift() {
     assert!(!slot_sentinel.exists());
     assert!(has_link(&selected, HELLO));
     let current = fixture.current();
-    assert_eq!(importer_ids(&current), BTreeSet::from(["packages/selected".to_string()]));
+    assert_eq!(
+        importer_ids(&current),
+        BTreeSet::from(["packages/selected".to_string()]),
+    );
     assert!(!has_snapshot(&current, PARENT, "100.0.0"));
     let modules = fixture.modules();
-    assert!(!modules.pending_builds.iter().any(|entry| entry.contains(PARENT)));
-    assert!(!modules.hoisted_dependencies.keys().any(|entry| entry.contains(PARENT)));
+    assert!(
+        !modules.pending_builds
+            .iter()
+            .any(|entry| entry.contains(PARENT)),
+    );
+    assert!(
+        !modules.hoisted_dependencies
+            .keys()
+            .any(|entry| entry.contains(PARENT)),
+    );
 }
 
 #[test]
@@ -534,27 +683,44 @@ fn filtered_hoisted_install_materializes_full_shared_graph_but_links_only_select
     let selected = fixture.project(
         "selected",
         "selected",
-        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(HELLO, "1.0.0")],
+            ..Default::default()
+        },
     );
     let unselected = fixture.project(
         "unselected",
         "unselected",
-        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(PARENT, "100.0.0")],
+            ..Default::default()
+        },
     );
     fixture.run(["--filter", "selected", "install"]);
 
     for dependency in [HELLO, PARENT, DEP] {
         assert!(
-            fixture.workspace.join("node_modules").join(dependency).is_dir(),
+            fixture.workspace
+                .join("node_modules")
+                .join(dependency)
+                .is_dir(),
             "hoisted shared graph is missing {dependency}",
         );
     }
     // The selected project's dependency won the workspace-root slot, so
     // it resolves by walking up; nesting a second entry for it is what
     // upstream avoids.
-    assert!(!selected.join("node_modules").join(HELLO).exists());
+    assert!(
+        !selected
+            .join("node_modules")
+            .join(HELLO)
+            .exists(),
+    );
     assert!(!unselected.join("node_modules").exists());
-    assert_full_wanted(&fixture.wanted(), &["packages/selected", "packages/unselected"]);
+    assert_full_wanted(
+        &fixture.wanted(),
+        &["packages/selected", "packages/unselected"],
+    );
     let current = fixture.current();
     assert_full_wanted(&current, &["packages/selected", "packages/unselected"]);
     assert!(has_snapshot(&current, PARENT, "100.0.0"));
@@ -573,23 +739,35 @@ fn filtered_isolated_install_keeps_workspace_link_targets_shallow() {
     let selected = fixture.project(
         "selected",
         "selected",
-        ManifestDeps { prod: &[("second", "workspace:*")], ..Default::default() },
+        ManifestDeps {
+            prod: &[("second", "workspace:*")],
+            ..Default::default()
+        },
     );
     let second = fixture.project(
         "second",
         "second",
-        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(PARENT, "100.0.0")],
+            ..Default::default()
+        },
     );
     let third = fixture.project(
         "third",
         DEP,
-        ManifestDeps { prod: &[("selected", "workspace:*")], ..Default::default() },
+        ManifestDeps {
+            prod: &[("selected", "workspace:*")],
+            ..Default::default()
+        },
     );
     set_version(&third, "100.1.0");
     let unrelated = fixture.project(
         "unrelated",
         "unrelated",
-        ManifestDeps { prod: &[(NO_DEPS, "1.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(NO_DEPS, "1.0.0")],
+            ..Default::default()
+        },
     );
     fixture.run(["--filter", "selected", "install"]);
 
@@ -601,13 +779,22 @@ fn filtered_isolated_install_keeps_workspace_link_targets_shallow() {
     assert!(!unrelated.join("node_modules").exists());
     assert!(!fixture.slot(NO_DEPS, "1.0.0").exists());
     assert!(
-        !fixture.modules().pending_builds.iter().any(|entry| {
-            entry.contains(PARENT) || entry.contains(DEP) || entry.contains(NO_DEPS)
-        }),
+        !fixture
+            .modules()
+            .pending_builds
+            .iter()
+            .any(|entry| {
+                entry.contains(PARENT) || entry.contains(DEP) || entry.contains(NO_DEPS)
+            }),
     );
     assert_full_wanted(
         &fixture.wanted(),
-        &["packages/second", "packages/selected", "packages/third", "packages/unrelated"],
+        &[
+            "packages/second",
+            "packages/selected",
+            "packages/third",
+            "packages/unrelated",
+        ],
     );
 }
 
@@ -618,12 +805,18 @@ fn filtered_pnp_install_uses_isolated_placeholder_scope() {
     let selected = fixture.project(
         "selected",
         "selected",
-        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(HELLO, "1.0.0")],
+            ..Default::default()
+        },
     );
     let unselected = fixture.project(
         "unselected",
         "unselected",
-        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(PARENT, "100.0.0")],
+            ..Default::default()
+        },
     );
     fixture.run(["--filter", "selected", "install"]);
 
@@ -632,7 +825,10 @@ fn filtered_pnp_install_uses_isolated_placeholder_scope() {
     assert!(!unselected.join("node_modules").exists());
     assert!(!fixture.slot(PARENT, "100.0.0").exists());
     assert!(!fixture.slot(DEP, "100.1.0").exists());
-    assert_full_wanted(&fixture.wanted(), &["packages/selected", "packages/unselected"]);
+    assert_full_wanted(
+        &fixture.wanted(),
+        &["packages/selected", "packages/unselected"],
+    );
     assert!(!fixture.workspace.join("node_modules/.package-map.json").exists());
 }
 
@@ -642,7 +838,10 @@ fn install_selection_uses_post_update_config_workspace_graph() {
     let app = fixture.project(
         "app",
         "app",
-        ManifestDeps { prod: &[("lib", "1.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[("lib", "1.0.0")],
+            ..Default::default()
+        },
     );
     let lib = fixture.project("lib", "lib", ManifestDeps::default());
     fs::write(
@@ -653,9 +852,18 @@ fn install_selection_uses_post_update_config_workspace_graph() {
 
     fixture.run(["--filter", "app...", "add", HELLO, "--lockfile-only"]);
     let wanted = fixture.wanted();
-    assert_eq!(dependency_spec(&app, "dependencies", HELLO).as_deref(), Some("^1.0.0"));
-    assert_eq!(dependency_spec(&lib, "dependencies", HELLO).as_deref(), Some("^1.0.0"));
-    assert_eq!(importer_version(&wanted, "packages/app", "lib"), "link:../lib");
+    assert_eq!(
+        dependency_spec(&app, "dependencies", HELLO).as_deref(),
+        Some("^1.0.0"),
+    );
+    assert_eq!(
+        dependency_spec(&lib, "dependencies", HELLO).as_deref(),
+        Some("^1.0.0"),
+    );
+    assert_eq!(
+        importer_version(&wanted, "packages/app", "lib"),
+        "link:../lib",
+    );
     assert_eq!(importer_version(&wanted, "packages/lib", HELLO), "1.0.0");
 }
 
@@ -664,11 +872,21 @@ fn recursive_add_prefixes(no_sort: bool) -> (Vec<String>, String, String) {
     let app = fixture.project(
         "app",
         "app",
-        ManifestDeps { prod: &[("lib", "workspace:*")], ..Default::default() },
+        ManifestDeps {
+            prod: &[("lib", "workspace:*")],
+            ..Default::default()
+        },
     );
     let lib = fixture.project("lib", "lib", ManifestDeps::default());
     let args = if no_sort {
-        vec!["--no-sort", "--filter", "app...", "add", HELLO, "--lockfile-only"]
+        vec![
+            "--no-sort",
+            "--filter",
+            "app...",
+            "add",
+            HELLO,
+            "--lockfile-only",
+        ]
     } else {
         vec!["--filter", "app...", "add", HELLO, "--lockfile-only"]
     };
@@ -690,12 +908,18 @@ fn workspace_without_root_manifest_does_not_create_root_importer() {
     let selected = fixture.project(
         "selected",
         "selected",
-        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(HELLO, "1.0.0")],
+            ..Default::default()
+        },
     );
     let unselected = fixture.project(
         "unselected",
         "unselected",
-        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(PARENT, "100.0.0")],
+            ..Default::default()
+        },
     );
     fixture.run(["--filter", "selected", "install"]);
 
@@ -705,8 +929,14 @@ fn workspace_without_root_manifest_does_not_create_root_importer() {
     assert!(!wanted.importers.contains_key("."));
     let state = fixture.state();
     assert_eq!(
-        state.projects.keys().cloned().collect::<BTreeSet<_>>(),
-        [selected, unselected].into_iter().map(|path| canonical_path(&path)).collect(),
+        state.projects
+            .keys()
+            .cloned()
+            .collect::<BTreeSet<_>>(),
+        [selected, unselected]
+            .into_iter()
+            .map(|path| canonical_path(&path))
+            .collect(),
     );
     assert!(!state.projects.contains_key(&canonical_path(&fixture.workspace)));
 }
@@ -718,12 +948,18 @@ fn workspace_non_project_subdirectory_does_not_create_active_importer() {
     let selected = fixture.project(
         "selected",
         "selected",
-        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(HELLO, "1.0.0")],
+            ..Default::default()
+        },
     );
     let unselected = fixture.project(
         "unselected",
         "unselected",
-        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(PARENT, "100.0.0")],
+            ..Default::default()
+        },
     );
     let scratch = fixture.workspace.join("tools/scratch");
     fs::create_dir_all(&scratch).expect("create non-project subdirectory");
@@ -735,7 +971,10 @@ fn workspace_non_project_subdirectory_does_not_create_active_importer() {
     assert!(!wanted.importers.contains_key("tools/scratch"));
     let state = fixture.state();
     assert_eq!(
-        state.projects.keys().cloned().collect::<BTreeSet<_>>(),
+        state.projects
+            .keys()
+            .cloned()
+            .collect::<BTreeSet<_>>(),
         [&fixture.workspace, &selected, &unselected]
             .into_iter()
             .map(|path| canonical_path(path))
@@ -750,23 +989,41 @@ fn filter_matching_every_real_project_is_not_partial() {
     let member_a = fixture.project(
         "member-a",
         "member-a",
-        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(HELLO, "1.0.0")],
+            ..Default::default()
+        },
     );
     let member_b = fixture.project(
         "member-b",
         "member-b",
-        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(PARENT, "100.0.0")],
+            ..Default::default()
+        },
     );
     fixture.run(["--filter", "*", "install"]);
     let state = fixture.state();
 
     assert!(!state.filtered_install);
     assert_eq!(
-        state.projects.keys().cloned().collect::<BTreeSet<_>>(),
-        [&member_a, &member_b].into_iter().map(|path| canonical_path(path)).collect(),
+        state.projects
+            .keys()
+            .cloned()
+            .collect::<BTreeSet<_>>(),
+        [&member_a, &member_b]
+            .into_iter()
+            .map(|path| canonical_path(path))
+            .collect(),
     );
-    assert_full_wanted(&fixture.wanted(), &["packages/member-a", "packages/member-b"]);
-    assert_full_wanted(&fixture.current(), &["packages/member-a", "packages/member-b"]);
+    assert_full_wanted(
+        &fixture.wanted(),
+        &["packages/member-a", "packages/member-b"],
+    );
+    assert_full_wanted(
+        &fixture.current(),
+        &["packages/member-a", "packages/member-b"],
+    );
     assert!(has_link(&member_a, HELLO));
     assert!(has_link(&member_b, PARENT));
 }
@@ -779,7 +1036,10 @@ fn filtered_install_refreshes_unselected_catalog_importers_when_catalog_changes(
     fixture.project(
         "catalog-consumer",
         "catalog-consumer",
-        ManifestDeps { prod: &[(CATALOG_FOO, "catalog:")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(CATALOG_FOO, "catalog:")],
+            ..Default::default()
+        },
     );
     fixture.run(["install", "--lockfile-only"]);
     assert_eq!(
@@ -791,16 +1051,20 @@ fn filtered_install_refreshes_unselected_catalog_importers_when_catalog_changes(
     let workspace_yaml = fs::read_to_string(&workspace_yaml_path).expect("read workspace yaml");
     fs::write(
         &workspace_yaml_path,
-        workspace_yaml
-            .replace(&format!("'{CATALOG_FOO}': 1.0.0"), &format!("'{CATALOG_FOO}': 2.0.0")),
+        workspace_yaml.replace(
+            &format!("'{CATALOG_FOO}': 1.0.0"),
+            &format!("'{CATALOG_FOO}': 2.0.0"),
+        ),
     )
     .expect("update catalog");
 
     fixture.run(["--filter", "app", "install", "--lockfile-only"]);
     let wanted = fixture.wanted();
-    assert_eq!(importer_version(&wanted, "packages/catalog-consumer", CATALOG_FOO), "2.0.0");
-    let catalog = wanted
-        .catalogs
+    assert_eq!(
+        importer_version(&wanted, "packages/catalog-consumer", CATALOG_FOO),
+        "2.0.0",
+    );
+    let catalog = wanted.catalogs
         .as_ref()
         .and_then(|catalogs| catalogs.get("default"))
         .and_then(|entries| entries.get(CATALOG_FOO))
@@ -815,13 +1079,19 @@ fn active_manifest_outside_workspace_patterns_keeps_install_filtered() {
     let member = fixture.project(
         "member",
         "member",
-        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(HELLO, "1.0.0")],
+            ..Default::default()
+        },
     );
     let local = fixture.workspace.join("tools/local");
     write_project_manifest(
         &local,
         "local",
-        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(PARENT, "100.0.0")],
+            ..Default::default()
+        },
     );
 
     fixture.run_at(&local, ["--filter", "*", "install"]);
@@ -829,8 +1099,14 @@ fn active_manifest_outside_workspace_patterns_keeps_install_filtered() {
     let state = fixture.state();
     assert!(state.filtered_install);
     assert_eq!(
-        state.projects.keys().cloned().collect::<BTreeSet<_>>(),
-        [&member, &local].into_iter().map(|path| canonical_path(path)).collect(),
+        state.projects
+            .keys()
+            .cloned()
+            .collect::<BTreeSet<_>>(),
+        [&member, &local]
+            .into_iter()
+            .map(|path| canonical_path(path))
+            .collect(),
     );
     assert!(has_link(&member, HELLO));
     assert!(!local.join("node_modules").exists());

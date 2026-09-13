@@ -26,8 +26,11 @@ fn nerf(registry: &str) -> String {
 }
 
 fn configure(root: &Path, workspace: &Path, registry: &str, auth_token: Option<&str>) -> PathBuf {
-    fs::write(workspace.join(".npmrc"), format!("registry={registry}\nfetch-retries=0\n"))
-        .expect("write project .npmrc");
+    fs::write(
+        workspace.join(".npmrc"),
+        format!("registry={registry}\nfetch-retries=0\n"),
+    )
+    .expect("write project .npmrc");
     let auth_file = root.join("auth-npmrc");
     let contents = match auth_token {
         Some(token) => format!("{}:_authToken={token}\n", nerf(registry)),
@@ -66,7 +69,9 @@ fn star_successfully_stars_a_package() {
         .mock("PUT", "/-/user/v1/star")
         .match_header("authorization", "Bearer test-token")
         .match_header("content-type", "application/json")
-        .match_body(mockito::Matcher::JsonString(r#"{"name":"foo","package":"foo"}"#.to_string()))
+        .match_body(mockito::Matcher::JsonString(
+            r#"{"name":"foo","package":"foo"}"#.to_string(),
+        ))
         .with_status(200)
         .create();
     let auth_file = configure(root.path(), &workspace, &registry, Some("test-token"));
@@ -190,7 +195,9 @@ fn star_falls_back_to_legacy_packument_when_star_endpoints_unavailable() {
     let update_mock = server
         .mock("PUT", "/foo/-rev/1-abc")
         .match_header("authorization", "Bearer test-token")
-        .match_body(mockito::Matcher::PartialJsonString(r#"{"users":{"alice":true}}"#.to_string()))
+        .match_body(mockito::Matcher::PartialJsonString(
+            r#"{"users":{"alice":true}}"#.to_string(),
+        ))
         .with_status(200)
         .create();
     let auth_file = configure(root.path(), &workspace, &registry, Some("test-token"));

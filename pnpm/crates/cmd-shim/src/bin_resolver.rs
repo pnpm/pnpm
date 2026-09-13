@@ -49,11 +49,16 @@ pub fn get_bins_from_package_manifest<Sys: FsWalkFiles>(
     pkg_path: &Path,
 ) -> Vec<Command> {
     let pkg_name = manifest.get("name").and_then(Value::as_str);
-    if let Some(bin) = manifest.get("bin").filter(|bin| bin.as_str() != Some("")) {
+    if let Some(bin) = manifest
+        .get("bin")
+        .filter(|bin| bin.as_str() != Some(""))
+    {
         return commands_from_bin(bin, pkg_name, pkg_path);
     }
-    if let Some(bin_dir_rel) =
-        manifest.get("directories").and_then(|d| d.get("bin")).and_then(Value::as_str)
+    if let Some(bin_dir_rel) = manifest
+        .get("directories")
+        .and_then(|d| d.get("bin"))
+        .and_then(Value::as_str)
     {
         return commands_from_directories_bin::<Sys>(bin_dir_rel, pkg_path);
     }
@@ -80,14 +85,20 @@ fn commands_from_directories_bin<Sys: FsWalkFiles>(
     };
     let mut commands = Vec::new();
     for path in paths {
-        let Some(name) = path.file_name().and_then(|s| s.to_str()) else {
+        let Some(name) = path
+            .file_name()
+            .and_then(|s| s.to_str())
+        else {
             continue;
         };
         // Same URL-safe-name guard as the keyed-bin path.
         if !is_safe_bin_name(name) {
             continue;
         }
-        commands.push(Command { name: name.to_string(), path });
+        commands.push(Command {
+            name: name.to_string(),
+            path,
+        });
     }
     commands
 }
@@ -104,7 +115,10 @@ fn commands_from_bin(bin: &Value, pkg_name: Option<&str>, pkg_path: &Path) -> Ve
         if !is_subdir(pkg_path, &bin_path) {
             continue;
         }
-        commands.push(Command { name: bin_name, path: bin_path });
+        commands.push(Command {
+            name: bin_name,
+            path: bin_path,
+        });
     }
     commands
 }
@@ -114,9 +128,9 @@ fn commands_from_bin(bin: &Value, pkg_name: Option<&str>, pkg_path: &Path) -> Ve
 /// declares none.
 fn declared_bin_entries(bin: &Value, pkg_name: Option<&str>) -> Vec<(String, String)> {
     match bin {
-        Value::String(rel_path) => {
-            pkg_name.map(|name| vec![(name.to_string(), rel_path.clone())]).unwrap_or_default()
-        }
+        Value::String(rel_path) => pkg_name
+            .map(|name| vec![(name.to_string(), rel_path.clone())])
+            .unwrap_or_default(),
         Value::Object(map) => map
             .iter()
             .filter_map(|(key, value)| Some((key.clone(), value.as_str()?.to_string())))
@@ -156,10 +170,15 @@ pub fn is_safe_bin_name(name: &str) -> bool {
     if name.is_empty() || name == "." || name == ".." {
         return false;
     }
-    name.bytes().all(|byte| {
-        byte.is_ascii_alphanumeric()
-            || matches!(byte, b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')')
-    })
+    name
+        .bytes()
+        .all(|byte| {
+            byte.is_ascii_alphanumeric()
+                || matches!(
+                    byte,
+                    b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')',
+                )
+        })
 }
 
 #[cfg(test)]

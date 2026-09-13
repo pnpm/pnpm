@@ -17,7 +17,10 @@ fn single_min_age_violation_picks_min_age_variant() {
         "MINIMUM_RELEASE_AGE_VIOLATION",
         "was published yesterday",
     )]);
-    assert!(matches!(err, VerifyError::MinimumReleaseAgeViolation { .. }), "got: {err:?}");
+    assert!(
+        matches!(err, VerifyError::MinimumReleaseAgeViolation { .. }),
+        "got: {err:?}",
+    );
 }
 
 #[test]
@@ -28,7 +31,10 @@ fn single_trust_violation_picks_trust_variant() {
         "TRUST_DOWNGRADE",
         "evidence dropped",
     )]);
-    assert!(matches!(err, VerifyError::TrustDowngrade { .. }), "got: {err:?}");
+    assert!(
+        matches!(err, VerifyError::TrustDowngrade { .. }),
+        "got: {err:?}",
+    );
 }
 
 #[test]
@@ -39,7 +45,10 @@ fn single_missing_integrity_violation_picks_missing_integrity_variant() {
         "MISSING_TARBALL_INTEGRITY",
         r#"has no "integrity" field, so its downloaded tarball cannot be verified"#,
     )]);
-    assert!(matches!(err, VerifyError::MissingTarballIntegrity { .. }), "got: {err:?}");
+    assert!(
+        matches!(err, VerifyError::MissingTarballIntegrity { .. }),
+        "got: {err:?}",
+    );
 }
 
 #[test]
@@ -62,12 +71,20 @@ fn mixed_codes_escalate_and_render_code_per_entry() {
 fn single_code_breakdown_omits_per_line_code() {
     let err = VerifyError::from_rendered(&[
         rendered("acme", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION", "young"),
-        rendered("bravo", "2.0.0", "MINIMUM_RELEASE_AGE_VIOLATION", "also young"),
+        rendered(
+            "bravo",
+            "2.0.0",
+            "MINIMUM_RELEASE_AGE_VIOLATION",
+            "also young",
+        ),
     ]);
     let VerifyError::MinimumReleaseAgeViolation { breakdown, .. } = err else {
         panic!("expected MinimumReleaseAgeViolation");
     };
-    assert!(!breakdown.contains("[MINIMUM_RELEASE_AGE_VIOLATION]"), "got: {breakdown}");
+    assert!(
+        !breakdown.contains("[MINIMUM_RELEASE_AGE_VIOLATION]"),
+        "got: {breakdown}",
+    );
 }
 
 /// Without the trim, a poisoned lockfile would flood the terminal.
@@ -90,7 +107,10 @@ fn over_cap_adds_and_n_more_summary() {
     };
     assert_eq!(count, n);
     assert!(breakdown.contains("…and 5 more"), "got: {breakdown}");
-    let visible_lines = breakdown.lines().filter(|line| !line.starts_with("  …and")).count();
+    let visible_lines = breakdown
+        .lines()
+        .filter(|line| !line.starts_with("  …and"))
+        .count();
     assert_eq!(visible_lines, MAX_VIOLATIONS_TO_PRINT);
 }
 

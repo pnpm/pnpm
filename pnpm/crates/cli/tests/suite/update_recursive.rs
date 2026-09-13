@@ -60,9 +60,15 @@ fn write_workspace(workspace: &Path, manifests: &[(&str, Value)]) {
     if !yaml.ends_with('\n') {
         yaml.push('\n');
     }
-    let packages: Vec<String> = manifests.iter().map(|(name, _)| format!("  - '{name}'")).collect();
-    fs::write(&yaml_path, format!("{yaml}packages:\n{}\n", packages.join("\n")))
-        .expect("write pnpm-workspace.yaml");
+    let packages: Vec<String> = manifests
+        .iter()
+        .map(|(name, _)| format!("  - '{name}'"))
+        .collect();
+    fs::write(
+        &yaml_path,
+        format!("{yaml}packages:\n{}\n", packages.join("\n")),
+    )
+    .expect("write pnpm-workspace.yaml");
 
     for (name, manifest) in manifests {
         let dir = workspace.join(name);
@@ -80,20 +86,31 @@ fn dep_spec(project_dir: &Path, name: &str) -> Option<String> {
 }
 
 fn has_module(project_dir: &Path, name: &str) -> bool {
-    project_dir.join("node_modules").join(name).exists()
+    project_dir
+        .join("node_modules")
+        .join(name)
+        .exists()
 }
 
 /// The names under a project's `node_modules`, with scope directories
 /// expanded, for logging before existence assertions.
 fn list_modules(project_dir: &Path) -> Vec<String> {
     fn names(dir: &Path) -> Vec<String> {
-        let Ok(entries) = fs::read_dir(dir) else { return Vec::new() };
+        let Ok(entries) = fs::read_dir(dir) else {
+            return Vec::new();
+        };
         entries
             .filter_map(Result::ok)
             .flat_map(|entry| {
-                let name = entry.file_name().to_string_lossy().into_owned();
+                let name = entry
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned();
                 if name.starts_with('@') {
-                    names(&entry.path()).iter().map(|inner| format!("{name}/{inner}")).collect()
+                    names(&entry.path())
+                        .iter()
+                        .map(|inner| format!("{name}/{inner}"))
+                        .collect()
                 } else {
                     vec![name]
                 }
@@ -110,7 +127,10 @@ fn module_target(project_dir: &Path, name: &str) -> Option<std::path::PathBuf> {
 }
 
 fn installed_version(project_dir: &Path, name: &str) -> Option<String> {
-    let manifest_path = project_dir.join("node_modules").join(name).join("package.json");
+    let manifest_path = project_dir
+        .join("node_modules")
+        .join(name)
+        .join("package.json");
     let contents = fs::read_to_string(manifest_path).ok()?;
     let value: Value = serde_json::from_str(&contents).ok()?;
     value["version"].as_str().map(str::to_string)
@@ -148,7 +168,10 @@ fn recursive_update_only_reaches_projects_that_have_the_dependency() {
     );
     let project_2 = workspace.join("project-2");
     eprintln!("project-2 node_modules: {:?}", list_modules(&project_2));
-    assert!(!has_module(&project_2, DEP), "a project that never declared it must not gain it");
+    assert!(
+        !has_module(&project_2, DEP),
+        "a project that never declared it must not gain it",
+    );
 
     drop((root, anchor));
 }
@@ -163,8 +186,14 @@ fn recursive_update_does_not_add_a_dependency_no_project_declares() {
     write_workspace(
         &workspace,
         &[
-            ("project-1", json!({ "name": "project-1", "version": "1.0.0" })),
-            ("project-2", json!({ "name": "project-2", "version": "1.0.0" })),
+            (
+                "project-1",
+                json!({ "name": "project-1", "version": "1.0.0" }),
+            ),
+            (
+                "project-2",
+                json!({ "name": "project-2", "version": "1.0.0" }),
+            ),
         ],
     );
     pacquet(&workspace, ["install"]).assert().success();
@@ -175,7 +204,10 @@ fn recursive_update_does_not_add_a_dependency_no_project_declares() {
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     eprintln!("STATUS: {}\nSTDERR:\n{stderr}", output.status);
-    assert!(!output.status.success(), "updating an undeclared package should fail");
+    assert!(
+        !output.status.success(),
+        "updating an undeclared package should fail",
+    );
     assert!(
         stderr.contains("ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES"),
         "the failure must carry the NO_PACKAGE_IN_DEPENDENCIES code",
@@ -187,8 +219,15 @@ fn recursive_update_does_not_add_a_dependency_no_project_declares() {
     for project in ["project-1", "project-2"] {
         let project_dir = workspace.join(project);
         eprintln!("{project} node_modules: {:?}", list_modules(&project_dir));
-        assert!(!has_module(&project_dir, DEP), "{project} gained the dependency");
-        assert_eq!(dep_spec(&project_dir, DEP), None, "{project}'s manifest gained the dependency");
+        assert!(
+            !has_module(&project_dir, DEP),
+            "{project} gained the dependency",
+        );
+        assert_eq!(
+            dep_spec(&project_dir, DEP),
+            None,
+            "{project}'s manifest gained the dependency",
+        );
     }
 
     drop((root, anchor));
@@ -209,7 +248,10 @@ fn recursive_update_keeps_an_aliased_workspace_dependency() {
                 json!({ "name": "project-1", "version": "1.0.0",
                 "dependencies": { "pkg": "workspace:project-2@^" } }),
             ),
-            ("project-2", json!({ "name": "project-2", "version": "1.0.0" })),
+            (
+                "project-2",
+                json!({ "name": "project-2", "version": "1.0.0" }),
+            ),
         ],
     );
     pacquet(&workspace, ["install"]).assert().success();
@@ -314,7 +356,10 @@ fn recursive_update_rejects_a_version_for_a_transitive_only_selector() {
     let (status, rendered) =
         pacquet_output(&workspace, &["-r", "update", &format!("{DEP}@100.1.0")]);
 
-    assert!(!status.success(), "a version that cannot be recorded should fail the command");
+    assert!(
+        !status.success(),
+        "a version that cannot be recorded should fail the command",
+    );
     assert!(
         rendered.contains("ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP"),
         "the failure must carry the UPDATE_VERSION_ON_INDIRECT_DEP code",
@@ -358,7 +403,10 @@ fn recursive_update_accepts_a_version_declared_by_any_project() {
     let (status, rendered) =
         pacquet_output(&workspace, &["-r", "update", &format!("{DEP}@100.1.0")]);
 
-    assert!(status.success(), "project-2 declares it, so the version has somewhere to go");
+    assert!(
+        status.success(),
+        "project-2 declares it, so the version has somewhere to go",
+    );
     assert!(
         !rendered.contains("ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP"),
         "a selector declared by any project must not be rejected",
@@ -392,7 +440,10 @@ fn recursive_update_allows_a_tag_for_a_transitive_only_selector() {
     let (status, rendered) =
         pacquet_output(&workspace, &["-r", "update", &format!("{DEP}@latest")]);
 
-    assert!(status.success(), "a tag is not a version that has to be recorded");
+    assert!(
+        status.success(),
+        "a tag is not a version that has to be recorded",
+    );
     assert!(
         rendered.contains(&format!(r#""{DEP}" is not a direct dependency"#))
             && rendered.contains(r#"the requested "latest" is ignored"#),
@@ -428,15 +479,30 @@ fn recursive_update_with_pattern() {
     anchor.set_dist_tag(PEER_C, "2.0.0", "latest");
     anchor.set_dist_tag(FOO, "2.0.0", "latest");
 
-    pacquet(&workspace, ["-r", "update", "--latest", "@pnpm.e2e/peer-*", "@pnpm.e2e/dep-of-pkg-*"])
-        .assert()
-        .success();
+    pacquet(
+        &workspace,
+        [
+            "-r",
+            "update",
+            "--latest",
+            "@pnpm.e2e/peer-*",
+            "@pnpm.e2e/dep-of-pkg-*",
+        ],
+    )
+    .assert()
+    .success();
 
     let project_1 = workspace.join("project-1");
     let project_2 = workspace.join("project-2");
-    assert_eq!(installed_version(&project_1, DEP).as_deref(), Some("100.1.0"));
+    assert_eq!(
+        installed_version(&project_1, DEP).as_deref(),
+        Some("100.1.0"),
+    );
     assert_eq!(installed_version(&project_1, FOO).as_deref(), Some("1.0.0"));
-    assert_eq!(installed_version(&project_2, PEER_C).as_deref(), Some("2.0.0"));
+    assert_eq!(
+        installed_version(&project_2, PEER_C).as_deref(),
+        Some("2.0.0"),
+    );
 
     drop((root, anchor));
 }
@@ -469,33 +535,65 @@ fn recursive_update_with_pattern_and_name_in_project() {
 
     let output = pacquet(
         &workspace,
-        ["-r", "update", "--depth", "0", "--latest", "@pnpm.e2e/this-does-not-exist"],
+        [
+            "-r",
+            "update",
+            "--depth",
+            "0",
+            "--latest",
+            "@pnpm.e2e/this-does-not-exist",
+        ],
     )
     .output()
     .expect("run pacquet update");
     let stderr = String::from_utf8_lossy(&output.stderr);
     eprintln!("STATUS: {}\nSTDERR:\n{stderr}", output.status);
-    assert!(!output.status.success(), "updating an undeclared package should fail");
-    assert!(stderr.contains("ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES"), "{stderr}");
+    assert!(
+        !output.status.success(),
+        "updating an undeclared package should fail",
+    );
+    assert!(
+        stderr.contains("ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES"),
+        "{stderr}",
+    );
 
     // Without `--depth 0` the same selector is simply a no-op.
-    pacquet(&workspace, ["-r", "update", "--latest", "@pnpm.e2e/this-does-not-exist"])
-        .assert()
-        .success();
+    pacquet(
+        &workspace,
+        ["-r", "update", "--latest", "@pnpm.e2e/this-does-not-exist"],
+    )
+    .assert()
+    .success();
 
     pacquet(
         &workspace,
-        ["-r", "update", "--latest", "@pnpm.e2e/peer-*", "@pnpm.e2e/dep-of-pkg-*", PRINT_VERSION],
+        [
+            "-r",
+            "update",
+            "--latest",
+            "@pnpm.e2e/peer-*",
+            "@pnpm.e2e/dep-of-pkg-*",
+            PRINT_VERSION,
+        ],
     )
     .assert()
     .success();
 
     let project_1 = workspace.join("project-1");
     let project_2 = workspace.join("project-2");
-    assert_eq!(installed_version(&project_1, DEP).as_deref(), Some("100.1.0"));
+    assert_eq!(
+        installed_version(&project_1, DEP).as_deref(),
+        Some("100.1.0"),
+    );
     assert_eq!(installed_version(&project_1, FOO).as_deref(), Some("1.0.0"));
-    assert_eq!(installed_version(&project_2, PEER_C).as_deref(), Some("2.0.0"));
-    assert_eq!(installed_version(&project_2, PRINT_VERSION).as_deref(), Some("2.0.0"));
+    assert_eq!(
+        installed_version(&project_2, PEER_C).as_deref(),
+        Some("2.0.0"),
+    );
+    assert_eq!(
+        installed_version(&project_2, PRINT_VERSION).as_deref(),
+        Some("2.0.0"),
+    );
 
     drop((root, anchor));
 }
@@ -531,7 +629,12 @@ fn recursive_update_latest_only_reaches_the_named_packages() {
     anchor.set_dist_tag(BAR, "100.1.0", "latest");
     anchor.set_dist_tag(MULTI_VERSION_B, "3.1.0", "latest");
 
-    pacquet(&workspace, ["-r", "update", "--latest", MULTI_VERSION_B, FOO]).assert().success();
+    pacquet(
+        &workspace,
+        ["-r", "update", "--latest", MULTI_VERSION_B, FOO],
+    )
+    .assert()
+    .success();
 
     assert_eq!(
         lockfile_package_keys(&workspace),
@@ -565,10 +668,20 @@ fn recursive_update_depth_zero_leaves_an_indirect_selector_out_of_scope() {
 
     let (status, rendered) = pacquet_output(
         &workspace,
-        &["-r", "update", "--depth", "0", &format!("{FOO}@100.0.0"), &format!("{DEP}@100.1.0")],
+        &[
+            "-r",
+            "update",
+            "--depth",
+            "0",
+            &format!("{FOO}@100.0.0"),
+            &format!("{DEP}@100.1.0"),
+        ],
     );
 
-    assert!(status.success(), "an untraversed selector must not fail the command");
+    assert!(
+        status.success(),
+        "an untraversed selector must not fail the command",
+    );
     assert!(
         !rendered.contains("ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP"),
         "depth 0 leaves the indirect selector out of scope",
@@ -613,7 +726,10 @@ fn recursive_update_latest_with_dedicated_lockfiles_only_touches_the_declaring_p
         lockfile_package_keys(&workspace.join("project-1")),
         [format!("{FOO}@100.1.0"), format!("{QAR}@100.0.0")],
     );
-    assert_eq!(lockfile_package_keys(&workspace.join("project-2")), [format!("{BAR}@100.0.0")]);
+    assert_eq!(
+        lockfile_package_keys(&workspace.join("project-2")),
+        [format!("{BAR}@100.0.0")],
+    );
 
     drop((root, anchor));
 }
@@ -634,10 +750,15 @@ fn recursive_update_latest_reports_the_spec_ban_first() {
     );
     pacquet(&workspace, ["install"]).assert().success();
 
-    let (status, rendered) =
-        pacquet_output(&workspace, &["-r", "update", "--latest", &format!("{DEP}@100.1.0")]);
+    let (status, rendered) = pacquet_output(
+        &workspace,
+        &["-r", "update", "--latest", &format!("{DEP}@100.1.0")],
+    );
 
-    assert!(!status.success(), "a versioned selector with --latest should fail");
+    assert!(
+        !status.success(),
+        "a versioned selector with --latest should fail",
+    );
     assert!(
         rendered.contains("ERR_PNPM_LATEST_WITH_SPEC"),
         "--latest owns this failure: {rendered}",

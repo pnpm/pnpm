@@ -99,17 +99,17 @@ pub struct RenderDependentsInput {
 /// which is an answer, not an error.
 #[napi]
 pub async fn get_dependents(options: DependentsOptions) -> napi::Result<serde_json::Value> {
-    tokio::task::spawn_blocking(move || build_trees(&options))
-        .await
+    tokio::task::spawn_blocking(move || build_trees(&options)).await
         .map_err(|join_error| {
             napi::Error::from_reason(format!(
                 "getDependents task panicked or was cancelled: {join_error}",
             ))
         })?
         .and_then(|trees| {
-            serde_json::to_value(trees).map_err(|err| {
-                napi::Error::from_reason(format!("serializing the dependents trees: {err}"))
-            })
+            serde_json::to_value(trees)
+                .map_err(|err| {
+                    napi::Error::from_reason(format!("serializing the dependents trees: {err}"))
+                })
         })
 }
 
@@ -123,11 +123,17 @@ pub fn render_dependents(
     options: Option<RenderDependentsInput>,
 ) -> napi::Result<String> {
     reject_over_deep_trees(&trees)?;
-    let trees: Vec<DependentsTree> = serde_json::from_value(trees).map_err(|err| {
-        napi::Error::from_reason(format!("the trees argument is not a dependents tree: {err}"))
-    })?;
-    let options =
-        options.unwrap_or(RenderDependentsInput { format: None, depth: None, long: None });
+    let trees: Vec<DependentsTree> = serde_json::from_value(trees)
+        .map_err(|err| {
+            napi::Error::from_reason(format!(
+                "the trees argument is not a dependents tree: {err}",
+            ))
+        })?;
+    let options = options.unwrap_or(RenderDependentsInput {
+        format: None,
+        depth: None,
+        long: None,
+    });
     let render_opts = RenderDependentsOptions {
         long: options.long.unwrap_or(false),
         depth: options.depth.map(|depth| depth as usize),
@@ -161,7 +167,11 @@ fn reject_over_deep_trees(trees: &serde_json::Value) -> napi::Result<()> {
         }
         match value {
             serde_json::Value::Array(items) => {
-                stack.extend(items.iter().map(|item| (item, depth)));
+                stack.extend(
+                    items
+                        .iter()
+                        .map(|item| (item, depth)),
+                );
             }
             serde_json::Value::Object(fields) => {
                 if let Some(dependents) = fields.get("dependents") {
@@ -176,9 +186,12 @@ fn reject_over_deep_trees(trees: &serde_json::Value) -> napi::Result<()> {
 
 fn build_trees(options: &DependentsOptions) -> napi::Result<Vec<DependentsTree>> {
     let lockfile_dir = PathBuf::from(&options.dir);
-    let loaded =
-        LoadedState::load(&lockfile_dir, options.modules_dir.as_deref().map(Path::new), false)
-            .map_err(|report| report_to_napi_error(&report))?;
+    let loaded = LoadedState::load(
+        &lockfile_dir,
+        options.modules_dir.as_deref().map(Path::new),
+        false,
+    )
+    .map_err(|report| report_to_napi_error(&report))?;
     let registries = registry_routes(options);
 
     // No lockfile: nothing is installed, so nothing depends on anything.
@@ -202,8 +215,8 @@ fn build_trees(options: &DependentsOptions) -> napi::Result<Vec<DependentsTree>>
             only_projects: false,
         },
     );
-    let searcher = Searcher::from_queries(&options.packages)
-        .map_err(|report| report_to_napi_error(&report))?;
+    let searcher =
+        Searcher::from_queries(&options.packages).map_err(|report| report_to_napi_error(&report))?;
 
     Ok(build_dependents_tree(&BuildDependentsOptions {
         env: &env,
@@ -216,17 +229,19 @@ fn build_trees(options: &DependentsOptions) -> napi::Result<Vec<DependentsTree>>
 
 fn registry_routes(options: &DependentsOptions) -> BTreeMap<String, String> {
     match &options.registries {
-        Some(registries) if !registries.is_empty() => {
-            registries.iter().map(|(scope, url)| (scope.clone(), url.clone())).collect()
-        }
+        Some(registries) if !registries.is_empty() => registries
+            .iter()
+            .map(|(scope, url)| (scope.clone(), url.clone()))
+            .collect(),
         _ => BTreeMap::from([("default".to_string(), pnpm_config::default_registry())]),
     }
 }
 
 fn virtual_store_dir_max_length(options: &DependentsOptions) -> usize {
-    options
-        .virtual_store_dir_max_length
-        .map_or(DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH as usize, |value| value as usize)
+    options.virtual_store_dir_max_length.map_or(
+        DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH as usize,
+        |value| value as usize,
+    )
 }
 
 fn importer_dirs(
@@ -235,11 +250,13 @@ fn importer_dirs(
     lockfile_dir: &Path,
 ) -> Vec<PathBuf> {
     if let Some(dirs) = &options.project_dirs {
-        return dirs.iter().map(|dir| resolve_project_dir(lockfile_dir, dir)).collect();
+        return dirs
+            .iter()
+            .map(|dir| resolve_project_dir(lockfile_dir, dir))
+            .collect();
     }
     let excluded = create_matcher(options.exclude_project_patterns.as_deref().unwrap_or_default());
-    lockfile
-        .importers
+    lockfile.importers
         .keys()
         .filter(|importer_id| !excluded.matches(importer_id))
         .filter_map(|importer_id| safe_importer_dir(lockfile_dir, importer_id))
@@ -249,8 +266,7 @@ fn importer_dirs(
 /// A key that cannot be safely joined (a malformed or hostile lockfile) is
 /// never dereferenced; the raw key still names the importer in the output.
 fn read_importer_info(lockfile: &Lockfile, lockfile_dir: &Path) -> HashMap<String, ImporterInfo> {
-    lockfile
-        .importers
+    lockfile.importers
         .keys()
         .map(|importer_id| {
             let manifest = safe_importer_dir(lockfile_dir, importer_id)
@@ -265,7 +281,10 @@ fn read_importer_info(lockfile: &Lockfile, lockfile_dir: &Path) -> HashMap<Strin
             });
             (
                 importer_id.clone(),
-                ImporterInfo { name, version: manifest.version.unwrap_or_default() },
+                ImporterInfo {
+                    name,
+                    version: manifest.version.unwrap_or_default(),
+                },
             )
         })
         .collect()
@@ -281,7 +300,11 @@ fn included_dependencies(options: &DependentsOptions) -> IncludedDependencies {
 
 fn resolve_project_dir(lockfile_dir: &Path, dir: &str) -> PathBuf {
     let dir = Path::new(dir);
-    if dir.is_absolute() { dir.to_path_buf() } else { lockfile_dir.join(dir) }
+    if dir.is_absolute() {
+        dir.to_path_buf()
+    } else {
+        lockfile_dir.join(dir)
+    }
 }
 
 #[cfg(test)]

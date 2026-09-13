@@ -45,30 +45,30 @@ impl BugsArgs {
             let http_client = build_registry_client(config)
                 .wrap_err("build the network client for registry requests")?;
 
-            let registries: std::collections::HashMap<String, String> =
-                config.resolved_registries().into_iter().collect();
+            let registries: std::collections::HashMap<String, String> = config
+                .resolved_registries()
+                .into_iter()
+                .collect();
 
-            let futures = self.packages.iter().map(|spec| {
-                let (package_name, _tag) = parse_package_spec(spec);
-                let target_registry = if let Some(ref override_registry) = self.registry {
-                    normalize_registry_url(override_registry)
-                } else {
-                    let picked = pnpm_resolving_npm_resolver::pick_registry_for_package(
-                        &registries,
-                        package_name,
-                        Some(spec),
-                    );
-                    normalize_registry_url(&picked)
-                };
+            let futures = self.packages
+                .iter()
+                .map(|spec| {
+                    let target_registry =
+                        bugs_registry(spec, self.registry.as_deref(), &registries);
 
-                let http_client = &http_client;
-                let auth_headers = &config.auth_headers;
-                async move {
-                    get_bugs_url_from_registry(spec, &target_registry, http_client, auth_headers)
+                    let http_client = &http_client;
+                    let auth_headers = &config.auth_headers;
+                    async move {
+                        get_bugs_url_from_registry(
+                            spec,
+                            &target_registry,
+                            http_client,
+                            auth_headers,
+                        )
                         .await
                         .wrap_err_with(|| format!(r#"look up bugs URL for "{spec}""#))
-                }
-            });
+                    }
+                });
 
             let results: Vec<miette::Result<String>> =
                 futures_util::future::join_all(futures).await;
@@ -82,8 +82,9 @@ impl BugsArgs {
 }
 
 fn get_bugs_url_from_current_project(dir: &Path) -> miette::Result<String> {
-    let manifest =
-        safe_read_package_json_from_dir(dir).wrap_err("read package.json")?.ok_or_else(|| {
+    let manifest = safe_read_package_json_from_dir(dir)
+        .wrap_err("read package.json")?
+        .ok_or_else(|| {
             let display_path = dir.display();
             miette::miette!(
                 code = "ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND",
@@ -124,13 +125,21 @@ async fn get_bugs_url_from_registry(
                 pnpm_network::redact_url_credentials(&other.to_string()),
             ),
         };
-        BugsError::RegistryError { url, reason }
+        BugsError::RegistryError {
+            url,
+            reason,
+        }
     })
     .wrap_err_with(|| format!(r#"fetch package info for "{package_name}" from the registry"#))?;
 
     let manifest = package_manifest_from_version(&package_version);
     pick_bugs_url(&manifest)
-        .ok_or_else(|| BugsError::NoBugsUrlForPackage { package: package_name.to_string() }.into())
+        .ok_or_else(|| {
+            BugsError::NoBugsUrlForPackage {
+                package: package_name.to_string(),
+            }
+            .into()
+        })
 }
 
 fn package_manifest_from_version(version: &PackageVersion) -> Value {
@@ -149,12 +158,16 @@ fn pick_bugs_url(manifest: &Value) -> Option<String> {
     if let Some(bugs) = manifest.get("bugs") {
         let url = match bugs {
             Value::String(url_str) => Some(url_str.clone()),
-            Value::Object(bugs_obj) => {
-                bugs_obj.get("url").and_then(|val| val.as_str()).map(String::from)
-            }
+            Value::Object(bugs_obj) => bugs_obj
+                .get("url")
+                .and_then(|val| val.as_str())
+                .map(String::from),
             _ => None,
         };
-        if url.as_ref().is_some_and(|url_str| is_http_url(url_str)) {
+        if url
+            .as_ref()
+            .is_some_and(|url_str| is_http_url(url_str))
+        {
             return url;
         }
     }
@@ -162,9 +175,10 @@ fn pick_bugs_url(manifest: &Value) -> Option<String> {
     if let Some(repo) = manifest.get("repository") {
         let url = match repo {
             Value::String(url_str) => Some(url_str.clone()),
-            Value::Object(repo_obj) => {
-                repo_obj.get("url").and_then(|val| val.as_str()).map(String::from)
-            }
+            Value::Object(repo_obj) => repo_obj
+                .get("url")
+                .and_then(|val| val.as_str())
+                .map(String::from),
             _ => None,
         };
         if let Some(ref url) = url {
@@ -230,7 +244,10 @@ fn parse_repository_url(cleaned: &str) -> Option<Url> {
 fn http_issues_url(mut url: Url) -> Option<String> {
     url.set_query(None);
     url.set_fragment(None);
-    let path = url.path().trim_end_matches('/').trim_end_matches(".git");
+    let path = url
+        .path()
+        .trim_end_matches('/')
+        .trim_end_matches(".git");
     if path.is_empty() {
         return None;
     }
@@ -241,7 +258,10 @@ fn http_issues_url(mut url: Url) -> Option<String> {
 
 fn ssh_issues_url(url: &Url) -> Option<String> {
     let host = url.host_str()?;
-    let path = url.path().trim_end_matches('/').trim_end_matches(".git");
+    let path = url
+        .path()
+        .trim_end_matches('/')
+        .trim_end_matches(".git");
     if path.is_empty() {
         return None;
     }
@@ -293,7 +313,11 @@ fn is_http_url(value: &str) -> bool {
 }
 
 fn normalize_registry_url(url: &str) -> String {
-    if url.ends_with('/') { url.to_owned() } else { format!("{url}/") }
+    if url.ends_with('/') {
+        url.to_owned()
+    } else {
+        format!("{url}/")
+    }
 }
 
 fn open_url<Sys: OpenUrl>(url: &str) {
@@ -342,3 +366,21 @@ fn parse_package_spec(spec: &str) -> (&str, Option<&str>) {
 
 #[cfg(test)]
 mod tests;
+
+fn bugs_registry(
+    spec: &str,
+    registry: Option<&str>,
+    registries: &std::collections::HashMap<String, String>,
+) -> String {
+    let (package_name, _tag) = parse_package_spec(spec);
+    if let Some(override_registry) = registry {
+        normalize_registry_url(override_registry)
+    } else {
+        let picked = pnpm_resolving_npm_resolver::pick_registry_for_package(
+            registries,
+            package_name,
+            Some(spec),
+        );
+        normalize_registry_url(&picked)
+    }
+}

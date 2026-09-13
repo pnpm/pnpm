@@ -91,7 +91,10 @@ impl AddSelector {
             }
             _ => None,
         };
-        Ok(Self { protocol, aliasless })
+        Ok(Self {
+            protocol,
+            aliasless,
+        })
     }
 
     fn package_name<'s>(&'s self, package_selector: &'s str) -> &'s str {
@@ -169,9 +172,10 @@ pub(super) async fn bare_save_specifier(
         return resolve_node_runtime_specifier(version_spec, prev_specifier, inputs).await;
     }
     if let Some(ProtocolSelector::Jsr(jsr)) = selector.protocol.as_ref() {
-        return Ok(resolve_jsr_save_specifier(jsr, inputs.add, manifest, inputs.resolution)
-            .await?
-            .unwrap_or_else(|| package_selector.to_string()));
+        return Ok(
+            resolve_jsr_save_specifier(jsr, inputs.add, manifest, inputs.resolution).await?
+                .unwrap_or_else(|| package_selector.to_string()),
+        );
     }
     match (explicit_spec, prev_specifier) {
         (Some(spec), prev) => Ok(resolve_explicit_registry_spec(
@@ -243,7 +247,10 @@ pub(super) fn workspace_save_specifier(
         None => implicit_workspace_target(package_name, explicit_spec, config, workspace_packages)?,
     };
     let workspace_specifier = calc_specifier_for_workspace_dep(
-        DeclaredSpecifiers { prev: prev_specifier, bare: explicit_spec },
+        DeclaredSpecifiers {
+            prev: prev_specifier,
+            bare: explicit_spec,
+        },
         Some(package_name),
         &target_name,
         resolved_version.as_deref(),
@@ -268,9 +275,13 @@ pub(super) fn explicit_workspace_target(
         return None;
     }
     let target_name = spec.alias.unwrap_or_else(|| package_name.to_string());
-    let resolved_version =
-        workspace_packages.and_then(|packages| packages.get(&target_name)).and_then(|versions| {
-            let available: Vec<String> = versions.keys().cloned().collect();
+    let resolved_version = workspace_packages
+        .and_then(|packages| packages.get(&target_name))
+        .and_then(|versions| {
+            let available: Vec<String> = versions
+                .keys()
+                .cloned()
+                .collect();
             // Not `spec.version`: the pinned form records the local
             // package's own version, which wins over the range the
             // user typed.
@@ -292,8 +303,10 @@ pub(super) fn implicit_workspace_target(
     if explicit_spec.is_some_and(|specifier| specifier.starts_with("npm:")) {
         return None;
     }
-    let registries: std::collections::HashMap<String, String> =
-        config.resolved_registries().into_iter().collect();
+    let registries: std::collections::HashMap<String, String> = config
+        .resolved_registries()
+        .into_iter()
+        .collect();
     let registry = pick_registry_for_package(&registries, package_name, explicit_spec);
     let parsed = parse_bare_specifier(
         explicit_spec.unwrap_or("latest"),
@@ -336,7 +349,10 @@ impl ProtocolSelector {
         if let Some(rest) = selector.strip_prefix("npm:") {
             let (name, spec) = split_name_spec(rest);
             let name = protocol_package_name(name, selector)?;
-            return Ok(Some(Self::Npm { name, spec: spec.map(str::to_string) }));
+            return Ok(Some(Self::Npm {
+                name,
+                spec: spec.map(str::to_string),
+            }));
         }
         if let Some(spec) =
             parse_jsr_specifier(selector, None).map_err(AddError::ParseJsrSpecifier)?
@@ -347,7 +363,9 @@ impl ProtocolSelector {
             return Ok(None);
         };
         let name = protocol_package_name(&alias, selector)?;
-        Ok(Some(Self::Workspace { name }))
+        Ok(Some(Self::Workspace {
+            name,
+        }))
     }
 
     pub(super) fn package_name(&self) -> &str {
@@ -411,7 +429,11 @@ pub(super) async fn resolve_jsr_save_specifier(
 /// index 1, so a leading scope `@` (`@scope/pkg`) is never mistaken for a
 /// version.
 pub(super) fn split_name_spec(input: &str) -> (&str, Option<&str>) {
-    match input.get(1..).and_then(|rest| rest.find('@')).map(|offset| offset + 1) {
+    match input
+        .get(1..)
+        .and_then(|rest| rest.find('@'))
+        .map(|offset| offset + 1)
+    {
         Some(idx) => (&input[..idx], Some(&input[idx + 1..])),
         None => (input, None),
     }

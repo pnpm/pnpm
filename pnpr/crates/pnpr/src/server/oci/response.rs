@@ -51,7 +51,12 @@ pub(in super::super) struct Refusal {
 
 impl Refusal {
     pub(super) fn new(code: ErrorCode, message: impl Into<String>) -> Self {
-        Self { status: status_for(code), code, message: message.into(), original: None }
+        Self {
+            status: status_for(code),
+            code,
+            message: message.into(),
+            original: None,
+        }
     }
 
     pub(in super::super) fn respond(self) -> Response {
@@ -77,7 +82,12 @@ impl From<RegistryError> for Refusal {
             // what a client acts on.
             _ => ErrorCode::Unsupported,
         };
-        Self { status, code, message, original: Some(Box::new(err)) }
+        Self {
+            status,
+            code,
+            message,
+            original: Some(Box::new(err)),
+        }
     }
 }
 
@@ -116,21 +126,32 @@ pub(super) fn respond(status: StatusCode, code: ErrorCode, message: impl Into<St
     if status == StatusCode::UNAUTHORIZED {
         response
             .headers_mut()
-            .insert(header::WWW_AUTHENTICATE, HeaderValue::from_static(CHALLENGE));
+            .insert(
+                header::WWW_AUTHENTICATE,
+                HeaderValue::from_static(CHALLENGE),
+            );
     }
     api_version(response)
 }
 
 pub(super) fn method_not_allowed() -> Response {
-    error(ErrorCode::Unsupported, "unsupported method for this endpoint")
+    error(
+        ErrorCode::Unsupported,
+        "unsupported method for this endpoint",
+    )
 }
 
 pub(super) fn unknown_repository(name: &str) -> Refusal {
-    Refusal::new(ErrorCode::NameUnknown, format!("no repository named {name:?} is served here"))
+    Refusal::new(
+        ErrorCode::NameUnknown,
+        format!("no repository named {name:?} is served here"),
+    )
 }
 
 pub(super) fn api_version(mut response: Response) -> Response {
-    response.headers_mut().insert(API_VERSION_HEADER, HeaderValue::from_static("registry/2.0"));
+    response
+        .headers_mut()
+        .insert(API_VERSION_HEADER, HeaderValue::from_static("registry/2.0"));
     response
 }
 
@@ -159,10 +180,17 @@ pub(super) fn no_content(status: StatusCode) -> Response {
 pub(super) fn accepted(base: &str, name: &str, id: &str, offset: u64) -> Response {
     // `Range` here is the inclusive span already stored, and an empty upload
     // has none, which the spec spells `0-0`.
-    let range = if offset == 0 { "0-0".to_string() } else { format!("0-{}", offset - 1) };
+    let range = if offset == 0 {
+        "0-0".to_string()
+    } else {
+        format!("0-{}", offset - 1)
+    };
     Response::builder()
         .status(StatusCode::ACCEPTED)
-        .header(header::LOCATION, format!("{base}/{name}/blobs/uploads/{id}"))
+        .header(
+            header::LOCATION,
+            format!("{base}/{name}/blobs/uploads/{id}"),
+        )
         .header(header::RANGE, range)
         .header(DOCKER_UPLOAD_UUID, id)
         .header(header::CONTENT_LENGTH, 0)
@@ -193,7 +221,11 @@ pub(super) fn hosted_manifest_response(
     head: bool,
 ) -> Response {
     let length = bytes.len();
-    let body = if head { Body::empty() } else { Body::from(bytes) };
+    let body = if head {
+        Body::empty()
+    } else {
+        Body::from(bytes)
+    };
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, entry.media_type)

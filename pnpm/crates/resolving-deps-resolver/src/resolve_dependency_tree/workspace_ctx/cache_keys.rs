@@ -103,7 +103,11 @@ impl WantedKey {
             .hash(&mut hasher);
         let scopeless_hash = hasher.clone().finish();
         fields.6.hash(&mut hasher);
-        WantedKey(Arc::new(WantedKeyInner { full_hash: hasher.finish(), scopeless_hash, fields }))
+        WantedKey(Arc::new(WantedKeyInner {
+            full_hash: hasher.finish(),
+            scopeless_hash,
+            fields,
+        }))
     }
 
     pub(in super::super) fn fields(&self) -> &WantedKeyFields {
@@ -192,7 +196,11 @@ impl SharedWorkspaceWantedKey {
         previous_specifier: Option<String>,
         resolve_options: &Arc<WorkspaceResolutionOptionsKey>,
     ) -> Self {
-        Self { wanted, previous_specifier, resolve_options: Arc::clone(resolve_options) }
+        Self {
+            wanted,
+            previous_specifier,
+            resolve_options: Arc::clone(resolve_options),
+        }
     }
 }
 
@@ -238,19 +246,16 @@ pub(in super::super) struct WorkspaceResolutionOptionsKey {
 impl WorkspaceResolutionOptionsKey {
     pub(in super::super) fn new(options: &ResolveOptions) -> Self {
         Self {
-            workspace_packages: options
-                .project
-                .workspace_packages
+            workspace_packages: options.project.workspace_packages
                 .as_ref()
                 .map(WorkspacePackagesKey::new),
             lockfile_dir: PathKey(options.project.lockfile_dir.clone()),
             default_tag: options.version.default_tag.clone(),
             inject_workspace_packages: options.project.inject_workspace_packages,
             calc_specifier: options.specifier.calc_specifier,
-            range_spec_style_discriminant: options
-                .specifier
-                .range_spec_style
-                .map(|style| style as u8),
+            range_spec_style_discriminant: options.specifier.range_spec_style.map(|style| {
+                style as u8
+            }),
             save_workspace_protocol_discriminant: options.specifier.save_workspace_protocol as u8,
         }
     }
@@ -278,7 +283,10 @@ impl WorkspacePackagesKey {
 
 impl std::fmt::Debug for WorkspacePackagesKey {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.debug_tuple("WorkspacePackagesKey").field(&Arc::as_ptr(&self.0)).finish()
+        formatter
+            .debug_tuple("WorkspacePackagesKey")
+            .field(&Arc::as_ptr(&self.0))
+            .finish()
     }
 }
 

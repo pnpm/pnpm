@@ -27,9 +27,7 @@ pub(super) async fn pnpr_request_inputs(
     link: &PnprLink<'_>,
     lockfile_dir: &std::path::Path,
 ) -> miette::Result<PnprRequestInputs> {
-    let overrides = state
-        .config
-        .overrides
+    let overrides = state.config.overrides
         .as_ref()
         .map(serde_json::to_value)
         .transpose()
@@ -38,10 +36,12 @@ pub(super) async fn pnpr_request_inputs(
         state.config.patched_dependency_hashes_in_config_order().map_err(miette::Report::new)?;
     let benchmark_registry_override =
         PnprBenchmarkRegistryOverride::from_env(&state.config.registry);
-    let resolve_registry = benchmark_registry_override.as_ref().map_or_else(
-        || state.config.registry.clone(),
-        PnprBenchmarkRegistryOverride::resolve_registry,
-    );
+    let resolve_registry = benchmark_registry_override
+        .as_ref()
+        .map_or_else(
+            || state.config.registry.clone(),
+            PnprBenchmarkRegistryOverride::resolve_registry,
+        );
 
     let pnpmfile_hook = load_pnpr_pnpmfile(state, lockfile_dir)?;
     let prefetch_allowed = prefetch_allowed(pnpmfile_hook.as_ref()).await?;
@@ -110,8 +110,7 @@ pub(super) fn resolve_projects_options(
         verification: pnpm_pnpr_client::VerificationPolicy {
             minimum_release_age: state.config.minimum_release_age,
             minimum_release_age_exclude: state.config.minimum_release_age_exclude.clone(),
-            minimum_release_age_ignore_missing_time: state
-                .config
+            minimum_release_age_ignore_missing_time: state.config
                 .minimum_release_age_ignore_missing_time,
             trust_policy: state.config.trust_policy,
             trust_policy_exclude: state.config.trust_policy_exclude.clone(),
@@ -144,9 +143,14 @@ pub(super) fn pnpr_catalogs(state: &State) -> miette::Result<Option<Catalogs>> {
     if let Some(catalogs) = state.config.catalogs.clone() {
         return Ok(Some(catalogs));
     }
-    let workspace_root = state.config.workspace_dir.as_deref().unwrap_or_else(|| {
-        state.manifest.path().parent().expect("manifest path always has a parent dir")
-    });
+    let workspace_root = state.config.workspace_dir
+        .as_deref()
+        .unwrap_or_else(|| {
+            state.manifest
+                .path()
+                .parent()
+                .expect("manifest path always has a parent dir")
+        });
     let workspace_manifest =
         pnpm_workspace::read_workspace_manifest(workspace_root).into_diagnostic()?;
     let catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
@@ -220,12 +224,18 @@ impl PnprBenchmarkRegistryOverride {
             .ok()
             .filter(|registry| !registry.is_empty());
         let tarball_rewrite = BenchmarkRegistryRewrite::new(
-            [Some(resolve_registry.as_str()), tarball_rewrite_from.as_deref()]
-                .into_iter()
-                .flatten(),
+            [
+                Some(resolve_registry.as_str()),
+                tarball_rewrite_from.as_deref(),
+            ]
+            .into_iter()
+            .flatten(),
             client_registry,
         );
-        Some(Self { resolve_registry, tarball_rewrite })
+        Some(Self {
+            resolve_registry,
+            tarball_rewrite,
+        })
     }
 
     pub(super) fn resolve_registry(&self) -> String {
@@ -233,12 +243,18 @@ impl PnprBenchmarkRegistryOverride {
     }
 
     pub(super) fn client_tarball_url(&self, url: &str) -> String {
-        self.tarball_rewrite.as_ref().map_or_else(|| url.to_string(), |rewrite| rewrite.url(url))
+        self.tarball_rewrite
+            .as_ref()
+            .map_or_else(|| url.to_string(), |rewrite| rewrite.url(url))
     }
 
     pub(super) fn rewrite_lockfile(&self, lockfile: &mut Lockfile) {
-        let Some(rewrite) = self.tarball_rewrite.as_ref() else { return };
-        let Some(packages) = lockfile.packages.as_mut() else { return };
+        let Some(rewrite) = self.tarball_rewrite.as_ref() else {
+            return;
+        };
+        let Some(packages) = lockfile.packages.as_mut() else {
+            return;
+        };
         for metadata in packages.values_mut() {
             rewrite_resolution_registry(&mut metadata.resolution, rewrite);
         }
@@ -264,19 +280,29 @@ impl BenchmarkRegistryRewrite {
                 from_registries.push(registry);
             }
         }
-        (!from_registries.is_empty()).then_some(Self { from: from_registries, to })
+        (!from_registries.is_empty()).then_some(Self {
+            from: from_registries,
+            to,
+        })
     }
 
     pub(in super::super) fn url(&self, url: &str) -> String {
         self.from
             .iter()
             .find_map(|from| url.strip_prefix(from))
-            .map_or_else(|| url.to_string(), |suffix| format!("{}{}", self.to, suffix))
+            .map_or_else(
+                || url.to_string(),
+                |suffix| format!("{}{}", self.to, suffix),
+            )
     }
 }
 
 fn normalize_registry(registry: &str) -> String {
-    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
+    if registry.ends_with('/') {
+        registry.to_string()
+    } else {
+        format!("{registry}/")
+    }
 }
 
 pub(super) fn rewrite_resolution_registry(

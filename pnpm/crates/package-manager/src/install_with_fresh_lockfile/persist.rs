@@ -33,10 +33,12 @@ pub(super) fn fix_lockfile_copy(
     if !matches!(update_seed_policy, UpdateSeedPolicy::FixLockfile) {
         return None;
     }
-    wanted_lockfile.cloned().map(|mut lockfile| {
-        lockfile.prepare_for_fix();
-        lockfile
-    })
+    wanted_lockfile
+        .cloned()
+        .map(|mut lockfile| {
+            lockfile.prepare_for_fix();
+            lockfile
+        })
 }
 /// The built wanted lockfile whenever lockfiles are enabled, whether or
 /// not this run wrote it, and whether a verification may be recorded
@@ -52,10 +54,16 @@ pub(super) async fn persist_fresh_lockfile(
     config: &Config,
     lockfile_dir: &Path,
     save_lockfile: bool,
-    after_all_resolved: (Option<&Arc<dyn pnpm_hooks::PnpmfileHooks>>, Option<pnpm_hooks::LogFn>),
+    after_all_resolved: (
+        Option<&Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+        Option<pnpm_hooks::LogFn>,
+    ),
 ) -> Result<PersistedLockfile, InstallWithFreshLockfileError> {
     if !config.lockfile {
-        return Ok(PersistedLockfile { lockfile: None, can_record_lockfile_verification: false });
+        return Ok(PersistedLockfile {
+            lockfile: None,
+            can_record_lockfile_verification: false,
+        });
     }
     if !save_lockfile {
         // Nothing was persisted, so there is no `pnpm-lock.yaml` whose
@@ -69,7 +77,10 @@ pub(super) async fn persist_fresh_lockfile(
     let target = lockfile_dir.join(config.wanted_lockfile_name());
     let can_record_lockfile_verification =
         save_wanted_lockfile(&built_lockfile, &target, hook, log).await?;
-    Ok(PersistedLockfile { lockfile: Some(built_lockfile), can_record_lockfile_verification })
+    Ok(PersistedLockfile {
+        lockfile: Some(built_lockfile),
+        can_record_lockfile_verification,
+    })
 }
 /// Importers whose linked workspace dependency declares
 /// `peerDependencies`.
@@ -93,16 +104,6 @@ pub(super) fn importers_consuming_linked_peers(
     importer_manifests: &BTreeMap<String, &PackageManifest>,
     lockfile_dir: &Path,
 ) -> HashSet<String> {
-    let declares_peers = |manifest: &PackageManifest| {
-        manifest
-            .value()
-            .get("peerDependencies")
-            .and_then(serde_json::Value::as_object)
-            .is_some_and(|peers| !peers.is_empty())
-    };
-    fn project_name(manifest: &PackageManifest) -> Option<&str> {
-        manifest.value().get("name")?.as_str()
-    }
     let scan = LinkedPeerScan {
         importer_manifests,
         lockfile_dir,
@@ -125,10 +126,16 @@ pub(super) fn importers_consuming_linked_peers(
     let mut consumers = HashSet::new();
     for (importer_id, manifest) in importer_manifests {
         let importer_dir = lockfile_dir.join(importer_id);
-        let groups = [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
-        let consumes = manifest.dependencies(groups).any(|(entry_key, bare_specifier)| {
-            linked_target_may_declare_peers(&scan, &importer_dir, entry_key, bare_specifier)
-        });
+        let groups = [
+            DependencyGroup::Prod,
+            DependencyGroup::Dev,
+            DependencyGroup::Optional,
+        ];
+        let consumes = manifest
+            .dependencies(groups)
+            .any(|(entry_key, bare_specifier)| {
+                linked_target_may_declare_peers(&scan, &importer_dir, entry_key, bare_specifier)
+            });
         if consumes {
             consumers.insert(importer_id.clone());
         }
@@ -170,11 +177,14 @@ pub(super) fn linked_target_may_declare_peers(
     // when that names a tarball, and only its directory form
     // becomes the `link:` entry the walk inspects. A `link:`
     // is a directory whatever it is called.
-    let Some(relative) = bare_specifier.strip_prefix("link:").or_else(|| {
-        bare_specifier
-            .strip_prefix("file:")
-            .filter(|_| !pnpm_resolving_local_resolver::is_tarball_filename(bare_specifier))
-    }) else {
+    let Some(relative) = bare_specifier
+        .strip_prefix("link:")
+        .or_else(|| {
+            bare_specifier
+                .strip_prefix("file:")
+                .filter(|_| !pnpm_resolving_local_resolver::is_tarball_filename(bare_specifier))
+        })
+    else {
         return false;
     };
     let linked_id =
@@ -270,7 +280,10 @@ pub(super) async fn save_wanted_lockfile(
 
     let value = serde_json::to_value(built_lockfile)
         .map_err(InstallWithFreshLockfileError::AfterAllResolvedSerialize)?;
-    let ctx = pnpm_hooks::HookContext { log: log.unwrap_or_else(|| Arc::new(|_| {})), dir: None };
+    let ctx = pnpm_hooks::HookContext {
+        log: log.unwrap_or_else(|| Arc::new(|_| {})),
+        dir: None,
+    };
     let result = hook
         .after_all_resolved(value, ctx)
         .await
@@ -285,4 +298,18 @@ pub(super) async fn save_wanted_lockfile(
     }
     .map_err(InstallWithFreshLockfileError::SaveWantedLockfile)?;
     Ok(result.is_null())
+}
+
+fn declares_peers(manifest: &PackageManifest) -> bool {
+    manifest
+        .value()
+        .get("peerDependencies")
+        .and_then(serde_json::Value::as_object)
+        .is_some_and(|peers| !peers.is_empty())
+}
+fn project_name(manifest: &PackageManifest) -> Option<&str> {
+    manifest
+        .value()
+        .get("name")?
+        .as_str()
 }

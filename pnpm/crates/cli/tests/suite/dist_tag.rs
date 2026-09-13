@@ -67,7 +67,10 @@ fn lists_dist_tags_sorted() {
         "dist-tag ls must succeed (stderr: {})",
         String::from_utf8_lossy(&output.stderr),
     );
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "beta: 1.0.0\nlatest: 2.0.0\n");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "beta: 1.0.0\nlatest: 2.0.0\n",
+    );
     drop((root, server));
 }
 
@@ -92,7 +95,10 @@ fn ls_sanitizes_registry_control_chars() {
         String::from_utf8_lossy(&output.stderr),
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(!stdout.contains('\u{1b}'), "stdout must not include raw escape bytes: {stdout:?}");
+    assert!(
+        !stdout.contains('\u{1b}'),
+        "stdout must not include raw escape bytes: {stdout:?}",
+    );
     assert_eq!(stdout, "[31mlatest: 1.0.0[0m\n");
     drop((root, server));
 }
@@ -102,8 +108,11 @@ fn lists_no_output_when_no_dist_tags_exist() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
-    let mock =
-        server.mock("GET", "/-/package/pkg/dist-tags").with_status(200).with_body("{}").create();
+    let mock = server
+        .mock("GET", "/-/package/pkg/dist-tags")
+        .with_status(200)
+        .with_body("{}")
+        .create();
     let auth_file = configure(root.path(), &workspace, &registry, "");
 
     let output = run_dist_tag(&workspace, &auth_file, &["ls", "pkg"]);
@@ -280,7 +289,11 @@ fn registry_option_overrides_config_registry() {
         .create();
     let auth_file = configure(root.path(), &workspace, "http://127.0.0.1:1/", "");
 
-    let output = run_dist_tag(&workspace, &auth_file, &["ls", "pkg", "--registry", &registry]);
+    let output = run_dist_tag(
+        &workspace,
+        &auth_file,
+        &["ls", "pkg", "--registry", &registry],
+    );
 
     mock.assert();
     assert!(
@@ -339,9 +352,18 @@ fn ls_redacts_registry_credentials_on_network_error() {
 
     assert!(!output.status.success(), "transport failure must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_REGISTRY_ERROR"), "stderr:\n{stderr}");
-    assert!(!stderr.contains("user:pass"), "credentials leaked into stderr:\n{stderr}");
-    assert!(!stderr.contains("pass@"), "credentials leaked into stderr:\n{stderr}");
+    assert!(
+        stderr.contains("ERR_PNPM_REGISTRY_ERROR"),
+        "stderr:\n{stderr}",
+    );
+    assert!(
+        !stderr.contains("user:pass"),
+        "credentials leaked into stderr:\n{stderr}",
+    );
+    assert!(
+        !stderr.contains("pass@"),
+        "credentials leaked into stderr:\n{stderr}",
+    );
     drop(root);
 }
 
@@ -353,7 +375,10 @@ fn add_sets_a_dist_tag_with_otp() {
     let mock = server
         .mock("PUT", "/-/package/pkg/dist-tags/beta")
         .match_header("authorization", "Bearer token")
-        .match_header("content-type", Matcher::Regex(r"^application/json\b".to_string()))
+        .match_header(
+            "content-type",
+            Matcher::Regex(r"^application/json\b".to_string()),
+        )
         .match_header("npm-auth-type", "legacy")
         .match_header("npm-otp", "123456")
         .match_body(Matcher::Exact(r#""1.0.0""#.to_string()))
@@ -362,8 +387,11 @@ fn add_sets_a_dist_tag_with_otp() {
     let auth_file_contents = format!("{}:_authToken=token\n", nerf(&registry));
     let auth_file = configure(root.path(), &workspace, &registry, &auth_file_contents);
 
-    let output =
-        run_dist_tag(&workspace, &auth_file, &["add", "pkg@1.0.0", "beta", "--otp", "123456"]);
+    let output = run_dist_tag(
+        &workspace,
+        &auth_file,
+        &["add", "pkg@1.0.0", "beta", "--otp", "123456"],
+    );
 
     mock.assert();
     assert!(
@@ -371,7 +399,10 @@ fn add_sets_a_dist_tag_with_otp() {
         "dist-tag add must succeed (stderr: {})",
         String::from_utf8_lossy(&output.stderr),
     );
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "+beta: pkg@1.0.0\n");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "+beta: pkg@1.0.0\n",
+    );
     drop((root, server));
 }
 
@@ -402,7 +433,10 @@ fn add_uses_scoped_auth_for_scoped_package() {
         "dist-tag add must use scoped auth for scoped packages (stderr: {})",
         String::from_utf8_lossy(&output.stderr),
     );
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "+beta: @scope/pkg@1.0.0\n");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "+beta: @scope/pkg@1.0.0\n",
+    );
     drop((root, server));
 }
 
@@ -426,7 +460,10 @@ fn add_normalizes_v_prefixed_versions() {
         "dist-tag add must normalize v-prefixed versions (stderr: {})",
         String::from_utf8_lossy(&output.stderr),
     );
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "+beta: pkg@1.0.0\n");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "+beta: pkg@1.0.0\n",
+    );
     drop((root, server));
 }
 
@@ -452,7 +489,10 @@ fn add_defaults_to_latest_tag() {
         "dist-tag add latest must succeed (stderr: {})",
         String::from_utf8_lossy(&output.stderr),
     );
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "+latest: pkg@1.0.0\n");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "+latest: pkg@1.0.0\n",
+    );
     drop((root, server));
 }
 
@@ -468,7 +508,11 @@ fn add_encodes_dist_tag_path_segment() {
         .create();
     let auth_file = configure(root.path(), &workspace, &registry, "");
 
-    let output = run_dist_tag(&workspace, &auth_file, &["add", "pkg@1.0.0", "release/candidate"]);
+    let output = run_dist_tag(
+        &workspace,
+        &auth_file,
+        &["add", "pkg@1.0.0", "release/candidate"],
+    );
 
     mock.assert();
     assert!(
@@ -476,7 +520,10 @@ fn add_encodes_dist_tag_path_segment() {
         "dist-tag add must encode reserved tag characters (stderr: {})",
         String::from_utf8_lossy(&output.stderr),
     );
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "+release/candidate: pkg@1.0.0\n");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "+release/candidate: pkg@1.0.0\n",
+    );
     drop((root, server));
 }
 
@@ -498,7 +545,10 @@ fn add_reports_web_otp_challenge() {
     let output = run_dist_tag(&workspace, &auth_file, &["add", "pkg@1.0.0", "beta"]);
 
     mock.assert();
-    assert!(!output.status.success(), "web OTP challenge must fail with guidance");
+    assert!(
+        !output.status.success(),
+        "web OTP challenge must fail with guidance",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("ERR_PNPM_DIST_TAG_WEB_OTP_REQUIRED")
@@ -525,9 +575,15 @@ fn add_rejects_unsafe_web_otp_challenge_urls() {
     let output = run_dist_tag(&workspace, &auth_file, &["add", "pkg@1.0.0", "beta"]);
 
     mock.assert();
-    assert!(!output.status.success(), "unsafe web OTP challenge must fail");
+    assert!(
+        !output.status.success(),
+        "unsafe web OTP challenge must fail",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_UNAUTHORIZED"), "stderr:\n{stderr}");
+    assert!(
+        stderr.contains("ERR_PNPM_UNAUTHORIZED"),
+        "stderr:\n{stderr}",
+    );
     assert!(
         !stderr.contains("ERR_PNPM_DIST_TAG_WEB_OTP_REQUIRED"),
         "unsafe challenge must not be printed as web OTP guidance:\n{stderr}",
@@ -554,9 +610,15 @@ fn add_rejects_web_otp_challenge_urls_with_control_chars() {
     let output = run_dist_tag(&workspace, &auth_file, &["add", "pkg@1.0.0", "beta"]);
 
     mock.assert();
-    assert!(!output.status.success(), "unsafe web OTP challenge must fail");
+    assert!(
+        !output.status.success(),
+        "unsafe web OTP challenge must fail",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_UNAUTHORIZED"), "stderr:\n{stderr}");
+    assert!(
+        stderr.contains("ERR_PNPM_UNAUTHORIZED"),
+        "stderr:\n{stderr}",
+    );
     assert!(
         !stderr.contains("ERR_PNPM_DIST_TAG_WEB_OTP_REQUIRED"),
         "unsafe challenge must not be printed as web OTP guidance:\n{stderr}",
@@ -590,7 +652,10 @@ fn rm_removes_an_existing_dist_tag() {
         "dist-tag rm must succeed (stderr: {})",
         String::from_utf8_lossy(&output.stderr),
     );
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "-beta: pkg@1.0.0\n");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "-beta: pkg@1.0.0\n",
+    );
     drop((root, server));
 }
 
@@ -619,7 +684,10 @@ fn rm_encodes_dist_tag_path_segment() {
         "dist-tag rm must encode reserved tag characters (stderr: {})",
         String::from_utf8_lossy(&output.stderr),
     );
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "-release/candidate: pkg@1.0.0\n");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "-release/candidate: pkg@1.0.0\n",
+    );
     drop((root, server));
 }
 
@@ -674,7 +742,10 @@ fn ls_fails_when_package_is_missing() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
-    let mock = server.mock("GET", "/-/package/missing/dist-tags").with_status(404).create();
+    let mock = server
+        .mock("GET", "/-/package/missing/dist-tags")
+        .with_status(404)
+        .create();
     let auth_file = configure(root.path(), &workspace, &registry, "");
 
     let output = run_dist_tag(&workspace, &auth_file, &["ls", "missing"]);
@@ -696,14 +767,20 @@ fn ls_rejects_oversized_dist_tags_response() {
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
     let body = format!(r#"{{"latest":"{}"}}"#, "1".repeat(1024 * 1024));
-    let mock =
-        server.mock("GET", "/-/package/pkg/dist-tags").with_status(200).with_body(body).create();
+    let mock = server
+        .mock("GET", "/-/package/pkg/dist-tags")
+        .with_status(200)
+        .with_body(body)
+        .create();
     let auth_file = configure(root.path(), &workspace, &registry, "");
 
     let output = run_dist_tag(&workspace, &auth_file, &["ls", "pkg"]);
 
     mock.assert();
-    assert!(!output.status.success(), "oversized dist-tags responses must fail");
+    assert!(
+        !output.status.success(),
+        "oversized dist-tags responses must fail",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("ERR_PNPM_REGISTRY_RESPONSE_TOO_LARGE"),

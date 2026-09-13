@@ -13,7 +13,10 @@ use ssri::Integrity;
 /// ```
 #[test]
 fn hash_is_sha256_base64_with_prefix() {
-    assert_eq!(create_hash("pacquet"), "sha256-Z4Te8BkaDdaBA6BatwCzHAp8RNp/i/+GfuqATZ6KrPA=");
+    assert_eq!(
+        create_hash("pacquet"),
+        "sha256-Z4Te8BkaDdaBA6BatwCzHAp8RNp/i/+GfuqATZ6KrPA=",
+    );
     assert_ne!(create_hash("pacquet"), create_hash("pacquet "));
 }
 
@@ -24,18 +27,30 @@ fn hash_from_file_normalizes_crlf() {
     let lf = dir.path().join("lf.txt");
     std::fs::write(&crlf, "a\r\nb\r\n").unwrap();
     std::fs::write(&lf, "a\nb\n").unwrap();
-    assert_eq!(create_hash_from_file(&crlf).unwrap(), create_hash_from_file(&lf).unwrap());
+    assert_eq!(
+        create_hash_from_file(&crlf).unwrap(),
+        create_hash_from_file(&lf).unwrap(),
+    );
     assert_eq!(create_hash_from_file(&lf).unwrap(), create_hash("a\nb\n"));
 }
 
 #[test]
 fn hex_hash_accepts_arbitrary_bytes() {
-    assert_eq!(create_hex_hash_bytes(b"pacquet"), create_hex_hash("pacquet"));
-    assert_ne!(create_hex_hash_bytes(&[0xff]), create_hex_hash_bytes(&[0xfe]));
+    assert_eq!(
+        create_hex_hash_bytes(b"pacquet"),
+        create_hex_hash("pacquet"),
+    );
+    assert_ne!(
+        create_hex_hash_bytes(&[0xff]),
+        create_hex_hash_bytes(&[0xfe]),
+    );
 
     let file = tempfile::NamedTempFile::new().unwrap();
     std::fs::write(file.path(), b"pacquet").unwrap();
-    assert_eq!(create_hex_hash_from_file(file.path()).unwrap(), create_hex_hash("pacquet"));
+    assert_eq!(
+        create_hex_hash_from_file(file.path()).unwrap(),
+        create_hex_hash("pacquet"),
+    );
 }
 
 /// Pinned vector against the shell oracle:
@@ -67,7 +82,11 @@ fn shorten_above_threshold_hashes_to_max_length() {
     let (prefix, hash) = shortened.rsplit_once('_').expect("hash suffix");
     assert_eq!(prefix.len(), 120 - 33);
     assert_eq!(hash.len(), 32);
-    assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
+    assert!(
+        hash
+            .chars()
+            .all(|c| c.is_ascii_hexdigit()),
+    );
 }
 
 #[test]
@@ -78,7 +97,10 @@ fn shorten_triggered_by_uppercase_unless_file_protocol() {
     assert!(shortened.len() <= 120);
 
     let file_proto = "file+path+with+Caps".to_string();
-    assert_eq!(shorten_virtual_store_name(file_proto.clone(), 120), file_proto);
+    assert_eq!(
+        shorten_virtual_store_name(file_proto.clone(), 120),
+        file_proto,
+    );
 }
 
 #[test]
@@ -98,7 +120,11 @@ fn integrity_address_requires_one_complete_canonical_sha512_hash() {
         &format!("sha512-{digest} sha512-{digest}"),
     ] {
         let integrity: Integrity = malformed.parse().unwrap();
-        assert_eq!(integrity_addressed_tarball_path(&integrity), None, "{malformed}");
+        assert_eq!(
+            integrity_addressed_tarball_path(&integrity),
+            None,
+            "{malformed}",
+        );
     }
 }
 
@@ -118,6 +144,10 @@ fn integrity_address_digest_round_trips_to_canonical_sha512() {
         format!("{}+", "A".repeat(85)),
         format!("{}!", "A".repeat(85)),
     ] {
-        assert_eq!(integrity_addressed_tarball_integrity(&malformed), None, "{malformed}");
+        assert_eq!(
+            integrity_addressed_tarball_integrity(&malformed),
+            None,
+            "{malformed}",
+        );
     }
 }

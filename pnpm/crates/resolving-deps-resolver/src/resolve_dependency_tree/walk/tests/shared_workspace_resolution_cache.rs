@@ -52,11 +52,14 @@ fn opts(project_dir: &str) -> ResolveOptions {
 /// A directory resolution shaped like the npm resolver's workspace output:
 /// the id repeats the recorded directory behind its protocol prefix.
 fn directory_result(id: &str, resolved_via: &str) -> ResolveResult {
-    let directory =
-        id.split_once(':').map_or_else(|| id.to_string(), |(_, directory)| directory.to_string());
+    let directory = id
+        .split_once(':')
+        .map_or_else(|| id.to_string(), |(_, directory)| directory.to_string());
     ResolveResult {
         id: PkgResolutionId::from(id.to_string()),
-        resolution: LockfileResolution::Directory(DirectoryResolution { directory }),
+        resolution: LockfileResolution::Directory(DirectoryResolution {
+            directory,
+        }),
         resolved_via: resolved_via.to_string(),
         normalized_bare_specifier: None,
         alias: Some("shared".to_string()),
@@ -113,7 +116,12 @@ fn shares_only_named_workspace_selectors_and_ignores_project_dir() {
         .expect("consumer-independent key"),
     );
 
-    for specifier in ["^1.0.0", "link:../shared", "file:../shared", "workspace:./shared"] {
+    for specifier in [
+        "^1.0.0",
+        "link:../shared",
+        "file:../shared",
+        "workspace:./shared",
+    ] {
         let wanted = wanted(specifier);
         assert_eq!(
             super::super::workspace_resolution::shared_workspace_key(
@@ -162,8 +170,14 @@ fn link_resolution_round_trips_through_the_lockfile_root() {
     .expect("a workspace link canonicalises against the lockfile root");
     assert_eq!(canonical.id.as_str(), "link:packages/shared");
 
-    assert_eq!(rendered_link(&canonical, "/repo/packages/a"), resolved_for_a.id.as_str());
-    assert_eq!(rendered_link(&canonical, "/repo/apps/nested/b"), "link:../../../packages/shared");
+    assert_eq!(
+        rendered_link(&canonical, "/repo/packages/a"),
+        resolved_for_a.id.as_str(),
+    );
+    assert_eq!(
+        rendered_link(&canonical, "/repo/apps/nested/b"),
+        "link:../../../packages/shared",
+    );
     assert_eq!(rendered_link(&canonical, "/repo"), "link:packages/shared");
     // A package that depends on itself keeps the bare `link:` the npm
     // resolver renders for an empty relative path.
@@ -180,7 +194,10 @@ fn injected_resolution_is_already_consumer_independent() {
     )
     .expect("an injected workspace package is shareable as resolved");
     assert_eq!(canonical, injected);
-    assert_eq!(rendered_link(&canonical, "/repo/apps/nested/b"), injected.id.as_str());
+    assert_eq!(
+        rendered_link(&canonical, "/repo/apps/nested/b"),
+        injected.id.as_str(),
+    );
 }
 
 #[test]
@@ -200,5 +217,8 @@ fn rejects_resolutions_that_are_not_shareable_workspace_links() {
     // through the lockfile root would not reproduce it.
     let mut mismatched = directory_result("link:../shared", "workspace");
     mismatched.id = PkgResolutionId::from("link:../other".to_string());
-    assert_eq!(canonical_workspace_resolution(&mismatched, project_dir, lockfile_dir), None);
+    assert_eq!(
+        canonical_workspace_resolution(&mismatched, project_dir, lockfile_dir),
+        None,
+    );
 }

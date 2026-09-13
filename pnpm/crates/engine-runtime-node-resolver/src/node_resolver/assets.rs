@@ -38,11 +38,18 @@ pub(super) async fn read_node_assets_from_mirror(
     .await?;
     let mut assets = Vec::new();
     for item in items {
-        let Some(parsed) = parse_node_file_name(&item.file_name, version) else { continue };
+        let Some(parsed) = parse_node_file_name(&item.file_name, version) else {
+            continue;
+        };
         if musl_only && !parsed.is_musl {
             continue;
         }
-        assets.push(node_platform_asset(&item, parsed, version, node_mirror_base_url)?);
+        assets.push(node_platform_asset(
+            &item,
+            parsed,
+            version,
+            node_mirror_base_url,
+        )?);
     }
     Ok(assets)
 }
@@ -63,12 +70,16 @@ struct ShasumsRequest<'a> {
 async fn fetch_node_shasums(
     request: ShasumsRequest<'_>,
 ) -> Result<Vec<ShasumsFileItem>, NodeResolverError> {
-    let ShasumsRequest { http_client, auth_headers, integrities_url, cache_dir, verify_signature } =
-        request;
+    let ShasumsRequest {
+        http_client,
+        auth_headers,
+        integrities_url,
+        cache_dir,
+        verify_signature,
+    } = request;
     match (verify_signature, auth_headers.is_empty()) {
         (true, true) => {
-            fetch_verified_node_shasums_file_cached(http_client, integrities_url, cache_dir)
-                .await
+            fetch_verified_node_shasums_file_cached(http_client, integrities_url, cache_dir).await
                 .map_err(NodeResolverError::FetchVerifiedNodeShasums)
         }
         (true, false) => fetch_verified_node_shasums_file_cached_with_auth_headers(
@@ -79,8 +90,7 @@ async fn fetch_node_shasums(
         )
         .await
         .map_err(NodeResolverError::FetchVerifiedNodeShasums),
-        (false, true) => fetch_shasums_file_cached(http_client, integrities_url, cache_dir)
-            .await
+        (false, true) => fetch_shasums_file_cached(http_client, integrities_url, cache_dir).await
             .map_err(NodeResolverError::FetchShasumsFile),
         (false, false) => fetch_shasums_file_cached_with_auth_headers(
             http_client,
@@ -100,28 +110,33 @@ fn node_platform_asset(
     version: &str,
     node_mirror_base_url: &str,
 ) -> Result<PlatformAssetResolution, NodeResolverError> {
-    let platform = if parsed.platform == "win" { "win32".to_string() } else { parsed.platform };
-    let libc = parsed.is_musl.then(|| "musl".to_string());
+    let target = node_platform_target(parsed);
+    let PlatformAssetTarget { os: platform, cpu: arch, libc } = &target;
     let address = get_node_artifact_address(GetNodeArtifactAddressOptions {
         version,
         base_url: node_mirror_base_url,
-        platform: &platform,
-        arch: &parsed.arch,
+        platform,
+        arch,
         libc: libc.as_deref(),
     });
-    let url = format!("{}/{}{}", address.dirname, address.basename, address.extname);
-    let archive =
-        if address.extname == ".zip" { BinaryArchive::Zip } else { BinaryArchive::Tarball };
-    let integrity: Integrity =
-        item.integrity.parse().map_err(|error| NodeResolverError::ParseIntegrity {
-            integrity: item.integrity.clone(),
-            file_name: item.file_name.clone(),
-            error: Arc::new(error),
-        })?;
+    let url = format!(
+        "{}/{}{}",
+        address.dirname, address.basename, address.extname,
+    );
+    let archive = if address.extname == ".zip" {
+        BinaryArchive::Zip
+    } else {
+        BinaryArchive::Tarball
+    };
+    let integrity = parse_asset_integrity(item)?;
     let prefix = matches!(archive, BinaryArchive::Zip).then(|| address.basename.clone());
-    let binary =
-        BinaryResolution { url, integrity, bin: bin_spec_for_platform(&platform), archive, prefix };
-    let target = PlatformAssetTarget { os: platform, cpu: parsed.arch, libc };
+    let binary = BinaryResolution {
+        url,
+        integrity,
+        bin: bin_spec_for_platform(platform),
+        archive,
+        prefix,
+    };
     Ok(PlatformAssetResolution {
         resolution: LockfileResolution::Binary(binary),
         targets: vec![target],
@@ -157,11 +172,19 @@ pub(super) fn parse_node_file_name(file_name: &str, version: &str) -> Option<Nod
     if arch_part.is_empty() || arch_part.contains('.') || arch_part.contains('-') {
         return None;
     }
-    Some(NodeFileName { platform: platform.to_string(), arch: arch_part.to_string(), is_musl })
+    Some(NodeFileName {
+        platform: platform.to_string(),
+        arch: arch_part.to_string(),
+        is_musl,
+    })
 }
 
 pub(super) fn bin_spec_for_platform(platform: &str) -> BinarySpec {
-    let path = if platform == "win32" { "node.exe" } else { "bin/node" };
+    let path = if platform == "win32" {
+        "node.exe"
+    } else {
+        "bin/node"
+    };
     BinarySpec::Map(BTreeMap::from([("node".to_string(), path.to_string())]))
 }
 
@@ -176,5 +199,27 @@ pub(super) fn current_platform() -> &'static str {
     match std::env::consts::OS {
         "windows" => "win32",
         other => other,
+    }
+}
+
+fn parse_asset_integrity(item: &ShasumsFileItem) -> Result<Integrity, NodeResolverError> {
+    item.integrity
+        .parse()
+        .map_err(|error| NodeResolverError::ParseIntegrity {
+            integrity: item.integrity.clone(),
+            file_name: item.file_name.clone(),
+            error: Arc::new(error),
+        })
+}
+
+fn node_platform_target(parsed: NodeFileName) -> PlatformAssetTarget {
+    PlatformAssetTarget {
+        os: if parsed.platform == "win" {
+            "win32".to_string()
+        } else {
+            parsed.platform
+        },
+        cpu: parsed.arch,
+        libc: parsed.is_musl.then(|| "musl".to_string()),
     }
 }

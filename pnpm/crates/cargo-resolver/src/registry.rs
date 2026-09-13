@@ -31,15 +31,30 @@ pub fn sparse_source(index_url: &str) -> String {
 /// by its sparse index.
 #[must_use]
 pub fn registry_source(index_url: &str) -> String {
-    if is_crates_io(index_url) { CRATES_IO_SOURCE.to_string() } else { sparse_source(index_url) }
+    if is_crates_io(index_url) {
+        CRATES_IO_SOURCE.to_string()
+    } else {
+        sparse_source(index_url)
+    }
 }
 
 #[must_use]
 pub fn download_url(template: &str, name: &str, version: &str, checksum: &str) -> String {
-    const MARKERS: [&str; 5] =
-        ["{crate}", "{version}", "{prefix}", "{lowerprefix}", "{sha256-checksum}"];
-    if !MARKERS.iter().any(|marker| template.contains(marker)) {
-        return format!("{}/{name}/{version}/download", template.trim_end_matches('/'));
+    const MARKERS: [&str; 5] = [
+        "{crate}",
+        "{version}",
+        "{prefix}",
+        "{lowerprefix}",
+        "{sha256-checksum}",
+    ];
+    if !MARKERS
+        .iter()
+        .any(|marker| template.contains(marker))
+    {
+        return format!(
+            "{}/{name}/{version}/download",
+            template.trim_end_matches('/'),
+        );
     }
     template
         .replace("{crate}", name)
@@ -60,7 +75,10 @@ impl Registry {
         for (name, contents) in index_files {
             packages.insert(normalize_name(name), parse_index_file(name, contents)?);
         }
-        Ok(Self { packages, source: source.to_string() })
+        Ok(Self {
+            packages,
+            source: source.to_string(),
+        })
     }
 
     /// Reject a dependency that names a registry other than the one being
@@ -68,7 +86,9 @@ impl Registry {
     /// a registry that mirrors crates.io keeps the upstream spelling in the
     /// entries it copies.
     pub(crate) fn validate_dependency_source(&self, registry: Option<&str>) -> Result<()> {
-        let Some(registry) = registry else { return Ok(()) };
+        let Some(registry) = registry else {
+            return Ok(());
+        };
         if is_crates_io_source(registry) || same_registry(registry, &self.source) {
             return Ok(());
         }
@@ -79,13 +99,17 @@ impl Registry {
     }
 
     pub(crate) fn versions(&self, name: &str) -> Option<&[RegistryVersion]> {
-        self.packages.get(&normalize_name(name)).map(Vec::as_slice)
+        self.packages
+            .get(&normalize_name(name))
+            .map(Vec::as_slice)
     }
 
     pub(crate) fn package(&self, name: &str) -> Result<&[RegistryVersion]> {
-        self.versions(name).ok_or_else(|| {
-            miette::miette!("sparse index metadata for crate {name} was not fetched")
-        })
+        self
+            .versions(name)
+            .ok_or_else(|| {
+                miette::miette!("sparse index metadata for crate {name} was not fetched")
+            })
     }
 }
 
@@ -122,10 +146,14 @@ fn registry_version_from_index(package: IndexPackage<'_>) -> Result<Option<Regis
     if package.v.is_some_and(|version| version > 3) {
         return Ok(None);
     }
-    let dependencies =
-        package.deps.into_iter().map(registry_dependency_from_index).collect::<Result<Vec<_>>>()?;
+    let dependencies = package.deps
+        .into_iter()
+        .map(registry_dependency_from_index)
+        .collect::<Result<Vec<_>>>()?;
     let mut features: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    for (name, values) in package.features.into_iter().chain(package.features2.unwrap_or_default())
+    for (name, values) in package.features
+        .into_iter()
+        .chain(package.features2.unwrap_or_default())
     {
         features
             .entry(name.into_owned())
@@ -155,7 +183,10 @@ fn registry_dependency_from_index(dependency: IndexDependency<'_>) -> Result<Reg
         registry: dependency.registry.map(std::borrow::Cow::into_owned),
         optional: dependency.optional,
         default_features: dependency.default_features,
-        features: dependency.features.into_iter().map(std::borrow::Cow::into_owned).collect(),
+        features: dependency.features
+            .into_iter()
+            .map(std::borrow::Cow::into_owned)
+            .collect(),
     })
 }
 
@@ -163,11 +194,16 @@ pub(crate) fn matching_versions<'a>(
     versions: &'a [RegistryVersion],
     requirement: &'a VersionReq,
 ) -> impl DoubleEndedIterator<Item = &'a RegistryVersion> {
-    versions.iter().filter(|version| !version.yanked && requirement.matches(&version.version))
+    versions
+        .iter()
+        .filter(|version| !version.yanked && requirement.matches(&version.version))
 }
 
 fn is_crates_io_source(registry: &str) -> bool {
-    matches!(registry, CRATES_IO_SOURCE | CRATES_IO_INDEX | CRATES_IO_SPARSE_SOURCE)
+    matches!(
+        registry,
+        CRATES_IO_SOURCE | CRATES_IO_INDEX | CRATES_IO_SPARSE_SOURCE,
+    )
 }
 
 fn same_registry(left: &str, right: &str) -> bool {
@@ -175,7 +211,8 @@ fn same_registry(left: &str, right: &str) -> bool {
 }
 
 fn strip_source_kind(url: &str) -> &str {
-    url.strip_prefix("sparse+")
+    url
+        .strip_prefix("sparse+")
         .or_else(|| url.strip_prefix("registry+"))
         .unwrap_or(url)
         .trim_end_matches('/')

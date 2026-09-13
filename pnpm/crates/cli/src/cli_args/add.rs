@@ -1,5 +1,5 @@
 pub use arguments::{AddInstallArgs, AddSaveArgs, AddTargetArgs};
-
+pub use errors::{AddError, AllowBuildError};
 pub(crate) use execution::{add_package, add_packages};
 
 mod arguments;
@@ -179,8 +179,9 @@ impl AddDependencyOptions {
             save_peer,
             no_save_peer: _,
         } = self;
-        (save_prod || save_dev || save_optional || save_build || save_peer)
-            .then(|| self.dependency_groups().collect())
+        (save_prod || save_dev || save_optional || save_build || save_peer).then(|| {
+            self.dependency_groups().collect()
+        })
     }
 }
 
@@ -221,7 +222,10 @@ impl AddArgs {
         let patterns = pnpm_workspace::read_workspace_manifest(dir)
             .into_diagnostic()?
             .map(|manifest| pnpm_workspace::workspace_package_patterns(&manifest));
-        if patterns.as_ref().is_some_and(|patterns| patterns.len() > 1) {
+        if patterns
+            .as_ref()
+            .is_some_and(|patterns| patterns.len() > 1)
+        {
             return Err(AddError::AddingToRoot.into());
         }
         Ok(())
@@ -234,8 +238,11 @@ impl AddArgs {
             self.target.no_ignore_workspace_root_check,
             config.ignore_workspace_root_check,
         );
-        config.optional =
-            resolve_bool_override(self.install.optional, self.install.no_optional, config.optional);
+        config.optional = resolve_bool_override(
+            self.install.optional,
+            self.install.no_optional,
+            config.optional,
+        );
         config.force = self.install.force || config.force;
     }
 
@@ -273,7 +280,9 @@ impl AddArgs {
     fn range_spec_style(&self, config: &Config) -> RangeSpecStyle {
         RangeSpecStyle::from_save_options(
             self.save.exact || config.save_exact,
-            self.save.prefix.as_deref().or(config.save_prefix.as_deref()),
+            self.save.prefix
+                .as_deref()
+                .or(config.save_prefix.as_deref()),
         )
     }
 
@@ -286,11 +295,10 @@ impl AddArgs {
     ) -> miette::Result<Option<WorkspacePackages>> {
         workspace_link_root(self.target.workspace, config.workspace_dir.as_deref())?
             .map(|workspace_root| {
-                recursive::discover_workspace_projects(workspace_root, config).map(
-                    |(projects, _)| {
+                recursive::discover_workspace_projects(workspace_root, config)
+                    .map(|(projects, _)| {
                         build_workspace_packages_map(Some(&projects)).unwrap_or_default()
-                    },
-                )
+                    })
             })
             .transpose()
     }
@@ -312,10 +320,14 @@ fn workspace_selectors(
         .map(|selector| {
             let parsed = parse_wanted_dependency(selector);
             let Some(name) = parsed.alias else {
-                return Err(AddError::NoPkgNameInSpec { selector: selector.clone() });
+                return Err(AddError::NoPkgNameInSpec {
+                    selector: selector.clone(),
+                });
             };
             if !workspace_packages.contains_key(&name) {
-                return Err(AddError::WorkspacePackageNotFound { name });
+                return Err(AddError::WorkspacePackageNotFound {
+                    name,
+                });
             }
             Ok(match parsed.bare_specifier {
                 None => format!("{name}@workspace:*"),
@@ -369,70 +381,9 @@ pub(crate) fn apply_allow_build(
     Ok(())
 }
 
-#[derive(Debug, Display, Error, Diagnostic)]
-#[non_exhaustive]
-pub enum AddError {
-    #[display(
-        "Running this command will add the dependency to the workspace root, which might not be what you want - if you really meant it, make it explicit by running this command again with the -w flag (or --workspace-root). If you don't want to see this warning anymore, you may set the ignore-workspace-root-check setting to true."
-    )]
-    #[diagnostic(code(ERR_PNPM_ADDING_TO_ROOT))]
-    AddingToRoot,
-
-    #[display(
-        "Cannot declare {request} as the package manager of a filtered selection of projects"
-    )]
-    #[diagnostic(
-        code(ERR_PNPM_PACKAGE_MANAGER_IN_SELECTION),
-        help(
-            "Which package manager a project uses is declared in that project. Run the command in the project itself, without a filter."
-        )
-    )]
-    PackageManagerInSelection {
-        #[error(not(source))]
-        request: String,
-    },
-
-    /// A `--workspace` selector named a package that no workspace project
-    /// publishes.
-    #[display(r#""{name}" not found in the workspace"#)]
-    #[diagnostic(code(ERR_PNPM_WORKSPACE_PACKAGE_NOT_FOUND))]
-    WorkspacePackageNotFound {
-        #[error(not(source))]
-        name: String,
-    },
-
-    /// A `--workspace` selector carried no package name to look up in the
-    /// workspace, such as a bare path or URL.
-    #[display(r#"Cannot update/install from workspace through "{selector}""#)]
-    #[diagnostic(code(ERR_PNPM_NO_PKG_NAME_IN_SPEC))]
-    NoPkgNameInSpec {
-        #[error(not(source))]
-        selector: String,
-    },
-}
-
-#[derive(Debug, Display, Error, Diagnostic)]
-#[non_exhaustive]
-pub enum AllowBuildError {
-    #[display(
-        "The following dependencies are ignored by the root project, but are allowed to be built by the current command: {dependencies}"
-    )]
-    #[diagnostic(
-        code(ERR_PNPM_OVERRIDING_IGNORED_BUILT_DEPENDENCIES),
-        help(
-            "If you are sure you want to allow those dependencies to run installation scripts, remove them from the allowBuilds list (or change their value to true)."
-        )
-    )]
-    OverridingIgnoredBuiltDependencies { dependencies: String },
-
-    #[display(
-        "The --allow-build flag is missing a package name. Please specify the package name(s) that are allowed to run installation scripts."
-    )]
-    #[diagnostic(code(ERR_PNPM_ALLOW_BUILD_MISSING_PACKAGE))]
-    MissingPackage,
-}
-
 #[cfg(test)]
 mod tests;
 
 mod execution;
+
+mod errors;

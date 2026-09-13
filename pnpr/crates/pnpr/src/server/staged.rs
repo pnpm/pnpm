@@ -18,6 +18,9 @@
 //! shares, so an approval claims the record it is about to replay: a stage is
 //! approved once no matter which replica each request reaches.
 
+mod reading;
+use reading::{serve_staged_list, serve_staged_tarball, serve_staged_view};
+
 mod list_query;
 use list_query::{MAX_PER_PAGE, StagedListQuery, parse_staged_list_query};
 
@@ -242,7 +245,10 @@ async fn serve_staged_publish(
     if let Err(err) = store_staged(state, &stage_id, body, &record).await {
         return err.into_response();
     }
-    json_response(StatusCode::CREATED, &json!({ "ok": true, "stageId": stage_id }))
+    json_response(
+        StatusCode::CREATED,
+        &json!({ "ok": true, "stageId": stage_id }),
+    )
 }
 
 fn staged_record(
@@ -251,9 +257,11 @@ fn staged_record(
     registry: Option<&str>,
     stage_id: &str,
 ) -> StagedRecord {
-    let (version, dist) = validated.prepared.first().map_or((None, Value::Null), |attachment| {
-        (Some(attachment.version.clone()), attachment.dist.clone())
-    });
+    let (version, dist) = validated.prepared
+        .first()
+        .map_or((None, Value::Null), |attachment| {
+            (Some(attachment.version.clone()), attachment.dist.clone())
+        });
     let (actor, actor_type) = actor_of(identity);
     StagedRecord {
         id: stage_id.to_string(),
@@ -263,7 +271,10 @@ fn staged_record(
         created_at: now_iso(),
         actor,
         actor_type,
-        shasum: dist.get("shasum").and_then(Value::as_str).map(str::to_string),
+        shasum: dist
+            .get("shasum")
+            .and_then(Value::as_str)
+            .map(str::to_string),
         registry: registry.map(str::to_string),
         approving_since: None,
     }
@@ -278,7 +289,10 @@ fn staged_tag(incoming: &Value, version: Option<&str>) -> Option<String> {
             .find(|(_, tagged)| tagged.as_str() == Some(version))
             .or_else(|| tags.iter().next())
             .map(|(tag, _)| tag.clone()),
-        None => tags.keys().next().cloned(),
+        None => tags
+            .keys()
+            .next()
+            .cloned(),
     }
 }
 
@@ -299,72 +313,6 @@ async fn store_staged(
     Ok(())
 }
 
-/// `GET /-/stage?page=&perPage=&package=` — the staged records visible to
-/// the caller through this registry address, sorted oldest-first by staging
-/// time (then id) so pagination stays stable as new records arrive.
-async fn serve_staged_list(
-    state: &AppState,
-    identity: &Identity,
-    registry: Option<&str>,
-    query: &StagedListQuery,
-) -> Response {
-    let per_page = query.per_page.clamp(1, MAX_PER_PAGE);
-    let ids = match state.inner.storage.list_staged_ids().await {
-        Ok(ids) => ids,
-        Err(err) => return err.into_response(),
-    };
-    let mut records: Vec<StagedRecord> = Vec::new();
-    for stage_id in ids {
-        let Ok(Some(stored)) = read_staged_record(state, &stage_id).await else {
-            continue;
-        };
-        let record = stored.record;
-        if record.registry.as_deref() != registry {
-            continue;
-        }
-        if let Some(package) = &query.package
-            && &record.package_name != package
-        {
-            continue;
-        }
-        // The listing shows only what the caller could publish (and thus
-        // approve); records outside their rights are simply not theirs to see.
-        if authorize_staged(state, identity, &record).await.is_err() {
-            continue;
-        }
-        records.push(record);
-    }
-    records.sort_by(|left, right| {
-        left.created_at.cmp(&right.created_at).then_with(|| left.id.cmp(&right.id))
-    });
-
-    let total = records.len();
-    let items: Vec<Value> = records
-        .iter()
-        .skip(query.page.saturating_mul(per_page))
-        .take(per_page)
-        .map(StagedRecord::metadata)
-        .collect();
-    json_response(
-        StatusCode::OK,
-        &json!({ "items": items, "page": query.page, "perPage": per_page, "total": total }),
-    )
-}
-
-/// `GET /-/stage/:id` — one staged record's metadata.
-async fn serve_staged_view(
-    state: &AppState,
-    identity: &Identity,
-    registry: Option<&str>,
-    stage_id: &str,
-) -> Response {
-    let stored = match load_authorized_record(state, identity, registry, stage_id).await {
-        Ok(stored) => stored,
-        Err(err) => return err.into_response(),
-    };
-    json_response(StatusCode::OK, &stored.record.metadata())
-}
-
 /// `DELETE /-/stage/:id` — reject a staged publish, deleting its record and
 /// held tarball.
 async fn serve_staged_reject(
@@ -383,51 +331,6 @@ async fn serve_staged_reject(
             .expect("static-shape response always builds"),
         Err(err) => err.into_response(),
     }
-}
-
-/// `GET /-/stage/:id/tarball` — the held tarball's bytes, decoded from the
-/// stored publish document's attachment.
-async fn serve_staged_tarball(
-    state: &AppState,
-    identity: &Identity,
-    registry: Option<&str>,
-    stage_id: &str,
-) -> Response {
-    if let Err(response) = load_authorized_record(state, identity, registry, stage_id).await {
-        return response.into_response();
-    }
-    let body = match state.inner.storage.read_staged_body(stage_id).await {
-        Ok(Some(body)) => body,
-        Ok(None) => return not_found(),
-        Err(err) => return err.into_response(),
-    };
-    let mut incoming: Value = match serde_json::from_slice(&body) {
-        Ok(value) => value,
-        Err(err) => return RegistryError::Json(err).into_response(),
-    };
-    let attachments = match extract_attachments(&mut incoming) {
-        Ok(attachments) => attachments,
-        Err(err) => return err.into_response(),
-    };
-    let Some(attachment) = attachments.into_iter().next() else {
-        return not_found();
-    };
-    let bytes = match BASE64.decode(attachment.data.as_bytes()) {
-        Ok(bytes) => bytes,
-        Err(err) => {
-            return RegistryError::InvalidAttachment {
-                filename: attachment.filename,
-                reason: format!("invalid base64 data: {err}"),
-            }
-            .into_response();
-        }
-    };
-    Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "application/octet-stream")
-        .header(header::CONTENT_LENGTH, bytes.len())
-        .body(Body::from(bytes))
-        .expect("static-shape response always builds")
 }
 
 // ---------------------------------------------------------------------
@@ -482,7 +385,10 @@ async fn read_staged_record(
         return Ok(None);
     };
     let record = serde_json::from_slice(&bytes).map_err(RegistryError::Json)?;
-    Ok(Some(StoredStagedRecord { bytes, record }))
+    Ok(Some(StoredStagedRecord {
+        bytes,
+        record,
+    }))
 }
 
 fn actor_of(identity: &Identity) -> (String, String) {
@@ -501,12 +407,21 @@ fn generate_stage_id() -> String {
     getrandom::fill(&mut bytes).expect("OS CSPRNG must be available");
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    let hex = bytes.iter().fold(String::with_capacity(32), |mut hex, byte| {
-        use std::fmt::Write;
-        write!(hex, "{byte:02x}").expect("writing to a String cannot fail");
-        hex
-    });
-    format!("{}-{}-{}-{}-{}", &hex[0..8], &hex[8..12], &hex[12..16], &hex[16..20], &hex[20..32])
+    let hex = bytes
+        .iter()
+        .fold(String::with_capacity(32), |mut hex, byte| {
+            use std::fmt::Write;
+            write!(hex, "{byte:02x}").expect("writing to a String cannot fail");
+            hex
+        });
+    format!(
+        "{}-{}-{}-{}-{}",
+        &hex[0..8],
+        &hex[8..12],
+        &hex[12..16],
+        &hex[16..20],
+        &hex[20..32],
+    )
 }
 
 #[cfg(test)]

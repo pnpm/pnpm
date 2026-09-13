@@ -22,7 +22,10 @@ fn extract_accepts_the_on_fail_settings_as_bare_flags() {
 fn extract_leaves_other_bare_flags_for_clap() {
     let (_, remaining) =
         ConfigOverrides::extract(argv(["pacquet", "install", "--node-linker=hoisted"]));
-    assert_eq!(remaining, argv(["pacquet", "install", "--node-linker=hoisted"]));
+    assert_eq!(
+        remaining,
+        argv(["pacquet", "install", "--node-linker=hoisted"]),
+    );
 }
 
 #[test]
@@ -52,7 +55,10 @@ fn extract_accepts_the_install_settings_as_bare_flags() {
     assert!(config.side_effects_cache_readonly);
     assert!(config.optimistic_repeat_install);
     assert_eq!(config.trust_policy, TrustPolicy::NoDowngrade);
-    assert_eq!(config.trust_policy_exclude, Some(vec!["lodash".to_string()]));
+    assert_eq!(
+        config.trust_policy_exclude,
+        Some(vec!["lodash".to_string()]),
+    );
     assert_eq!(config.trust_policy_ignore_after, Some(5));
     assert!(!config.lockfile);
 }
@@ -68,12 +74,18 @@ fn trust_lockfile_is_a_bare_flag_where_no_command_declares_it() {
     let mut config = Config::default();
     overrides.apply(&mut config, Path::new("/workspace"));
     assert!(config.trust_lockfile);
-    assert_eq!(config.explicit_settings.get("trustLockfile"), Some(&serde_json::Value::Bool(true)));
+    assert_eq!(
+        config.explicit_settings.get("trustLockfile"),
+        Some(&serde_json::Value::Bool(true)),
+    );
 
     let (overrides, remaining) =
         ConfigOverrides::extract(argv(["pacquet", "remove", "foo", "--no-trust-lockfile"]));
     assert_eq!(remaining, argv(["pacquet", "remove", "foo"]));
-    let mut config = Config { trust_lockfile: true, ..Config::default() };
+    let mut config = Config {
+        trust_lockfile: true,
+        ..Config::default()
+    };
     overrides.apply(&mut config, Path::new("/workspace"));
     assert!(!config.trust_lockfile);
 
@@ -92,18 +104,30 @@ fn unsafe_perm_is_a_bare_flag_on_every_command() {
     let (overrides, remaining) =
         ConfigOverrides::extract(argv(["pacquet", "install", "--unsafe-perm"]));
     assert_eq!(remaining, argv(["pacquet", "install"]));
-    let mut config = Config { unsafe_perm: false, ..Config::default() };
+    let mut config = Config {
+        unsafe_perm: false,
+        ..Config::default()
+    };
     overrides.apply(&mut config, Path::new("/workspace"));
     assert!(config.unsafe_perm);
-    assert_eq!(config.explicit_settings.get("unsafePerm"), Some(&serde_json::Value::Bool(true)));
+    assert_eq!(
+        config.explicit_settings.get("unsafePerm"),
+        Some(&serde_json::Value::Bool(true)),
+    );
 
     let (overrides, remaining) =
         ConfigOverrides::extract(argv(["pacquet", "rebuild", "--no-unsafe-perm"]));
     assert_eq!(remaining, argv(["pacquet", "rebuild"]));
-    let mut config = Config { unsafe_perm: true, ..Config::default() };
+    let mut config = Config {
+        unsafe_perm: true,
+        ..Config::default()
+    };
     overrides.apply(&mut config, Path::new("/workspace"));
     assert!(!config.unsafe_perm);
-    assert_eq!(config.explicit_settings.get("unsafePerm"), Some(&serde_json::Value::Bool(false)));
+    assert_eq!(
+        config.explicit_settings.get("unsafePerm"),
+        Some(&serde_json::Value::Bool(false)),
+    );
 
     for (flag, expected) in [
         ("--unsafe-perm", true),
@@ -114,7 +138,10 @@ fn unsafe_perm_is_a_bare_flag_on_every_command() {
         let (overrides, remaining) =
             ConfigOverrides::extract(argv(["pacquet", "remove", "foo", flag]));
         assert_eq!(remaining, argv(["pacquet", "remove", "foo"]), "{flag}");
-        let mut config = Config { unsafe_perm: !expected, ..Config::default() };
+        let mut config = Config {
+            unsafe_perm: !expected,
+            ..Config::default()
+        };
         overrides.apply(&mut config, Path::new("/workspace"));
         assert_eq!(config.unsafe_perm, expected, "{flag}");
     }
@@ -157,7 +184,10 @@ fn the_boolean_settings_are_bare_flags_where_no_command_declares_them() {
     assert!(!config.shared_workspace_lockfile);
     assert!(!config.verify_store_integrity);
     assert!(config.force_legacy_deploy);
-    assert_eq!(config.explicit_settings.get("offline"), Some(&serde_json::Value::Bool(true)));
+    assert_eq!(
+        config.explicit_settings.get("offline"),
+        Some(&serde_json::Value::Bool(true)),
+    );
     assert_eq!(
         config.explicit_settings.get("sharedWorkspaceLockfile"),
         Some(&serde_json::Value::Bool(false)),
@@ -184,8 +214,11 @@ fn a_boolean_setting_claims_the_next_token_only_when_it_spells_a_boolean() {
         (vec!["--side-effects-cache", "false", "install"], false),
         (vec!["--side-effects-cache", "true", "install"], true),
     ] {
-        let (overrides, remaining) =
-            ConfigOverrides::extract(argv(["pacquet"]).into_iter().chain(argv(tokens)));
+        let (overrides, remaining) = ConfigOverrides::extract(
+            argv(["pacquet"])
+                .into_iter()
+                .chain(argv(tokens)),
+        );
         assert_eq!(remaining, argv(["pacquet", "install"]));
 
         let mut config = Config::default();
@@ -206,7 +239,10 @@ fn a_setting_flag_does_not_swallow_the_command_it_precedes() {
     ]));
 
     // `--hoist-pattern` is past the script name, so it is the script's.
-    assert_eq!(remaining, argv(["pacquet", "run", "build", "--hoist-pattern=eslint"]));
+    assert_eq!(
+        remaining,
+        argv(["pacquet", "run", "build", "--hoist-pattern=eslint"]),
+    );
 }
 
 /// A setting is stripped from argv before clap runs, so one spelled like
@@ -218,7 +254,15 @@ fn no_bare_setting_flag_shadows_a_global_option() {
     let declared: Vec<&str> = grammar
         .get_arguments()
         .flat_map(|arg| {
-            arg.get_long().into_iter().chain(arg.get_all_aliases().into_iter().flatten())
+            arg
+                .get_long()
+                .into_iter()
+                .chain(
+                    arg
+                        .get_all_aliases()
+                        .into_iter()
+                        .flatten(),
+                )
         })
         .collect();
     let shadowed: Vec<&str> = super::super::tokens::BARE_SETTING_FLAGS
@@ -259,8 +303,14 @@ fn extract_leaves_invalid_setting_values_for_clap() {
         overrides.apply(&mut config, Path::new("/workspace"));
         let defaults = Config::default();
         assert_eq!(config.trust_policy, defaults.trust_policy, "{tokens:?}");
-        assert_eq!(config.package_import_method, defaults.package_import_method, "{tokens:?}");
-        assert_eq!(config.child_concurrency, defaults.child_concurrency, "{tokens:?}");
+        assert_eq!(
+            config.package_import_method, defaults.package_import_method,
+            "{tokens:?}",
+        );
+        assert_eq!(
+            config.child_concurrency, defaults.child_concurrency,
+            "{tokens:?}",
+        );
         assert_eq!(
             config.trust_policy_ignore_after, defaults.trust_policy_ignore_after,
             "{tokens:?}",
@@ -282,7 +332,10 @@ fn a_boolean_settings_explicit_value_does_not_move_the_command_boundary() {
     ]));
     assert_eq!(remaining, argv(["pacquet", "install"]));
 
-    let mut config = Config { strict_peer_dependencies: true, ..Config::default() };
+    let mut config = Config {
+        strict_peer_dependencies: true,
+        ..Config::default()
+    };
     overrides.apply(&mut config, Path::new("/workspace"));
     assert!(!config.strict_peer_dependencies);
     assert_eq!(config.registry, "https://example.test/");
@@ -302,7 +355,10 @@ fn a_boolean_settings_value_is_claimed_even_when_a_command_declares_the_name() {
     ]));
     assert_eq!(remaining, argv(["pacquet", "install"]));
 
-    let mut config = Config { lockfile: false, ..Config::default() };
+    let mut config = Config {
+        lockfile: false,
+        ..Config::default()
+    };
     overrides.apply(&mut config, Path::new("/workspace"));
     assert!(config.lockfile);
     assert_eq!(config.registry, "https://example.test/");
@@ -329,7 +385,11 @@ fn a_setting_flag_never_claims_a_separator_or_another_flag() {
 
         let mut config = Config::default();
         overrides.apply(&mut config, Path::new("/workspace"));
-        assert_eq!(config.modules_dir, Config::default().modules_dir, "{tokens:?}");
+        assert_eq!(
+            config.modules_dir,
+            Config::default().modules_dir,
+            "{tokens:?}",
+        );
     }
 }
 
@@ -338,7 +398,10 @@ fn a_setting_flag_never_claims_a_separator_or_another_flag() {
 /// even though it opens with `-`.
 #[test]
 fn a_numeric_setting_claims_a_negative_value() {
-    for tokens in [["--child-concurrency", "-1"].as_slice(), &["--child-concurrency=-1"]] {
+    for tokens in [
+        ["--child-concurrency", "-1"].as_slice(),
+        &["--child-concurrency=-1"],
+    ] {
         let command_line = ["pacquet", "install"]
             .into_iter()
             .chain(tokens.iter().copied())

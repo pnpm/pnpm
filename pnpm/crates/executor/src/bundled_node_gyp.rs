@@ -14,7 +14,11 @@ const NODE_GYP_BIN_DIR: &str = "node-gyp-bin";
 /// per platform because that is what `PATH` resolution will look for:
 /// finding the POSIX script says nothing about whether the `.cmd` twin
 /// a Windows script needs was shipped alongside it.
-const NODE_GYP_WRAPPER: &str = if cfg!(windows) { "node-gyp.cmd" } else { "node-gyp" };
+const NODE_GYP_WRAPPER: &str = if cfg!(windows) {
+    "node-gyp.cmd"
+} else {
+    "node-gyp"
+};
 
 /// Locate the `node-gyp` wrapper directory shipped beside the running
 /// executable, for prepending to a lifecycle script's `PATH`.
@@ -49,7 +53,10 @@ pub fn bundled_node_gyp_bin() -> Option<&'static Path> {
 /// test binary happens to live.
 fn bundled_node_gyp_bin_in(exe_dir: &Path) -> Option<PathBuf> {
     let bin_dir = exe_dir.join(DIST_DIR).join(NODE_GYP_BIN_DIR);
-    bin_dir.join(NODE_GYP_WRAPPER).is_file().then_some(bin_dir)
+    bin_dir
+        .join(NODE_GYP_WRAPPER)
+        .is_file()
+        .then_some(bin_dir)
 }
 
 #[cfg(test)]

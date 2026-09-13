@@ -134,14 +134,28 @@ fn gvs_version_dir_requires_exact_name_and_version_components() {
     let unscoped: PackageKey = "foo@1.2.3".parse().expect("parse unscoped key");
     assert_eq!(
         global_virtual_store_version_dir(&root, &scoped, None),
-        Some(root.join("@scope").join("foo").join("1.2.3")),
+        Some(
+            root
+                .join("@scope")
+                .join("foo")
+                .join("1.2.3")
+        ),
     );
     assert_eq!(
         global_virtual_store_version_dir(&root, &unscoped, None),
-        Some(root.join("@").join("foo").join("1.2.3")),
+        Some(
+            root
+                .join("@")
+                .join("foo")
+                .join("1.2.3")
+        ),
     );
 
-    for key in ["../other@1.2.3", "@scope/../other@1.2.3", r"@scope\evil/foo@1.2.3"] {
+    for key in [
+        "../other@1.2.3",
+        "@scope/../other@1.2.3",
+        r"@scope\evil/foo@1.2.3",
+    ] {
         let key: PackageKey = key.parse().expect("parse unsafe package name");
         assert_eq!(global_virtual_store_version_dir(&root, &key, None), None);
     }
@@ -153,9 +167,14 @@ fn gvs_version_dir_requires_exact_name_and_version_components() {
         revision: None,
     };
     for version in ["../@/other/1.2.3", r"..\@\other\1.2.3"] {
-        let metadata =
-            package_metadata(LockfileResolution::Registry(registry.clone()), Some(version));
-        assert_eq!(global_virtual_store_version_dir(&root, &unscoped, Some(&metadata)), None);
+        let metadata = package_metadata(
+            LockfileResolution::Registry(registry.clone()),
+            Some(version),
+        );
+        assert_eq!(
+            global_virtual_store_version_dir(&root, &unscoped, Some(&metadata)),
+            None,
+        );
     }
 }
 #[test]
@@ -212,7 +231,10 @@ fn slot_dir_engine_specific_when_snapshot_is_built() {
         None,
     )
     .slot_dir(&key);
-    assert_ne!(darwin, linux, "builder snapshot must partition GVS slot by engine string");
+    assert_ne!(
+        darwin, linux,
+        "builder snapshot must partition GVS slot by engine string",
+    );
 }
 #[test]
 fn missing_metadata_keeps_source_dep_path_untrusted_for_gvs() {
@@ -245,7 +267,10 @@ fn missing_metadata_keeps_source_dep_path_untrusted_for_gvs() {
         None,
     )
     .slot_dir(&key);
-    assert_eq!(darwin, linux, "source depPath with missing metadata must not be name-allowed");
+    assert_eq!(
+        darwin, linux,
+        "source depPath with missing metadata must not be name-allowed",
+    );
 }
 /// Per-snapshot `engines.runtime` resolution: two builder
 /// siblings that pin *different* Node majors must land on
@@ -318,16 +343,20 @@ fn cross_pinning_siblings_get_distinct_slots() {
         PkgName::parse("node").expect("parse pkg name"),
         SnapshotDepRef::Plain("runtime:22.11.0".parse().expect("parse ver-peer")),
     );
-    let pins_22_snapshot =
-        SnapshotEntry { dependencies: Some(pins_22_deps), ..SnapshotEntry::default() };
+    let pins_22_snapshot = SnapshotEntry {
+        dependencies: Some(pins_22_deps),
+        ..SnapshotEntry::default()
+    };
 
     let mut pins_20_deps = HashMap::new();
     pins_20_deps.insert(
         PkgName::parse("node").expect("parse pkg name"),
         SnapshotDepRef::Plain("runtime:20.18.0".parse().expect("parse ver-peer")),
     );
-    let pins_20_snapshot =
-        SnapshotEntry { dependencies: Some(pins_20_deps), ..SnapshotEntry::default() };
+    let pins_20_snapshot = SnapshotEntry {
+        dependencies: Some(pins_20_deps),
+        ..SnapshotEntry::default()
+    };
 
     let mut snapshots = HashMap::new();
     snapshots.insert(pins_22.clone(), pins_22_snapshot);
@@ -353,12 +382,18 @@ fn cross_pinning_siblings_get_distinct_slots() {
     );
     let slot_22 = layout.slot_dir(&pins_22);
     let slot_20 = layout.slot_dir(&pins_20);
-    assert_ne!(slot_22, slot_20, "cross-pinning builders must land on distinct GVS slots");
+    assert_ne!(
+        slot_22, slot_20,
+        "cross-pinning builders must land on distinct GVS slots",
+    );
 }
 #[test]
 fn gvs_version_segment_anchors_directory_deps() {
     let semver: PackageKey = "foo@1.2.3".parse().unwrap();
-    assert_eq!(super::super::gvs_version_segment(None, &semver.suffix), "1.2.3");
+    assert_eq!(
+        super::super::gvs_version_segment(None, &semver.suffix),
+        "1.2.3",
+    );
 
     // The lockfile records no version for a directory snapshot, and the
     // install path that resolves from manifests does know it — so the
@@ -366,7 +401,9 @@ fn gvs_version_segment_anchors_directory_deps() {
     // relocate the package.
     let dir_dep: PackageKey = "b@file:packages/b".parse().unwrap();
     let dir_metadata = package_metadata(
-        LockfileResolution::Directory(DirectoryResolution { directory: "packages/b".to_string() }),
+        LockfileResolution::Directory(DirectoryResolution {
+            directory: "packages/b".to_string(),
+        }),
         None,
     );
     assert_eq!(
@@ -573,8 +610,10 @@ fn collect_injected_deps_maps_file_snapshots_to_slots() {
         packages.insert(
             key.without_peer(),
             PackageMetadata {
-                resolution: DirectoryResolution { directory: key.suffix.version().to_string() }
-                    .into(),
+                resolution: DirectoryResolution {
+                    directory: key.suffix.version().to_string(),
+                }
+                .into(),
                 version: None,
                 engines: None,
                 cpu: None,
@@ -595,14 +634,25 @@ fn collect_injected_deps_maps_file_snapshots_to_slots() {
     let injected = super::super::collect_injected_deps(
         &layout,
         lockfile_dir,
-        LockfileEntries { packages: Some(&packages), snapshots: Some(&snapshots) },
+        LockfileEntries {
+            packages: Some(&packages),
+            snapshots: Some(&snapshots),
+        },
         &skipped,
         None,
     );
 
-    assert_eq!(injected.len(), 2, "registry + skipped snapshots must not appear: {injected:?}");
+    assert_eq!(
+        injected.len(),
+        2,
+        "registry + skipped snapshots must not appear: {injected:?}",
+    );
     let comp2 = &injected["comp2"];
-    assert_eq!(comp2.len(), 2, "both peer variants of comp2 must be present");
+    assert_eq!(
+        comp2.len(),
+        2,
+        "both peer variants of comp2 must be present",
+    );
     for target in comp2 {
         assert!(
             target.starts_with("node_modules/.pnpm/")
@@ -618,7 +668,10 @@ fn collect_injected_deps_maps_file_snapshots_to_slots() {
         super::super::collect_injected_deps(
             &layout,
             lockfile_dir,
-            LockfileEntries { packages: Some(&packages), snapshots: None },
+            LockfileEntries {
+                packages: Some(&packages),
+                snapshots: None
+            },
             &skipped,
             None,
         )
@@ -629,16 +682,29 @@ fn collect_injected_deps_maps_file_snapshots_to_slots() {
     // (keyed by full depPath), not from virtual-store slots; entries
     // the walker never placed are dropped.
     let mut hoisted = std::collections::BTreeMap::new();
-    hoisted.insert(variant_a.to_string(), vec!["node_modules/@scope/comp2".to_string()]);
+    hoisted.insert(
+        variant_a.to_string(),
+        vec!["node_modules/@scope/comp2".to_string()],
+    );
     let injected_hoisted = super::super::collect_injected_deps(
         &layout,
         lockfile_dir,
-        LockfileEntries { packages: Some(&packages), snapshots: Some(&snapshots) },
+        LockfileEntries {
+            packages: Some(&packages),
+            snapshots: Some(&snapshots),
+        },
         &skipped,
         Some(&hoisted),
     );
-    assert_eq!(injected_hoisted.len(), 1, "unplaced sources dropped: {injected_hoisted:?}");
-    assert_eq!(injected_hoisted["comp2"], vec!["node_modules/@scope/comp2".to_string()]);
+    assert_eq!(
+        injected_hoisted.len(),
+        1,
+        "unplaced sources dropped: {injected_hoisted:?}",
+    );
+    assert_eq!(
+        injected_hoisted["comp2"],
+        vec!["node_modules/@scope/comp2".to_string()],
+    );
 }
 /// Digests taken from pnpm's own `iterateHashedGraphNodes` over the
 /// same graph. Both CLIs share one global virtual store, so a snapshot
@@ -647,14 +713,38 @@ fn collect_injected_deps_maps_file_snapshots_to_slots() {
 #[test]
 fn cyclic_gvs_slots_match_pnpm() {
     let expected = [
-        ("a@1.0.0", "@/a/1.0.0/3bf76a728c7e155a17137e13ca7af820eb13a0ff4003fed5c39649aac0309905"),
-        ("b@1.0.0", "@/b/1.0.0/728ab1a600ca69780231a2630496c2e83a88c82e965d09ac193fa448c0148a6d"),
-        ("m@1.0.0", "@/m/1.0.0/d671219222f32dfed181f294115e23fc07805b7b78048002872f131f69c07983"),
-        ("n@1.0.0", "@/n/1.0.0/92dec6e2ee818106a34b91bea178347566cc47fe25208afa683831ca5d494605"),
-        ("p@1.0.0", "@/p/1.0.0/b666adb72829d0d822cf2005226985c0b19de632b569fcd75363adf141af3c41"),
-        ("q@1.0.0", "@/q/1.0.0/49a1cd21058b93255957e5accf04137fe74ef88364f96f4b1116e3ca75083b6a"),
-        ("x@1.0.0", "@/x/1.0.0/4230805547fe5208b58758d53b200bc13c5475e3324af75adc87538fcf247857"),
-        ("y@1.0.0", "@/y/1.0.0/4fba92559776b8cd9c4a541f07da9fcc95c8a8ea427f4116de7b2f0606f0f03d"),
+        (
+            "a@1.0.0",
+            "@/a/1.0.0/3bf76a728c7e155a17137e13ca7af820eb13a0ff4003fed5c39649aac0309905",
+        ),
+        (
+            "b@1.0.0",
+            "@/b/1.0.0/728ab1a600ca69780231a2630496c2e83a88c82e965d09ac193fa448c0148a6d",
+        ),
+        (
+            "m@1.0.0",
+            "@/m/1.0.0/d671219222f32dfed181f294115e23fc07805b7b78048002872f131f69c07983",
+        ),
+        (
+            "n@1.0.0",
+            "@/n/1.0.0/92dec6e2ee818106a34b91bea178347566cc47fe25208afa683831ca5d494605",
+        ),
+        (
+            "p@1.0.0",
+            "@/p/1.0.0/b666adb72829d0d822cf2005226985c0b19de632b569fcd75363adf141af3c41",
+        ),
+        (
+            "q@1.0.0",
+            "@/q/1.0.0/49a1cd21058b93255957e5accf04137fe74ef88364f96f4b1116e3ca75083b6a",
+        ),
+        (
+            "x@1.0.0",
+            "@/x/1.0.0/4230805547fe5208b58758d53b200bc13c5475e3324af75adc87538fcf247857",
+        ),
+        (
+            "y@1.0.0",
+            "@/y/1.0.0/4fba92559776b8cd9c4a541f07da9fcc95c8a8ea427f4116de7b2f0606f0f03d",
+        ),
     ];
     assert_eq!(
         cyclic_slot_suffixes(),

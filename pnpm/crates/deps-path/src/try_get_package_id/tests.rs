@@ -2,7 +2,10 @@ use super::try_get_package_id;
 
 #[test]
 fn matches_pnpm_test_cases() {
-    assert_eq!(try_get_package_id("/foo@1.0.0(@types/babel__core@7.1.14)"), "/foo@1.0.0");
+    assert_eq!(
+        try_get_package_id("/foo@1.0.0(@types/babel__core@7.1.14)"),
+        "/foo@1.0.0",
+    );
     assert_eq!(
         try_get_package_id("/foo@1.0.0(@types/babel__core@7.1.14(is-odd@1.0.0))"),
         "/foo@1.0.0",
@@ -37,6 +40,12 @@ fn url_shape_drops_name_prefix() {
 
 #[test]
 fn runtime_entries_keep_name_prefix() {
-    assert_eq!(try_get_package_id("node@runtime:22.0.0"), "node@runtime:22.0.0");
-    assert_eq!(try_get_package_id("node@runtime:22.0.0(some@peer)"), "node@runtime:22.0.0");
+    assert_eq!(
+        try_get_package_id("node@runtime:22.0.0"),
+        "node@runtime:22.0.0",
+    );
+    assert_eq!(
+        try_get_package_id("node@runtime:22.0.0(some@peer)"),
+        "node@runtime:22.0.0",
+    );
 }

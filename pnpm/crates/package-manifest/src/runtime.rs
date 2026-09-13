@@ -36,8 +36,9 @@ pub fn convert_engines_runtime_to_dependencies(
     let Some(manifest_obj) = manifest.as_object_mut() else {
         return;
     };
-    let deps =
-        manifest_obj.entry(deps_field.to_string()).or_insert_with(|| Value::Object(Map::new()));
+    let deps = manifest_obj
+        .entry(deps_field.to_string())
+        .or_insert_with(|| Value::Object(Map::new()));
     let Some(deps_obj) = deps.as_object_mut() else {
         return;
     };
@@ -54,13 +55,18 @@ pub fn engines_runtime_dependencies(
     deps_field: &str,
 ) -> Vec<(&'static str, String)> {
     let mut dependencies = Vec::new();
-    let Some(runtime_entry) =
-        manifest.get(engines_field).and_then(|engines| engines.get("runtime"))
+    let Some(runtime_entry) = manifest
+        .get(engines_field)
+        .and_then(|engines| engines.get("runtime"))
     else {
         return dependencies;
     };
     for runtime_name in RUNTIME_NAMES {
-        if manifest.get(deps_field).and_then(|deps| deps.get(runtime_name)).is_some() {
+        if manifest
+            .get(deps_field)
+            .and_then(|deps| deps.get(runtime_name))
+            .is_some()
+        {
             continue;
         }
         let runtimes: &[Value] = match runtime_entry {
@@ -91,11 +97,13 @@ pub fn engines_runtime_dependencies(
 /// managed by the corresponding engines field. `download` re-runs the normal
 /// engine-to-dependency conversion.
 pub fn apply_runtime_on_fail_override(manifest: &mut Value, on_fail_override: &str) {
-    for (engines_field, deps_field) in
-        [("devEngines", "devDependencies"), ("engines", "dependencies")]
-    {
-        let Some(runtime_entry) =
-            manifest.get_mut(engines_field).and_then(|engines| engines.get_mut("runtime"))
+    for (engines_field, deps_field) in [
+        ("devEngines", "devDependencies"),
+        ("engines", "dependencies"),
+    ] {
+        let Some(runtime_entry) = manifest
+            .get_mut(engines_field)
+            .and_then(|engines| engines.get_mut("runtime"))
         else {
             continue;
         };
@@ -118,14 +126,19 @@ fn set_runtime_on_fail(runtime_entry: &mut Value, on_fail_override: &str) -> boo
         Value::Array(runtimes) => {
             for runtime in runtimes {
                 if let Some(runtime) = runtime.as_object_mut() {
-                    runtime
-                        .insert("onFail".to_string(), Value::String(on_fail_override.to_string()));
+                    runtime.insert(
+                        "onFail".to_string(),
+                        Value::String(on_fail_override.to_string()),
+                    );
                 }
             }
             true
         }
         Value::Object(runtime) => {
-            runtime.insert("onFail".to_string(), Value::String(on_fail_override.to_string()));
+            runtime.insert(
+                "onFail".to_string(),
+                Value::String(on_fail_override.to_string()),
+            );
             true
         }
         _ => false,
@@ -139,7 +152,9 @@ fn managed_runtimes(runtime_entry: &Value) -> Vec<&'static str> {
     RUNTIME_NAMES
         .into_iter()
         .filter(|runtime_name| match runtime_entry {
-            Value::Array(runtimes) => runtimes.iter().any(|runtime| names(runtime, runtime_name)),
+            Value::Array(runtimes) => runtimes
+                .iter()
+                .any(|runtime| names(runtime, runtime_name)),
             Value::Object(_) => names(runtime_entry, runtime_name),
             _ => false,
         })
@@ -169,8 +184,9 @@ fn drop_runtime_dependencies(manifest: &mut Value, deps_field: &str, managed: &[
 #[must_use]
 pub fn node_version_from_engines_runtime(manifest: &Value) -> Option<String> {
     for engines_field in ["devEngines", "engines"] {
-        let Some(runtime_entry) =
-            manifest.get(engines_field).and_then(|value| value.get("runtime"))
+        let Some(runtime_entry) = manifest
+            .get(engines_field)
+            .and_then(|value| value.get("runtime"))
         else {
             continue;
         };
@@ -179,11 +195,14 @@ pub fn node_version_from_engines_runtime(manifest: &Value) -> Option<String> {
             runtime @ Value::Object(_) => std::slice::from_ref(runtime),
             _ => continue,
         };
-        let Some(version) = runtimes.iter().find_map(|runtime| {
-            (runtime.get("name").and_then(Value::as_str) == Some("node"))
-                .then(|| runtime.get("version").and_then(Value::as_str))
-                .flatten()
-        }) else {
+        let Some(version) = runtimes
+            .iter()
+            .find_map(|runtime| {
+                (runtime.get("name").and_then(Value::as_str) == Some("node"))
+                    .then(|| runtime.get("version").and_then(Value::as_str))
+                    .flatten()
+            })
+        else {
             continue;
         };
         if let Ok(range) = Range::parse(version.trim())
@@ -210,7 +229,10 @@ pub fn convert_dependencies_to_engines_runtime(
     deps_field: &str,
     engines_field: &str,
 ) -> Result<(), PackageManifestError> {
-    if manifest.get(deps_field).is_some_and(|deps| !deps.is_object()) {
+    if manifest
+        .get(deps_field)
+        .is_some_and(|deps| !deps.is_object())
+    {
         return Err(PackageManifestError::InvalidAttribute(format!(
             "the {deps_field} field must be an object",
         )));
@@ -256,7 +278,10 @@ fn remove_managed_runtime_entry(manifest: &mut Value, engines_field: &str, runti
 fn is_managed_runtime_entry(runtime: &Value, runtime_name: &str) -> bool {
     runtime.get("name").and_then(Value::as_str) == Some(runtime_name)
         && runtime.get("onFail").and_then(Value::as_str) == Some("download")
-        && runtime.get("version").and_then(Value::as_str).is_some()
+        && runtime
+            .get("version")
+            .and_then(Value::as_str)
+            .is_some()
 }
 
 fn upsert_runtime_entry(
@@ -308,13 +333,17 @@ fn ensure_object_field<'a>(
             "the manifest root must be an object".to_string(),
         ));
     };
-    let value = root.entry(field.to_string()).or_insert_with(|| Value::Object(Map::new()));
+    let value = root
+        .entry(field.to_string())
+        .or_insert_with(|| Value::Object(Map::new()));
     if value.is_null() {
         *value = Value::Object(Map::new());
     }
-    value.as_object_mut().ok_or_else(|| {
-        PackageManifestError::InvalidAttribute(format!("the {field} field must be an object"))
-    })
+    value
+        .as_object_mut()
+        .ok_or_else(|| {
+            PackageManifestError::InvalidAttribute(format!("the {field} field must be an object"))
+        })
 }
 
 fn merge_runtime_entry(

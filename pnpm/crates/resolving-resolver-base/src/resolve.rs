@@ -167,7 +167,10 @@ impl PreferredVersionsOverlay {
         if entries.is_empty() {
             return parent;
         }
-        Some(Arc::new(PreferredVersionsOverlay { entries, parent }))
+        Some(Arc::new(PreferredVersionsOverlay {
+            entries,
+            parent,
+        }))
     }
 
     /// Every version the chain prefers for `name`, nearest level
@@ -178,7 +181,9 @@ impl PreferredVersionsOverlay {
         let mut layer = Some(self);
         while let Some(current) = layer {
             layer = current.parent.as_deref();
-            let Some(found) = current.entries.get(name) else { continue };
+            let Some(found) = current.entries.get(name) else {
+                continue;
+            };
             for version in found {
                 if !versions.contains(&version.as_str()) {
                     versions.push(version);

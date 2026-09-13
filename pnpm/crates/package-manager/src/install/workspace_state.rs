@@ -59,7 +59,9 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     let manifest_dir = check.manifest.path().parent()?;
     let workspace_dir_opt =
         configured_or_discovered_workspace_dir(check.config, manifest_dir).ok()?;
-    let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
+    let workspace_root = workspace_dir_opt
+        .clone()
+        .unwrap_or_else(|| manifest_dir.to_path_buf());
     let (workspace_manifest, catalogs) =
         fast_path_workspace_context(check.config, workspace_dir_opt.as_deref())?;
     let workspace_projects =
@@ -71,7 +73,9 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     // from the discovered workspace root. The workspace *state* keeps its
     // own root, which only a pin moves — `state_root` below.
     let lockfile_root = lockfile_root_for(check.config, workspace_dir_opt.as_deref(), manifest_dir);
-    let state_root = check.config.lockfile_dir.clone().unwrap_or_else(|| workspace_root.clone());
+    let state_root = check.config.lockfile_dir
+        .clone()
+        .unwrap_or_else(|| workspace_root.clone());
     let lockfile = lazy_wanted_lockfile(check.config, &lockfile_root);
     if strict_dep_builds_blocks_fast_path(check.config) {
         return None;
@@ -83,11 +87,7 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
         is_workspace_install: workspace_manifest.is_some(),
         lockfile: MaybeLazyLockfile::Lazy(&lockfile),
         catalogs: &catalogs,
-        layout: crate::RepeatInstallLayout {
-            node_linker: check.node_linker,
-            included: super::included_dependencies(&check.dependency_groups),
-            supported_architectures: check.supported_architectures.as_ref(),
-        },
+        layout: check.repeat_install_layout(),
     }) != OptimisticRepeatInstallDecision::UpToDate
     {
         return None;
@@ -103,8 +103,11 @@ fn fast_path_workspace_context(
     config: &Config,
     workspace_dir: Option<&Path>,
 ) -> Option<(Option<pnpm_workspace::WorkspaceManifest>, super::Catalogs)> {
-    let workspace_manifest =
-        workspace_dir.map(pnpm_workspace::read_workspace_manifest).transpose().ok()?.flatten();
+    let workspace_manifest = workspace_dir
+        .map(pnpm_workspace::read_workspace_manifest)
+        .transpose()
+        .ok()?
+        .flatten();
     let catalogs = match config.catalogs.clone() {
         Some(catalogs) => catalogs,
         None => get_catalogs_from_workspace_manifest(workspace_manifest.as_ref()).ok()?,
@@ -119,7 +122,10 @@ fn ensure_gvs_builds_complete(
 ) -> Option<()> {
     if gvs_build_markers_may_require_recovery(check.config)
         && gvs_build_marker_present(
-            lockfile.get().ok().flatten()?,
+            lockfile
+                .get()
+                .ok()
+                .flatten()?,
             check.config,
             lockfile_root,
             super::effective_node_version(check.config, check.manifest).as_deref(),
@@ -163,8 +169,10 @@ pub(crate) fn lockfile_root_dir(
     if !config.shared_workspace_lockfile {
         return Ok(manifest_dir.to_path_buf());
     }
-    Ok(configured_or_discovered_workspace_dir(config, manifest_dir)?
-        .unwrap_or_else(|| manifest_dir.to_path_buf()))
+    Ok(
+        configured_or_discovered_workspace_dir(config, manifest_dir)?
+            .unwrap_or_else(|| manifest_dir.to_path_buf()),
+    )
 }
 
 /// [`lockfile_root_dir`] for a caller that has already resolved the
@@ -206,31 +214,37 @@ pub fn build_workspace_packages_map(
     let mut map: pnpm_resolving_resolver_base::WorkspacePackages =
         std::collections::BTreeMap::new();
     for project in projects {
-        let Some(name) = manifest_string_field(&project.manifest, "name") else { continue };
+        let Some(name) = manifest_string_field(&project.manifest, "name") else {
+            continue;
+        };
         let version = match project.manifest.value().get("version") {
             None => "0.0.0".to_string(),
             Some(value) if value.is_null() => "0.0.0".to_string(),
             Some(value) => {
-                let Some(version) = value.as_str() else { continue };
+                let Some(version) = value.as_str() else {
+                    continue;
+                };
                 version.to_string()
             }
         };
-        map.entry(name).or_default().insert(
-            version,
-            pnpm_resolving_resolver_base::WorkspacePackage {
-                root_dir: project.root_dir.clone(),
-                // The map feeds workspace picks resolved as *dependencies*
-                // (injected instances), so a project that splits its two
-                // views contributes its dependency manifest here — see
-                // `pnpm_workspace::Project::dependency_manifest`.
-                manifest: project
-                    .dependency_manifest
-                    .as_ref()
-                    .unwrap_or(&project.manifest)
-                    .value()
-                    .clone(),
-            },
-        );
+        map
+            .entry(name)
+            .or_default()
+            .insert(
+                version,
+                pnpm_resolving_resolver_base::WorkspacePackage {
+                    root_dir: project.root_dir.clone(),
+                    // The map feeds workspace picks resolved as *dependencies*
+                    // (injected instances), so a project that splits its two
+                    // views contributes its dependency manifest here — see
+                    // `pnpm_workspace::Project::dependency_manifest`.
+                    manifest: project.dependency_manifest
+                        .as_ref()
+                        .unwrap_or(&project.manifest)
+                        .value()
+                        .clone(),
+                },
+            );
     }
     Some(map)
 }
@@ -315,7 +329,10 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
 /// one when the install is configured without a lockfile.
 fn lazy_wanted_lockfile(config: &Config, lockfile_root: &Path) -> LazyLockfile {
     if config.lockfile {
-        LazyLockfile::deferred(lockfile_root.to_path_buf(), config.wanted_lockfile_selection())
+        LazyLockfile::deferred(
+            lockfile_root.to_path_buf(),
+            config.wanted_lockfile_selection(),
+        )
     } else {
         LazyLockfile::disabled()
     }
@@ -338,5 +355,15 @@ fn strict_dep_builds_blocks_fast_path(config: &Config) -> bool {
         },
         Ok(None) => false,
         Err(_) => true,
+    }
+}
+
+impl UpToDateFastPathCheck<'_> {
+    fn repeat_install_layout(&self) -> crate::RepeatInstallLayout<'_> {
+        crate::RepeatInstallLayout {
+            node_linker: self.node_linker,
+            included: super::included_dependencies(&self.dependency_groups),
+            supported_architectures: self.supported_architectures.as_ref(),
+        }
     }
 }

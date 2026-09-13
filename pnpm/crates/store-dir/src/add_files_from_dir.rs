@@ -73,9 +73,11 @@ pub fn add_files_from_dir(
     store_dir: &StoreDir,
     pkg_root: &Path,
 ) -> Result<AddedFiles, AddFilesFromDirError> {
-    let canonical_root = dunce::canonicalize(pkg_root).map_err(|source| {
-        AddFilesFromDirError::CanonicalizeRoot { root: pkg_root.to_path_buf(), source }
-    })?;
+    let canonical_root = dunce::canonicalize(pkg_root)
+        .map_err(|source| AddFilesFromDirError::CanonicalizeRoot {
+            root: pkg_root.to_path_buf(),
+            source,
+        })?;
     let mut ctx = WalkCtx {
         files: HashMap::new(),
         canonical_root: canonical_root.clone(),
@@ -83,7 +85,9 @@ pub fn add_files_from_dir(
         store_dir,
     };
     walk(&mut ctx, pkg_root, "", &canonical_root)?;
-    Ok(AddedFiles { files: ctx.files })
+    Ok(AddedFiles {
+        files: ctx.files,
+    })
 }
 
 struct WalkCtx<'a> {
@@ -100,10 +104,15 @@ fn walk(
     current_real_path: &Path,
 ) -> Result<(), AddFilesFromDirError> {
     let entries = fs::read_dir(dir)
-        .map_err(|source| AddFilesFromDirError::ReadDir { dir: dir.to_path_buf(), source })?;
+        .map_err(|source| AddFilesFromDirError::ReadDir {
+            dir: dir.to_path_buf(),
+            source,
+        })?;
     for entry in entries {
-        let entry = entry
-            .map_err(|source| AddFilesFromDirError::ReadDir { dir: dir.to_path_buf(), source })?;
+        let entry = entry.map_err(|source| AddFilesFromDirError::ReadDir {
+            dir: dir.to_path_buf(),
+            source,
+        })?;
         let name = entry.file_name();
         let name = name.to_string_lossy();
         let relative_subpath = if relative_dir.is_empty() {
@@ -153,25 +162,39 @@ fn resolve_entry(
     let absolute = entry.path();
     let file_type = entry
         .file_type()
-        .map_err(|source| AddFilesFromDirError::Stat { path: absolute.clone(), source })?;
+        .map_err(|source| AddFilesFromDirError::Stat {
+            path: absolute.clone(),
+            source,
+        })?;
 
     if file_type.is_dir() {
         return Ok(Some(EntryTarget::Directory(current_real_path.join(name))));
     }
     if !file_type.is_symlink() {
-        return Ok(Some(EntryTarget::File { read_path: absolute, meta: None }));
+        return Ok(Some(EntryTarget::File {
+            read_path: absolute,
+            meta: None,
+        }));
     }
 
-    let Ok(real) = dunce::canonicalize(&absolute) else { return Ok(None) };
+    let Ok(real) = dunce::canonicalize(&absolute) else {
+        return Ok(None);
+    };
     if !real.starts_with(&ctx.canonical_root) {
         return Ok(None);
     }
     let meta = fs::metadata(&real)
-        .map_err(|source| AddFilesFromDirError::Stat { path: real.clone(), source })?;
+        .map_err(|source| AddFilesFromDirError::Stat {
+            path: real.clone(),
+            source,
+        })?;
     if meta.is_dir() {
         return Ok(Some(EntryTarget::Directory(real)));
     }
-    Ok(Some(EntryTarget::File { read_path: real, meta: Some(meta) }))
+    Ok(Some(EntryTarget::File {
+        read_path: real,
+        meta: Some(meta),
+    }))
 }
 
 /// Recurse via the resolved directory so a symlinked sub-directory's
@@ -204,22 +227,23 @@ fn ingest_file(
     let meta = if let Some(meta) = meta {
         meta
     } else {
-        stat = fs::metadata(read_path).map_err(|source| AddFilesFromDirError::Stat {
-            path: read_path.to_path_buf(),
-            source,
-        })?;
+        stat = fs::metadata(read_path)
+            .map_err(|source| AddFilesFromDirError::Stat {
+                path: read_path.to_path_buf(),
+                source,
+            })?;
         &stat
     };
     if !meta.is_file() {
         return Ok(());
     }
-    let buffer = fs::read(read_path).map_err(|source| AddFilesFromDirError::ReadFile {
-        path: read_path.to_path_buf(),
-        source,
-    })?;
+    let buffer = fs::read(read_path)
+        .map_err(|source| AddFilesFromDirError::ReadFile {
+            path: read_path.to_path_buf(),
+            source,
+        })?;
     let mode = file_mode_from(meta);
-    let (_path, hash) = ctx
-        .store_dir
+    let (_path, hash) = ctx.store_dir
         .write_cas_file(&buffer, is_executable(mode))
         .map_err(AddFilesFromDirError::WriteCas)?;
     ctx.files.insert(

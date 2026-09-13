@@ -14,7 +14,9 @@ impl WorkspaceSettings {
     /// errors, so rejecting at parse time would print the very credential
     /// being rejected into the terminal and any CI log.
     pub(super) fn validate_registries(&self) -> Result<(), LoadWorkspaceYamlError> {
-        let Some(entries) = self.registries.as_ref() else { return Ok(()) };
+        let Some(entries) = self.registries.as_ref() else {
+            return Ok(());
+        };
         registries::validate(entries)
     }
 
@@ -23,7 +25,9 @@ impl WorkspaceSettings {
     /// rejected here rather than surface as a scheduling bug far from the
     /// setting that produced it.
     pub(super) fn validate_tasks(&self) -> Result<(), LoadWorkspaceYamlError> {
-        let Some(tasks) = self.tasks.as_ref() else { return Ok(()) };
+        let Some(tasks) = self.tasks.as_ref() else {
+            return Ok(());
+        };
         for (task, settings) in tasks {
             Self::validate_task(task, settings)?;
         }
@@ -42,8 +46,7 @@ impl WorkspaceSettings {
                 field: field.clone(),
             });
         }
-        let concurrency = settings
-            .concurrency
+        let concurrency = settings.concurrency
             .filter(|concurrency| *concurrency < 1)
             .map(|concurrency| concurrency.to_string())
             .or_else(|| settings.invalid_concurrency.as_ref().map(ToString::to_string));
@@ -103,7 +106,10 @@ impl WorkspaceSettings {
         // for a key that is not there.
         for (setting, prefix) in [
             (canonical, "sideEffectsCache.remote"),
-            (self.remote_side_effects_cache.as_ref(), "remoteSideEffectsCache"),
+            (
+                self.remote_side_effects_cache.as_ref(),
+                "remoteSideEffectsCache",
+            ),
         ] {
             let Some(settings) = setting else { continue };
             Self::reject_machine_only_fields(settings, prefix, path)?;
@@ -121,12 +127,18 @@ impl WorkspaceSettings {
             ("keyId", settings.key_id.is_some()),
             ("builderId", settings.builder_id.is_some()),
             ("imageDigest", settings.image_digest.is_some()),
-            ("architectureBaseline", settings.architecture_baseline.is_some()),
+            (
+                "architectureBaseline",
+                settings.architecture_baseline.is_some(),
+            ),
             ("buildEnv", settings.build_env.is_some()),
             ("trustedKeys", settings.trusted_keys.is_some()),
             ("privateKey", settings.private_key.is_some()),
         ];
-        let Some((field, _)) = machine_only.into_iter().find(|(_, is_set)| *is_set) else {
+        let Some((field, _)) = machine_only
+            .into_iter()
+            .find(|(_, is_set)| *is_set)
+        else {
             return Ok(());
         };
         Err(LoadWorkspaceYamlError::WorkspaceRemoteSideEffectsTrust {
@@ -151,7 +163,11 @@ impl WorkspaceSettings {
             return;
         };
         let mut issues = WorkspaceKeyIssues::default();
-        for key in document.iter().filter(|(_, value)| value.is_some()).map(|(key, _)| key) {
+        for key in document
+            .iter()
+            .filter(|(_, value)| value.is_some())
+            .map(|(key, _)| key)
+        {
             if key == SCHEMA_DIRECTIVE_KEY {
                 continue;
             }
@@ -181,16 +197,21 @@ impl WorkspaceSettings {
     /// measure or classify counts as one to look at, so the answer errs only
     /// towards re-reading, never towards missing a key.
     pub(super) fn may_have_key_issues(text: &str) -> bool {
-        let content_lines = text.lines().filter(|line| {
-            let trimmed = line.trim_start();
-            !trimmed.is_empty() && !trimmed.starts_with('#')
-        });
+        let content_lines = text
+            .lines()
+            .filter(|line| {
+                let trimmed = line.trim_start();
+                !trimmed.is_empty() && !trimmed.starts_with('#')
+            });
         let mut root_indent = usize::MAX;
         for line in content_lines.clone() {
             let indent = line.len() - line.trim_start().len();
             // YAML forbids a tab as indentation, so a file that uses one is
             // not worth measuring against.
-            if line[..indent].bytes().any(|byte| byte != b' ') {
+            if line[..indent]
+                .bytes()
+                .any(|byte| byte != b' ')
+            {
                 return true;
             }
             root_indent = root_indent.min(indent);
@@ -198,15 +219,19 @@ impl WorkspaceSettings {
         if root_indent == usize::MAX {
             return false;
         }
-        content_lines.filter(|line| line.len() - line.trim_start().len() == root_indent).any(
-            |line| {
-                let Some((key, _)) = line.trim_start().split_once(':') else { return true };
-                let key = key.trim_end();
-                key != SCHEMA_DIRECTIVE_KEY
-                    && (!is_camel_case(key)
-                        || !is_known_setting_key(key)
-                        || is_refused_by_a_project_manifest(key))
-            },
-        )
+        content_lines
+            .filter(|line| line.len() - line.trim_start().len() == root_indent)
+            .any(has_key_issue)
     }
+}
+
+fn has_key_issue(line: &str) -> bool {
+    let Some((key, _)) = line.trim_start().split_once(':') else {
+        return true;
+    };
+    let key = key.trim_end();
+    key != SCHEMA_DIRECTIVE_KEY
+        && (!is_camel_case(key)
+            || !is_known_setting_key(key)
+            || is_refused_by_a_project_manifest(key))
 }

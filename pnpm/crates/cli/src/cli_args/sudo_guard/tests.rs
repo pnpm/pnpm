@@ -24,7 +24,10 @@ fn allowed_when_sudo_user_is_root() {
 #[test]
 fn setup_is_blocked_under_sudo() {
     let err = check_sudo_as(&command(&["pnpm", "setup"]), 0, Some("alice")).expect_err("blocked");
-    assert_eq!(err.to_string(), r#"Running "pnpm setup" with sudo is not supported"#);
+    assert_eq!(
+        err.to_string(),
+        r#"Running "pnpm setup" with sudo is not supported"#,
+    );
 }
 
 #[test]
@@ -34,9 +37,16 @@ fn self_update_is_blocked_under_sudo() {
 
 #[test]
 fn global_add_is_blocked_under_sudo() {
-    let err = check_sudo_as(&command(&["pnpm", "add", "--global", "foo"]), 0, Some("alice"))
-        .expect_err("blocked");
-    assert_eq!(err.to_string(), r#"Running "pnpm add --global" with sudo is not supported"#);
+    let err = check_sudo_as(
+        &command(&["pnpm", "add", "--global", "foo"]),
+        0,
+        Some("alice"),
+    )
+    .expect_err("blocked");
+    assert_eq!(
+        err.to_string(),
+        r#"Running "pnpm add --global" with sudo is not supported"#,
+    );
 }
 
 #[test]
@@ -55,7 +65,14 @@ fn read_only_global_commands_are_allowed_under_sudo() {
 fn config_writes_are_blocked_but_reads_allowed() {
     assert!(
         check_sudo_as(
-            &command(&["pnpm", "config", "set", "--global", "store-dir", "/tmp/store"]),
+            &command(&[
+                "pnpm",
+                "config",
+                "set",
+                "--global",
+                "store-dir",
+                "/tmp/store"
+            ]),
             0,
             Some("alice"),
         )
@@ -76,7 +93,13 @@ fn config_writes_are_blocked_but_reads_allowed() {
 #[test]
 fn config_writes_are_gated_on_the_effective_scope() {
     assert_eq!(
-        sudo_blocked_operation(&command(&["pnpm", "config", "set", "store-dir", "/tmp/store"])),
+        sudo_blocked_operation(&command(&[
+            "pnpm",
+            "config",
+            "set",
+            "store-dir",
+            "/tmp/store"
+        ])),
         Some("pnpm config set --global".to_string()),
     );
     assert_eq!(
@@ -113,7 +136,10 @@ fn bare_link_targets_the_global_dir_and_is_blocked() {
         sudo_blocked_operation(&command(&["pnpm", "link"])),
         Some("pnpm link --global".to_string()),
     );
-    assert_eq!(sudo_blocked_operation(&command(&["pnpm", "link", "../foo"])), None);
+    assert_eq!(
+        sudo_blocked_operation(&command(&["pnpm", "link", "../foo"])),
+        None,
+    );
 }
 
 /// `pnpm set` is `pnpm config set`, defaulting to the global config file
@@ -135,7 +161,10 @@ fn the_top_level_set_is_gated_like_config_set() {
         None,
     );
     // Reads stay allowed, as they do for `pnpm config get`.
-    assert_eq!(sudo_blocked_operation(&command(&["pnpm", "get", "store-dir"])), None);
+    assert_eq!(
+        sudo_blocked_operation(&command(&["pnpm", "get", "store-dir"])),
+        None,
+    );
 }
 
 /// `pnpm env use --global` installs a runtime into the home directory, the
@@ -146,8 +175,17 @@ fn global_env_is_blocked_under_sudo() {
         sudo_blocked_operation(&command(&["pnpm", "env", "use", "--global", "24"])),
         Some("pnpm env use --global".to_string()),
     );
-    assert_eq!(sudo_blocked_operation(&command(&["pnpm", "env", "use", "24"])), None);
+    assert_eq!(
+        sudo_blocked_operation(&command(&["pnpm", "env", "use", "24"])),
+        None,
+    );
     // `env list` only queries a mirror, so it stays allowed even globally.
-    assert_eq!(sudo_blocked_operation(&command(&["pnpm", "env", "list"])), None);
-    assert_eq!(sudo_blocked_operation(&command(&["pnpm", "env", "list", "--global"])), None);
+    assert_eq!(
+        sudo_blocked_operation(&command(&["pnpm", "env", "list"])),
+        None,
+    );
+    assert_eq!(
+        sudo_blocked_operation(&command(&["pnpm", "env", "list", "--global"])),
+        None,
+    );
 }

@@ -11,7 +11,11 @@ fn defaults_to_npm_when_no_lockfile() {
 #[test]
 fn detects_pnpm_via_pnpm_lock_yaml() {
     let dir = tempdir().unwrap();
-    fs::write(dir.path().join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\n").unwrap();
+    fs::write(
+        dir.path().join("pnpm-lock.yaml"),
+        "lockfileVersion: '9.0'\n",
+    )
+    .unwrap();
     assert_eq!(detect_preferred_pm(dir.path()), PreferredPm::Pnpm);
 }
 
@@ -65,10 +69,18 @@ fn pm_names_match_binary_invocations() {
 #[test]
 fn a_classic_yarn_lockfile_pins_yarn_1() {
     let dir = tempdir().unwrap();
-    fs::write(dir.path().join("yarn.lock"), "left-pad@^1.3.0:\n  version \"1.3.0\"\n").unwrap();
+    fs::write(
+        dir.path().join("yarn.lock"),
+        "left-pad@^1.3.0:\n  version \"1.3.0\"\n",
+    )
+    .unwrap();
     assert_eq!(
         detect_wanted_pm(dir.path(), None),
-        WantedPm { pm: PreferredPm::Yarn, version_spec: Some("1".to_string()), pinned: false },
+        WantedPm {
+            pm: PreferredPm::Yarn,
+            version_spec: Some("1".to_string()),
+            pinned: false
+        },
     );
 }
 
@@ -78,7 +90,11 @@ fn a_berry_yarn_lockfile_pins_the_berry_line() {
     fs::write(dir.path().join("yarn.lock"), "__metadata:\n  version: 8\n").unwrap();
     assert_eq!(
         detect_wanted_pm(dir.path(), None),
-        WantedPm { pm: PreferredPm::Yarn, version_spec: Some(">=2".to_string()), pinned: false },
+        WantedPm {
+            pm: PreferredPm::Yarn,
+            version_spec: Some(">=2".to_string()),
+            pinned: false
+        },
     );
 }
 
@@ -89,7 +105,11 @@ fn other_lockfiles_leave_the_version_open() {
     for lockfile in ["pnpm-lock.yaml", "package-lock.json", "bun.lock"] {
         let dir = tempdir().unwrap();
         fs::write(dir.path().join(lockfile), "").unwrap();
-        assert_eq!(detect_wanted_pm(dir.path(), None).version_spec, None, "{lockfile}");
+        assert_eq!(
+            detect_wanted_pm(dir.path(), None).version_spec,
+            None,
+            "{lockfile}",
+        );
     }
 }
 
@@ -100,7 +120,11 @@ fn a_package_manager_pin_wins_over_the_lockfile() {
     let manifest = serde_json::json!({ "packageManager": "yarn@4.9.2+sha224.abc" });
     assert_eq!(
         detect_wanted_pm(dir.path(), Some(&manifest)),
-        WantedPm { pm: PreferredPm::Yarn, version_spec: Some("4.9.2".to_string()), pinned: true },
+        WantedPm {
+            pm: PreferredPm::Yarn,
+            version_spec: Some("4.9.2".to_string()),
+            pinned: true
+        },
     );
 }
 
@@ -113,7 +137,11 @@ fn a_dev_engines_pin_wins_over_the_lockfile() {
     });
     assert_eq!(
         detect_wanted_pm(dir.path(), Some(&manifest)),
-        WantedPm { pm: PreferredPm::Pnpm, version_spec: Some("10.5.0".to_string()), pinned: true },
+        WantedPm {
+            pm: PreferredPm::Pnpm,
+            version_spec: Some("10.5.0".to_string()),
+            pinned: true
+        },
     );
 }
 
@@ -134,7 +162,11 @@ fn only_a_semver_range_is_carried_over_from_a_pin() {
             detect_wanted_pm(dir.path(), Some(&manifest)),
             // Nothing was pinned that pnpm can honor, so a host that has
             // Yarn keeps preparing the dependency with it.
-            WantedPm { pm: PreferredPm::Yarn, version_spec: None, pinned: false },
+            WantedPm {
+                pm: PreferredPm::Yarn,
+                version_spec: None,
+                pinned: false
+            },
             "reference was {reference}",
         );
     }
@@ -162,7 +194,10 @@ fn an_unknown_package_manager_pin_is_ignored() {
     let dir = tempdir().unwrap();
     fs::write(dir.path().join("pnpm-lock.yaml"), "").unwrap();
     let manifest = serde_json::json!({ "packageManager": "cnpm@1.0.0" });
-    assert_eq!(detect_wanted_pm(dir.path(), Some(&manifest)).pm, PreferredPm::Pnpm);
+    assert_eq!(
+        detect_wanted_pm(dir.path(), Some(&manifest)).pm,
+        PreferredPm::Pnpm,
+    );
 }
 
 /// A declaration that names the package manager but no version says
@@ -176,7 +211,11 @@ fn a_declaration_without_a_version_is_not_a_pin() {
     });
     assert_eq!(
         detect_wanted_pm(dir.path(), Some(&manifest)),
-        WantedPm { pm: PreferredPm::Yarn, version_spec: None, pinned: false },
+        WantedPm {
+            pm: PreferredPm::Yarn,
+            version_spec: None,
+            pinned: false
+        },
     );
 }
 
@@ -185,9 +224,10 @@ fn a_declaration_without_a_version_is_not_a_pin() {
 /// the line from what the dependency ships.
 #[test]
 fn a_yarn_declaration_without_a_version_takes_the_line_from_the_lockfile() {
-    for (lockfile, line) in
-        [("__metadata:\n  version: 8\n", ">=2"), ("left-pad@^1.3.0:\n  version \"1.3.0\"\n", "1")]
-    {
+    for (lockfile, line) in [
+        ("__metadata:\n  version: 8\n", ">=2"),
+        ("left-pad@^1.3.0:\n  version \"1.3.0\"\n", "1"),
+    ] {
         let dir = tempdir().unwrap();
         fs::write(dir.path().join("yarn.lock"), lockfile).unwrap();
         let manifest = serde_json::json!({ "packageManager": "yarn" });
@@ -214,13 +254,19 @@ fn the_line_is_read_from_the_lockfile_header() {
     let mut lockfile = String::from("__metadata:\n  version: 8\n");
     lockfile.push_str(&"# padding\n".repeat(200_000));
     fs::write(dir.path().join("yarn.lock"), &lockfile).unwrap();
-    assert_eq!(detect_wanted_pm(dir.path(), None).version_spec.as_deref(), Some(">=2"));
+    assert_eq!(
+        detect_wanted_pm(dir.path(), None).version_spec.as_deref(),
+        Some(">=2"),
+    );
 
     let dir = tempdir().unwrap();
     let mut lockfile = "# padding\n".repeat(200_000);
     lockfile.push_str("__metadata:\n  version: 8\n");
     fs::write(dir.path().join("yarn.lock"), &lockfile).unwrap();
-    assert_eq!(detect_wanted_pm(dir.path(), None).version_spec.as_deref(), Some("1"));
+    assert_eq!(
+        detect_wanted_pm(dir.path(), None).version_spec.as_deref(),
+        Some("1"),
+    );
 }
 
 /// The stamp is the `__metadata:` key, not a prefix: a lockfile holding
@@ -228,8 +274,15 @@ fn the_line_is_read_from_the_lockfile_header() {
 #[test]
 fn a_lookalike_key_is_not_the_berry_stamp() {
     let dir = tempdir().unwrap();
-    fs::write(dir.path().join("yarn.lock"), "__metadataEvil:\n  version: 8\n").unwrap();
-    assert_eq!(detect_wanted_pm(dir.path(), None).version_spec.as_deref(), Some("1"));
+    fs::write(
+        dir.path().join("yarn.lock"),
+        "__metadataEvil:\n  version: 8\n",
+    )
+    .unwrap();
+    assert_eq!(
+        detect_wanted_pm(dir.path(), None).version_spec.as_deref(),
+        Some("1"),
+    );
 }
 
 /// A lockfile is a fetched artifact, not text pnpm validated: a byte no
@@ -240,7 +293,10 @@ fn a_lockfile_that_is_not_utf_8_still_reports_its_line() {
     let mut lockfile = b"# \xff\xfe not text\n".to_vec();
     lockfile.extend_from_slice(b"__metadata:\n  version: 8\n");
     fs::write(dir.path().join("yarn.lock"), &lockfile).unwrap();
-    assert_eq!(detect_wanted_pm(dir.path(), None).version_spec.as_deref(), Some(">=2"));
+    assert_eq!(
+        detect_wanted_pm(dir.path(), None).version_spec.as_deref(),
+        Some(">=2"),
+    );
 }
 
 /// A version the dependency did ask for outranks the lockfile's line.
@@ -251,7 +307,11 @@ fn a_pinned_yarn_version_wins_over_the_lockfile_line() {
     let manifest = serde_json::json!({ "packageManager": "yarn@4.9.2" });
     assert_eq!(
         detect_wanted_pm(dir.path(), Some(&manifest)),
-        WantedPm { pm: PreferredPm::Yarn, version_spec: Some("4.9.2".to_string()), pinned: true },
+        WantedPm {
+            pm: PreferredPm::Yarn,
+            version_spec: Some("4.9.2".to_string()),
+            pinned: true
+        },
     );
 }
 
@@ -271,7 +331,11 @@ fn a_dev_engines_list_falls_through_to_an_entry_pnpm_can_provision() {
     });
     assert_eq!(
         detect_wanted_pm(dir.path(), Some(&manifest)),
-        WantedPm { pm: PreferredPm::Yarn, version_spec: Some("4.9.2".to_string()), pinned: true },
+        WantedPm {
+            pm: PreferredPm::Yarn,
+            version_spec: Some("4.9.2".to_string()),
+            pinned: true
+        },
     );
 }
 
@@ -287,6 +351,10 @@ fn an_unknown_dev_engines_pin_leaves_package_manager_in_charge() {
     });
     assert_eq!(
         detect_wanted_pm(dir.path(), Some(&manifest)),
-        WantedPm { pm: PreferredPm::Yarn, version_spec: Some("4.9.2".to_string()), pinned: true },
+        WantedPm {
+            pm: PreferredPm::Yarn,
+            version_spec: Some("4.9.2".to_string()),
+            pinned: true
+        },
     );
 }

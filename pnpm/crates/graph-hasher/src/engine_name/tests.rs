@@ -5,9 +5,18 @@ use pretty_assertions::assert_eq;
 /// — required for the side-effects cache to interop.
 #[test]
 fn engine_name_matches_pnpm_format() {
-    assert_eq!(engine_name(20, Some("darwin"), Some("arm64")), "darwin;arm64;node20");
-    assert_eq!(engine_name(22, Some("linux"), Some("x64")), "linux;x64;node22");
-    assert_eq!(engine_name(24, Some("win32"), Some("x64")), "win32;x64;node24");
+    assert_eq!(
+        engine_name(20, Some("darwin"), Some("arm64")),
+        "darwin;arm64;node20",
+    );
+    assert_eq!(
+        engine_name(22, Some("linux"), Some("x64")),
+        "linux;x64;node22",
+    );
+    assert_eq!(
+        engine_name(24, Some("win32"), Some("x64")),
+        "win32;x64;node24",
+    );
 }
 
 #[test]
@@ -30,8 +39,14 @@ fn engine_name_host_default_has_expected_shape() {
     let name = engine_name(20, None, None);
     let parts: Vec<&str> = name.split(';').collect();
     assert_eq!(parts.len(), 3, "expected three parts, got {name:?}");
-    assert!(parts[2].starts_with("node"), "third part must start with `node`: {name:?}");
-    assert!(parts[2][4..].parse::<u32>().is_ok(), "node version must be numeric: {name:?}");
+    assert!(
+        parts[2].starts_with("node"),
+        "third part must start with `node`: {name:?}",
+    );
+    assert!(
+        parts[2][4..].parse::<u32>().is_ok(),
+        "node version must be numeric: {name:?}",
+    );
 }
 
 /// `node` is a hard prerequisite for the test suite — if it isn't on
@@ -39,16 +54,29 @@ fn engine_name_host_default_has_expected_shape() {
 #[test]
 fn detect_node_version_strips_leading_v() {
     let version = detect_node_version().expect("`node` must be on PATH for the test suite");
-    assert!(!version.starts_with('v'), "leading `v` must be stripped: {version:?}");
-    let major = version.split('.').next().expect("at least one component");
-    assert!(major.parse::<u32>().is_ok(), "major must be numeric: {version:?}");
+    assert!(
+        !version.starts_with('v'),
+        "leading `v` must be stripped: {version:?}",
+    );
+    let major = version
+        .split('.')
+        .next()
+        .expect("at least one component");
+    assert!(
+        major.parse::<u32>().is_ok(),
+        "major must be numeric: {version:?}",
+    );
 }
 
 #[test]
 fn detect_node_major_matches_detect_node_version_leading_component() {
     let major = detect_node_major().expect("`node` must be on PATH for the test suite");
     let version = detect_node_version().expect("`node` must be on PATH for the test suite");
-    let leading: u32 =
-        version.split('.').next().expect("non-empty version").parse().expect("major numeric");
+    let leading: u32 = version
+        .split('.')
+        .next()
+        .expect("non-empty version")
+        .parse()
+        .expect("major numeric");
     assert_eq!(major, leading);
 }

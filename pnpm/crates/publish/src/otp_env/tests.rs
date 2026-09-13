@@ -33,12 +33,18 @@ fn explicit_otp_wins_over_env() {
 
 #[test]
 fn falls_back_to_env_when_unset() {
-    assert_eq!(resolve_otp_from_env::<EnvOtp>(None), Some("from-env".to_owned()));
+    assert_eq!(
+        resolve_otp_from_env::<EnvOtp>(None),
+        Some("from-env".to_owned()),
+    );
 }
 
 #[test]
 fn empty_explicit_otp_is_treated_as_unset() {
-    assert_eq!(resolve_otp_from_env::<EnvOtp>(Some(String::new())), Some("from-env".to_owned()));
+    assert_eq!(
+        resolve_otp_from_env::<EnvOtp>(Some(String::new())),
+        Some("from-env".to_owned()),
+    );
 }
 
 #[test]

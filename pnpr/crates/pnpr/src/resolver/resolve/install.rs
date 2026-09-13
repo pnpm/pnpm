@@ -41,7 +41,13 @@ impl<'a> ResolutionInstall<'a> {
         manifest: &'a PackageManifest,
         lockfile_path: &'a Path,
     ) -> Install<'a, [DependencyGroup; 3]> {
-        let Self { config, client, request, auth_headers, observer } = self;
+        let Self {
+            config,
+            client,
+            request,
+            auth_headers,
+            observer,
+        } = self;
         let mut install = Install::new(
             Arc::new(MemCache::default()),
             resolved_packages,
@@ -49,7 +55,11 @@ impl<'a> ResolutionInstall<'a> {
             config,
             manifest,
             pnpm_lockfile::MaybeLazyLockfile::Loaded(request.lockfile.as_ref()),
-            [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+            [
+                DependencyGroup::Prod,
+                DependencyGroup::Dev,
+                DependencyGroup::Optional,
+            ],
         );
         install.lockfile_policy.frozen = request.frozen_lockfile;
         install.lockfile_policy.prefer_frozen = prefer_frozen_lockfile(request);
@@ -62,7 +72,9 @@ impl<'a> ResolutionInstall<'a> {
         install.resolution.update_seed_policy = update_seed_policy(request);
         install.resolution.auth_override = Some(Arc::clone(auth_headers));
         install.resolution.observer = observer;
-        install.context.lockfile_path = request.lockfile.as_ref().map(|_| lockfile_path);
+        install.context.lockfile_path = request.lockfile
+            .as_ref()
+            .map(|_| lockfile_path);
         install.projects.supported_architectures = None;
         install.projects.catalogs_override.clone_from(&request.catalogs);
         install

@@ -35,7 +35,9 @@ pub const MAX_TAG_LEN: usize = 128;
 #[must_use]
 pub fn is_valid_tag(tag: &str) -> bool {
     let mut characters = tag.chars();
-    let Some(first) = characters.next() else { return false };
+    let Some(first) = characters.next() else {
+        return false;
+    };
     tag.len() <= MAX_TAG_LEN
         && (first.is_ascii_alphanumeric() || first == '_')
         && characters.all(|character| {

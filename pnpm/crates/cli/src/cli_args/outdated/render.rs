@@ -53,10 +53,11 @@ pub(super) fn sort_outdated(outdated: &mut [OutdatedPackage], sort_by: Option<So
 
 pub(super) fn sort_workspace_outdated(outdated: &mut [OutdatedInWorkspace]) {
     outdated.sort_by(|left, right| {
-        compare_outdated(&left.package, &right.package, None).then_with(|| {
-            dependency_group_priority(left.package.belongs_to)
-                .cmp(&dependency_group_priority(right.package.belongs_to))
-        })
+        compare_outdated(&left.package, &right.package, None)
+            .then_with(|| {
+                dependency_group_priority(left.package.belongs_to)
+                    .cmp(&dependency_group_priority(right.package.belongs_to))
+            })
     });
 }
 
@@ -81,7 +82,11 @@ fn compare_outdated(
         .cmp(&change_priority(classify(&right.current, &right.target)));
     by_change
         .then_with(|| left.package_name.cmp(&right.package_name))
-        .then_with(|| left.current.to_string().cmp(&right.current.to_string()))
+        .then_with(|| {
+            left.current
+                .to_string()
+                .cmp(&right.current.to_string())
+        })
 }
 
 pub(super) fn render_table(outdated: &[OutdatedPackage], long: bool) -> String {
@@ -91,8 +96,10 @@ pub(super) fn render_table(outdated: &[OutdatedPackage], long: bool) -> String {
     use tabled::builder::Builder;
     use tabled::settings::Style;
 
-    let mut header: Vec<String> =
-        ["Package", "Current", "Latest"].iter().map(|h| bright_blue(h)).collect();
+    let mut header: Vec<String> = ["Package", "Current", "Latest"]
+        .iter()
+        .map(|h| bright_blue(h))
+        .collect();
     if long {
         header.push(bright_blue("Details"));
     }
@@ -100,7 +107,11 @@ pub(super) fn render_table(outdated: &[OutdatedPackage], long: bool) -> String {
     let mut builder = Builder::default();
     builder.push_record(header);
     for pkg in outdated {
-        let mut row = vec![render_package_name(pkg), pkg.current.to_string(), render_latest(pkg)];
+        let mut row = vec![
+            render_package_name(pkg),
+            pkg.current.to_string(),
+            render_latest(pkg),
+        ];
         if long {
             row.push(render_details(pkg));
         }
@@ -138,8 +149,11 @@ pub(super) fn render_list(outdated: &[OutdatedPackage], long: bool) -> String {
 pub(super) fn render_json(outdated: &[OutdatedPackage], long: bool) -> String {
     let mut map = serde_json::Map::new();
     for pkg in outdated {
-        let dependency_type: &'static str =
-            if pkg.github_action { "githubAction" } else { pkg.belongs_to.into() };
+        let dependency_type: &'static str = if pkg.github_action {
+            "githubAction"
+        } else {
+            pkg.belongs_to.into()
+        };
         let mut entry = serde_json::json!({
             "current": pkg.current.to_string(),
             "latest": pkg.target.to_string(),
@@ -211,7 +225,11 @@ pub(super) fn render_recursive_list(outdated: &[OutdatedInWorkspace], long: bool
         .iter()
         .map(|entry| {
             let package = &entry.package;
-            let label = if entry.dependents.len() == 1 { "Dependent:" } else { "Dependents:" };
+            let label = if entry.dependents.len() == 1 {
+                "Dependent:"
+            } else {
+                "Dependents:"
+            };
             let mut info = format!(
                 "{}\n{} {} {}\n{} {}",
                 bold(&render_package_name(package)),
@@ -238,8 +256,11 @@ pub(super) fn render_recursive_json(outdated: &[OutdatedInWorkspace], long: bool
     let mut map = serde_json::Map::new();
     for entry in outdated {
         let package = &entry.package;
-        let dependency_type: &'static str =
-            if package.github_action { "githubAction" } else { package.belongs_to.into() };
+        let dependency_type: &'static str = if package.github_action {
+            "githubAction"
+        } else {
+            package.belongs_to.into()
+        };
         let mut value = serde_json::json!({
             "current": package.current.to_string(),
             "latest": package.target.to_string(),
@@ -266,8 +287,7 @@ pub(super) fn render_recursive_json(outdated: &[OutdatedInWorkspace], long: bool
 }
 
 pub(super) fn render_dependents(entry: &OutdatedInWorkspace) -> String {
-    let mut names: Vec<String> = entry
-        .dependents
+    let mut names: Vec<String> = entry.dependents
         .iter()
         .map(|dependent| sanitize_inline(&dependent.name).into_owned())
         .collect();
@@ -321,10 +341,17 @@ fn colorize_version(version: &Version, change: Change) -> String {
     let text = version.to_string();
     let split = match change {
         Change::Breaking => 0,
-        Change::Feature => text.find('.').map_or(0, |i| i + 1),
-        Change::Fix => {
-            text.find('.').and_then(|i| text[i + 1..].find('.').map(|j| i + 1 + j + 1)).unwrap_or(0)
-        }
+        Change::Feature => text
+            .find('.')
+            .map_or(0, |i| i + 1),
+        Change::Fix => text
+            .find('.')
+            .and_then(|i| {
+                text[i + 1..]
+                    .find('.')
+                    .map(|j| i + 1 + j + 1)
+            })
+            .unwrap_or(0),
         // Nothing is highlighted for an `unknown` (or no) change, so the
         // version renders plain.
         Change::None | Change::Unknown => return text,
@@ -356,38 +383,56 @@ fn render_details(pkg: &OutdatedPackage) -> String {
 // captured output), matching chalk's auto-disable so machine-readable
 // output stays free of escape codes.
 pub(super) fn bright_blue(text: &str) -> String {
-    text.if_supports_color(Stream::Stdout, |t| t.bright_blue()).to_string()
+    text
+        .if_supports_color(Stream::Stdout, |t| t.bright_blue())
+        .to_string()
 }
 
 pub(super) fn red(text: &str) -> String {
-    text.if_supports_color(Stream::Stdout, |t| t.red()).to_string()
+    text
+        .if_supports_color(Stream::Stdout, |t| t.red())
+        .to_string()
 }
 
 fn red_bold(text: &str) -> String {
     let style = owo_colors::Style::new().red().bold();
-    text.if_supports_color(Stream::Stdout, |t| t.style(style)).to_string()
+    text
+        .if_supports_color(Stream::Stdout, |t| t.style(style))
+        .to_string()
 }
 
 pub(super) fn green(text: &str) -> String {
-    text.if_supports_color(Stream::Stdout, |t| t.green()).to_string()
+    text
+        .if_supports_color(Stream::Stdout, |t| t.green())
+        .to_string()
 }
 
 fn yellow(text: &str) -> String {
-    text.if_supports_color(Stream::Stdout, |t| t.yellow()).to_string()
+    text
+        .if_supports_color(Stream::Stdout, |t| t.yellow())
+        .to_string()
 }
 
 fn grey(text: &str) -> String {
-    text.if_supports_color(Stream::Stdout, |t| t.bright_black()).to_string()
+    text
+        .if_supports_color(Stream::Stdout, |t| t.bright_black())
+        .to_string()
 }
 
 fn bold(text: &str) -> String {
-    text.if_supports_color(Stream::Stdout, |t| t.bold()).to_string()
+    text
+        .if_supports_color(Stream::Stdout, |t| t.bold())
+        .to_string()
 }
 
 pub(super) fn dimmed(text: &str) -> String {
-    text.if_supports_color(Stream::Stdout, |t| t.dimmed()).to_string()
+    text
+        .if_supports_color(Stream::Stdout, |t| t.dimmed())
+        .to_string()
 }
 
 fn underline(text: &str) -> String {
-    text.if_supports_color(Stream::Stdout, |t| t.underline()).to_string()
+    text
+        .if_supports_color(Stream::Stdout, |t| t.underline())
+        .to_string()
 }

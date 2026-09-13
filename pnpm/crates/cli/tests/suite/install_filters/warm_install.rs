@@ -6,7 +6,14 @@ use super::{
 #[test]
 fn full_recursive_install_keeps_the_unfiltered_up_to_date_path() {
     let fixture = WorkspaceFixture::new();
-    fixture.project("app", "app", ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() });
+    fixture.project(
+        "app",
+        "app",
+        ManifestDeps {
+            prod: &[(HELLO, "1.0.0")],
+            ..Default::default()
+        },
+    );
     fixture.project(
         "lib",
         "lib",
@@ -24,7 +31,11 @@ fn full_recursive_install_keeps_the_unfiltered_up_to_date_path() {
     let records = fixture.run(["--recursive", "install"]);
 
     assert_eq!(fs::read(lockfile_path).expect("read lockfile"), before);
-    assert_eq!(importing_started_count(&records), 0, "a full selection must not relink");
+    assert_eq!(
+        importing_started_count(&records),
+        0,
+        "a full selection must not relink",
+    );
     assert!(reports_up_to_date(&records));
 }
 
@@ -37,12 +48,18 @@ fn filtered_install_takes_the_up_to_date_path_after_a_full_install() {
     fixture.project(
         "selected",
         "selected",
-        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(HELLO, "1.0.0")],
+            ..Default::default()
+        },
     );
     fixture.project(
         "unselected",
         "unselected",
-        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+        ManifestDeps {
+            prod: &[(PARENT, "100.0.0")],
+            ..Default::default()
+        },
     );
     fixture.run(["install"]);
     let lockfile_path = fixture.workspace.join("pnpm-lock.yaml");
@@ -51,7 +68,14 @@ fn filtered_install_takes_the_up_to_date_path_after_a_full_install() {
     let records = fixture.run(["--filter", "selected", "install"]);
 
     assert!(reports_up_to_date(&records));
-    assert_eq!(importing_started_count(&records), 0, "a no-op selection must not relink");
+    assert_eq!(
+        importing_started_count(&records),
+        0,
+        "a no-op selection must not relink",
+    );
     assert_eq!(fs::read(&lockfile_path).expect("read lockfile"), before);
-    assert!(!fixture.state().filtered_install, "the short-circuit narrowed nothing");
+    assert!(
+        !fixture.state().filtered_install,
+        "the short-circuit narrowed nothing",
+    );
 }

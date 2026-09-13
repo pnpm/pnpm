@@ -46,14 +46,21 @@ async fn should_persist_a_scoped_auth_token_and_scope_registry_mapping() {
     // The credential and the route that reaches it are one fact: a failure
     // between two writes would persist a token the command reports it failed
     // to record.
-    assert_eq!(writes.len(), 1, "the token and its route must land in one write: {writes:?}");
+    assert_eq!(
+        writes.len(),
+        1,
+        "the token and its route must land in one write: {writes:?}",
+    );
     let document = written_document(&writes);
     let normalized = format!("{registry}/");
     assert_eq!(
         document["_auth"][&normalized],
         json!({ "@my-org": { "authToken": "scoped-token" } }),
     );
-    assert_eq!(document["registries"][&normalized], json!({ "scopes": ["@my-org"] }));
+    assert_eq!(
+        document["registries"][&normalized],
+        json!({ "scopes": ["@my-org"] }),
+    );
 }
 
 #[tokio::test]
@@ -85,7 +92,10 @@ async fn should_persist_scoped_auth_tokens_under_path_registries() {
         document["_auth"][&registry],
         json!({ "@team": { "authToken": "path-scoped-token" } }),
     );
-    assert_eq!(document["registries"][&registry], json!({ "scopes": ["@team"] }));
+    assert_eq!(
+        document["registries"][&registry],
+        json!({ "scopes": ["@team"] }),
+    );
 }
 
 #[tokio::test]
@@ -112,8 +122,14 @@ async fn should_accept_scope_with_a_leading_at_and_not_double_prefix() {
 
     let document = written_document(&login_writes());
     let normalized = format!("{registry}/");
-    assert_eq!(document["_auth"][&normalized], json!({ "@my-org": { "authToken": "tok" } }));
-    assert_eq!(document["registries"][&normalized], json!({ "scopes": ["@my-org"] }));
+    assert_eq!(
+        document["_auth"][&normalized],
+        json!({ "@my-org": { "authToken": "tok" } }),
+    );
+    assert_eq!(
+        document["registries"][&normalized],
+        json!({ "scopes": ["@my-org"] }),
+    );
 }
 
 #[tokio::test]
@@ -134,12 +150,14 @@ async fn should_not_write_a_scope_mapping_when_scope_is_omitted() {
     let registry = server.url();
     let config_dir = Path::new("/mock/config");
 
-    login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
-        .await
+    login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
         .expect("login");
 
     let document = written_document(&login_writes());
-    assert_eq!(document["_auth"][format!("{registry}/")], json!({ "@": { "authToken": "tok" } }));
+    assert_eq!(
+        document["_auth"][format!("{registry}/")],
+        json!({ "@": { "authToken": "tok" } }),
+    );
     assert_eq!(document.get("registries"), None);
 }
 
@@ -169,6 +187,9 @@ async fn should_treat_a_bare_at_scope_as_no_scope() {
     login::<FakeHost, RecordingReporter>(&client(), options).await.expect("login");
 
     let document = written_document(&login_writes());
-    assert_eq!(document["_auth"][format!("{registry}/")], json!({ "@": { "authToken": "tok" } }));
+    assert_eq!(
+        document["_auth"][format!("{registry}/")],
+        json!({ "@": { "authToken": "tok" } }),
+    );
     assert_eq!(document.get("registries"), None);
 }

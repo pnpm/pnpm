@@ -66,10 +66,7 @@ impl WorkEnv {
         let mock_port = pick_unused_port().expect("pick a port for the revision mock");
 
         let bench_dir = self.bench_dir(BenchId::PnprRevision(revision));
-        let stdout = File::create(bench_dir.join("revision-mock.stdout.log"))
-            .expect("create revision mock stdout log");
-        let stderr = File::create(bench_dir.join("revision-mock.stderr.log"))
-            .expect("create revision mock stderr log");
+        let (stdout, stderr) = revision_mock_logs(&bench_dir);
 
         // The mock advertises its tarball URLs at the client-facing proxy
         // URL (`registry.url`), not its own loopback port, so downloads cross
@@ -89,9 +86,16 @@ impl WorkEnv {
             .stdout(stdout)
             .stderr(stderr)
             .spawn()
-            .expect(if cold { "spawn cold revision mock" } else { "spawn revision mock" });
+            .expect(if cold {
+                "spawn cold revision mock"
+            } else {
+                "spawn revision mock"
+            });
 
-        let mut server = PnprServer { process, latency_proxy: None };
+        let mut server = PnprServer {
+            process,
+            latency_proxy: None,
+        };
         wait_for_pnpr_ready(mock_port);
         server.latency_proxy =
             Some(self.front_revision_mock(revision, registry.listener, mock_port));
@@ -108,8 +112,11 @@ impl WorkEnv {
     ) -> Command {
         let cold_storage = bench_dir.join("cold-mock-storage");
         let config_path = bench_dir.join("cold-mock-config.yaml");
-        fs::write(&config_path, cold_mock_config_yaml(&cold_storage, &self.registry.client))
-            .expect("write cold mock config");
+        fs::write(
+            &config_path,
+            cold_mock_config_yaml(&cold_storage, &self.registry.client),
+        )
+        .expect("write cold mock config");
         eprintln!(
             "Serving {revision}'s tarballs from a COLD mock built from pnpr@{revision} on 127.0.0.1:{mock_port} (origin {})...",
             self.registry.client,
@@ -134,7 +141,8 @@ impl WorkEnv {
     /// guards keep the servers alive and kill them on drop; the vec is
     /// empty when no target is a pnpr target.
     pub(super) fn start_pnpr_servers(&self, pnpr_server_registry: &str) -> Vec<PnprServer> {
-        self.benchmarked_ids()
+        self
+            .benchmarked_ids()
             .filter(|id| id.is_pnpr())
             .map(|id| self.start_pnpr_server(id, pnpr_server_registry))
             .collect()
@@ -170,7 +178,11 @@ impl WorkEnv {
     }
     pub(super) fn start_pnpr_server(&self, id: BenchId, pnpr_server_registry: &str) -> PnprServer {
         let bench_dir = self.bench_dir(id);
-        let binary = bench_dir.join("pacquet").join("target").join("release").join("pnpr");
+        let binary = bench_dir
+            .join("pacquet")
+            .join("target")
+            .join("release")
+            .join("pnpr");
         assert!(
             binary.is_file(),
             "pnpr binary not found at {binary:?} — the build step did not produce it",
@@ -307,7 +319,10 @@ impl WorkEnv {
     pub(super) fn start_client_registry_proxy(&self) -> Option<LatencyProxy> {
         let rate_limit = mbps_to_bytes_per_sec(self.options.network.registry_bandwidth_mbps);
         if (self.options.network.registry_latency_ms == 0 && rate_limit.is_none())
-            || matches!(self.options.network.registry, RegistryMode::Npm | RegistryMode::Verdaccio)
+            || matches!(
+                self.options.network.registry,
+                RegistryMode::Npm | RegistryMode::Verdaccio,
+            )
         {
             return None;
         }
@@ -376,7 +391,10 @@ impl WorkEnv {
         if id.is_proxy_cache_populator() {
             return &self.registry.cache_populator;
         }
-        if let Some(mock) = id.revision().and_then(|rev| revision_mocks.get(rev)) {
+        if let Some(mock) = id
+            .revision()
+            .and_then(|rev| revision_mocks.get(rev))
+        {
             return &mock.url;
         }
         client_registry
@@ -402,14 +420,29 @@ impl WorkEnv {
             if target.kind != TargetKind::Pnpr {
                 continue;
             }
-            mocks.entry(target.rev.clone()).or_insert_with(|| {
-                let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
-                    .expect("bind a port for the revision mock proxy");
-                let listen_port =
-                    listener.local_addr().expect("revision mock proxy local addr").port();
-                RevisionMockRegistry { listener, url: format!("http://127.0.0.1:{listen_port}/") }
-            });
+            mocks
+                .entry(target.rev.clone())
+                .or_insert_with(|| {
+                    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+                        .expect("bind a port for the revision mock proxy");
+                    let listen_port = listener
+                        .local_addr()
+                        .expect("revision mock proxy local addr")
+                        .port();
+                    RevisionMockRegistry {
+                        listener,
+                        url: format!("http://127.0.0.1:{listen_port}/"),
+                    }
+                });
         }
         mocks
     }
+}
+
+fn revision_mock_logs(bench_dir: &std::path::Path) -> (File, File) {
+    let stdout = File::create(bench_dir.join("revision-mock.stdout.log"))
+        .expect("create revision mock stdout log");
+    let stderr = File::create(bench_dir.join("revision-mock.stderr.log"))
+        .expect("create revision mock stderr log");
+    (stdout, stderr)
 }

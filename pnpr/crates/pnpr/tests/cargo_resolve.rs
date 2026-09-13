@@ -82,7 +82,10 @@ fn index_dependency(name: &str, requirement: &str) -> Value {
 async fn sparse_index(hits_per_entry: usize) -> (mockito::ServerGuard, Vec<mockito::Mock>) {
     let mut index = mockito::Server::new_async().await;
     let entries = [
-        ("/3/f/foo", index_entry("foo", "1.0.0", &json!([index_dependency("bar", "^1")]))),
+        (
+            "/3/f/foo",
+            index_entry("foo", "1.0.0", &json!([index_dependency("bar", "^1")])),
+        ),
         ("/3/b/bar", index_entry("bar", "1.0.0", &json!([]))),
     ];
     let mut mocks = Vec::new();
@@ -127,7 +130,10 @@ async fn resolved_lockfile(response: axum::response::Response) -> String {
     let frames = frames(response.into_body()).await;
     assert_eq!(frames.len(), 1, "{frames:?}");
     assert_eq!(frames[0]["type"], "done", "{frames:?}");
-    frames[0]["lockfile"].as_str().expect("done frame carries the lockfile").to_string()
+    frames[0]["lockfile"]
+        .as_str()
+        .expect("done frame carries the lockfile")
+        .to_string()
 }
 
 #[tokio::test]
@@ -137,14 +143,16 @@ async fn cargo_resolve_walks_the_index_and_returns_a_lockfile() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config
-        .routing
-        .route_policy
-        .public
-        .push(PublicRoute { registry: Some(index.url()), package: None });
+    config.routing.route_policy.public.push(PublicRoute {
+        registry: Some(index.url()),
+        package: None,
+    });
     let app = router_with_auth(config, auth);
 
-    let response = app.oneshot(cargo_resolve_request(&index.url(), &token)).await.unwrap();
+    let response = app
+        .oneshot(cargo_resolve_request(&index.url(), &token))
+        .await
+        .unwrap();
     let lockfile = resolved_lockfile(response).await;
 
     assert!(lockfile.contains(r#"name = "foo""#), "{lockfile}");
@@ -162,16 +170,22 @@ async fn cargo_resolve_reuses_cached_index_files() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config
-        .routing
-        .route_policy
-        .public
-        .push(PublicRoute { registry: Some(index.url()), package: None });
+    config.routing.route_policy.public.push(PublicRoute {
+        registry: Some(index.url()),
+        package: None,
+    });
     let app = router_with_auth(config, auth);
 
-    let first = app.clone().oneshot(cargo_resolve_request(&index.url(), &token)).await.unwrap();
+    let first = app
+        .clone()
+        .oneshot(cargo_resolve_request(&index.url(), &token))
+        .await
+        .unwrap();
     let first = resolved_lockfile(first).await;
-    let second = app.oneshot(cargo_resolve_request(&index.url(), &token)).await.unwrap();
+    let second = app
+        .oneshot(cargo_resolve_request(&index.url(), &token))
+        .await
+        .unwrap();
     let second = resolved_lockfile(second).await;
 
     assert_eq!(first, second);
@@ -187,11 +201,10 @@ async fn concurrent_resolves_fetch_a_cold_index_entry_once() {
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config
-        .routing
-        .route_policy
-        .public
-        .push(PublicRoute { registry: Some(index.url()), package: None });
+    config.routing.route_policy.public.push(PublicRoute {
+        registry: Some(index.url()),
+        package: None,
+    });
     let app = router_with_auth(config, auth);
 
     let requests = (0..4).map(|_| {
@@ -220,25 +233,34 @@ async fn cargo_resolve_stops_on_an_oversized_index_entry() {
         })
         .collect::<Vec<_>>()
         .join("\n");
-    let entry = index.mock("GET", "/3/f/foo").with_body(oversized).create_async().await;
+    let entry = index
+        .mock("GET", "/3/f/foo")
+        .with_body(oversized)
+        .create_async()
+        .await;
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config
-        .routing
-        .route_policy
-        .public
-        .push(PublicRoute { registry: Some(index.url()), package: None });
+    config.routing.route_policy.public.push(PublicRoute {
+        registry: Some(index.url()),
+        package: None,
+    });
     let app = router_with_auth(config, auth);
 
-    let response = app.oneshot(cargo_resolve_request(&index.url(), &token)).await.unwrap();
+    let response = app
+        .oneshot(cargo_resolve_request(&index.url(), &token))
+        .await
+        .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
     let frames = frames(response.into_body()).await;
     assert_eq!(frames[0]["type"], "error", "{frames:?}");
     assert!(
-        frames[0]["message"].as_str().expect("error frame carries a message").contains("exceeds"),
+        frames[0]["message"]
+            .as_str()
+            .expect("error frame carries a message")
+            .contains("exceeds"),
         "{frames:?}",
     );
     entry.assert_async().await;
@@ -253,7 +275,10 @@ async fn cargo_resolve_rejects_an_off_allowlist_registry() {
     // No public route for the index: the operator never declared it.
     let app = router_with_auth(config_for(tmp.path().to_path_buf()), auth);
 
-    let response = app.oneshot(cargo_resolve_request(&index.url(), &token)).await.unwrap();
+    let response = app
+        .oneshot(cargo_resolve_request(&index.url(), &token))
+        .await
+        .unwrap();
 
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
     for mock in mocks {
@@ -269,7 +294,10 @@ async fn cargo_resolve_rejects_a_registry_with_inline_credentials() {
     let app = router_with_auth(config_for(tmp.path().to_path_buf()), auth);
 
     let response = app
-        .oneshot(cargo_resolve_request("https://user:secret@index.example.test", &token))
+        .oneshot(cargo_resolve_request(
+            "https://user:secret@index.example.test",
+            &token,
+        ))
         .await
         .unwrap();
 
@@ -279,26 +307,35 @@ async fn cargo_resolve_rejects_a_registry_with_inline_credentials() {
 #[tokio::test]
 async fn cargo_resolve_reports_an_unresolvable_workspace() {
     let mut index = mockito::Server::new_async().await;
-    let missing = index.mock("GET", "/3/f/foo").with_status(404).create_async().await;
+    let missing = index
+        .mock("GET", "/3/f/foo")
+        .with_status(404)
+        .create_async()
+        .await;
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config
-        .routing
-        .route_policy
-        .public
-        .push(PublicRoute { registry: Some(index.url()), package: None });
+    config.routing.route_policy.public.push(PublicRoute {
+        registry: Some(index.url()),
+        package: None,
+    });
     let app = router_with_auth(config, auth);
 
-    let response = app.oneshot(cargo_resolve_request(&index.url(), &token)).await.unwrap();
+    let response = app
+        .oneshot(cargo_resolve_request(&index.url(), &token))
+        .await
+        .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
     let frames = frames(response.into_body()).await;
     assert_eq!(frames.len(), 1, "{frames:?}");
     assert_eq!(frames[0]["type"], "error", "{frames:?}");
     assert!(
-        frames[0]["message"].as_str().expect("error frame carries a message").contains("404"),
+        frames[0]["message"]
+            .as_str()
+            .expect("error frame carries a message")
+            .contains("404"),
         "{frames:?}",
     );
     missing.assert_async().await;
@@ -309,11 +346,10 @@ async fn anonymous_cargo_resolve_is_rejected() {
     let (index, mocks) = sparse_index(0).await;
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(tmp.path().to_path_buf());
-    config
-        .routing
-        .route_policy
-        .public
-        .push(PublicRoute { registry: Some(index.url()), package: None });
+    config.routing.route_policy.public.push(PublicRoute {
+        registry: Some(index.url()),
+        package: None,
+    });
     let app = router_with_auth(config, AuthState::in_memory());
 
     let body = json!({

@@ -31,7 +31,12 @@ fn plain(ty: VersionSelectorType) -> VersionSelectorEntry {
 }
 
 fn missing(name: &str, range: &str) -> (String, MissingPeerInfo) {
-    (name.to_string(), MissingPeerInfo { range: range.to_string() })
+    (
+        name.to_string(),
+        MissingPeerInfo {
+            range: range.to_string(),
+        },
+    )
 }
 
 fn opts(
@@ -49,7 +54,10 @@ fn opts(
 
 #[test]
 fn picks_already_available_prerelease_version() {
-    let preferred = preferred(&[("foo", &[("1.0.0-beta.0", plain(VersionSelectorType::Version))])]);
+    let preferred = preferred(&[(
+        "foo",
+        &[("1.0.0-beta.0", plain(VersionSelectorType::Version))],
+    )]);
     let result = hoist_peers(&opts(false, &preferred), &[missing("foo", "*")]);
     let mut expected = BTreeMap::new();
     expected.insert("foo".to_string(), "1.0.0-beta.0".to_string());
@@ -208,8 +216,10 @@ fn respects_a_merged_union_of_scheme_specifiers_instead_of_picking_the_highest()
             ("4.0.0", plain(VersionSelectorType::Version)),
         ],
     )]);
-    let result =
-        hoist_peers(&opts(true, &preferred), &[missing("foo", "work:^2.0.0 || work:^3.0.0")]);
+    let result = hoist_peers(
+        &opts(true, &preferred),
+        &[missing("foo", "work:^2.0.0 || work:^3.0.0")],
+    );
     let mut expected = BTreeMap::new();
     expected.insert("foo".to_string(), "3.0.0".to_string());
     assert_eq!(result, expected);
@@ -276,12 +286,20 @@ fn get_hoistable_optional_peers_preserves_the_importers_locked_version() {
     let preferred = PreferredVersions::from([(
         "peer".to_string(),
         BTreeMap::from([
-            ("1.0.0".to_string(), VersionSelectorEntry::Plain(VersionSelectorType::Version)),
-            ("2.0.0".to_string(), VersionSelectorEntry::Plain(VersionSelectorType::Version)),
+            (
+                "1.0.0".to_string(),
+                VersionSelectorEntry::Plain(VersionSelectorType::Version),
+            ),
+            (
+                "2.0.0".to_string(),
+                VersionSelectorEntry::Plain(VersionSelectorType::Version),
+            ),
         ]),
     )]);
-    let locked =
-        HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]);
+    let locked = HashMap::from_iter([(
+        "peer".to_string(),
+        HashSet::from_iter(["1.0.0".to_string()]),
+    )]);
 
     assert_eq!(
         get_hoistable_optional_peers_with_locked_versions(&missing, &preferred, &[], &locked,),
@@ -317,8 +335,10 @@ fn get_hoistable_optional_peers_handles_version_selector_with_weight() {
 /// range instead lets the registry supply a stable `18.x`.
 #[test]
 fn hoist_peers_rejects_a_prerelease_below_a_spelled_out_lower_bound() {
-    let preferred =
-        preferred(&[("react", &[("18.0.0-rc.1", plain(VersionSelectorType::Version))])]);
+    let preferred = preferred(&[(
+        "react",
+        &[("18.0.0-rc.1", plain(VersionSelectorType::Version))],
+    )]);
     let result = hoist_peers(&opts(true, &preferred), &[missing("react", "^18.0.0")]);
     let mut expected = BTreeMap::new();
     expected.insert("react".to_string(), "^18.0.0".to_string());
@@ -330,8 +350,10 @@ fn hoist_peers_rejects_a_prerelease_below_a_spelled_out_lower_bound() {
 /// `18.0.0-0`.
 #[test]
 fn hoist_peers_accepts_a_prerelease_below_a_synthesized_lower_bound() {
-    let preferred =
-        preferred(&[("react", &[("18.0.0-rc.1", plain(VersionSelectorType::Version))])]);
+    let preferred = preferred(&[(
+        "react",
+        &[("18.0.0-rc.1", plain(VersionSelectorType::Version))],
+    )]);
     let result = hoist_peers(&opts(true, &preferred), &[missing("react", "^18.x")]);
     let mut expected = BTreeMap::new();
     expected.insert("react".to_string(), "18.0.0-rc.1".to_string());
@@ -342,11 +364,20 @@ fn hoist_peers_accepts_a_prerelease_below_a_synthesized_lower_bound() {
 fn hoist_peers_accepts_a_prerelease_inside_the_span_of_a_union() {
     let preferred = preferred(&[(
         "react",
-        &[("19.3.0-canary-28cd4bb0-20260723", plain(VersionSelectorType::Version))],
+        &[(
+            "19.3.0-canary-28cd4bb0-20260723",
+            plain(VersionSelectorType::Version),
+        )],
     )]);
-    let result = hoist_peers(&opts(true, &preferred), &[missing("react", "^18.x || ^19.x")]);
+    let result = hoist_peers(
+        &opts(true, &preferred),
+        &[missing("react", "^18.x || ^19.x")],
+    );
     let mut expected = BTreeMap::new();
-    expected.insert("react".to_string(), "19.3.0-canary-28cd4bb0-20260723".to_string());
+    expected.insert(
+        "react".to_string(),
+        "19.3.0-canary-28cd4bb0-20260723".to_string(),
+    );
     assert_eq!(result, expected);
 }
 
@@ -355,10 +386,14 @@ fn hoist_peers_accepts_a_prerelease_inside_the_span_of_a_union() {
 /// from the registry rather than auto-installing the alpha.
 #[test]
 fn hoist_peers_rejects_a_prerelease_at_the_lower_bound_of_a_union() {
-    let preferred =
-        preferred(&[("jest-util", &[("30.0.0-alpha.6", plain(VersionSelectorType::Version))])]);
-    let result =
-        hoist_peers(&opts(true, &preferred), &[missing("jest-util", "^29.0.0 || ^30.0.0")]);
+    let preferred = preferred(&[(
+        "jest-util",
+        &[("30.0.0-alpha.6", plain(VersionSelectorType::Version))],
+    )]);
+    let result = hoist_peers(
+        &opts(true, &preferred),
+        &[missing("jest-util", "^29.0.0 || ^30.0.0")],
+    );
     let mut expected = BTreeMap::new();
     expected.insert("jest-util".to_string(), "^29.0.0 || ^30.0.0".to_string());
     assert_eq!(result, expected);
@@ -366,8 +401,10 @@ fn hoist_peers_rejects_a_prerelease_at_the_lower_bound_of_a_union() {
 
 #[test]
 fn get_hoistable_optional_peers_rejects_prerelease_against_non_prerelease_range() {
-    let preferred =
-        preferred(&[("react", &[("18.0.0-rc.1", plain(VersionSelectorType::Version))])]);
+    let preferred = preferred(&[(
+        "react",
+        &[("18.0.0-rc.1", plain(VersionSelectorType::Version))],
+    )]);
     let mut missing = BTreeMap::new();
     missing.insert("react".to_string(), vec!["^18.0.0".to_string()]);
     let result = get_hoistable_optional_peers(&missing, &preferred, &[]);
@@ -384,7 +421,10 @@ fn get_hoistable_optional_peers_rejects_prerelease_within_the_range_span() {
         ],
     )]);
     let mut missing = BTreeMap::new();
-    missing.insert("jest-util".to_string(), vec!["^29.0.0 || ^30.0.0".to_string()]);
+    missing.insert(
+        "jest-util".to_string(),
+        vec!["^29.0.0 || ^30.0.0".to_string()],
+    );
     let result = get_hoistable_optional_peers(&missing, &preferred, &[]);
     let mut expected = BTreeMap::new();
     expected.insert("jest-util".to_string(), "29.7.0".to_string());
@@ -486,7 +526,10 @@ fn passes_the_importer_directory_to_the_overrider() {
     };
     let result = hoist_peers(&opts, &[missing("react", "^18.0.0")]);
     let mut expected = BTreeMap::new();
-    expected.insert("react".to_string(), "link:/workspace/packages/app".to_string());
+    expected.insert(
+        "react".to_string(),
+        "link:/workspace/packages/app".to_string(),
+    );
     assert_eq!(result, expected);
 }
 

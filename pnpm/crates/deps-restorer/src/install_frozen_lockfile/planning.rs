@@ -57,10 +57,9 @@ impl<'a> FrozenInputs<'a> {
         IncludedDependencies {
             dependencies: self.projects.dependency_groups.contains(&DependencyGroup::Prod),
             dev_dependencies: self.projects.dependency_groups.contains(&DependencyGroup::Dev),
-            optional_dependencies: self
-                .projects
-                .dependency_groups
-                .contains(&DependencyGroup::Optional),
+            optional_dependencies: self.projects.dependency_groups.contains(
+                &DependencyGroup::Optional,
+            ),
         }
     }
 
@@ -78,10 +77,11 @@ impl<'a> FrozenInputs<'a> {
                     project_dir,
                 )
             };
-        let trusted_importer_ids: std::collections::HashSet<String> =
-            install.projects.manifests.iter().map(importer_id).collect();
-        let root_component_importers: std::collections::HashSet<String> = install
-            .projects
+        let trusted_importer_ids: std::collections::HashSet<String> = install.projects.manifests
+            .iter()
+            .map(importer_id)
+            .collect();
+        let root_component_importers: std::collections::HashSet<String> = install.projects
             .manifests
             .iter()
             .filter(|(_, manifest)| {
@@ -432,7 +432,11 @@ pub(super) async fn plan_engine_name(
         crate::materialization_plan::HostDetection::Pending { .. } => {
             let name = crate::materialization_plan::engine_name_from_runtime_pin(snapshots);
             if name.is_some() {
-                return EngineNamePlan { name, deferred: None, pending_slot: None };
+                return EngineNamePlan {
+                    name,
+                    deferred: None,
+                    pending_slot: None,
+                };
             }
             return EngineNamePlan {
                 name: None,
@@ -449,5 +453,9 @@ pub(super) async fn plan_engine_name(
         host_node.as_ref(),
     )
     .await;
-    EngineNamePlan { name, deferred, pending_slot: None }
+    EngineNamePlan {
+        name,
+        deferred,
+        pending_slot: None,
+    }
 }

@@ -11,8 +11,12 @@ use std::fs::remove_file;
 fn link_bins_handles_missing_modules_dir() {
     let tmp = tempdir().unwrap();
     let bins_dir = tmp.path().join(".bin");
-    link_bins::<Host>(&tmp.path().join("missing"), &bins_dir, &LinkBinsOptions::default())
-        .expect("missing modules dir is Ok");
+    link_bins::<Host>(
+        &tmp.path().join("missing"),
+        &bins_dir,
+        &LinkBinsOptions::default(),
+    )
+    .expect("missing modules dir is Ok");
     assert!(!bins_dir.exists(), "no shims means no bin dir created");
 }
 
@@ -31,7 +35,10 @@ fn link_bins_of_packages_no_op_when_no_bins() {
         &LinkBinsOptions::default(),
     )
     .unwrap();
-    assert!(!bins.exists(), "bins dir must not be created when nothing to link");
+    assert!(
+        !bins.exists(),
+        "bins dir must not be created when nothing to link",
+    );
 }
 
 #[test]
@@ -96,8 +103,11 @@ fn link_bins_rewrites_when_only_canonical_flavor_exists() {
     let tmp = tempdir().unwrap();
     let modules = tmp.path().join("node_modules");
     create_dir_all(modules.join("foo")).unwrap();
-    write_file(modules.join("foo/package.json"), json!({"name": "foo", "bin": "f.js"}).to_string())
-        .unwrap();
+    write_file(
+        modules.join("foo/package.json"),
+        json!({"name": "foo", "bin": "f.js"}).to_string(),
+    )
+    .unwrap();
     write_file(modules.join("foo/f.js"), "#!/usr/bin/env node\n").unwrap();
 
     let bins = modules.join(".bin");
@@ -112,8 +122,14 @@ fn link_bins_rewrites_when_only_canonical_flavor_exists() {
     link_bins::<Host>(&modules, &bins, &LinkBinsOptions::default()).unwrap();
 
     assert!(bins.join("foo").exists(), "canonical shim must remain");
-    assert!(bins.join("foo.cmd").exists(), ".cmd sibling must be re-created on second pass");
-    assert!(bins.join("foo.ps1").exists(), ".ps1 sibling must be re-created on second pass");
+    assert!(
+        bins.join("foo.cmd").exists(),
+        ".cmd sibling must be re-created on second pass",
+    );
+    assert!(
+        bins.join("foo.ps1").exists(),
+        ".ps1 sibling must be re-created on second pass",
+    );
 }
 
 #[test]
@@ -333,7 +349,10 @@ fn link_bins_swallows_target_chmod_not_found_via_di() {
 /// pass, which carries no options and must not rewrite symlinked bins
 /// into shims.
 #[test]
-#[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
+#[cfg_attr(
+    target_os = "windows",
+    ignore = "preferSymlinkedExecutables is inert on Windows"
+)]
 fn existing_bins_pointing_at_the_target_survive_flag_changes() {
     let tmp = tempdir().unwrap();
     let pkg_dir = tmp.path().join("node_modules/foo");
@@ -349,15 +368,27 @@ fn existing_bins_pointing_at_the_target_survive_flag_changes() {
     let manifest_value: Value =
         serde_json::from_slice(&read_file(pkg_dir.join("package.json")).unwrap()).unwrap();
     let packages = [PackageBinSource::new(pkg_dir, Arc::new(manifest_value))];
-    let symlinked =
-        LinkBinsOptions { prefer_symlinked_executables: true, ..LinkBinsOptions::default() };
+    let symlinked = LinkBinsOptions {
+        prefer_symlinked_executables: true,
+        ..LinkBinsOptions::default()
+    };
     let bin = bins_dir.join("foo");
 
     // A valid shim survives a flag-on relink.
     link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
-    assert!(std::fs::symlink_metadata(&bin).unwrap().file_type().is_file());
+    assert!(
+        std::fs::symlink_metadata(&bin)
+            .unwrap()
+            .file_type()
+            .is_file(),
+    );
     link_bins_of_packages::<Host>(&packages, &bins_dir, &symlinked).unwrap();
-    assert!(std::fs::symlink_metadata(&bin).unwrap().file_type().is_file());
+    assert!(
+        std::fs::symlink_metadata(&bin)
+            .unwrap()
+            .file_type()
+            .is_file(),
+    );
 
     // A fresh bin under the flag is a symlink, and the same dirent —
     // pinned by its inode — survives both a warm flag-on relink and a
@@ -365,16 +396,31 @@ fn existing_bins_pointing_at_the_target_survive_flag_changes() {
     // not recreate the link.
     std::fs::remove_file(&bin).unwrap();
     link_bins_of_packages::<Host>(&packages, &bins_dir, &symlinked).unwrap();
-    assert!(std::fs::symlink_metadata(&bin).unwrap().file_type().is_symlink());
+    assert!(
+        std::fs::symlink_metadata(&bin)
+            .unwrap()
+            .file_type()
+            .is_symlink(),
+    );
     #[cfg(unix)]
     let inode = {
         use std::os::unix::fs::MetadataExt;
         std::fs::symlink_metadata(&bin).unwrap().ino()
     };
     link_bins_of_packages::<Host>(&packages, &bins_dir, &symlinked).unwrap();
-    assert!(std::fs::symlink_metadata(&bin).unwrap().file_type().is_symlink());
+    assert!(
+        std::fs::symlink_metadata(&bin)
+            .unwrap()
+            .file_type()
+            .is_symlink(),
+    );
     link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
-    assert!(std::fs::symlink_metadata(&bin).unwrap().file_type().is_symlink());
+    assert!(
+        std::fs::symlink_metadata(&bin)
+            .unwrap()
+            .file_type()
+            .is_symlink(),
+    );
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;

@@ -44,18 +44,28 @@ fn report_pruned_ghsas(pruned: &[String]) {
         "Removed {} unused ignored GHSA{}: {}",
         pruned.len(),
         if pruned.len() == 1 { "" } else { "s" },
-        pruned.iter().map(|ghsa| sanitize_inline(ghsa)).collect::<Vec<_>>().join(", "),
+        pruned
+            .iter()
+            .map(|ghsa| sanitize_inline(ghsa))
+            .collect::<Vec<_>>()
+            .join(", "),
     );
 }
 
 impl PackageVersionGuard for VulnerabilityGuard {
     fn check<'a>(&'a self, name: &'a str, version: &'a str) -> PackageVersionGuardFuture<'a> {
         Box::pin(async move {
-            let rejected = self.ranges_by_name.get(name).is_some_and(|ranges| {
-                version.parse::<Version>().is_ok_and(|version| {
-                    ranges.iter().any(|range| satisfies_including_prerelease(&version, range))
-                })
-            });
+            let rejected = self.ranges_by_name
+                .get(name)
+                .is_some_and(|ranges| {
+                    version
+                        .parse::<Version>()
+                        .is_ok_and(|version| {
+                            ranges
+                                .iter()
+                                .any(|range| satisfies_including_prerelease(&version, range))
+                        })
+                });
             Ok(if rejected {
                 PackageVersionGuardDecision::Reject {
                     reason: format!("{name}@{version} is vulnerable"),
@@ -82,7 +92,11 @@ impl ResolutionObserver for AuditFixObserver {
     }
 
     fn minimum_release_age_exclude_override(&self) -> Option<Vec<String>> {
-        if self.age_excludes.is_empty() { None } else { Some(self.age_excludes.clone()) }
+        if self.age_excludes.is_empty() {
+            None
+        } else {
+            Some(self.age_excludes.clone())
+        }
     }
 }
 
@@ -170,7 +184,10 @@ impl AuditArgs {
         match self.fix.as_deref() {
             Some("override") => Ok(Some(FixMethod::Override)),
             Some("update") => Ok(Some(FixMethod::Update)),
-            Some(value) => Err(AuditError::InvalidFixOption { value: value.to_string() }.into()),
+            Some(value) => Err(AuditError::InvalidFixOption {
+                value: value.to_string(),
+            }
+            .into()),
             None if self.interactive => Ok(Some(FixMethod::Override)),
             None => Ok(None),
         }

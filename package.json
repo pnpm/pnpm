@@ -42,7 +42,7 @@
     "ci:rust-clippy": "cargo clippy --locked --workspace --all-targets -- -D warnings",
     "ci:rust-doc": "cargo doc --no-deps --workspace --document-private-items",
     "ci:rust-deny": "cargo deny check",
-    "ci:rust-fmt": "cargo fmt --all -- --check",
+    "ci:rust-fmt": "node pnpm/scripts/rustfmt.mjs --all -- --check",
     "ci:toml-fmt": "taplo format --check",
     "ci:rust-dylint": "cargo dylint --all -- --all-targets --workspace",
     "ci:build-pnpr": "cargo build --locked --release -p pnpr --bin pnpr -p pnpr-fixtures --bin pnpr-prepare"

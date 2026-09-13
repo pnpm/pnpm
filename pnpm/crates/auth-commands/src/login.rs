@@ -140,7 +140,9 @@ where
     // cost the user a round-trip, and must never be written — a `config.yaml`
     // holding one fails to load for every later command.
     let registry = validate_json_auth_registry(&registry)
-        .map_err(|reason| LoginError::UnrecordableLogin { reason })?;
+        .map_err(|reason| LoginError::UnrecordableLogin {
+            reason,
+        })?;
     if let Some(scope) = normalize_scope(opts.scope)
         && !is_json_auth_scope(&scope)
     {
@@ -186,7 +188,11 @@ fn normalize_scope(scope: Option<&str>) -> Option<String> {
     if trimmed.is_empty() || trimmed == "@" {
         return None;
     }
-    Some(if trimmed.starts_with('@') { trimmed.to_owned() } else { format!("@{trimmed}") })
+    Some(if trimmed.starts_with('@') {
+        trimmed.to_owned()
+    } else {
+        format!("@{trimmed}")
+    })
 }
 
 /// Record the granted `token` in the global `config.yaml`: the credential
@@ -225,7 +231,10 @@ fn record_login<Sys: FsReadToString + FsWrite>(
         return Ok(());
     };
     Sys::write(&config_path, text.as_bytes())
-        .map_err(|error| LoginError::WriteConfigYaml { path: config_path, error })
+        .map_err(|error| LoginError::WriteConfigYaml {
+            path: config_path,
+            error,
+        })
 }
 
 /// Read the global `config.yaml`, treating a missing file as absent. Any
@@ -234,7 +243,10 @@ fn read_config_yaml<Sys: FsReadToString>(path: &Path) -> Result<Option<String>, 
     match Sys::read_to_string(path) {
         Ok(text) => Ok(Some(text)),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(LoginError::ReadConfigYaml { path: path.to_path_buf(), error }),
+        Err(error) => Err(LoginError::ReadConfigYaml {
+            path: path.to_path_buf(),
+            error,
+        }),
     }
 }
 
@@ -244,7 +256,10 @@ fn registry_join(registry: &str, path: &str) -> Result<String, url::ParseError> 
 }
 
 fn global_info<Reporter: self::Reporter>(message: String) {
-    Reporter::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Info, message }));
+    Reporter::emit(&LogEvent::Global(GlobalLog {
+        level: LogLevel::Info,
+        message,
+    }));
 }
 
 #[cfg(test)]

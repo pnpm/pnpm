@@ -11,11 +11,18 @@ use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 fn config_with_dir(config_dir: &Path) -> Config {
-    Config { config_dir: Some(config_dir.to_path_buf()), ..Config::default() }
+    Config {
+        config_dir: Some(config_dir.to_path_buf()),
+        ..Config::default()
+    }
 }
 
 fn flags(global: bool, location: Option<ConfigLocation>, json: bool) -> ConfigFlags {
-    ConfigFlags { global, location, json }
+    ConfigFlags {
+        global,
+        location,
+        json,
+    }
 }
 
 fn read_yaml(path: &Path) -> Option<Value> {
@@ -45,7 +52,10 @@ fn set_registry_global_writes_auth_ini() {
     .unwrap();
 
     let ini = read_ini(&config_dir.join("auth.ini"));
-    assert_eq!(ini.get("registry").map(String::as_str), Some("https://npm-registry.example.com/"));
+    assert_eq!(
+        ini.get("registry").map(String::as_str),
+        Some("https://npm-registry.example.com/"),
+    );
 }
 
 #[test]
@@ -54,8 +64,14 @@ fn set_cafile_global_writes_auth_ini() {
     let config_dir = tmp.path().join("global-config");
     let config = config_with_dir(&config_dir);
 
-    config_set(&config, tmp.path(), flags(true, None, false), "cafile", Some("some-cafile".into()))
-        .unwrap();
+    config_set(
+        &config,
+        tmp.path(),
+        flags(true, None, false),
+        "cafile",
+        Some("some-cafile".into()),
+    )
+    .unwrap();
 
     assert_eq!(
         read_ini(&config_dir.join("auth.ini")).get("cafile").map(String::as_str),
@@ -81,7 +97,12 @@ fn set_scoped_registry_project_creates_npmrc() {
         read_ini(&tmp.path().join(".npmrc")).get("@myorg:registry").map(String::as_str),
         Some("https://test-registry.example.com/"),
     );
-    assert!(!tmp.path().join("pnpm-workspace.yaml").exists());
+    assert!(
+        !tmp
+            .path()
+            .join("pnpm-workspace.yaml")
+            .exists(),
+    );
 }
 
 #[test]
@@ -115,10 +136,19 @@ fn set_pnpm_key_global_writes_config_yaml_as_number() {
     std::fs::create_dir_all(&config_dir).unwrap();
     let config = config_with_dir(&config_dir);
 
-    config_set(&config, tmp.path(), flags(true, None, false), "fetch-retries", Some("1".into()))
-        .unwrap();
+    config_set(
+        &config,
+        tmp.path(),
+        flags(true, None, false),
+        "fetch-retries",
+        Some("1".into()),
+    )
+    .unwrap();
 
-    assert_eq!(read_yaml(&config_dir.join("config.yaml")).unwrap(), json!({ "fetchRetries": 1 }));
+    assert_eq!(
+        read_yaml(&config_dir.join("config.yaml")).unwrap(),
+        json!({ "fetchRetries": 1 }),
+    );
 }
 
 #[test]
@@ -173,7 +203,10 @@ fn set_camel_key_location_global() {
     )
     .unwrap();
 
-    assert_eq!(read_yaml(&config_dir.join("config.yaml")).unwrap(), json!({ "fetchRetries": 1 }));
+    assert_eq!(
+        read_yaml(&config_dir.join("config.yaml")).unwrap(),
+        json!({ "fetchRetries": 1 }),
+    );
 }
 
 #[test]
@@ -293,7 +326,14 @@ fn set_dot_leading_and_subscripted_keys() {
         std::fs::create_dir_all(&config_dir).unwrap();
         let config = config_with_dir(&config_dir);
 
-        config_set(&config, tmp.path(), flags(true, None, false), key, Some("1".into())).unwrap();
+        config_set(
+            &config,
+            tmp.path(),
+            flags(true, None, false),
+            key,
+            Some("1".into()),
+        )
+        .unwrap();
 
         assert_eq!(
             read_yaml(&config_dir.join("config.yaml")).unwrap(),
@@ -341,7 +381,13 @@ fn set_rejects_deep_property_path() {
         Some("19".into()),
     )
     .unwrap_err();
-    assert_eq!(err.code().unwrap().to_string(), "ERR_PNPM_CONFIG_SET_DEEP_KEY");
+    assert_eq!(
+        err
+            .code()
+            .unwrap()
+            .to_string(),
+        "ERR_PNPM_CONFIG_SET_DEEP_KEY",
+    );
 }
 
 #[test]
@@ -357,7 +403,13 @@ fn set_refuses_workspace_key_in_global_config() {
         Some(r#"{"react":"19"}"#.into()),
     )
     .unwrap_err();
-    assert_eq!(err.code().unwrap().to_string(), "ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY");
+    assert_eq!(
+        err
+            .code()
+            .unwrap()
+            .to_string(),
+        "ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY",
+    );
 }
 
 #[test]
@@ -372,7 +424,13 @@ fn set_refuses_kebab_workspace_key() {
         Some("{}".into()),
     )
     .unwrap_err();
-    assert_eq!(err.code().unwrap().to_string(), "ERR_PNPM_CONFIG_SET_UNSUPPORTED_WORKSPACE_KEY");
+    assert_eq!(
+        err
+            .code()
+            .unwrap()
+            .to_string(),
+        "ERR_PNPM_CONFIG_SET_UNSUPPORTED_WORKSPACE_KEY",
+    );
 }
 
 // --- config delete ---------------------------------------------------------
@@ -390,7 +448,12 @@ fn delete_last_yaml_key_removes_file() {
         Some(".pnpm".into()),
     )
     .unwrap();
-    assert!(tmp.path().join("pnpm-workspace.yaml").exists());
+    assert!(
+        tmp
+            .path()
+            .join("pnpm-workspace.yaml")
+            .exists(),
+    );
 
     config_set(
         &config,
@@ -400,7 +463,12 @@ fn delete_last_yaml_key_removes_file() {
         None,
     )
     .unwrap();
-    assert!(!tmp.path().join("pnpm-workspace.yaml").exists());
+    assert!(
+        !tmp
+            .path()
+            .join("pnpm-workspace.yaml")
+            .exists(),
+    );
 }
 
 #[test]
@@ -416,7 +484,14 @@ fn delete_auth_key_set_and_unset() {
         "@my-company:registry=https://registry.my-company.example.com/\n",
     )
     .unwrap();
-    config_set(&config, tmp.path(), flags(true, None, false), "registry", None).unwrap();
+    config_set(
+        &config,
+        tmp.path(),
+        flags(true, None, false),
+        "registry",
+        None,
+    )
+    .unwrap();
     assert_eq!(
         read_ini(&config_dir.join("auth.ini")).get("@my-company:registry").map(String::as_str),
         Some("https://registry.my-company.example.com/"),
@@ -428,7 +503,14 @@ fn delete_auth_key_set_and_unset() {
         "registry=https://registry.my-company.example.com/\n",
     )
     .unwrap();
-    config_set(&config, tmp.path(), flags(true, None, false), "registry", None).unwrap();
+    config_set(
+        &config,
+        tmp.path(),
+        flags(true, None, false),
+        "registry",
+        None,
+    )
+    .unwrap();
     assert!(read_ini(&config_dir.join("auth.ini")).is_empty());
 }
 
@@ -438,13 +520,19 @@ fn delete_missing_params_errors() {
     // dispatch uses.
     let (key, value) = (None::<String>, None::<String>);
     let err = super::split_set_params(key, value, "set").unwrap_err();
-    assert_eq!(miette::Diagnostic::code(&err).unwrap().to_string(), "ERR_PNPM_CONFIG_NO_PARAMS");
+    assert_eq!(
+        miette::Diagnostic::code(&err).unwrap().to_string(),
+        "ERR_PNPM_CONFIG_NO_PARAMS",
+    );
 }
 
 // --- config get / list -----------------------------------------------------
 
 fn config_for_get(explicit: &[(&str, Value)], auth: &[(&str, &str)]) -> Config {
-    let mut config = Config { config_dir: Some(PathBuf::from("/config")), ..Config::default() };
+    let mut config = Config {
+        config_dir: Some(PathBuf::from("/config")),
+        ..Config::default()
+    };
     for (key, value) in explicit {
         config.explicit_settings.insert((*key).to_string(), value.clone());
     }
@@ -457,8 +545,14 @@ fn config_for_get(explicit: &[(&str, Value)], auth: &[(&str, &str)]) -> Config {
 #[test]
 fn get_scalar_string_and_camel() {
     let config = config_for_get(&[("storeDir", json!("~/store"))], &[]);
-    assert_eq!(config_get(&config, flags(true, None, false), "store-dir").unwrap(), "~/store");
-    assert_eq!(config_get(&config, flags(true, None, false), "storeDir").unwrap(), "~/store");
+    assert_eq!(
+        config_get(&config, flags(true, None, false), "store-dir").unwrap(),
+        "~/store",
+    );
+    assert_eq!(
+        config_get(&config, flags(true, None, false), "storeDir").unwrap(),
+        "~/store",
+    );
 }
 
 /// Both spellings of the virtual store's type are `types` keys, so `get`
@@ -467,7 +561,10 @@ fn get_scalar_string_and_camel() {
 #[test]
 fn get_virtual_store_type_and_its_boolean_spelling() {
     let config = config_for_get(
-        &[("virtualStoreType", json!("global")), ("enableGlobalVirtualStore", json!(true))],
+        &[
+            ("virtualStoreType", json!("global")),
+            ("enableGlobalVirtualStore", json!(true)),
+        ],
         &[],
     );
     assert_eq!(
@@ -479,7 +576,12 @@ fn get_virtual_store_type_and_its_boolean_spelling() {
         "global",
     );
     assert_eq!(
-        config_get(&config, flags(true, None, false), "enable-global-virtual-store").unwrap(),
+        config_get(
+            &config,
+            flags(true, None, false),
+            "enable-global-virtual-store"
+        )
+        .unwrap(),
         "true",
     );
 }
@@ -490,11 +592,17 @@ fn get_boolean_and_array_and_object() {
         &[
             ("updateNotifier", json!(true)),
             ("publicHoistPattern", json!(["*eslint*", "*prettier*"])),
-            ("packageExtensions", json!({ "a": { "dependencies": { "b": "1" } } })),
+            (
+                "packageExtensions",
+                json!({ "a": { "dependencies": { "b": "1" } } }),
+            ),
         ],
         &[],
     );
-    assert_eq!(config_get(&config, flags(true, None, false), "update-notifier").unwrap(), "true");
+    assert_eq!(
+        config_get(&config, flags(true, None, false), "update-notifier").unwrap(),
+        "true",
+    );
     assert_eq!(
         serde_json::from_str::<Value>(
             &config_get(&config, flags(true, None, false), "public-hoist-pattern").unwrap()
@@ -530,18 +638,24 @@ fn get_unknown_key_is_undefined() {
 
 #[test]
 fn get_scoped_registry_from_auth_and_merged() {
-    let from_auth =
-        config_for_get(&[], &[("@scope:registry", "https://custom-registry.example.com/")]);
+    let from_auth = config_for_get(
+        &[],
+        &[("@scope:registry", "https://custom-registry.example.com/")],
+    );
     assert_eq!(
         config_get(&from_auth, flags(false, None, false), "@scope:registry").unwrap(),
         "https://custom-registry.example.com/",
     );
 
     // merged `registries` block wins over the raw .npmrc value (pnpm/pnpm#11492)
-    let mut merged = config_for_get(&[], &[("@scope:registry", "https://from-npmrc.example.com/")]);
-    merged
-        .registries_by_scope
-        .insert("@scope".to_string(), "https://from-workspace-yaml.example.com/".to_string());
+    let mut merged = config_for_get(
+        &[],
+        &[("@scope:registry", "https://from-npmrc.example.com/")],
+    );
+    merged.registries_by_scope.insert(
+        "@scope".to_string(),
+        "https://from-workspace-yaml.example.com/".to_string(),
+    );
     assert_eq!(
         config_get(&merged, flags(false, None, false), "@scope:registry").unwrap(),
         "https://from-workspace-yaml.example.com/",
@@ -582,7 +696,10 @@ fn get_registry_and_jsr_answer_the_merged_routes() {
         "https://from-workspace-yaml.example.com/",
     );
     let listed: Value = serde_json::from_str(&config_list(&routed)).unwrap();
-    assert_eq!(listed["registry"], json!("https://from-workspace-yaml.example.com/"));
+    assert_eq!(
+        listed["registry"],
+        json!("https://from-workspace-yaml.example.com/"),
+    );
 }
 
 #[test]
@@ -628,8 +745,14 @@ fn get_registries_returns_resolved_declarations() {
 fn list_rejoins_registry_lookups_under_registries() {
     let mut config = config_for_get(
         &[
-            ("registries", json!({ "default": "https://registry.example.com/" })),
-            ("namedRegistries", json!({ "work": "https://work.example.com/" })),
+            (
+                "registries",
+                json!({ "default": "https://registry.example.com/" }),
+            ),
+            (
+                "namedRegistries",
+                json!({ "work": "https://work.example.com/" }),
+            ),
         ],
         &[],
     );
@@ -653,9 +776,15 @@ fn list_rejoins_registry_lookups_under_registries() {
 fn get_update_and_audit_return_resolved_settings() {
     let mut config = config_for_get(
         &[
-            ("update", json!({ "ignoreDeps": ["webpack"], "changeset": true })),
+            (
+                "update",
+                json!({ "ignoreDeps": ["webpack"], "changeset": true }),
+            ),
             ("updateConfig", json!({ "ignoreDependencies": ["webpack"] })),
-            ("auditConfig", json!({ "ignoreGhsas": ["GHSA-xxxx-yyyy-zzzz"] })),
+            (
+                "auditConfig",
+                json!({ "ignoreGhsas": ["GHSA-xxxx-yyyy-zzzz"] }),
+            ),
             ("auditLevel", json!("high")),
         ],
         &[],
@@ -689,7 +818,10 @@ fn get_update_and_audit_return_resolved_settings() {
             "{deprecated_key}",
         );
     }
-    assert_eq!(config_get(&config, flags(false, None, false), "audit-level").unwrap(), "high");
+    assert_eq!(
+        config_get(&config, flags(false, None, false), "audit-level").unwrap(),
+        "high",
+    );
     let listed: Value = serde_json::from_str(&config_list(&config)).unwrap();
     assert_eq!(listed.get("auditLevel"), None);
 }
@@ -732,7 +864,10 @@ fn catalogs_resolve_from_the_singular_catalog_alone() {
     );
 
     let empty = config_for_get(&[], &[]);
-    assert_eq!(config_get(&empty, flags(false, None, false), "catalogs").unwrap(), "undefined");
+    assert_eq!(
+        config_get(&empty, flags(false, None, false), "catalogs").unwrap(),
+        "undefined",
+    );
 }
 
 #[test]
@@ -791,9 +926,15 @@ fn list_includes_settings_and_censors_protected() {
     let listed: Value = serde_json::from_str(&config_list(&config)).unwrap();
     assert_eq!(listed["storeDir"], json!("~/store"));
     assert_eq!(listed["fetchRetries"], json!(2));
-    assert_eq!(listed["@my-org:registry"], json!("https://my-org.example.com/registry"));
+    assert_eq!(
+        listed["@my-org:registry"],
+        json!("https://my-org.example.com/registry"),
+    );
     assert_eq!(listed["username"], json!("(protected)"));
-    assert_eq!(listed["//my-org.example.com:username"], json!("(protected)"));
+    assert_eq!(
+        listed["//my-org.example.com:username"],
+        json!("(protected)"),
+    );
 
     // `get` with no key equals `list`.
     let got = config_get(&config, flags(false, None, false), "").unwrap();
@@ -819,11 +960,19 @@ fn set_ini_value_with_control_char_is_rejected() {
     .unwrap_err();
 
     assert_eq!(
-        err.code().unwrap().to_string(),
+        err
+            .code()
+            .unwrap()
+            .to_string(),
         "ERR_PNPM_CLI_CONFIG_SET_INVALID_CONTROL_CHARACTER",
     );
     // The file must not have been written.
-    assert!(!tmp.path().join(".npmrc").exists());
+    assert!(
+        !tmp
+            .path()
+            .join(".npmrc")
+            .exists(),
+    );
 }
 
 #[cfg(unix)]
@@ -846,8 +995,15 @@ fn set_preserves_existing_npmrc_mode() {
     )
     .unwrap();
 
-    let mode = std::fs::metadata(&npmrc).unwrap().permissions().mode() & 0o777;
-    assert_eq!(mode, 0o644, "existing .npmrc mode must be preserved, got {mode:o}");
+    let mode = std::fs::metadata(&npmrc)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(
+        mode, 0o644,
+        "existing .npmrc mode must be preserved, got {mode:o}",
+    );
 }
 
 #[cfg(unix)]
@@ -876,7 +1032,10 @@ fn set_does_not_follow_symlinked_npmrc_mode() {
     // The rename replaced the symlink with a fresh regular file that must keep
     // the conservative 0600 default, not the link target's 0644.
     let meta = std::fs::symlink_metadata(&npmrc).unwrap();
-    assert!(!meta.file_type().is_symlink(), "symlink should be replaced by a regular file");
+    assert!(
+        !meta.file_type().is_symlink(),
+        "symlink should be replaced by a regular file",
+    );
     let mode = meta.permissions().mode() & 0o777;
     assert_eq!(
         mode, 0o600,

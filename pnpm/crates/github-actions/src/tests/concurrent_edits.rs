@@ -33,7 +33,10 @@ async fn preserves_concurrent_workflow_edits_when_action_ranges_are_stale() {
         fs::create_dir_all(&directory).expect("workflow directory");
         let workflow = directory.join("ci.yml");
         fs::write(&workflow, original).expect("workflow");
-        let runner = EditingGitRunner { workflow: workflow.clone(), source: changed.clone() };
+        let runner = EditingGitRunner {
+            workflow: workflow.clone(),
+            source: changed.clone(),
+        };
         let result = update_with_runner::<SilentReporter, _>(
             root.path(),
             false,
@@ -44,7 +47,10 @@ async fn preserves_concurrent_workflow_edits_when_action_ranges_are_stale() {
         .await;
         let error = result.err().expect("stale edits must fail");
         assert_eq!(
-            error.code().expect("error code").to_string(),
+            error
+                .code()
+                .expect("error code")
+                .to_string(),
             "ERR_PNPM_GITHUB_ACTIONS_WORKFLOW_CHANGED",
         );
         assert_eq!(fs::read_to_string(workflow).expect("workflow"), changed);

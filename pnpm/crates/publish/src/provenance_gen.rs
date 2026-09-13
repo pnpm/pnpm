@@ -116,17 +116,25 @@ impl SignProvenance for Host {
         timeout: Option<Duration>,
     ) -> Result<SignedProvenance, ProvenanceGenError> {
         let token = IdentityToken::from_jwt(jwt)
-            .map_err(|source| ProvenanceGenError::IdentityToken { source: source.to_string() })?;
+            .map_err(|source| ProvenanceGenError::IdentityToken {
+                source: source.to_string(),
+            })?;
         let context = SigningContext::production();
         let deadline = timeout.unwrap_or(DEFAULT_SIGN_TIMEOUT);
         sign_with_retry(SIGN_RETRY_OPTS, || {
             with_sign_deadline(deadline, async {
-                let bundle =
-                    context.signer(token.clone()).sign_raw_statement(statement).await.map_err(
-                        |source| ProvenanceGenError::Sign { source: source.to_string() },
-                    )?;
+                let bundle = context
+                    .signer(token.clone())
+                    .sign_raw_statement(statement)
+                    .await
+                    .map_err(|source| ProvenanceGenError::Sign {
+                        source: source.to_string(),
+                    })?;
                 let data = serde_json::to_string(&bundle).expect("serialize sigstore bundle");
-                Ok(SignedProvenance { media_type: bundle.media_type, data })
+                Ok(SignedProvenance {
+                    media_type: bundle.media_type,
+                    data,
+                })
             })
         })
         .await
@@ -205,8 +213,9 @@ where
 /// (`pkg:npm/<name>@<version>`), with only a leading scope `@`
 /// percent-encoded to `%40` (the `/` is left intact).
 fn npm_purl(name: &str, version: &str) -> String {
-    let encoded =
-        name.strip_prefix('@').map_or_else(|| name.to_owned(), |rest| format!("%40{rest}"));
+    let encoded = name
+        .strip_prefix('@')
+        .map_or_else(|| name.to_owned(), |rest| format!("%40{rest}"));
     format!("pkg:npm/{encoded}@{version}")
 }
 
@@ -229,10 +238,12 @@ fn github_statement<Sys: EnvVar>(subject: &Value) -> Value {
     let workflow_ref = env::<Sys>("GITHUB_WORKFLOW_REF");
     // GITHUB_WORKFLOW_REF is `owner/repo/path@ref`; strip the `owner/repo/`
     // prefix, then split the remainder on `@` into path and ref.
-    let relative_ref =
-        workflow_ref.strip_prefix(&format!("{repository}/")).unwrap_or(&workflow_ref);
-    let (workflow_path, workflow_ref_only) =
-        relative_ref.split_once('@').unwrap_or((relative_ref, ""));
+    let relative_ref = workflow_ref
+        .strip_prefix(&format!("{repository}/"))
+        .unwrap_or(&workflow_ref);
+    let (workflow_path, workflow_ref_only) = relative_ref
+        .split_once('@')
+        .unwrap_or((relative_ref, ""));
 
     json!({
         "_type": IN_TOTO_STATEMENT_V1_TYPE,
@@ -333,8 +344,7 @@ where
     Reporter: self::Reporter,
 {
     if is_github_actions::<Sys>() {
-        return github_request_token::<Sys, Reporter>(SIGSTORE_AUDIENCE, options)
-            .await
+        return github_request_token::<Sys, Reporter>(SIGSTORE_AUDIENCE, options).await
             .map_err(Into::into);
     }
 
@@ -365,7 +375,9 @@ impl From<GitHubRequestTokenError> for ProvenanceGenError {
             GitHubRequestTokenError::NotOk | GitHubRequestTokenError::MissingValue => {
                 ProvenanceGenError::GitHubInvalidResponse
             }
-            GitHubRequestTokenError::JsonParse(source) => ProvenanceGenError::TokenJson { source },
+            GitHubRequestTokenError::JsonParse(source) => ProvenanceGenError::TokenJson {
+                source,
+            },
         }
     }
 }

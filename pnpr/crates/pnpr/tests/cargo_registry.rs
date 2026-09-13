@@ -54,24 +54,37 @@ fn crate_archive(name: &str, version: &str) -> Vec<u8> {
     let encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
     let mut builder = tar::Builder::new(encoder);
     for (path, contents) in [
-        ("Cargo.toml", format!("[package]\nname = \"{name}\"\nversion = \"{version}\"\n")),
+        (
+            "Cargo.toml",
+            format!("[package]\nname = \"{name}\"\nversion = \"{version}\"\n"),
+        ),
         ("src/lib.rs", "pub fn demo() {}\n".to_string()),
     ] {
         let mut header = tar::Header::new_gnu();
         header.set_size(contents.len() as u64);
         header.set_mode(0o644);
         header.set_cksum();
-        builder.append_data(&mut header, format!("{root}/{path}"), contents.as_bytes()).unwrap();
+        builder
+            .append_data(&mut header, format!("{root}/{path}"), contents.as_bytes())
+            .unwrap();
     }
-    builder.into_inner().unwrap().finish().unwrap()
+    builder
+        .into_inner()
+        .unwrap()
+        .finish()
+        .unwrap()
 }
 
 fn publish_body(metadata: &Value, archive: &[u8]) -> Vec<u8> {
     let metadata = serde_json::to_vec(metadata).unwrap();
     let mut body = Vec::new();
-    body.write_all(&(metadata.len() as u32).to_le_bytes()).unwrap();
+    body
+        .write_all(&(metadata.len() as u32).to_le_bytes())
+        .unwrap();
     body.write_all(&metadata).unwrap();
-    body.write_all(&(archive.len() as u32).to_le_bytes()).unwrap();
+    body
+        .write_all(&(archive.len() as u32).to_le_bytes())
+        .unwrap();
     body.write_all(archive).unwrap();
     body
 }
@@ -115,7 +128,9 @@ fn publish_request(token: Option<&str>, body: Vec<u8>) -> Request<Body> {
     if let Some(token) = token {
         request = request.header(header::AUTHORIZATION, token);
     }
-    request.body(Body::from(body)).unwrap()
+    request
+        .body(Body::from(body))
+        .unwrap()
 }
 
 /// The on-disk state a crash between staging the archive and recording it in
@@ -140,8 +155,11 @@ fn fabricate_crashed_crate_publish(storage: &Path, archive: &[u8]) -> PathBuf {
             "yanked": false,
         }],
     });
-    std::fs::write(txn_dir.join("document-0.json"), serde_json::to_vec(&document).unwrap())
-        .unwrap();
+    std::fs::write(
+        txn_dir.join("document-0.json"),
+        serde_json::to_vec(&document).unwrap(),
+    )
+    .unwrap();
     let manifest = json!({
         "packages": [{
             "name": "demo",
@@ -151,7 +169,11 @@ fn fabricate_crashed_crate_publish(storage: &Path, archive: &[u8]) -> PathBuf {
             "blobs": [{ "filename": "demo-0.1.0.crate", "tmp_path": tmp_path }],
         }],
     });
-    std::fs::write(txn_dir.join("manifest.json"), serde_json::to_vec(&manifest).unwrap()).unwrap();
+    std::fs::write(
+        txn_dir.join("manifest.json"),
+        serde_json::to_vec(&manifest).unwrap(),
+    )
+    .unwrap();
     std::fs::write(txn_dir.join("commit"), b"").unwrap();
     tmp_path
 }

@@ -73,9 +73,21 @@ pub(in super::super) async fn validate_publish_doc(
             .and_then(|manifest| manifest.get("dist"))
             .cloned()
             .unwrap_or(Value::Null);
-        prepared.push(PreparedAttachment { attachment, canonical, version, dist });
+        prepared.push(PreparedAttachment {
+            attachment,
+            canonical,
+            version,
+            dist,
+        });
     }
-    Ok((ValidatedPublish { name, incoming, prepared }, target))
+    Ok((
+        ValidatedPublish {
+            name,
+            incoming,
+            prepared,
+        },
+        target,
+    ))
 }
 
 pub(super) fn record_publisher(incoming: &mut Value, identity: &Identity) {
@@ -195,7 +207,12 @@ pub(super) async fn write_attachment_slot(
     name: &CanonicalPackageName,
     prepared: PreparedAttachment,
 ) -> Result<pnpr_storage::BlobSlot, RegistryError> {
-    let PreparedAttachment { attachment, canonical, version: _, dist } = prepared;
+    let PreparedAttachment {
+        attachment,
+        canonical,
+        version: _,
+        dist,
+    } = prepared;
     let slot = storage.reserve_hosted_blob(name, &canonical).await?;
     let PendingAttachment { filename, data, declared_length } = attachment;
     let tmp_path = slot.tmp_path.clone();
@@ -215,7 +232,9 @@ pub(super) async fn write_attachment_slot(
         Ok(Err(err)) => Err(err),
         Err(join_err) => {
             let _ = tokio::fs::remove_file(&slot.tmp_path).await;
-            Err(RegistryError::Io(std::io::Error::other(join_err.to_string())))
+            Err(RegistryError::Io(std::io::Error::other(
+                join_err.to_string(),
+            )))
         }
     }
 }
@@ -244,9 +263,13 @@ pub(super) fn check_publishable_versions(
     hosted: Option<&Value>,
     prepared: &[PreparedAttachment],
 ) -> Result<(), RegistryError> {
-    let attachment_versions: HashSet<&str> =
-        prepared.iter().map(|attachment| attachment.version.as_str()).collect();
-    let hosted_versions = hosted.and_then(|h| h.get("versions")).and_then(Value::as_object);
+    let attachment_versions: HashSet<&str> = prepared
+        .iter()
+        .map(|attachment| attachment.version.as_str())
+        .collect();
+    let hosted_versions = hosted
+        .and_then(|h| h.get("versions"))
+        .and_then(Value::as_object);
     let Some(incoming_versions) = incoming.get("versions").and_then(Value::as_object) else {
         return Ok(());
     };
@@ -285,7 +308,11 @@ pub(super) fn staged_hosted_original_ref(
     package: &CanonicalPackageName,
     attachment: &PreparedAttachment,
 ) -> Option<JournaledRevisionRef> {
-    let integrity: Integrity = attachment.dist.get("integrity")?.as_str()?.parse().ok()?;
+    let integrity: Integrity = attachment.dist
+        .get("integrity")?
+        .as_str()?
+        .parse()
+        .ok()?;
     let path = integrity_addressed_tarball_path(&integrity)?;
     let digest = path.strip_prefix("-/tarballs/sha512/")?.to_string();
     let record = HostedOriginalRef {
@@ -294,5 +321,10 @@ pub(super) fn staged_hosted_original_ref(
     };
     let bytes = serde_json::to_vec(&record).expect("hosted original reference serializes");
     let ref_id = create_hex_hash(&format!("{}\0{}", record.package, record.version));
-    Some(JournaledRevisionRef { filename: attachment.canonical.clone(), digest, ref_id, bytes })
+    Some(JournaledRevisionRef {
+        filename: attachment.canonical.clone(),
+        digest,
+        ref_id,
+        bytes,
+    })
 }

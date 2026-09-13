@@ -24,7 +24,10 @@ fn split_ini_line(line: &str) -> Option<(&str, std::borrow::Cow<'_, str>)> {
 fn decode_ini_value(value: &str) -> Cow<'_, str> {
     if value.starts_with('\'') && value.ends_with('\'') {
         Cow::Borrowed(
-            value.strip_prefix('\'').and_then(|value| value.strip_suffix('\'')).unwrap_or(""),
+            value
+                .strip_prefix('\'')
+                .and_then(|value| value.strip_suffix('\''))
+                .unwrap_or(""),
         )
     } else if value.len() >= 2 && value.starts_with('"') && value.ends_with('"') {
         serde_json::from_str::<String>(value).map_or(Cow::Borrowed(value), Cow::Owned)
@@ -46,14 +49,19 @@ fn is_registry_key(key: &str) -> bool {
 }
 
 fn scoped_registry_key(key: &str) -> Option<&str> {
-    key.strip_suffix(":registry")
+    key
+        .strip_suffix(":registry")
         .filter(|scope| scope.starts_with('@') && scope.len() > 1 && !scope.contains('/'))
 }
 
 fn has_env_placeholder(value: &str) -> bool {
     value
         .match_indices("${")
-        .any(|(start, _)| value[start + 2..].find('}').is_some_and(|end| end > 0))
+        .any(|(start, _)| {
+            value[start + 2..]
+                .find('}')
+                .is_some_and(|end| end > 0)
+        })
 }
 
 impl NpmrcAuth {
@@ -61,7 +69,10 @@ impl NpmrcAuth {
         Self::from_ini_with_options::<Sys>(
             text,
             npmrc_dir,
-            ParseOptions { expand_auth_value_env: false, expand_request_destination_env: false },
+            ParseOptions {
+                expand_auth_value_env: false,
+                expand_request_destination_env: false,
+            },
         )
     }
 
@@ -87,7 +98,10 @@ impl NpmrcAuth {
         Self::from_ini_with_options::<Sys>(
             text,
             npmrc_dir,
-            ParseOptions { expand_auth_value_env: true, expand_request_destination_env: true },
+            ParseOptions {
+                expand_auth_value_env: true,
+                expand_request_destination_env: true,
+            },
         )
     }
 
@@ -243,7 +257,9 @@ impl NpmrcAuth {
         } else {
             expand_inline_pem(value)
         };
-        let entry = self.tls.by_uri.entry(uri.to_owned()).or_default();
+        let entry = self.tls.by_uri
+            .entry(uri.to_owned())
+            .or_default();
         apply_tls_field(entry, field, resolved);
     }
 

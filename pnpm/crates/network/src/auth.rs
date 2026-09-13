@@ -185,7 +185,8 @@ impl fmt::Debug for AuthHeaders {
         // Header values carry credentials, so the maps' *contents* must
         // never reach a log line; show only key counts plus whether a
         // server route hook is overriding lookup.
-        f.debug_struct("AuthHeaders")
+        f
+            .debug_struct("AuthHeaders")
             .field("by_uri", &self.by_uri.len())
             .field("scoped_by_scope", &self.scoped_by_scope.len())
             .field("has_token_helpers", &self.has_token_helpers)
@@ -273,7 +274,10 @@ impl AuthHeaders {
         for (uri, value) in headers {
             let uri = normalize_auth_key(uri);
             if let Some((registry_uri, scope)) = split_scoped_auth_key(&uri) {
-                scoped_by_uri.entry(registry_uri).or_default().insert(scope, value);
+                scoped_by_uri
+                    .entry(registry_uri)
+                    .or_default()
+                    .insert(scope, value);
             } else {
                 by_uri.insert(uri, value);
             }
@@ -339,8 +343,9 @@ impl AuthHeaders {
     ) -> Self {
         let mut scoped_by_scope: HashMap<String, HashMap<String, AuthEntry>> = HashMap::new();
         let mut max_scoped_parts_by_scope: HashMap<String, usize> = HashMap::new();
-        let mut has_token_helpers =
-            by_uri.values().any(|entry| matches!(entry, AuthEntry::TokenHelper(_)));
+        let mut has_token_helpers = by_uri
+            .values()
+            .any(|entry| matches!(entry, AuthEntry::TokenHelper(_)));
         for (uri, scoped) in scoped_by_uri {
             let parts = uri.split('/').count();
             for (scope, value) in scoped {
@@ -349,10 +354,17 @@ impl AuthHeaders {
                     .entry(scope.clone())
                     .and_modify(|max| *max = (*max).max(parts))
                     .or_insert(parts);
-                scoped_by_scope.entry(scope).or_default().insert(uri.clone(), value);
+                scoped_by_scope
+                    .entry(scope)
+                    .or_default()
+                    .insert(uri.clone(), value);
             }
         }
-        let max_parts = by_uri.keys().map(|key| key.split('/').count()).max().unwrap_or(0);
+        let max_parts = by_uri
+            .keys()
+            .map(|key| key.split('/').count())
+            .max()
+            .unwrap_or(0);
         AuthHeaders {
             by_uri,
             scoped_by_scope,
@@ -387,7 +399,10 @@ impl AuthHeaders {
                 if scope == DEFAULT_REGISTRY_SCOPE {
                     by_uri.insert(uri.clone(), value);
                 } else {
-                    scoped_by_uri.entry(uri.clone()).or_default().insert(scope, value);
+                    scoped_by_uri
+                        .entry(uri.clone())
+                        .or_default()
+                        .insert(scope, value);
                 }
             }
         }
@@ -471,7 +486,9 @@ impl AuthHeaders {
     /// [`UpstreamRouteHook::allows_fetch`].
     #[must_use]
     pub fn allows_fetch(&self, url: &str) -> bool {
-        self.route_hook.as_ref().is_none_or(|hook| hook.allows_fetch(url))
+        self.route_hook
+            .as_ref()
+            .is_none_or(|hook| hook.allows_fetch(url))
     }
 
     /// Record the route for a metadata/tarball fetch that is about to be

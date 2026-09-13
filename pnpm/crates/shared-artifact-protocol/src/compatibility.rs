@@ -1,7 +1,12 @@
+pub use super::platform_tags::{
+    linux_glibc_supported_tags, linux_glibc_tag, macos_supported_tags, macos_tag,
+    windows_supported_tags, windows_tag,
+};
+
 use super::{
     ArtifactProtocolError, BTreeSet, COMPATIBILITY_FLOOR_RANK_OFFSET,
-    COMPATIBILITY_FLOOR_RANK_STRIDE, COMPATIBILITY_TAG_SCHEMA, CompatibilityConstraints, HashSet,
-    LinuxGlibcPlatform, MacOsPlatform, Sha256, WindowsPlatform, hex, validate_scalar,
+    COMPATIBILITY_FLOOR_RANK_STRIDE, CompatibilityConstraints, HashSet, MacOsPlatform, Sha256,
+    WindowsPlatform, hex, validate_scalar,
 };
 use sha2::Digest as _;
 
@@ -25,7 +30,9 @@ pub fn compatibility_rank_prevalidated(
             .iter()
             .enumerate()
             .flat_map(|(index, supported)| {
-                tags.iter().filter_map(move |artifact| rank_tag(index, supported, artifact))
+                tags
+                    .iter()
+                    .filter_map(move |artifact| rank_tag(index, supported, artifact))
             })
             .min(),
     }
@@ -46,70 +53,6 @@ fn rank_tag(index: usize, supported: &str, artifact: &str) -> Option<u64> {
         .checked_add(distance)
 }
 
-pub fn linux_glibc_tag(platform: LinuxGlibcPlatform<'_>) -> Result<String, ArtifactProtocolError> {
-    let LinuxGlibcPlatform { architecture, node_major, glibc_major, glibc_minor } = platform;
-    let tag = format!(
-        "{COMPATIBILITY_TAG_SCHEMA}:linux-{architecture}-node{node_major}-glibc{glibc_major}.{glibc_minor}",
-    );
-    validate_compatibility_tag(&tag)?;
-    Ok(tag)
-}
-
-pub fn linux_glibc_supported_tags(
-    platform: LinuxGlibcPlatform<'_>,
-) -> Result<Vec<String>, ArtifactProtocolError> {
-    let LinuxGlibcPlatform { architecture, node_major, glibc_major, glibc_minor } = platform;
-    let count = usize::try_from(glibc_minor)
-        .ok()
-        .and_then(|minor| minor.checked_add(1))
-        .ok_or_else(|| invalid_tag("glibc minor version is too large"))?;
-    if count > 64 {
-        return Err(invalid_tag("glibc floor expansion exceeds 64 tags"));
-    }
-    (0..=glibc_minor)
-        .rev()
-        .map(|minor| {
-            linux_glibc_tag(LinuxGlibcPlatform {
-                architecture,
-                node_major,
-                glibc_major,
-                glibc_minor: minor,
-            })
-        })
-        .collect()
-}
-
-pub fn macos_tag(platform: MacOsPlatform<'_>) -> Result<String, ArtifactProtocolError> {
-    let MacOsPlatform { architecture, node_major, macos_major, macos_minor } = platform;
-    let tag = format!(
-        "{COMPATIBILITY_TAG_SCHEMA}:darwin-{architecture}-node{node_major}-macos{macos_major}.{macos_minor}",
-    );
-    validate_compatibility_tag(&tag)?;
-    Ok(tag)
-}
-
-pub fn macos_supported_tags(
-    platform: MacOsPlatform<'_>,
-) -> Result<Vec<String>, ArtifactProtocolError> {
-    Ok(vec![macos_tag(platform)?])
-}
-
-pub fn windows_tag(platform: WindowsPlatform<'_>) -> Result<String, ArtifactProtocolError> {
-    let WindowsPlatform { architecture, node_major, windows_major, windows_minor, windows_build } =
-        platform;
-    let tag = format!(
-        "{COMPATIBILITY_TAG_SCHEMA}:win32-{architecture}-node{node_major}-windows{windows_major}.{windows_minor}.{windows_build}",
-    );
-    validate_compatibility_tag(&tag)?;
-    Ok(tag)
-}
-
-pub fn windows_supported_tags(
-    platform: WindowsPlatform<'_>,
-) -> Result<Vec<String>, ArtifactProtocolError> {
-    Ok(vec![windows_tag(platform)?])
-}
-
 pub fn platform_fingerprint(supported_tags: &[String]) -> Result<String, ArtifactProtocolError> {
     validate_supported_tags(supported_tags)?;
     let mut hasher = Sha256::new();
@@ -123,13 +66,17 @@ pub fn platform_fingerprint(supported_tags: &[String]) -> Result<String, Artifac
 
 pub fn validate_supported_tags(tags: &[String]) -> Result<(), ArtifactProtocolError> {
     if tags.len() > 64 {
-        return Err(invalid_tag("consumer advertises more than 64 supported tags"));
+        return Err(invalid_tag(
+            "consumer advertises more than 64 supported tags",
+        ));
     }
     let mut unique = HashSet::with_capacity(tags.len());
     for tag in tags {
         validate_compatibility_tag(tag)?;
         if !unique.insert(tag) {
-            return Err(invalid_tag("consumer compatibility tags contain a duplicate"));
+            return Err(invalid_tag(
+                "consumer compatibility tags contain a duplicate",
+            ));
         }
     }
     Ok(())
@@ -138,7 +85,9 @@ pub fn validate_supported_tags(tags: &[String]) -> Result<(), ArtifactProtocolEr
 pub(super) fn validate_compatibility(
     compatibility: &CompatibilityConstraints,
 ) -> Result<(), ArtifactProtocolError> {
-    let CompatibilityConstraints::Tagged { tags } = compatibility else { return Ok(()) };
+    let CompatibilityConstraints::Tagged { tags } = compatibility else {
+        return Ok(());
+    };
     if tags.is_empty() || tags.len() > 64 {
         return Err(ArtifactProtocolError::InvalidEnvelope(
             "tagged compatibility must contain between 1 and 64 tags".to_string(),
@@ -156,7 +105,7 @@ pub(super) fn validate_compatibility(
     Ok(())
 }
 
-fn validate_compatibility_tag(tag: &str) -> Result<(), ArtifactProtocolError> {
+pub(super) fn validate_compatibility_tag(tag: &str) -> Result<(), ArtifactProtocolError> {
     parse_compatibility_tag(tag).map(|_| ())
 }
 
@@ -183,20 +132,33 @@ fn split_compatibility_tag(tag: &str) -> Result<CompatibilityTagParts<'_>, Artif
         return Err(invalid_tag("unknown compatibility tag schema"));
     };
     let mut parts = platform.split('-');
-    let (Some(os), Some(architecture), Some(node), Some(runtime), None) =
-        (parts.next(), parts.next(), parts.next(), parts.next(), parts.next())
-    else {
-        return Err(invalid_tag("compatibility tag has the wrong number of dimensions"));
+    let (Some(os), Some(architecture), Some(node), Some(runtime), None) = (
+        parts.next(),
+        parts.next(),
+        parts.next(),
+        parts.next(),
+        parts.next(),
+    ) else {
+        return Err(invalid_tag(
+            "compatibility tag has the wrong number of dimensions",
+        ));
     };
     if !matches!(architecture, "x64" | "arm64") {
         return Err(invalid_tag("v1 only defines x64 and arm64 tags"));
     }
     let node_major = parse_canonical_number(
-        node.strip_prefix("node").ok_or_else(|| invalid_tag("missing Node dimension"))?,
+        node
+            .strip_prefix("node")
+            .ok_or_else(|| invalid_tag("missing Node dimension"))?,
         "Node major version",
         false,
     )?;
-    Ok(CompatibilityTagParts { os, architecture, node_major, runtime })
+    Ok(CompatibilityTagParts {
+        os,
+        architecture,
+        node_major,
+        runtime,
+    })
 }
 
 /// How an artifact's constraints divide the machines it reaches, as keys that
@@ -223,10 +185,14 @@ pub fn compatibility_scopes(constraints: &CompatibilityConstraints) -> Compatibi
     match constraints {
         CompatibilityConstraints::Universal => CompatibilityScopes::Every,
         CompatibilityConstraints::Tagged { tags } => CompatibilityScopes::These(
-            tags.iter()
+            tags
+                .iter()
                 .filter_map(|tag| {
                     let parts = applicable_dimensions(tag)?;
-                    Some(format!("{}-{}-node{}", parts.os, parts.architecture, parts.node_major))
+                    Some(format!(
+                        "{}-{}-node{}",
+                        parts.os, parts.architecture, parts.node_major,
+                    ))
                 })
                 .collect(),
         ),
@@ -252,19 +218,29 @@ fn parse_compatibility_tag(tag: &str) -> Result<ParsedCompatibilityTag<'_>, Arti
 fn parse_tag_floor(
     parts: CompatibilityTagParts<'_>,
 ) -> Result<ParsedCompatibilityTag<'_>, ArtifactProtocolError> {
-    let CompatibilityTagParts { os, architecture, node_major, runtime } = parts;
+    let CompatibilityTagParts {
+        os,
+        architecture,
+        node_major,
+        runtime,
+    } = parts;
     match os {
         "linux" => parse_linux_floor(runtime),
         "darwin" => parse_macos_floor(runtime, architecture, node_major),
         "win32" => parse_windows_floor(runtime, architecture, node_major),
-        _ => Err(invalid_tag("v1 only defines Linux, macOS, and Windows tags")),
+        _ => Err(invalid_tag(
+            "v1 only defines Linux, macOS, and Windows tags",
+        )),
     }
 }
 
 fn parse_linux_floor(runtime: &str) -> Result<ParsedCompatibilityTag<'_>, ArtifactProtocolError> {
-    let libc = runtime.strip_prefix("glibc").ok_or_else(|| invalid_tag("missing glibc floor"))?;
-    let (major, minor) =
-        libc.split_once('.').ok_or_else(|| invalid_tag("glibc floor must be major.minor"))?;
+    let libc = runtime
+        .strip_prefix("glibc")
+        .ok_or_else(|| invalid_tag("missing glibc floor"))?;
+    let (major, minor) = libc
+        .split_once('.')
+        .ok_or_else(|| invalid_tag("glibc floor must be major.minor"))?;
     parse_canonical_number(major, "glibc major version", false)?;
     parse_canonical_number(minor, "glibc minor version", true)?;
     Ok(ParsedCompatibilityTag::Linux)
@@ -275,9 +251,12 @@ fn parse_macos_floor<'tag>(
     architecture: &'tag str,
     node_major: u32,
 ) -> Result<ParsedCompatibilityTag<'tag>, ArtifactProtocolError> {
-    let macos = runtime.strip_prefix("macos").ok_or_else(|| invalid_tag("missing macOS floor"))?;
-    let (major, minor) =
-        macos.split_once('.').ok_or_else(|| invalid_tag("macOS floor must be major.minor"))?;
+    let macos = runtime
+        .strip_prefix("macos")
+        .ok_or_else(|| invalid_tag("missing macOS floor"))?;
+    let (major, minor) = macos
+        .split_once('.')
+        .ok_or_else(|| invalid_tag("macOS floor must be major.minor"))?;
     Ok(ParsedCompatibilityTag::MacOs(MacOsPlatform {
         architecture,
         node_major,
@@ -291,12 +270,16 @@ fn parse_windows_floor<'tag>(
     architecture: &'tag str,
     node_major: u32,
 ) -> Result<ParsedCompatibilityTag<'tag>, ArtifactProtocolError> {
-    let windows =
-        runtime.strip_prefix("windows").ok_or_else(|| invalid_tag("missing Windows floor"))?;
+    let windows = runtime
+        .strip_prefix("windows")
+        .ok_or_else(|| invalid_tag("missing Windows floor"))?;
     let mut components = windows.split('.');
-    let (Some(major), Some(minor), Some(build), None) =
-        (components.next(), components.next(), components.next(), components.next())
-    else {
+    let (Some(major), Some(minor), Some(build), None) = (
+        components.next(),
+        components.next(),
+        components.next(),
+        components.next(),
+    ) else {
         return Err(invalid_tag("Windows floor must be major.minor.build"));
     };
     Ok(ParsedCompatibilityTag::Windows(WindowsPlatform {
@@ -384,13 +367,15 @@ fn parse_canonical_number(
     label: &str,
     allow_zero: bool,
 ) -> Result<u32, ArtifactProtocolError> {
-    let number = value.parse::<u32>().map_err(|_| invalid_tag(&format!("invalid {label}")))?;
+    let number = value
+        .parse::<u32>()
+        .map_err(|_| invalid_tag(&format!("invalid {label}")))?;
     if number.to_string() != value || (!allow_zero && number == 0) {
         return Err(invalid_tag(&format!("non-canonical {label}")));
     }
     Ok(number)
 }
 
-fn invalid_tag(reason: &str) -> ArtifactProtocolError {
+pub(super) fn invalid_tag(reason: &str) -> ArtifactProtocolError {
     ArtifactProtocolError::InvalidEnvelope(format!("invalid compatibility tag: {reason}"))
 }

@@ -48,7 +48,9 @@ impl IniSettings {
                 Some((decode_value(key.trim()), decode_value(value.trim())))
             })
             .collect();
-        IniSettings { entries }
+        IniSettings {
+            entries,
+        }
     }
 
     /// Remove every entry whose key equals `key`. Returns `true` when at
@@ -64,11 +66,14 @@ impl IniSettings {
     /// [`encode_value`]).
     pub fn serialize(&self) -> String {
         use std::fmt::Write;
-        self.entries.iter().fold(String::new(), |mut out, (key, value)| {
-            writeln!(out, "{}={}", encode_value(key), encode_value(value))
-                .expect("writing to a String never fails");
-            out
-        })
+        self.entries
+            .iter()
+            .fold(String::new(), |mut out, (key, value)| {
+                writeln!(out, "{}={}", encode_value(key), encode_value(value)).expect(
+                    "writing to a String never fails",
+                );
+                out
+            })
     }
 
     #[cfg(test)]

@@ -12,7 +12,13 @@ fn converge_override(name: &str, value: &str) -> Vec<VersionOverride> {
 }
 
 fn ranges(name: &str, declared: &[&str]) -> HashMap<String, HashSet<String>> {
-    HashMap::from([(name.to_string(), declared.iter().map(|range| (*range).to_string()).collect())])
+    HashMap::from([(
+        name.to_string(),
+        declared
+            .iter()
+            .map(|range| (*range).to_string())
+            .collect(),
+    )])
 }
 
 /// Canned per-range registry answers standing in for the resolver: a
@@ -59,7 +65,10 @@ async fn silent_when_no_candidate_satisfies_every_range() {
     )
     .await;
 
-    assert!(stale.is_empty(), "no single version converges ^4.0.5 and ^3.0.0");
+    assert!(
+        stale.is_empty(),
+        "no single version converges ^4.0.5 and ^3.0.0",
+    );
 }
 
 #[tokio::test]
@@ -70,7 +79,10 @@ async fn silent_when_no_candidate_is_newer_than_the_override_value() {
         find_stale_convergence_overrides(&overrides, &declared, canned(&[("^4.0.0", "4.0.6")]))
             .await;
 
-    assert!(stale.is_empty(), "the override already pins the best admitted version");
+    assert!(
+        stale.is_empty(),
+        "the override already pins the best admitted version",
+    );
 }
 
 #[tokio::test]
@@ -83,7 +95,10 @@ async fn unresolved_range_stays_in_the_satisfies_check() {
         find_stale_convergence_overrides(&overrides, &declared, canned(&[("^4.0.5", "4.0.9")]))
             .await;
 
-    assert!(stale.is_empty(), "4.0.9 does not satisfy the declared exact range 4.0.6");
+    assert!(
+        stale.is_empty(),
+        "4.0.9 does not satisfy the declared exact range 4.0.6",
+    );
 }
 
 #[tokio::test]
@@ -91,7 +106,10 @@ async fn silent_when_no_declared_range_was_collected() {
     let overrides = converge_override("foo", "4.0.6");
     let stale = find_stale_convergence_overrides(&overrides, &HashMap::new(), canned(&[])).await;
 
-    assert!(stale.is_empty(), "nothing declared the package, so nothing can be converged");
+    assert!(
+        stale.is_empty(),
+        "nothing declared the package, so nothing can be converged",
+    );
 }
 
 #[test]

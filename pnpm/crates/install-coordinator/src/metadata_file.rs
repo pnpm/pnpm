@@ -1,6 +1,6 @@
-use miette::{IntoDiagnostic, Result, WrapErr};
 #[cfg(unix)]
-use std::io::Read as _;
+use descriptor::{file_from_descriptor, read_link_at, read_regular_file, rename_at, unlink_at};
+use miette::{IntoDiagnostic, Result, WrapErr};
 use std::{
     ffi::{OsStr, OsString},
     fs, io,
@@ -48,7 +48,13 @@ impl MetadataFile {
         let state = read_from(&parent, &remaining_parent, &name)
             .into_diagnostic()
             .wrap_err_with(|| format!("snapshot {}", path.display()))?;
-        Ok(Self { path, parent, remaining_parent, name, state })
+        Ok(Self {
+            path,
+            parent,
+            remaining_parent,
+            name,
+            state,
+        })
     }
 
     pub(super) fn restore(self) -> Result<()> {
@@ -58,10 +64,10 @@ impl MetadataFile {
         if current == self.state {
             return Ok(());
         }
-        let parent =
-            self.parent.open_descendant(&self.remaining_parent).into_diagnostic().wrap_err_with(
-                || format!("open parent of {} for restoration", self.path.display()),
-            )?;
+        let parent = self.parent
+            .open_descendant(&self.remaining_parent)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("open parent of {} for restoration", self.path.display()))?;
         let outcome = match self.state {
             FileState::Missing => remove_file(&parent, &self.name),
             FileState::Regular {
@@ -77,7 +83,9 @@ impl MetadataFile {
             ),
             FileState::Symlink(target) => write_symlink(&parent, &self.name, &target),
         };
-        outcome.into_diagnostic().wrap_err_with(|| format!("restore {}", self.path.display()))
+        outcome
+            .into_diagnostic()
+            .wrap_err_with(|| format!("restore {}", self.path.display()))
     }
 }
 
@@ -94,7 +102,9 @@ fn absolute_path(path: PathBuf) -> Result<PathBuf> {
             Component::CurDir => {}
             Component::ParentDir => {
                 if !normalized.pop() {
-                    return Err(miette::miette!("metadata path escapes its root: {path_display}"));
+                    return Err(miette::miette!(
+                        "metadata path escapes its root: {path_display}"
+                    ));
                 }
             }
             component => normalized.push(component.as_os_str()),
@@ -118,10 +128,7 @@ fn read_from(
 
 #[cfg(unix)]
 fn read_file(parent: &PinnedDirectory, name: &OsStr) -> io::Result<FileState> {
-    use std::os::{
-        fd::AsRawFd as _,
-        unix::{ffi::OsStrExt as _, fs::PermissionsExt as _},
-    };
+    use std::os::{fd::AsRawFd as _, unix::ffi::OsStrExt as _};
 
     let name = std::ffi::CString::new(name.as_bytes())?;
     match read_link_at(&parent.handle, &name) {
@@ -138,23 +145,12 @@ fn read_file(parent: &PinnedDirectory, name: &OsStr) -> io::Result<FileState> {
             libc::O_RDONLY | libc::O_CLOEXEC | libc::O_NOFOLLOW,
         )
     };
-    let mut file = match file_from_descriptor(descriptor) {
+    let file = match file_from_descriptor(descriptor) {
         Ok(file) => file,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(FileState::Missing),
         Err(error) => return Err(error),
     };
-    let metadata = file.metadata()?;
-    if !metadata.is_file() {
-        return Err(io::Error::other("project metadata path is not a regular file or symlink"));
-    }
-    let mode = metadata.permissions().mode();
-    let mut contents = Vec::new();
-    #[expect(
-        clippy::verbose_file_reads,
-        reason = "the descriptor-relative open is what prevents a symlink race"
-    )]
-    file.read_to_end(&mut contents)?;
-    Ok(FileState::Regular { contents, mode })
+    read_regular_file(file)
 }
 
 #[cfg(windows)]
@@ -169,9 +165,14 @@ fn read_file(parent: &PinnedDirectory, name: &OsStr) -> io::Result<FileState> {
         return fs::read_link(path).map(FileState::Symlink);
     }
     if !metadata.is_file() || is_windows_reparse_point(&metadata) {
-        return Err(io::Error::other("project metadata path is not a regular file or symlink"));
+        return Err(io::Error::other(
+            "project metadata path is not a regular file or symlink",
+        ));
     }
-    fs::read(path).map(|contents| FileState::Regular { contents })
+    fs::read(path)
+        .map(|contents| FileState::Regular {
+            contents,
+        })
 }
 
 #[cfg(unix)]
@@ -213,8 +214,13 @@ fn write_symlink(parent: &PinnedDirectory, name: &OsStr, target: &Path) -> io::R
     let temporary = temporary_name(name)?;
     // SAFETY: the target and temporary name are NUL-terminated, and the
     // directory descriptor remains valid.
-    if unsafe { libc::symlinkat(target.as_ptr(), parent.handle.as_raw_fd(), temporary.as_ptr()) }
-        != 0
+    if unsafe {
+        libc::symlinkat(
+            target.as_ptr(),
+            parent.handle.as_raw_fd(),
+            temporary.as_ptr(),
+        )
+    } != 0
     {
         return Err(io::Error::last_os_error());
     }
@@ -262,8 +268,16 @@ fn replace_windows_path(source: &Path, destination: &Path) -> io::Result<()> {
         MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
     };
 
-    let source = source.as_os_str().encode_wide().chain(Some(0)).collect::<Vec<_>>();
-    let destination = destination.as_os_str().encode_wide().chain(Some(0)).collect::<Vec<_>>();
+    let source = source
+        .as_os_str()
+        .encode_wide()
+        .chain(Some(0))
+        .collect::<Vec<_>>();
+    let destination = destination
+        .as_os_str()
+        .encode_wide()
+        .chain(Some(0))
+        .collect::<Vec<_>>();
     // SAFETY: both paths are NUL-terminated and remain alive for the call.
     if unsafe {
         MoveFileExW(
@@ -341,88 +355,10 @@ fn temporary_name(name: &OsStr) -> io::Result<std::ffi::CString> {
     Ok(std::ffi::CString::new(temporary.as_bytes())?)
 }
 
-#[cfg(unix)]
-fn rename_at(
-    parent: &PinnedDirectory,
-    source: &std::ffi::CStr,
-    destination: &std::ffi::CStr,
-) -> io::Result<()> {
-    use std::os::fd::AsRawFd as _;
-
-    // SAFETY: both names and the pinned directory descriptor remain valid.
-    if unsafe {
-        libc::renameat(
-            parent.handle.as_raw_fd(),
-            source.as_ptr(),
-            parent.handle.as_raw_fd(),
-            destination.as_ptr(),
-        )
-    } == 0
-    {
-        Ok(())
-    } else {
-        Err(io::Error::last_os_error())
-    }
-}
-
-#[cfg(unix)]
-fn unlink_at(parent: &PinnedDirectory, name: &std::ffi::CStr) -> io::Result<()> {
-    use std::os::fd::AsRawFd as _;
-
-    // SAFETY: the name and pinned directory descriptor remain valid.
-    if unsafe { libc::unlinkat(parent.handle.as_raw_fd(), name.as_ptr(), 0) } == 0 {
-        Ok(())
-    } else {
-        Err(io::Error::last_os_error())
-    }
-}
-
-#[cfg(unix)]
-fn read_link_at(directory: &fs::File, name: &std::ffi::CStr) -> io::Result<PathBuf> {
-    use std::os::{fd::AsRawFd as _, unix::ffi::OsStringExt as _};
-
-    let mut capacity = 256;
-    loop {
-        let mut contents = Vec::<u8>::with_capacity(capacity);
-        // SAFETY: the name and directory descriptor are valid, and the buffer
-        // exposes `capacity` writable bytes to `readlinkat`.
-        let length = unsafe {
-            libc::readlinkat(
-                directory.as_raw_fd(),
-                name.as_ptr(),
-                contents.as_mut_ptr().cast(),
-                contents.capacity(),
-            )
-        };
-        if length == -1 {
-            return Err(io::Error::last_os_error());
-        }
-        let length = usize::try_from(length).expect("readlinkat returned a nonnegative length");
-        if length < contents.capacity() {
-            // SAFETY: `readlinkat` initialized exactly `length` bytes.
-            unsafe {
-                contents.set_len(length);
-            }
-            return Ok(OsString::from_vec(contents).into());
-        }
-        capacity *= 2;
-    }
-}
-
-#[cfg(unix)]
-fn file_from_descriptor(descriptor: libc::c_int) -> io::Result<fs::File> {
-    use std::os::fd::{FromRawFd as _, OwnedFd};
-
-    if descriptor == -1 {
-        Err(io::Error::last_os_error())
-    } else {
-        // SAFETY: a successful `openat` returned a new owned descriptor.
-        let descriptor = unsafe { OwnedFd::from_raw_fd(descriptor) };
-        Ok(fs::File::from(descriptor))
-    }
-}
-
 mod directory;
 use directory::PinnedDirectory;
 #[cfg(windows)]
 use directory::is_windows_reparse_point;
+
+#[cfg(unix)]
+mod descriptor;

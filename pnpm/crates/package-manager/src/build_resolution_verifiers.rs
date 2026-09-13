@@ -148,25 +148,40 @@ fn verifier_policies(config: &Config) -> Result<VerifierPolicies, BuildVerifiers
         BuildVerifiersError::invalid_trust_policy_exclude,
     )?;
 
-    let registries: HashMap<String, String> = config.resolved_registries().into_iter().collect();
+    let registries: HashMap<String, String> = config
+        .resolved_registries()
+        .into_iter()
+        .collect();
 
     // Merged here, not inside the verifier, so its name lookup and its
     // tarball-prefix routing see the same set. Validated here too: this runs
     // before the resolver chain that also validates, and on the frozen path
     // that chain never runs.
     let registries_by_prefix = merge_named_registries(
-        &config.registries_by_prefix.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+        &config.registries_by_prefix
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect(),
     )
-    .map_err(|source| BuildVerifiersError::InvalidNamedRegistries { source })?;
+    .map_err(|source| BuildVerifiersError::InvalidNamedRegistries {
+        source,
+    })?;
 
-    Ok((min_age_exclude, trust_exclude, registries, registries_by_prefix))
+    Ok((
+        min_age_exclude,
+        trust_exclude,
+        registries,
+        registries_by_prefix,
+    ))
 }
 
 fn build_policy(
     patterns: Option<&[String]>,
     wrap_error: fn(VersionPolicyError) -> BuildVerifiersError,
 ) -> Result<Option<PackageVersionPolicy>, BuildVerifiersError> {
-    let Some(patterns) = patterns else { return Ok(None) };
+    let Some(patterns) = patterns else {
+        return Ok(None);
+    };
     if patterns.is_empty() {
         return Ok(None);
     }
@@ -175,11 +190,15 @@ fn build_policy(
 
 impl BuildVerifiersError {
     fn invalid_minimum_release_age_exclude(source: VersionPolicyError) -> Self {
-        BuildVerifiersError::InvalidMinimumReleaseAgeExclude { source }
+        BuildVerifiersError::InvalidMinimumReleaseAgeExclude {
+            source,
+        }
     }
 
     fn invalid_trust_policy_exclude(source: VersionPolicyError) -> Self {
-        BuildVerifiersError::InvalidTrustPolicyExclude { source }
+        BuildVerifiersError::InvalidTrustPolicyExclude {
+            source,
+        }
     }
 }
 

@@ -7,7 +7,10 @@ use tempfile::tempdir;
 const HELLO_SHA256_HEX: &str = "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03";
 
 fn raw(entries: &[(&str, &str)]) -> IndexMap<String, String> {
-    entries.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+    entries
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect()
 }
 
 #[test]
@@ -58,7 +61,10 @@ fn nonexistent_patch_file_errors() {
     let workspace = tempdir().unwrap();
     let input = raw(&[("foo@1.0.0", "patches/missing.patch")]);
     let err = resolve_and_group(workspace.path(), &input).unwrap_err();
-    assert!(matches!(err, ResolvePatchedDependenciesError::Hash(_)), "got: {err:?}");
+    assert!(
+        matches!(err, ResolvePatchedDependenciesError::Hash(_)),
+        "got: {err:?}",
+    );
 }
 
 #[test]
@@ -70,7 +76,10 @@ fn invalid_version_range_propagates() {
 
     let input = raw(&[("foo@link:packages/foo", "patches/foo.patch")]);
     let err = resolve_and_group(workspace.path(), &input).unwrap_err();
-    assert!(matches!(err, ResolvePatchedDependenciesError::Range(_)), "got: {err:?}");
+    assert!(
+        matches!(err, ResolvePatchedDependenciesError::Range(_)),
+        "got: {err:?}",
+    );
 }
 
 #[test]
@@ -90,7 +99,10 @@ fn mixed_entries_resolve_in_one_call() {
 
     let groups = resolve_and_group(workspace.path(), &input).unwrap().unwrap();
     let foo = groups.get("foo").expect("foo group");
-    assert!(foo.exact.contains_key("1.0.0"), "missing exact 1.0.0 in foo group: {foo:?}");
+    assert!(
+        foo.exact.contains_key("1.0.0"),
+        "missing exact 1.0.0 in foo group: {foo:?}",
+    );
     assert_eq!(foo.range.len(), 1);
     assert_eq!(foo.range[0].version, "^2.0.0");
     let bar = groups.get("bar").expect("bar group");
@@ -119,6 +131,9 @@ fn range_preserves_user_specified_order() {
 
     let groups = resolve_and_group(workspace.path(), &input).unwrap().unwrap();
     let foo = groups.get("foo").expect("foo group");
-    let versions: Vec<&str> = foo.range.iter().map(|range| range.version.as_str()).collect();
+    let versions: Vec<&str> = foo.range
+        .iter()
+        .map(|range| range.version.as_str())
+        .collect();
     assert_eq!(versions, vec!["~1.2.0", "4", ">=5 <6"]);
 }

@@ -48,7 +48,10 @@ fn lookup(owner: &str) -> ResolveArtifactsRequest {
         candidates: vec![ArtifactCandidate {
             key: "dependency-side-effects:v1:deps=abc".to_string(),
             subject: ArtifactSubject::dependency_side_effects(
-                PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
+                PackageIdentity {
+                    name: "native-addon".to_string(),
+                    version: "1.0.0".to_string(),
+                },
                 "sha512-source",
             ),
             owner: OwnerScope::organization(owner),
@@ -86,7 +89,10 @@ fn publication_tagged(builder_id: &str, tags: &[&str]) -> PublishArtifactRequest
     let mut payload: ArtifactPayload =
         serde_json::from_slice(&BASE64.decode(&request.envelope.payload).unwrap()).unwrap();
     payload.compatibility = CompatibilityConstraints::Tagged {
-        tags: tags.iter().map(|tag| (*tag).to_string()).collect(),
+        tags: tags
+            .iter()
+            .map(|tag| (*tag).to_string())
+            .collect(),
     };
     request.envelope.payload = BASE64.encode(serde_json::to_vec(&payload).unwrap());
     request
@@ -111,7 +117,10 @@ fn publication_request(
                     mode: 0o755,
                     size: bytes.len() as u64,
                 }],
-                vec![ArtifactBlobUpload { integrity, data: BASE64.encode(bytes) }],
+                vec![ArtifactBlobUpload {
+                    integrity,
+                    data: BASE64.encode(bytes),
+                }],
             )
         }
         None => (Vec::new(), Vec::new()),
@@ -119,7 +128,10 @@ fn publication_request(
     let payload = ArtifactPayload {
         kind: ARTIFACT_KIND.to_string(),
         subject: ArtifactSubject::dependency_side_effects(
-            PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
+            PackageIdentity {
+                name: "native-addon".to_string(),
+                version: "1.0.0".to_string(),
+            },
             "sha512-source",
         ),
         input_key: input_key.to_string(),
@@ -131,7 +143,10 @@ fn publication_request(
             environment: BTreeMap::new(),
         },
         compatibility: CompatibilityConstraints::Universal,
-        manifest: ArtifactManifest { added, deleted: Vec::new() },
+        manifest: ArtifactManifest {
+            added,
+            deleted: Vec::new(),
+        },
     };
     let payload_bytes = serde_json::to_vec(&payload).unwrap();
     PublishArtifactRequest {
@@ -159,7 +174,10 @@ fn workspace_task_publication() -> PublishArtifactRequest {
             environment: BTreeMap::new(),
         },
         compatibility: CompatibilityConstraints::Universal,
-        manifest: ArtifactManifest { added: Vec::new(), deleted: Vec::new() },
+        manifest: ArtifactManifest {
+            added: Vec::new(),
+            deleted: Vec::new(),
+        },
     };
     PublishArtifactRequest {
         key: payload.input_key.clone(),
@@ -246,9 +264,12 @@ impl FailArtifactWrites {
         }
         Some(
             async {
-                self.inner
-                    .put_opts(location, PutPayload::from(winner.clone()), PutOptions::default())
-                    .await?;
+                self.inner.put_opts(
+                    location,
+                    PutPayload::from(winner.clone()),
+                    PutOptions::default(),
+                )
+                .await?;
                 Err(object_store::Error::AlreadyExists {
                     path: location.to_string(),
                     source: std::io::Error::other("slot claimed by another publication").into(),
@@ -268,7 +289,10 @@ impl FailArtifactWrites {
         let injected = match self.fail_only.as_ref().expect("caller checked fail_only") {
             FailOnly::RegistrationAfter(stored) => {
                 location.as_ref().ends_with("/quota.json")
-                    && self.inner.head(&ObjectPath::from(stored.as_str())).await.is_ok()
+                    && self.inner
+                        .head(&ObjectPath::from(stored.as_str()))
+                        .await
+                        .is_ok()
             }
             FailOnly::WriteOf(path) => location.as_ref() == path,
             FailOnly::DeleteOf(_) => false,
@@ -291,9 +315,7 @@ impl FailArtifactWrites {
         payload: PutPayload,
         options: PutOptions,
     ) -> object_store::Result<PutResult> {
-        if self
-            .quota
-            .fail_next_write
+        if self.quota.fail_next_write
             .as_ref()
             .is_some_and(|fail| fail.swap(false, Ordering::SeqCst))
         {
@@ -338,13 +360,12 @@ impl ObjectStore for FailArtifactWrites {
         };
         let stored = self.inner.put_opts(location, payload, options).await?;
         if location.as_ref() != path {
-            self.inner
-                .put_opts(
-                    &ObjectPath::from(path.as_str()),
-                    PutPayload::from(envelope.clone()),
-                    PutOptions::default(),
-                )
-                .await?;
+            self.inner.put_opts(
+                &ObjectPath::from(path.as_str()),
+                PutPayload::from(envelope.clone()),
+                PutOptions::default(),
+            )
+            .await?;
         }
         Ok(stored)
     }
@@ -362,16 +383,17 @@ impl ObjectStore for FailArtifactWrites {
         location: &ObjectPath,
         options: GetOptions,
     ) -> object_store::Result<GetResult> {
-        if self.fail_reads_of.as_ref().is_some_and(|path| location.as_ref() == path) {
+        if self.fail_reads_of
+            .as_ref()
+            .is_some_and(|path| location.as_ref() == path)
+        {
             return Err(object_store::Error::Generic {
                 store: "test",
                 source: std::io::Error::other("injected variant read failure").into(),
             });
         }
         if let Some(reads) = self.quota.fail_slot_read_after_first.as_ref()
-            && self
-                .quota
-                .claim_slot_first
+            && self.quota.claim_slot_first
                 .as_ref()
                 .is_some_and(|(slot, _)| location.as_ref() == slot)
             && reads.fetch_add(1, Ordering::SeqCst) > 0

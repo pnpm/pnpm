@@ -101,9 +101,14 @@ impl PackageExtender {
             by_pkg_name
                 .entry(alias)
                 .or_default()
-                .push(ExtensionMatch { range, extension: extension.clone() });
+                .push(ExtensionMatch {
+                    range,
+                    extension: extension.clone(),
+                });
         }
-        Ok(PackageExtender { by_pkg_name })
+        Ok(PackageExtender {
+            by_pkg_name,
+        })
     }
 
     /// `true` when no extension entry matches any selector — callers
@@ -122,23 +127,43 @@ impl PackageExtender {
         if self.is_empty() {
             return false;
         }
-        let Some(map) = manifest.as_object() else { return false };
-        let Some(name) = map.get("name").and_then(Value::as_str) else { return false };
-        let Some(entries) = self.by_pkg_name.get(name) else { return false };
-        let version =
-            map.get("version").and_then(Value::as_str).and_then(|raw| raw.parse::<Version>().ok());
-        entries.iter().any(|entry| entry_matches(&entry.range, version.as_ref()))
+        let Some(map) = manifest.as_object() else {
+            return false;
+        };
+        let Some(name) = map.get("name").and_then(Value::as_str) else {
+            return false;
+        };
+        let Some(entries) = self.by_pkg_name.get(name) else {
+            return false;
+        };
+        let version = map
+            .get("version")
+            .and_then(Value::as_str)
+            .and_then(|raw| raw.parse::<Version>().ok());
+        entries
+            .iter()
+            .any(|entry| entry_matches(&entry.range, version.as_ref()))
     }
 
     /// Apply extensions in place to a single manifest.
     pub fn apply(&self, manifest: &mut Value) {
-        let Some(map) = manifest.as_object_mut() else { return };
-        let Some(name) = map.get("name").and_then(Value::as_str).map(str::to_string) else {
+        let Some(map) = manifest.as_object_mut() else {
             return;
         };
-        let Some(entries) = self.by_pkg_name.get(&name) else { return };
-        let version =
-            map.get("version").and_then(Value::as_str).and_then(|raw| raw.parse::<Version>().ok());
+        let Some(name) = map
+            .get("name")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+        else {
+            return;
+        };
+        let Some(entries) = self.by_pkg_name.get(&name) else {
+            return;
+        };
+        let version = map
+            .get("version")
+            .and_then(Value::as_str)
+            .and_then(|raw| raw.parse::<Version>().ok());
         for entry in entries {
             if !entry_matches(&entry.range, version.as_ref()) {
                 continue;
@@ -182,7 +207,9 @@ impl PackageExtender {
             return None;
         }
         let shared = Arc::new(self);
-        Some(Arc::new(move |manifest: Arc<Value>| shared.apply_to_arc(manifest)))
+        Some(Arc::new(move |manifest: Arc<Value>| {
+            shared.apply_to_arc(manifest)
+        }))
     }
 }
 
@@ -222,11 +249,20 @@ fn merge_string_map<Key, Value_>(
 {
     let existing = manifest
         .remove(key)
-        .and_then(|value| if let Value::Object(map) = value { Some(map) } else { None })
+        .and_then(|value| {
+            if let Value::Object(map) = value {
+                Some(map)
+            } else {
+                None
+            }
+        })
         .unwrap_or_default();
     let mut merged: Map<String, Value> = Map::new();
     for (name, value) in extension_map {
-        merged.insert(name.as_ref().to_string(), Value::String(value.as_ref().to_string()));
+        merged.insert(
+            name.as_ref().to_string(),
+            Value::String(value.as_ref().to_string()),
+        );
     }
     for (name, value) in existing {
         merged.insert(name, value);
@@ -240,7 +276,13 @@ fn merge_peer_meta(
 ) {
     let existing = manifest
         .remove("peerDependenciesMeta")
-        .and_then(|value| if let Value::Object(map) = value { Some(map) } else { None })
+        .and_then(|value| {
+            if let Value::Object(map) = value {
+                Some(map)
+            } else {
+                None
+            }
+        })
         .unwrap_or_default();
     let mut merged: Map<String, Value> = Map::new();
     for (name, meta) in extension_meta {

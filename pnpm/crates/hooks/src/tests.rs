@@ -46,7 +46,9 @@ impl PnpmfileHooks for CheckedHooks {
 }
 
 fn wrapped_at(source: PathBuf) -> Arc<dyn PnpmfileHooks> {
-    let inner: Arc<dyn PnpmfileHooks> = Arc::new(CheckedHooks { source });
+    let inner: Arc<dyn PnpmfileHooks> = Arc::new(CheckedHooks {
+        source,
+    });
     Arc::new(ChecksumFreeHooks::from(inner))
 }
 
@@ -57,7 +59,13 @@ fn wrapped() -> Arc<dyn PnpmfileHooks> {
 #[tokio::test]
 async fn checksum_free_hooks_still_run_their_hooks() {
     let hooked = wrapped()
-        .read_package(json!({ "name": "app" }), HookContext { log: Arc::new(|_| {}), dir: None })
+        .read_package(
+            json!({ "name": "app" }),
+            HookContext {
+                log: Arc::new(|_| {}),
+                dir: None,
+            },
+        )
         .await
         .expect("run the wrapped readPackage hook");
 

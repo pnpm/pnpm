@@ -29,7 +29,10 @@ fn censors_in_place() {
     censor_protected_settings(&mut map);
 
     assert_eq!(map["storeDir"], json!("~/store"));
-    assert_eq!(map["@my-org:registry"], json!("https://my-org.example.com/registry"));
+    assert_eq!(
+        map["@my-org:registry"],
+        json!("https://my-org.example.com/registry"),
+    );
     assert_eq!(map["username"], json!("(protected)"));
     assert_eq!(map["//my-org.example.com:username"], json!("(protected)"));
 }

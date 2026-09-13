@@ -103,7 +103,10 @@ async fn check(config: &Config, state_file: &Path, state: Map<String, Value>, em
 /// registry that serves pnpm without a `latest` tag answers `None`.
 async fn latest_pnpm_version(config: &Config) -> miette::Result<Option<String>> {
     let client = build_registry_client(config)?;
-    let registries: HashMap<String, String> = config.resolved_registries().into_iter().collect();
+    let registries: HashMap<String, String> = config
+        .resolved_registries()
+        .into_iter()
+        .collect();
     let registry = pick_registry_for_package(&registries, "pnpm", None);
     let package = Package::fetch_from_registry("pnpm", &client, &registry, &config.auth_headers)
         .await
@@ -112,7 +115,10 @@ async fn latest_pnpm_version(config: &Config) -> miette::Result<Option<String>> 
 }
 
 fn read_state(state_file: &Path) -> Map<String, Value> {
-    match std::fs::read_to_string(state_file).ok().map(|text| serde_json::from_str(&text)) {
+    match std::fs::read_to_string(state_file)
+        .ok()
+        .map(|text| serde_json::from_str(&text))
+    {
         Some(Ok(Value::Object(fields))) => fields,
         _ => Map::new(),
     }
@@ -140,7 +146,10 @@ fn checked_recently(state: &Map<String, Value>, now: DateTime<Utc>) -> bool {
 /// for the next run to read, and the rename replaces a symlinked state file
 /// rather than following it somewhere the user never pointed pnpm.
 fn write_state(state_file: &Path, mut state: Map<String, Value>, now: DateTime<Utc>) {
-    state.insert(LAST_UPDATE_CHECK_KEY.to_string(), Value::String(to_utc_string(now)));
+    state.insert(
+        LAST_UPDATE_CHECK_KEY.to_string(),
+        Value::String(to_utc_string(now)),
+    );
     let Ok(contents) = serde_json::to_string(&Value::Object(state)) else {
         return;
     };

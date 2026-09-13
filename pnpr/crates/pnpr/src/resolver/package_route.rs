@@ -17,7 +17,10 @@ pub(super) struct PackageRoute {
 
 impl PackageRoute {
     pub(super) fn new(hook: Arc<RouteHook>, canonical_name: String) -> Self {
-        Self { hook, canonical_name }
+        Self {
+            hook,
+            canonical_name,
+        }
     }
 }
 

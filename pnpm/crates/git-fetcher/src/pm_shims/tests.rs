@@ -4,15 +4,22 @@ use std::{fs, path::Path};
 use tempfile::tempdir;
 
 fn shim_body(dir: &Path, name: &str) -> String {
-    let file_name = if cfg!(windows) { format!("{name}.cmd") } else { name.to_string() };
+    let file_name = if cfg!(windows) {
+        format!("{name}.cmd")
+    } else {
+        name.to_string()
+    };
     fs::read_to_string(dir.join(file_name)).expect("read the generated shim")
 }
 
 #[test]
 fn a_pinned_package_manager_is_forwarded_with_its_version() {
     let dir = tempdir().unwrap();
-    let wanted =
-        WantedPm { pm: PreferredPm::Yarn, version_spec: Some("1".to_string()), pinned: true };
+    let wanted = WantedPm {
+        pm: PreferredPm::Yarn,
+        version_spec: Some("1".to_string()),
+        pinned: true,
+    };
     write_pm_shims(dir.path(), &wanted, Path::new("/opt/pnpm")).expect("write the shims");
 
     let body = shim_body(dir.path(), "yarn");
@@ -26,19 +33,34 @@ fn a_pinned_package_manager_is_forwarded_with_its_version() {
 #[test]
 fn an_unpinned_package_manager_is_forwarded_by_name() {
     let dir = tempdir().unwrap();
-    let wanted = WantedPm { pm: PreferredPm::Bun, version_spec: None, pinned: false };
+    let wanted = WantedPm {
+        pm: PreferredPm::Bun,
+        version_spec: None,
+        pinned: false,
+    };
     write_pm_shims(dir.path(), &wanted, Path::new("/opt/pnpm")).expect("write the shims");
 
     let body = shim_body(dir.path(), "bun");
-    let spec = if cfg!(windows) { r#"--package "bun""# } else { "--package 'bun'" };
-    assert!(body.contains(spec), "an unpinned spec carries no version: {body}");
+    let spec = if cfg!(windows) {
+        r#"--package "bun""#
+    } else {
+        "--package 'bun'"
+    };
+    assert!(
+        body.contains(spec),
+        "an unpinned spec carries no version: {body}",
+    );
 }
 
 /// A build that shells out to `yarnpkg` has to find the same Yarn.
 #[test]
 fn yarn_is_reachable_under_both_of_its_names() {
     let dir = tempdir().unwrap();
-    let wanted = WantedPm { pm: PreferredPm::Yarn, version_spec: None, pinned: false };
+    let wanted = WantedPm {
+        pm: PreferredPm::Yarn,
+        version_spec: None,
+        pinned: false,
+    };
     let written = write_pm_shims(dir.path(), &wanted, Path::new("/opt/pnpm")).expect("write");
     assert_eq!(written.len(), 2);
     for name in ["yarn", "yarnpkg"] {
@@ -55,12 +77,20 @@ fn yarn_is_reachable_under_both_of_its_names() {
 fn bun_is_reachable_through_bunx_too() {
     let dir = tempdir().unwrap();
     let version_spec = Some("1.3.0".to_string());
-    let wanted = WantedPm { pm: PreferredPm::Bun, version_spec, pinned: true };
+    let wanted = WantedPm {
+        pm: PreferredPm::Bun,
+        version_spec,
+        pinned: true,
+    };
     let written = write_pm_shims(dir.path(), &wanted, Path::new("/opt/pnpm")).expect("write");
 
     assert_eq!(written.len(), 2);
     let body = shim_body(dir.path(), "bunx");
-    let runs = if cfg!(windows) { r#""bun@1.3.0" "bun" "x""# } else { "'bun@1.3.0' 'bun' 'x'" };
+    let runs = if cfg!(windows) {
+        r#""bun@1.3.0" "bun" "x""#
+    } else {
+        "'bun@1.3.0' 'bun' 'x'"
+    };
     assert!(body.contains(runs), "{body}");
 }
 
@@ -70,12 +100,20 @@ fn bun_is_reachable_through_bunx_too() {
 fn npm_is_reachable_through_npx_too() {
     let dir = tempdir().unwrap();
     let version_spec = Some("11".to_string());
-    let wanted = WantedPm { pm: PreferredPm::Npm, version_spec, pinned: true };
+    let wanted = WantedPm {
+        pm: PreferredPm::Npm,
+        version_spec,
+        pinned: true,
+    };
     let written = write_pm_shims(dir.path(), &wanted, Path::new("/opt/pnpm")).expect("write");
 
     assert_eq!(written.len(), 2);
     let body = shim_body(dir.path(), "npx");
-    let runs = if cfg!(windows) { r#""npm@11" "npx""# } else { "'npm@11' 'npx'" };
+    let runs = if cfg!(windows) {
+        r#""npm@11" "npx""#
+    } else {
+        "'npm@11' 'npx'"
+    };
     assert!(body.contains(runs), "{body}");
 }
 
@@ -85,10 +123,17 @@ fn the_shims_are_executable() {
     use std::os::unix::fs::PermissionsExt;
 
     let dir = tempdir().unwrap();
-    let wanted = WantedPm { pm: PreferredPm::Npm, version_spec: None, pinned: false };
+    let wanted = WantedPm {
+        pm: PreferredPm::Npm,
+        version_spec: None,
+        pinned: false,
+    };
     write_pm_shims(dir.path(), &wanted, Path::new("/opt/pnpm")).expect("write the shims");
 
-    let mode = fs::metadata(dir.path().join("npm")).unwrap().permissions().mode();
+    let mode = fs::metadata(dir.path().join("npm"))
+        .unwrap()
+        .permissions()
+        .mode();
     assert_eq!(mode & 0o111, 0o111, "mode was {mode:o}");
 }
 
@@ -98,8 +143,17 @@ fn the_shims_are_executable() {
 #[test]
 fn a_hostile_pnpm_path_is_quoted() {
     let dir = tempdir().unwrap();
-    let wanted = WantedPm { pm: PreferredPm::Npm, version_spec: None, pinned: false };
-    write_pm_shims(dir.path(), &wanted, Path::new("/opt/p'; touch /tmp/pwned; '")).expect("write");
+    let wanted = WantedPm {
+        pm: PreferredPm::Npm,
+        version_spec: None,
+        pinned: false,
+    };
+    write_pm_shims(
+        dir.path(),
+        &wanted,
+        Path::new("/opt/p'; touch /tmp/pwned; '"),
+    )
+    .expect("write");
 
     // Every quote in the path closes and reopens the literal, so the
     // whole path stays one shell word and nothing in it is ever parsed
@@ -117,11 +171,19 @@ fn a_hostile_pnpm_path_is_quoted() {
 fn a_hostile_version_spec_is_dropped() {
     let dir = tempdir().unwrap();
     let hostile = r#"1.0.0" & calc & ""#.to_string();
-    let wanted = WantedPm { pm: PreferredPm::Yarn, version_spec: Some(hostile), pinned: true };
+    let wanted = WantedPm {
+        pm: PreferredPm::Yarn,
+        version_spec: Some(hostile),
+        pinned: true,
+    };
     write_pm_shims(dir.path(), &wanted, Path::new("/opt/pnpm")).expect("write the shims");
 
     let body = shim_body(dir.path(), "yarn");
-    let spec = if cfg!(windows) { r#"--package "yarn""# } else { "--package 'yarn'" };
+    let spec = if cfg!(windows) {
+        r#"--package "yarn""#
+    } else {
+        "--package 'yarn'"
+    };
     assert!(body.contains(spec), "{body}");
     assert!(!body.contains("calc"), "{body}");
 }
@@ -132,7 +194,9 @@ fn a_hostile_version_spec_is_dropped() {
 #[test]
 fn a_planted_entry_is_replaced() {
     let dir = tempdir().unwrap();
-    let planted = dir.path().join(if cfg!(windows) { "npm.cmd" } else { "npm" });
+    let planted = dir
+        .path()
+        .join(if cfg!(windows) { "npm.cmd" } else { "npm" });
     let elsewhere = dir.path().join("elsewhere");
     fs::write(&elsewhere, "original\n").unwrap();
     #[cfg(unix)]
@@ -140,7 +204,11 @@ fn a_planted_entry_is_replaced() {
     #[cfg(windows)]
     fs::write(&planted, "@echo planted\r\n").unwrap();
 
-    let wanted = WantedPm { pm: PreferredPm::Npm, version_spec: None, pinned: false };
+    let wanted = WantedPm {
+        pm: PreferredPm::Npm,
+        version_spec: None,
+        pinned: false,
+    };
     write_pm_shims(dir.path(), &wanted, Path::new("/opt/pnpm")).expect("write the shims");
 
     assert!(shim_body(dir.path(), "npm").contains("dlx"));

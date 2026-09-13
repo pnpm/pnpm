@@ -39,6 +39,8 @@
 
 pub use tree::{percent_encode_path, pkg_id};
 
+use traversal::hoist_subtree;
+
 use derive_more::{Display, Error};
 use indexmap::{IndexMap, IndexSet};
 use miette::Diagnostic;
@@ -360,8 +362,7 @@ pub fn hoist(lockfile: &Lockfile, opts: &HoistOpts) -> Result<HoisterResult, Hoi
     // Strip `externalDependencies` from the top-level result —
     // they exist only to reserve a name slot at the root.
     if !opts.external_dependencies.is_empty() {
-        result
-            .dependencies
+        result.dependencies
             .borrow_mut()
             .retain(|dep| !opts.external_dependencies.contains(&dep.name));
     }
@@ -439,11 +440,18 @@ fn hoist_to(
     // version. The top `.` root has nothing above it, so its map is
     // empty — matching upstream, which passes an empty map when
     // `tree == rootNode`.
-    let used = if is_top_root { HashMap::new() } else { get_used_dependencies(root) };
+    let used = if is_top_root {
+        HashMap::new()
+    } else {
+        get_used_dependencies(root)
+    };
     hoist_into_root(root, &node_locator(root), opts, &used);
 
-    let children: Vec<RcByPtr<HoisterResult>> =
-        root.dependencies.borrow().iter().cloned().collect();
+    let children: Vec<RcByPtr<HoisterResult>> = root.dependencies
+        .borrow()
+        .iter()
+        .cloned()
+        .collect();
     for child in children {
         if root.peer_names.contains(&child.0.name) {
             continue;
@@ -506,7 +514,10 @@ fn node_locator(node: &HoisterResult) -> String {
 fn same_ident(left: &HoisterResult, right: &HoisterResult) -> bool {
     fn ident_of(node: &HoisterResult) -> String {
         let references = node.references.borrow();
-        let reference = references.iter().next().map_or("", String::as_str);
+        let reference = references
+            .iter()
+            .next()
+            .map_or("", String::as_str);
         match reference.find('(') {
             Some(idx) => reference[..idx].to_string(),
             None => reference.to_string(),
@@ -520,13 +531,15 @@ fn same_ident(left: &HoisterResult, right: &HoisterResult) -> bool {
 /// [`AbsorbDecision::PathShadow`](crate::absorption::AbsorbDecision::PathShadow)). `path[0]` is the hoist root —
 /// its slot is judged by the root-index decision, not here.
 fn path_shadowed(candidate: &HoisterResult, path: &[Rc<HoisterResult>]) -> bool {
-    path.iter().skip(1).any(|ancestor| {
-        ancestor
-            .dependencies
-            .borrow()
-            .iter()
-            .any(|dep| dep.0.name == candidate.name && !same_ident(&dep.0, candidate))
-    })
+    path
+        .iter()
+        .skip(1)
+        .any(|ancestor| {
+            ancestor.dependencies
+                .borrow()
+                .iter()
+                .any(|dep| dep.0.name == candidate.name && !same_ident(&dep.0, candidate))
+        })
 }
 
 /// Whether two nodes are the same package — equal locators — without
@@ -534,7 +547,14 @@ fn path_shadowed(candidate: &HoisterResult, path: &[Rc<HoisterResult>]) -> bool 
 /// compare equal; different versions under one name do not.
 fn same_locator(left: &HoisterResult, right: &HoisterResult) -> bool {
     left.ident_name == right.ident_name
-        && left.references.borrow().iter().next() == right.references.borrow().iter().next()
+        && left.references
+            .borrow()
+            .iter()
+            .next()
+            == right.references
+                .borrow()
+                .iter()
+                .next()
 }
 
 /// Return a single-parent copy of `child` that is safe to mutate on
@@ -624,8 +644,11 @@ fn hoist_into_root(
     opts: &HoistOpts,
     used: &HashMap<String, Rc<HoisterResult>>,
 ) {
-    let mut root_index: HashMap<String, RcByPtr<HoisterResult>> =
-        root.dependencies.borrow().iter().map(|dep| (dep.0.name.clone(), dep.clone())).collect();
+    let mut root_index: HashMap<String, RcByPtr<HoisterResult>> = root.dependencies
+        .borrow()
+        .iter()
+        .map(|dep| (dep.0.name.clone(), dep.clone()))
+        .collect();
 
     // Per-name candidate idents ordered most-preferred first. Only
     // the front ident of each name may claim the root slot; the
@@ -647,7 +670,12 @@ fn hoist_into_root(
         opts.hoisting_limits.get(root_locator).unwrap_or(&empty_set);
 
     loop {
-        let ctx = HoistCtx { root, border_names, hoist_ident_map: &hoist_ident_map, used };
+        let ctx = HoistCtx {
+            root,
+            border_names,
+            hoist_ident_map: &hoist_ident_map,
+            used,
+        };
         let changed = hoist_subtree(root, &[], &ctx, &mut root_index, false);
 
         // Per-pass ident shift: a name with more than one candidate
@@ -676,111 +704,12 @@ fn hoist_into_root(
 /// candidate lists. Pre-hoist nodes carry exactly one reference
 /// (see [`convert`]).
 fn node_ident(node: &HoisterResult) -> String {
-    node.references.borrow().iter().next().cloned().unwrap_or_default()
-}
-
-/// Depth-first hoist driver. `ancestor_path` is the path from
-/// `root` down to (but *excluding*) `node`, so for the root
-/// itself it is empty and for a child of root it is `[root]`.
-/// Returns whether this subtree moved at least one node in the
-/// current round — the outer multi-round loop uses that to
-/// decide whether another round can unlock further hoists.
-///
-/// `node` must be decoupled — the walk mutates its dependency set.
-/// The recursion keeps that invariant: every child is decoupled
-/// (relative to its post-decision parent) before it is descended
-/// into, so a package shared by several parents is walked — and
-/// decided — once per path, on that path's own copy. The walk tree
-/// therefore has the shape of the final materialized layout, and
-/// termination follows from the cycle cut below: no locator repeats
-/// on a path, so paths (and the walk) are finite.
-fn hoist_subtree(
-    node: &Rc<HoisterResult>,
-    ancestor_path: &[Rc<HoisterResult>],
-    ctx: &HoistCtx<'_>,
-    root_index: &mut HashMap<String, RcByPtr<HoisterResult>>,
-    under_border: bool,
-) -> bool {
-    let mut changed_in_subtree = false;
-
-    // A node whose name is in `border_names` is a hoisting border:
-    // its descendants are kept nested beneath it rather than hoisted
-    // to the root. `under_border` carries that boundary down the
-    // recursion — once any proper ancestor of a node is a border,
-    // the node (and everything below it) stays put. Mirrors
-    // upstream's `isHoistBorder` flag, which blocks a bordered
-    // node's *children* from hoisting past it, not the bordered
-    // node itself.
-    let children_blocked = under_border || ctx.border_names.contains(&node.name);
-
-    // Snapshot the current children so we can mutate
-    // `node.dependencies` mid-iteration without invalidating the
-    // borrow. `RcByPtr::clone` just bumps refcounts.
-    let children: Vec<RcByPtr<HoisterResult>> =
-        node.dependencies.borrow().iter().cloned().collect();
-
-    // Path from root down to and including `node` — i.e. the
-    // ancestor path for `node`'s direct children. Used for the
-    // peer-shadow checks, the cycle cut, and as the starting point
-    // for the path passed into recursion when a child stays
-    // nested.
-    let mut path_for_children: Vec<Rc<HoisterResult>> = ancestor_path.to_vec();
-    path_for_children.push(Rc::clone(node));
-
-    for child in children {
-        if is_cycle_edge(&child.0, &path_for_children) {
-            node.dependencies.borrow_mut().shift_remove(&child);
-            changed_in_subtree = true;
-            continue;
-        }
-
-        let decision =
-            absorb_decision(&child.0, &path_for_children, ctx, root_index, children_blocked);
-        let child_recursion_path =
-            match apply_decision(decision, &child, node, ctx, &path_for_children, root_index) {
-                ChildStep::Dropped => {
-                    changed_in_subtree = true;
-                    continue;
-                }
-                ChildStep::Descend { path, moved } => {
-                    changed_in_subtree |= moved;
-                    path
-                }
-            };
-
-        // Decouple before descending: the recursion mutates the
-        // child's dependency set, which must not leak into other
-        // paths that share the child. The child's current parent is
-        // the last element of its recursion path — root for a
-        // just-moved (or root-direct) child, `node` otherwise.
-        let parent =
-            child_recursion_path.last().expect("the recursion path ends at the child's parent");
-        let child = decouple_child(parent, &child);
-        if Rc::ptr_eq(parent, ctx.root) {
-            root_index.insert(child.0.name.clone(), child.clone());
-        }
-
-        let child_changed =
-            hoist_subtree(&child.0, &child_recursion_path, ctx, root_index, children_blocked);
-        changed_in_subtree |= child_changed;
-    }
-    changed_in_subtree
-}
-
-/// Whether the edge to `child` closes a cycle (or is a self-reference): a
-/// package with this alias *and* locator already materializes as an ancestor
-/// of this position, so requiring the alias here resolves to that ancestor.
-/// The edge carries no additional layout and would send the walkers into
-/// unbounded recursion, so the caller cuts it.
-///
-/// The alias name must match too: an edge exposing the same package under a
-/// *different* alias is the only `node_modules/<alias>` entry for that name
-/// and stays, just like upstream, whose `aliasedLocatorPath` guard compares
-/// `name@locator`. Upstream merely skips descending into cycle edges; pacquet
-/// removes them outright because its layout walkers require the result to be
-/// a DAG. The parent is decoupled, so the cut is per-path.
-fn is_cycle_edge(child: &Rc<HoisterResult>, path: &[Rc<HoisterResult>]) -> bool {
-    path.iter().any(|ancestor| ancestor.name == child.name && same_locator(ancestor, child))
+    node.references
+        .borrow()
+        .iter()
+        .next()
+        .cloned()
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -797,3 +726,5 @@ use preferences::{build_hoist_ident_map, is_preferred_ident};
 
 mod absorption;
 use absorption::{ChildStep, absorb_decision, apply_decision};
+
+mod traversal;

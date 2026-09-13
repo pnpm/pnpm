@@ -28,8 +28,11 @@ pub fn workspace_pref_to_npm(
         });
     };
     let WorkspaceSpec { alias, version } = parsed;
-    let version_part =
-        if version == "^" || version == "~" || version.is_empty() { "*" } else { version.as_str() };
+    let version_part = if version == "^" || version == "~" || version.is_empty() {
+        "*"
+    } else {
+        version.as_str()
+    };
     Ok(match alias {
         Some(alias) => format!("npm:{alias}@{version_part}"),
         None => version_part.to_string(),

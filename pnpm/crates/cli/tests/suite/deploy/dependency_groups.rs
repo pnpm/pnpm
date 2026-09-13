@@ -6,12 +6,20 @@ use assert_cmd::assert::OutputAssertExt;
 
 #[test]
 fn production_deploy_does_not_require_dev_only_workspace_sources() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, true);
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     fs::remove_dir_all(workspace.join("packages/dev-only")).unwrap();
 
     pacquet_cmd(&workspace)
@@ -26,8 +34,13 @@ fn production_deploy_does_not_require_dev_only_workspace_sources() {
 
 #[test]
 fn shared_lockfile_deploy_honors_no_optional_in_graph_and_virtual_store() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, true);
     write_project(
@@ -66,9 +79,18 @@ fn shared_lockfile_deploy_honors_no_optional_in_graph_and_virtual_store() {
         }),
     );
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     pacquet_cmd(&workspace)
-        .with_args(["--filter", "app", "deploy", "--prod", "deploy-with-optional"])
+        .with_args([
+            "--filter",
+            "app",
+            "deploy",
+            "--prod",
+            "deploy-with-optional",
+        ])
         .assert()
         .success();
     let with_optional = workspace.join("deploy-with-optional");
@@ -76,14 +98,20 @@ fn shared_lockfile_deploy_honors_no_optional_in_graph_and_virtual_store() {
     let graph_keys = deploy_graph_keys(&with_optional);
     for included in ["@pnpm.e2e/qar@100.0.0", "@pnpm.e2e/foo@100.0.0"] {
         assert!(
-            graph_keys.iter().any(|key| key.contains(included)),
+            graph_keys
+                .iter()
+                .any(|key| key.contains(included)),
             "default deploy lock graph should include {included}: {graph_keys:#?}",
         );
     }
     let optional_edges = deploy_optional_edges(&with_optional);
     assert!(
-        optional_edges.iter().any(|(key, names)| key.contains("lib@file:")
-            && names.iter().any(|name| name == "@pnpm.e2e/qar")),
+        optional_edges
+            .iter()
+            .any(|(key, names)| key.contains("lib@file:")
+                && names
+                    .iter()
+                    .any(|name| name == "@pnpm.e2e/qar")),
         "default deploy should keep the optional edge on the retained production dependency: {optional_edges:#?}",
     );
 
@@ -107,14 +135,18 @@ fn shared_lockfile_deploy_honors_no_optional_in_graph_and_virtual_store() {
     let graph_keys = deploy_graph_keys(&without_optional);
     for excluded in ["optional-only@file:", "@pnpm.e2e/qar@", "@pnpm.e2e/foo@"] {
         assert!(
-            !graph_keys.iter().any(|key| key.contains(excluded)),
+            !graph_keys
+                .iter()
+                .any(|key| key.contains(excluded)),
             "no-optional deploy lock graph should exclude {excluded}: {graph_keys:#?}",
         );
     }
     let virtual_store_entries = virtual_store_entries(&without_optional);
     for excluded in ["optional-only@file+", "@pnpm.e2e+qar@", "@pnpm.e2e+foo@"] {
         assert!(
-            !virtual_store_entries.iter().any(|entry| entry.contains(excluded)),
+            !virtual_store_entries
+                .iter()
+                .any(|entry| entry.contains(excluded)),
             "no-optional deploy virtual store should exclude {excluded}: {virtual_store_entries:#?}",
         );
     }
@@ -133,8 +165,13 @@ fn shared_lockfile_deploy_honors_no_optional_in_graph_and_virtual_store() {
 /// leave the dangling symlinks of <https://github.com/pnpm/pnpm/issues/13623>.
 #[test]
 fn shared_lockfile_deploy_drops_excluded_direct_dependencies() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, true);
     write_project(
@@ -158,7 +195,10 @@ fn shared_lockfile_deploy_drops_excluded_direct_dependencies() {
         }),
     );
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     // Deploying outside the workspace keeps the follow-up install standalone.
     let deploy_dir = root.path().join("deploy");
     pacquet_cmd(&workspace)
@@ -196,19 +236,32 @@ fn shared_lockfile_deploy_drops_excluded_direct_dependencies() {
 
     let deploy_lockfile = Lockfile::load_wanted_from_dir(&deploy_dir).unwrap().unwrap();
     let importer = deploy_lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY).unwrap();
-    assert!(importer.dev_dependencies.is_none(), "{:#?}", importer.dev_dependencies);
-    assert!(importer.optional_dependencies.is_none(), "{:#?}", importer.optional_dependencies);
+    assert!(
+        importer.dev_dependencies.is_none(),
+        "{:#?}",
+        importer.dev_dependencies,
+    );
+    assert!(
+        importer.optional_dependencies.is_none(),
+        "{:#?}",
+        importer.optional_dependencies,
+    );
     let graph_keys = deploy_graph_keys(&deploy_dir);
     for excluded in ["@pnpm.e2e/bar@", "@pnpm.e2e/qar@"] {
         assert!(
-            !graph_keys.iter().any(|key| key.contains(excluded)),
+            !graph_keys
+                .iter()
+                .any(|key| key.contains(excluded)),
             "the deploy lock graph should exclude {excluded}: {graph_keys:#?}",
         );
     }
 
     fs::copy(&npmrc_path, deploy_dir.join(".npmrc")).unwrap();
     fs::remove_dir_all(deploy_dir.join("node_modules")).unwrap();
-    pacquet_cmd(&deploy_dir).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet_cmd(&deploy_dir)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
     let dangling = dangling_links(&deploy_dir.join("node_modules"));
     assert!(
         dangling.is_empty(),
@@ -256,8 +309,13 @@ fn shared_lockfile_deploy_drops_excluded_direct_dependencies() {
 /// dependencies of every platform are materialized into the deploy dir.
 #[test]
 fn release_style_deploy_accepts_pre_subcommand_flags_and_forces_foreign_platform_optionals() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, false);
     write_project(
@@ -273,7 +331,10 @@ fn release_style_deploy_accepts_pre_subcommand_flags_and_forces_foreign_platform
         }),
     );
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let incompatible = "node_modules/@pnpm.e2e/not-compatible-with-any-os";
     pacquet_cmd(&workspace)
@@ -289,7 +350,10 @@ fn release_style_deploy_accepts_pre_subcommand_flags_and_forces_foreign_platform
         .assert()
         .success();
     assert!(
-        !workspace.join("plain-deploy").join(incompatible).exists(),
+        !workspace
+            .join("plain-deploy")
+            .join(incompatible)
+            .exists(),
         "without --force the platform-incompatible optional dependency stays skipped",
     );
     assert!(

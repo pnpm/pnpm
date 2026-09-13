@@ -23,18 +23,34 @@ use pnpm_reporter::{
 const CWD: &str = "/repo";
 
 fn state(colors: bool) -> ReporterState {
-    ReporterState::new(CWD.to_string(), 80, Colors { enabled: colors }, false)
+    ReporterState::new(
+        CWD.to_string(),
+        80,
+        Colors {
+            enabled: colors,
+        },
+        false,
+    )
 }
 
 fn state_with_options(options: ReporterOptions) -> ReporterState {
-    ReporterState::new_with_options(CWD.to_string(), 80, Colors { enabled: false }, options)
+    ReporterState::new_with_options(
+        CWD.to_string(),
+        80,
+        Colors {
+            enabled: false,
+        },
+        options,
+    )
 }
 
 fn state_without_summary_prefix_filter() -> ReporterState {
     ReporterState::new_with_summary_scope(
         CWD.to_string(),
         80,
-        Colors { enabled: false },
+        Colors {
+            enabled: false,
+        },
         false,
         SummaryScope::AllPrefixes,
     )
@@ -59,9 +75,18 @@ fn progress_at(requester: &str, status: &str) -> LogEvent {
     let requester = requester.to_string();
     let package_id = "registry.npmjs.org/foo/1.0.0".to_string();
     let message = match status {
-        "resolved" => ProgressMessage::Resolved { package_id, requester },
-        "fetched" => ProgressMessage::Fetched { package_id, requester },
-        "found_in_store" => ProgressMessage::FoundInStore { package_id, requester },
+        "resolved" => ProgressMessage::Resolved {
+            package_id,
+            requester,
+        },
+        "fetched" => ProgressMessage::Fetched {
+            package_id,
+            requester,
+        },
+        "found_in_store" => ProgressMessage::FoundInStore {
+            package_id,
+            requester,
+        },
         "imported" => ProgressMessage::Imported {
             method: PackageImportMethod::Hardlink,
             requester,
@@ -69,11 +94,18 @@ fn progress_at(requester: &str, status: &str) -> LogEvent {
         },
         other => panic!("unknown status {other}"),
     };
-    LogEvent::Progress(ProgressLog { level: LogLevel::Debug, message })
+    LogEvent::Progress(ProgressLog {
+        level: LogLevel::Debug,
+        message,
+    })
 }
 
 fn stage_at(prefix: &str, stage: Stage) -> LogEvent {
-    LogEvent::Stage(StageLog { level: LogLevel::Debug, prefix: prefix.to_string(), stage })
+    LogEvent::Stage(StageLog {
+        level: LogLevel::Debug,
+        prefix: prefix.to_string(),
+        stage,
+    })
 }
 
 fn fetching_started(package_id: &str, size: u64, attempt: u32) -> LogEvent {
@@ -140,14 +172,20 @@ fn added_root_with_latest_at(
 fn package_manifest_initial_at(prefix: &str, value: serde_json::Value) -> LogEvent {
     LogEvent::PackageManifest(PackageManifestLog {
         level: LogLevel::Debug,
-        message: PackageManifestMessage::Initial { prefix: prefix.to_string(), initial: value },
+        message: PackageManifestMessage::Initial {
+            prefix: prefix.to_string(),
+            initial: value,
+        },
     })
 }
 
 fn package_manifest_updated_at(prefix: &str, value: serde_json::Value) -> LogEvent {
     LogEvent::PackageManifest(PackageManifestLog {
         level: LogLevel::Debug,
-        message: PackageManifestMessage::Updated { prefix: prefix.to_string(), updated: value },
+        message: PackageManifestMessage::Updated {
+            prefix: prefix.to_string(),
+            updated: value,
+        },
     })
 }
 
@@ -156,11 +194,18 @@ fn summary() -> LogEvent {
 }
 
 fn summary_at(prefix: &str) -> LogEvent {
-    LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix: prefix.to_string() })
+    LogEvent::Summary(SummaryLog {
+        level: LogLevel::Debug,
+        prefix: prefix.to_string(),
+    })
 }
 
 fn pnpm_log(level: LogLevel, message: &str) -> LogEvent {
-    LogEvent::Pnpm(PnpmLog { level, message: message.to_string(), prefix: CWD.to_string() })
+    LogEvent::Pnpm(PnpmLog {
+        level,
+        message: message.to_string(),
+        prefix: CWD.to_string(),
+    })
 }
 
 fn deprecation(name: &str, version: &str, depth: i32, prefix: &str) -> LogEvent {
@@ -207,7 +252,10 @@ fn scope_reporting_state() -> ReporterState {
 fn ignored_scripts(names: &[&str]) -> LogEvent {
     LogEvent::IgnoredScripts(IgnoredScriptsLog {
         level: LogLevel::Info,
-        package_names: names.iter().map(|name| (*name).to_string()).collect(),
+        package_names: names
+            .iter()
+            .map(|name| (*name).to_string())
+            .collect(),
         strict_dep_builds: false,
     })
 }

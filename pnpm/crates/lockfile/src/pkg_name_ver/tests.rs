@@ -23,8 +23,14 @@ fn parse_ok() {
     case("ts-node@10.9.1", name_ver("ts-node", (10, 9, 1)));
     case("@types/node@18.7.19", name_ver("@types/node", (18, 7, 19)));
     case("typescript@5.1.6", name_ver("typescript", (5, 1, 6)));
-    case("foo@0.1.2-alpha.0", name_ver("foo", Version::parse("0.1.2-alpha.0").unwrap()));
-    case("@foo/bar@0.1.2-rc.0", name_ver("@foo/bar", Version::parse("0.1.2-rc.0").unwrap()));
+    case(
+        "foo@0.1.2-alpha.0",
+        name_ver("foo", Version::parse("0.1.2-alpha.0").unwrap()),
+    );
+    case(
+        "@foo/bar@0.1.2-rc.0",
+        name_ver("@foo/bar", Version::parse("0.1.2-rc.0").unwrap()),
+    );
 }
 
 #[test]
@@ -36,10 +42,19 @@ fn deserialize_ok() {
     }
 
     case("ts-node@10.9.1", name_ver("ts-node", (10, 9, 1)));
-    case("'@types/node@18.7.19'", name_ver("@types/node", (18, 7, 19)));
+    case(
+        "'@types/node@18.7.19'",
+        name_ver("@types/node", (18, 7, 19)),
+    );
     case("typescript@5.1.6", name_ver("typescript", (5, 1, 6)));
-    case("foo@0.1.2-alpha.0", name_ver("foo", Version::parse("0.1.2-alpha.0").unwrap()));
-    case("'@foo/bar@0.1.2-rc.0'", name_ver("@foo/bar", Version::parse("0.1.2-rc.0").unwrap()));
+    case(
+        "foo@0.1.2-alpha.0",
+        name_ver("foo", Version::parse("0.1.2-alpha.0").unwrap()),
+    );
+    case(
+        "'@foo/bar@0.1.2-rc.0'",
+        name_ver("@foo/bar", Version::parse("0.1.2-rc.0").unwrap()),
+    );
 }
 
 #[test]

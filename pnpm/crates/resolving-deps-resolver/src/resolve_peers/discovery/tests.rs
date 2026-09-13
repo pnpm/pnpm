@@ -41,10 +41,18 @@ fn cached_subtree_reuse_reports_no_peer_providers() {
         ],
         packages: HashMap::from_iter([
             ("peerx@1.0.0".into(), package("peerx", "1.0.0", &[], true)),
-            ("peerpkg@2.0.0".into(), package("peerpkg", "2.0.0", &[], true)),
+            (
+                "peerpkg@2.0.0".into(),
+                package("peerpkg", "2.0.0", &[], true),
+            ),
             (
                 Arc::from("consumer@1.0.0".to_string()),
-                package("consumer", "1.0.0", &[("peerpkg", "*"), ("peerx", "*")], false),
+                package(
+                    "consumer",
+                    "1.0.0",
+                    &[("peerpkg", "*"), ("peerx", "*")],
+                    false,
+                ),
             ),
             ("mid@1.0.0".into(), package("mid", "1.0.0", &[], false)),
         ]),
@@ -73,8 +81,13 @@ fn cached_subtree_reuse_reports_no_peer_providers() {
         "the walk that resolves the subtree reports its providers",
     );
 
-    let (second, _) =
-        discover_peers(&mut tree, &direct, &direct, caches, ResolvePeersOptions::default());
+    let (second, _) = discover_peers(
+        &mut tree,
+        &direct,
+        &direct,
+        caches,
+        ResolvePeersOptions::default(),
+    );
     assert_eq!(
         second.resolved_peer_providers_by_alias.get("peerpkg"),
         None,

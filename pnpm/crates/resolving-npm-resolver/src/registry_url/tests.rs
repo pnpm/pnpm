@@ -12,7 +12,10 @@ fn unscoped_name_passes_through() {
 #[test]
 fn scoped_name_encodes_slash() {
     assert_eq!(encode_pkg_name_path("@scope/pkg"), "@scope%2Fpkg");
-    assert_eq!(encode_pkg_name_path("@pnpm.e2e/hello-world"), "@pnpm.e2e%2Fhello-world");
+    assert_eq!(
+        encode_pkg_name_path("@pnpm.e2e/hello-world"),
+        "@pnpm.e2e%2Fhello-world",
+    );
 }
 
 #[test]

@@ -14,15 +14,19 @@ pub(crate) fn normalize_directory_pattern(pattern: &str) -> Option<String> {
 pub(crate) fn negated_directory_pattern(
     pattern: &str,
 ) -> Result<Option<String>, FindWorkspaceProjectsError> {
-    let Some(body) = pattern.strip_prefix('!').filter(|body| !body.starts_with('/')) else {
+    let Some(body) = pattern
+        .strip_prefix('!')
+        .filter(|body| !body.starts_with('/'))
+    else {
         return Ok(None);
     };
     let Some(directory) = normalize_directory_pattern(body) else {
         return Ok(None);
     };
-    Glob::new(&directory).map_err(|error| FindWorkspaceProjectsError::InvalidGlob {
-        pattern: pattern.to_string(),
-        message: error.to_string(),
-    })?;
+    Glob::new(&directory)
+        .map_err(|error| FindWorkspaceProjectsError::InvalidGlob {
+            pattern: pattern.to_string(),
+            message: error.to_string(),
+        })?;
     Ok(Some(directory))
 }

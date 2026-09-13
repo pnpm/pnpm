@@ -22,7 +22,9 @@ pub fn prune_time(document: &mut Value) {
         return;
     }
     let direct_dep_paths = importer_dep_paths(document);
-    let Some(Value::Object(time)) = document.get_mut("time") else { return };
+    let Some(Value::Object(time)) = document.get_mut("time") else {
+        return;
+    };
     time.retain(|dep_path, _| direct_dep_paths.contains(dep_path));
 }
 
@@ -30,10 +32,14 @@ pub fn prune_time(document: &mut Value) {
 /// the keys a `time:` entry is allowed to carry.
 fn importer_dep_paths(document: &Value) -> HashSet<String> {
     let mut dep_paths = HashSet::new();
-    let Some(Value::Object(importers)) = document.get("importers") else { return dep_paths };
+    let Some(Value::Object(importers)) = document.get("importers") else {
+        return dep_paths;
+    };
     for importer in importers.values() {
         for group in IMPORTER_DEPENDENCY_GROUPS {
-            let Some(Value::Object(dependencies)) = importer.get(group) else { continue };
+            let Some(Value::Object(dependencies)) = importer.get(group) else {
+                continue;
+            };
             dep_paths.extend(
                 dependencies
                     .iter()
@@ -50,7 +56,12 @@ fn resolved_dep_path(alias: &str, dependency: &Value) -> Option<String> {
     let version = dependency.get("version").and_then(Value::as_str)?;
     let alias = PkgName::parse(alias).ok()?;
     let version = version.parse::<ImporterDepVersion>().ok()?;
-    Some(version.resolved_key(&alias)?.without_peer().to_string())
+    Some(
+        version
+            .resolved_key(&alias)?
+            .without_peer()
+            .to_string(),
+    )
 }
 
 #[cfg(test)]

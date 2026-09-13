@@ -25,7 +25,10 @@ fn dir(name: &str) -> PathBuf {
 }
 
 fn key(name: &str, task_name: &str) -> TaskKey {
-    TaskKey { project: dir(name), task_name: task_name.to_string() }
+    TaskKey {
+        project: dir(name),
+        task_name: task_name.to_string(),
+    }
 }
 
 fn drop_event(_: &LogEvent) {}
@@ -47,7 +50,10 @@ struct FakeProject {
 }
 
 fn project(dependencies: &[&'static str], scripts: &[&'static str]) -> FakeProject {
-    FakeProject { dependencies: dependencies.to_vec(), scripts: scripts.to_vec() }
+    FakeProject {
+        dependencies: dependencies.to_vec(),
+        scripts: scripts.to_vec(),
+    }
 }
 
 fn tasks(entries: &[(&str, Option<&[&str]>)]) -> IndexMap<String, TaskSettings> {
@@ -55,8 +61,12 @@ fn tasks(entries: &[(&str, Option<&[&str]>)]) -> IndexMap<String, TaskSettings> 
         .iter()
         .map(|(name, depends_on)| {
             let mut settings = TaskSettings::default();
-            settings.depends_on = depends_on
-                .map(|entries| entries.iter().map(std::string::ToString::to_string).collect());
+            settings.depends_on = depends_on.map(|entries| {
+                entries
+                    .iter()
+                    .map(std::string::ToString::to_string)
+                    .collect()
+            });
             (name.to_string(), settings)
         })
         .collect()
@@ -81,19 +91,35 @@ fn build_graph(
     let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> = projects
         .iter()
         .map(|(name, project)| {
-            (dir(name), project.dependencies.iter().map(|dependency| dir(dependency)).collect())
+            (
+                dir(name),
+                project.dependencies
+                    .iter()
+                    .map(|dependency| dir(dependency))
+                    .collect(),
+            )
         })
         .collect();
     let scripts_by_dir: HashMap<PathBuf, Vec<String>> = projects
         .iter()
         .map(|(name, project)| {
-            (dir(name), project.scripts.iter().map(std::string::ToString::to_string).collect())
+            (
+                dir(name),
+                project.scripts
+                    .iter()
+                    .map(std::string::ToString::to_string)
+                    .collect(),
+            )
         })
         .collect();
     build_task_graph(&BuildTaskGraphOptions {
         project_dependencies: &project_dependencies,
         select_scripts: |project: &Path, task_name: &str| {
-            scripts_by_dir[project].iter().filter(|script| *script == task_name).cloned().collect()
+            scripts_by_dir[project]
+                .iter()
+                .filter(|script| *script == task_name)
+                .cloned()
+                .collect()
         },
         task_name,
         tasks: task_settings,
@@ -106,56 +132,91 @@ fn pipeline_graph_requests_every_task_name_only_in_the_requested_projects() {
     // requested tasks of its own — but `app#build`'s `^build` edge still
     // pulls `lib#build` in, keeping the graph (and so a cache key built
     // over it) identical to what an unnarrowed run resolves.
-    let projects =
-        [("lib", project(&[], &["build", "lint"])), ("app", project(&["lib"], &["build", "lint"]))];
+    let projects = [
+        ("lib", project(&[], &["build", "lint"])),
+        ("app", project(&["lib"], &["build", "lint"])),
+    ];
     let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> = projects
         .iter()
         .map(|(name, project)| {
-            (dir(name), project.dependencies.iter().map(|dependency| dir(dependency)).collect())
+            (
+                dir(name),
+                project.dependencies
+                    .iter()
+                    .map(|dependency| dir(dependency))
+                    .collect(),
+            )
         })
         .collect();
     let scripts_by_dir: HashMap<PathBuf, Vec<String>> = projects
         .iter()
         .map(|(name, project)| {
-            (dir(name), project.scripts.iter().map(std::string::ToString::to_string).collect())
+            (
+                dir(name),
+                project.scripts
+                    .iter()
+                    .map(std::string::ToString::to_string)
+                    .collect(),
+            )
         })
         .collect();
     let requested = [dir("app")];
     let graph = build_pipeline_task_graph(&BuildPipelineTaskGraphOptions {
         project_dependencies: &project_dependencies,
         select_scripts: |project: &Path, task_name: &str| {
-            scripts_by_dir[project].iter().filter(|script| *script == task_name).cloned().collect()
+            scripts_by_dir[project]
+                .iter()
+                .filter(|script| *script == task_name)
+                .cloned()
+                .collect()
         },
         task_names: &["build", "lint"],
         requested_projects: Some(&requested),
         tasks: None,
     });
-    let mut keys: Vec<TaskKey> = graph.keys().cloned().collect();
+    let mut keys: Vec<TaskKey> = graph
+        .keys()
+        .cloned()
+        .collect();
     keys.sort_by(|left, right| {
         (&left.project, &left.task_name).cmp(&(&right.project, &right.task_name))
     });
     assert_eq!(
         keys,
-        vec![key("app", "build"), key("app", "lint"), key("lib", "build"), key("lib", "lint")],
+        vec![
+            key("app", "build"),
+            key("app", "lint"),
+            key("lib", "build"),
+            key("lib", "lint")
+        ],
     );
     assert!(graph[&key("app", "build")].requested);
     assert!(graph[&key("app", "lint")].requested);
     assert!(!graph[&key("lib", "build")].requested);
     // Pulled by `app#lint`'s default `^lint`, not requested.
     assert!(!graph[&key("lib", "lint")].requested);
-    assert_eq!(graph[&key("app", "build")].dependencies, vec![key("lib", "build")]);
+    assert_eq!(
+        graph[&key("app", "build")].dependencies,
+        vec![key("lib", "build")],
+    );
 }
 
 #[test]
 fn unconfigured_task_depends_on_the_same_task_in_workspace_dependencies() {
     let graph = build_graph(
-        &[("a", project(&["b"], &["build"])), ("b", project(&[], &["build"]))],
+        &[
+            ("a", project(&["b"], &["build"])),
+            ("b", project(&[], &["build"])),
+        ],
         "build",
         None,
     );
 
     assert_eq!(graph.len(), 2);
-    assert_eq!(graph[&key("a", "build")].dependencies, vec![key("b", "build")]);
+    assert_eq!(
+        graph[&key("a", "build")].dependencies,
+        vec![key("b", "build")],
+    );
     assert!(graph[&key("b", "build")].dependencies.is_empty());
     assert!(graph[&key("a", "build")].requested);
 }
@@ -164,14 +225,23 @@ fn unconfigured_task_depends_on_the_same_task_in_workspace_dependencies() {
 fn same_project_depends_on_entry_pulls_the_named_task_into_the_graph() {
     let settings = tasks(&[("build", Some(&["^build"])), ("test", Some(&["build"]))]);
     let graph = build_graph(
-        &[("a", project(&["b"], &["build", "test"])), ("b", project(&[], &["build", "test"]))],
+        &[
+            ("a", project(&["b"], &["build", "test"])),
+            ("b", project(&[], &["build", "test"])),
+        ],
         "test",
         Some(&settings),
     );
 
     assert_eq!(graph.len(), 4);
-    assert_eq!(graph[&key("a", "test")].dependencies, vec![key("a", "build")]);
-    assert_eq!(graph[&key("a", "build")].dependencies, vec![key("b", "build")]);
+    assert_eq!(
+        graph[&key("a", "test")].dependencies,
+        vec![key("a", "build")],
+    );
+    assert_eq!(
+        graph[&key("a", "build")].dependencies,
+        vec![key("b", "build")],
+    );
     assert!(!graph[&key("a", "build")].requested);
     assert!(graph[&key("a", "test")].requested);
 }
@@ -180,7 +250,10 @@ fn same_project_depends_on_entry_pulls_the_named_task_into_the_graph() {
 fn explicitly_empty_depends_on_means_the_task_depends_on_nothing() {
     let settings = tasks(&[("lint", None)]);
     let graph = build_graph(
-        &[("a", project(&["b"], &["lint"])), ("b", project(&[], &["lint"]))],
+        &[
+            ("a", project(&["b"], &["lint"])),
+            ("b", project(&[], &["lint"])),
+        ],
         "lint",
         Some(&settings),
     );
@@ -193,12 +266,21 @@ fn task_carries_its_configured_concurrency_limit_into_the_graph() {
     let mut settings = tasks(&[("build", Some(&[]))]);
     settings.get_mut("build").unwrap().concurrency = Some(1);
     let graph = build_graph(
-        &[("a", project(&[], &["build"])), ("b", project(&[], &["build"]))],
+        &[
+            ("a", project(&[], &["build"])),
+            ("b", project(&[], &["build"])),
+        ],
         "build",
         Some(&settings),
     );
 
-    assert_eq!(graph.values().map(|node| node.concurrency).collect::<Vec<_>>(), vec![Some(1); 2]);
+    assert_eq!(
+        graph
+            .values()
+            .map(|node| node.concurrency)
+            .collect::<Vec<_>>(),
+        vec![Some(1); 2],
+    );
 }
 
 #[test]
@@ -216,16 +298,25 @@ fn project_without_the_script_becomes_a_pass_through_node_that_keeps_the_chain()
     let pass_through = &graph[&key("b", "build")];
     assert!(pass_through.scripts.is_empty());
     assert_eq!(pass_through.dependencies, vec![key("c", "build")]);
-    assert_eq!(graph[&key("a", "build")].dependencies, vec![key("b", "build")]);
+    assert_eq!(
+        graph[&key("a", "build")].dependencies,
+        vec![key("b", "build")],
+    );
 
     let order = sequence(&mut graph).unwrap();
-    assert_eq!(order, vec![key("c", "build"), key("b", "build"), key("a", "build")]);
+    assert_eq!(
+        order,
+        vec![key("c", "build"), key("b", "build"), key("a", "build")],
+    );
 }
 
 #[test]
 fn task_cycle_is_an_error_naming_the_participating_tasks() {
     let mut graph = build_graph(
-        &[("a", project(&["b"], &["build"])), ("b", project(&["a"], &["build"]))],
+        &[
+            ("a", project(&["b"], &["build"])),
+            ("b", project(&["a"], &["build"])),
+        ],
         "build",
         None,
     );
@@ -245,13 +336,19 @@ fn task_depending_on_itself_is_an_error() {
 #[test]
 fn reverse_task_graph_runs_dependents_before_dependencies() {
     let graph = build_graph(
-        &[("a", project(&["b"], &["build"])), ("b", project(&[], &["build"]))],
+        &[
+            ("a", project(&["b"], &["build"])),
+            ("b", project(&[], &["build"])),
+        ],
         "build",
         None,
     );
     let reversed = reverse_task_graph(&graph);
     assert!(reversed[&key("a", "build")].dependencies.is_empty());
-    assert_eq!(reversed[&key("b", "build")].dependencies, vec![key("a", "build")]);
+    assert_eq!(
+        reversed[&key("b", "build")].dependencies,
+        vec![key("a", "build")],
+    );
 }
 
 #[test]
@@ -273,7 +370,10 @@ fn resume_drops_only_the_anchors_transitive_dependencies() {
     assert!(!resumed.contains_key(&key("a", "build")));
     // The edge into the dropped dependency is treated as satisfied.
     assert!(resumed[&key("b", "build")].dependencies.is_empty());
-    assert_eq!(resumed[&key("c", "build")].dependencies, vec![key("b", "build")]);
+    assert_eq!(
+        resumed[&key("c", "build")].dependencies,
+        vec![key("b", "build")],
+    );
     assert!(resumed.contains_key(&key("unrelated", "build")));
 }
 
@@ -296,7 +396,10 @@ fn resume_drops_exact_completed_tasks_when_state_is_available() {
     assert!(resumed.contains_key(&key("anchor", "build")));
     assert!(resumed.contains_key(&key("dependency", "build")));
     assert!(!resumed.contains_key(&key("completed", "build")));
-    assert_eq!(resumed[&key("anchor", "build")].dependencies, vec![key("dependency", "build")]);
+    assert_eq!(
+        resumed[&key("anchor", "build")].dependencies,
+        vec![key("dependency", "build")],
+    );
 }
 
 #[test]
@@ -347,7 +450,10 @@ fn is_serial_counts_a_task_concurrency_limit_of_one_as_serial() {
 fn is_serial_rejects_a_task_concurrency_limit_above_one() {
     let settings = tasks_with_concurrency(&[("build", 2)]);
     let mut graph = build_graph(
-        &[("a", project(&[], &["build"])), ("b", project(&[], &["build"]))],
+        &[
+            ("a", project(&[], &["build"])),
+            ("b", project(&[], &["build"])),
+        ],
         "build",
         Some(&settings),
     );
@@ -372,8 +478,11 @@ fn is_serial_sees_through_pass_through_tasks() {
 
 #[test]
 fn json_document_emits_sorted_nodes_and_edges_with_a_missing_script_flag() {
-    let graph =
-        build_graph(&[("b", project(&["a"], &["build"])), ("a", project(&[], &[]))], "build", None);
+    let graph = build_graph(
+        &[("b", project(&["a"], &["build"])), ("a", project(&[], &[]))],
+        "build",
+        None,
+    );
 
     let document = task_graph_to_json(&graph, Path::new(WORKSPACE_DIR));
     let json = serde_json::to_value(&document).unwrap();
@@ -435,19 +544,31 @@ fn scheduler_runs_tasks_in_dependency_order() {
             concurrency: 4,
             bail: true,
             run_task: &|node| {
-                order.lock().unwrap().push(node.project.to_string_lossy().into_owned());
+                order
+                    .lock()
+                    .unwrap()
+                    .push(node.project.to_string_lossy().into_owned());
                 TaskCompletion::Passed
             },
             on_task_skipped: &|node| {
-                skipped.lock().unwrap().push(node.project.to_string_lossy().into_owned());
+                skipped
+                    .lock()
+                    .unwrap()
+                    .push(node.project.to_string_lossy().into_owned());
             },
         },
     );
     assert_eq!(
         order.into_inner().unwrap(),
-        vec![dir("c").to_string_lossy().into_owned(), dir("a").to_string_lossy().into_owned()],
+        vec![
+            dir("c").to_string_lossy().into_owned(),
+            dir("a").to_string_lossy().into_owned()
+        ],
     );
-    assert_eq!(skipped.into_inner().unwrap(), vec![dir("b").to_string_lossy().into_owned()]);
+    assert_eq!(
+        skipped.into_inner().unwrap(),
+        vec![dir("b").to_string_lossy().into_owned()],
+    );
 }
 
 #[test]
@@ -510,7 +631,10 @@ fn task_concurrency_does_not_block_an_independent_task_group() {
             bail: true,
             run_task: &|node| {
                 if node.project == first_build_project && node.task_name == "build" {
-                    ran.lock().unwrap().push("a#build");
+                    ran
+                        .lock()
+                        .unwrap()
+                        .push("a#build");
                     let (state, progress) = &first_build;
                     let mut state = state.lock().unwrap();
                     state.0 = true;
@@ -518,7 +642,10 @@ fn task_concurrency_does_not_block_an_independent_task_group() {
                     let (_state, timeout) = progress
                         .wait_timeout_while(state, Duration::from_secs(5), |state| !state.1)
                         .unwrap();
-                    assert!(!timeout.timed_out(), "the independent lint task did not run");
+                    assert!(
+                        !timeout.timed_out(),
+                        "the independent lint task did not run",
+                    );
                 } else if node.project == lint_project && node.task_name == "lint" {
                     let (state, progress) = &first_build;
                     let state = state.lock().unwrap();
@@ -526,11 +653,17 @@ fn task_concurrency_does_not_block_an_independent_task_group() {
                         .wait_timeout_while(state, Duration::from_secs(5), |state| !state.0)
                         .unwrap();
                     assert!(!timeout.timed_out(), "the first build task did not run");
-                    ran.lock().unwrap().push("c#lint");
+                    ran
+                        .lock()
+                        .unwrap()
+                        .push("c#lint");
                     state.1 = true;
                     progress.notify_all();
                 } else {
-                    ran.lock().unwrap().push("b#build");
+                    ran
+                        .lock()
+                        .unwrap()
+                        .push("b#build");
                 }
                 TaskCompletion::Passed
             },
@@ -538,7 +671,10 @@ fn task_concurrency_does_not_block_an_independent_task_group() {
         },
     );
 
-    assert_eq!(ran.into_inner().unwrap(), vec!["a#build", "c#lint", "b#build"]);
+    assert_eq!(
+        ran.into_inner().unwrap(),
+        vec!["a#build", "c#lint", "b#build"],
+    );
 }
 
 #[test]
@@ -561,7 +697,10 @@ fn task_waiting_for_a_concurrency_permit_stays_undispatched_after_bail() {
             concurrency: 3,
             bail: true,
             run_task: &|node| {
-                ran.lock().unwrap().push(node.project.clone());
+                ran
+                    .lock()
+                    .unwrap()
+                    .push(node.project.clone());
                 TaskCompletion::Failed
             },
             on_task_skipped: &|_| {},
@@ -573,8 +712,11 @@ fn task_waiting_for_a_concurrency_permit_stays_undispatched_after_bail() {
 
 #[test]
 fn graph_scheduler_does_not_wait_for_an_unrelated_slow_branch() {
-    let graph =
-        IndexMap::from([("slow", Vec::new()), ("fast", Vec::new()), ("dependent", vec!["fast"])]);
+    let graph = IndexMap::from([
+        ("slow", Vec::new()),
+        ("fast", Vec::new()),
+        ("dependent", vec!["fast"]),
+    ]);
     let release_slow = (Mutex::new(false), Condvar::new());
     let ran = Mutex::new(Vec::new());
     let on_node_skipped: fn(&&str) = |_| {};
@@ -585,7 +727,10 @@ fn graph_scheduler_does_not_wait_for_an_unrelated_slow_branch() {
             bail: true,
             continue_on_failure: false,
             run_node: &|node| {
-                ran.lock().unwrap().push(node);
+                ran
+                    .lock()
+                    .unwrap()
+                    .push(node);
                 if node == "slow" {
                     let (released, progress) = &release_slow;
                     let mut released = released.lock().unwrap();
@@ -610,22 +755,37 @@ fn graph_scheduler_does_not_wait_for_an_unrelated_slow_branch() {
     let mut started = ran.clone();
     started.sort_unstable();
     assert_eq!(started, vec!["dependent", "fast", "slow"]);
-    let fast = ran.iter().position(|node| *node == "fast").unwrap();
-    let dependent = ran.iter().position(|node| *node == "dependent").unwrap();
-    assert!(fast < dependent, "dependent starts after the dependency it waits on: {ran:?}");
+    let fast = ran
+        .iter()
+        .position(|node| *node == "fast")
+        .unwrap();
+    let dependent = ran
+        .iter()
+        .position(|node| *node == "dependent")
+        .unwrap();
+    assert!(
+        fast < dependent,
+        "dependent starts after the dependency it waits on: {ran:?}",
+    );
 }
 
 #[tokio::test]
 async fn async_graph_scheduler_does_not_wait_for_an_unrelated_slow_branch() {
-    let graph =
-        IndexMap::from([("slow", Vec::new()), ("fast", Vec::new()), ("dependent", vec!["fast"])]);
+    let graph = IndexMap::from([
+        ("slow", Vec::new()),
+        ("fast", Vec::new()),
+        ("dependent", vec!["fast"]),
+    ]);
     let release_slow = tokio::sync::Notify::new();
     let ran = Mutex::new(Vec::new());
     let run_node = |node| {
         let ran = &ran;
         let release_slow = &release_slow;
         async move {
-            ran.lock().unwrap().push(node);
+            ran
+                .lock()
+                .unwrap()
+                .push(node);
             if node == "slow" {
                 release_slow.notified().await;
             } else if node == "dependent" {
@@ -662,7 +822,10 @@ fn scheduler_without_bail_skips_transitive_dependents_of_a_failure() {
             concurrency: 1,
             bail: false,
             run_task: &|node| {
-                ran.lock().unwrap().push(node.project.to_string_lossy().into_owned());
+                ran
+                    .lock()
+                    .unwrap()
+                    .push(node.project.to_string_lossy().into_owned());
                 if node.project == dir("b") {
                     TaskCompletion::Failed
                 } else {
@@ -670,7 +833,10 @@ fn scheduler_without_bail_skips_transitive_dependents_of_a_failure() {
                 }
             },
             on_task_skipped: &|node| {
-                skipped.lock().unwrap().push(node.project.to_string_lossy().into_owned());
+                skipped
+                    .lock()
+                    .unwrap()
+                    .push(node.project.to_string_lossy().into_owned());
             },
         },
     );
@@ -678,7 +844,10 @@ fn scheduler_without_bail_skips_transitive_dependents_of_a_failure() {
     dbg!(&ran);
     assert!(ran.contains(&dir("unrelated").to_string_lossy().into_owned()));
     assert!(!ran.contains(&dir("a").to_string_lossy().into_owned()));
-    assert_eq!(skipped.into_inner().unwrap(), vec![dir("a").to_string_lossy().into_owned()]);
+    assert_eq!(
+        skipped.into_inner().unwrap(),
+        vec![dir("a").to_string_lossy().into_owned()],
+    );
 }
 
 #[test]
@@ -699,7 +868,10 @@ fn scheduler_with_bail_dispatches_nothing_after_a_failure() {
             concurrency: 1,
             bail: true,
             run_task: &|node| {
-                ran.lock().unwrap().push(node.project.to_string_lossy().into_owned());
+                ran
+                    .lock()
+                    .unwrap()
+                    .push(node.project.to_string_lossy().into_owned());
                 if node.project == dir("a") {
                     TaskCompletion::Failed
                 } else {
@@ -711,7 +883,10 @@ fn scheduler_with_bail_dispatches_nothing_after_a_failure() {
             },
         },
     );
-    assert_eq!(ran.into_inner().unwrap(), vec![dir("a").to_string_lossy().into_owned()]);
+    assert_eq!(
+        ran.into_inner().unwrap(),
+        vec![dir("a").to_string_lossy().into_owned()],
+    );
 }
 
 #[test]
@@ -738,8 +913,14 @@ fn ignored_cycles_are_downgraded_and_backward_edges_are_dropped() {
     // The backward cycle edge is dropped while the forward edge preserves
     // a deterministic order; the task outside the cycle still waits.
     assert!(graph[&key("a", "build")].dependencies.is_empty());
-    assert_eq!(graph[&key("b", "build")].dependencies, vec![key("a", "build")]);
-    assert_eq!(graph[&key("c", "build")].dependencies, vec![key("a", "build")]);
+    assert_eq!(
+        graph[&key("b", "build")].dependencies,
+        vec![key("a", "build")],
+    );
+    assert_eq!(
+        graph[&key("c", "build")].dependencies,
+        vec![key("a", "build")],
+    );
 }
 
 #[test]

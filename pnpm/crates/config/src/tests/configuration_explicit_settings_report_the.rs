@@ -11,15 +11,23 @@ use super::{
 #[test]
 pub fn explicit_settings_report_the_spelling_that_won() {
     for (yaml, expected) in [
-        ("virtualStoreType: project\nenableGlobalVirtualStore: true\n", false),
-        ("virtualStoreType: global\nenableGlobalVirtualStore: false\n", true),
+        (
+            "virtualStoreType: project\nenableGlobalVirtualStore: true\n",
+            false,
+        ),
+        (
+            "virtualStoreType: global\nenableGlobalVirtualStore: false\n",
+            true,
+        ),
         ("virtualStoreType: project\n", false),
         ("enableGlobalVirtualStore: true\n", true),
     ] {
         let tmp = tempdir().unwrap();
         fs::write(tmp.path().join("pnpm-workspace.yaml"), yaml)
             .expect("write to pnpm-workspace.yaml");
-        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+        let config = Config::new()
+            .current::<HostNoHome>(tmp.path())
+            .expect("yaml is valid");
         assert_eq!(
             config.explicit_settings.get("enableGlobalVirtualStore"),
             Some(&serde_json::Value::Bool(expected)),
@@ -40,11 +48,16 @@ pub fn explicit_settings_report_the_spelling_that_won() {
 /// spelling the file was written in.
 #[test]
 pub fn explicit_settings_mirror_audit_level_from_the_audit_section() {
-    for yaml in ["audit:\n  level: high\n", "audit:\n  level: high\nauditLevel: low\n"] {
+    for yaml in [
+        "audit:\n  level: high\n",
+        "audit:\n  level: high\nauditLevel: low\n",
+    ] {
         let tmp = tempdir().unwrap();
         fs::write(tmp.path().join("pnpm-workspace.yaml"), yaml)
             .expect("write to pnpm-workspace.yaml");
-        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+        let config = Config::new()
+            .current::<HostNoHome>(tmp.path())
+            .expect("yaml is valid");
         assert_eq!(
             config.explicit_settings.get("auditLevel").and_then(serde_json::Value::as_str),
             Some("high"),
@@ -93,9 +106,13 @@ pub fn proxy_env_fallback_applies_through_current() {
         env::remove_var("npm_config_workspace_dir");
         env::set_var("HTTPS_PROXY", "http://env.example:8080");
     }
-    let config =
-        Config::new().current::<HostNoHome>(tmp.path()).expect("workspace yaml absent => no error");
-    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://env.example:8080"));
+    let config = Config::new()
+        .current::<HostNoHome>(tmp.path())
+        .expect("workspace yaml absent => no error");
+    assert_eq!(
+        config.proxy.https_proxy.as_deref(),
+        Some("http://env.example:8080"),
+    );
     assert_eq!(
         config.proxy.http_proxy.as_deref(),
         Some("http://env.example:8080"),
@@ -113,17 +130,24 @@ pub fn global_config_yaml_enables_gvs() {
     let xdg = tempdir().unwrap();
     let config_dir = xdg.path().join("pnpm");
     fs::create_dir_all(&config_dir).unwrap();
-    fs::write(config_dir.join("config.yaml"), "enableGlobalVirtualStore: true\n")
-        .expect("write to global config.yaml");
+    fs::write(
+        config_dir.join("config.yaml"),
+        "enableGlobalVirtualStore: true\n",
+    )
+    .expect("write to global config.yaml");
 
     static XDG_CONFIG_HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-    XDG_CONFIG_HOME_PATH.set(xdg.path().to_path_buf()).expect("set once");
+    XDG_CONFIG_HOME_PATH
+        .set(xdg.path().to_path_buf())
+        .expect("set once");
 
     struct HostWithXdgConfigHome;
     impl EnvVar for HostWithXdgConfigHome {
         fn var(name: &str) -> Option<String> {
             if name == "XDG_CONFIG_HOME" {
-                return XDG_CONFIG_HOME_PATH.get().map(|path| path.to_string_lossy().into_owned());
+                return XDG_CONFIG_HOME_PATH
+                    .get()
+                    .map(|path| path.to_string_lossy().into_owned());
             }
             safe_host_var(name)
         }
@@ -148,7 +172,9 @@ pub fn global_config_yaml_enables_gvs() {
     host_current_dir!(HostWithXdgConfigHome);
 
     let tmp = tempdir().unwrap();
-    let config = Config::new().current::<HostWithXdgConfigHome>(tmp.path()).expect("config loads");
+    let config = Config::new()
+        .current::<HostWithXdgConfigHome>(tmp.path())
+        .expect("config loads");
     assert!(
         config.enable_global_virtual_store,
         "enableGlobalVirtualStore from global config.yaml must apply",
@@ -180,7 +206,9 @@ pub fn pnpm_config_env_var_enables_gvs() {
     host_current_dir!(HostWithPnpmConfigEnv);
 
     let tmp = tempdir().unwrap();
-    let config = Config::new().current::<HostWithPnpmConfigEnv>(tmp.path()).expect("loads");
+    let config = Config::new()
+        .current::<HostWithPnpmConfigEnv>(tmp.path())
+        .expect("loads");
     assert!(config.enable_global_virtual_store);
 }
 
@@ -209,7 +237,9 @@ pub fn pnpm_config_env_var_lowercase_works() {
     host_current_dir!(HostWithLowercaseEnv);
 
     let tmp = tempdir().unwrap();
-    let config = Config::new().current::<HostWithLowercaseEnv>(tmp.path()).expect("loads");
+    let config = Config::new()
+        .current::<HostWithLowercaseEnv>(tmp.path())
+        .expect("loads");
     assert!(config.enable_global_virtual_store);
 }
 
@@ -278,7 +308,9 @@ pub fn patches_dir_reads_from_env_overlay() {
     host_current_dir!(HostWithPatchesDirEnv);
 
     let tmp = tempdir().unwrap();
-    let config = Config::new().current::<HostWithPatchesDirEnv>(tmp.path()).expect("loads");
+    let config = Config::new()
+        .current::<HostWithPatchesDirEnv>(tmp.path())
+        .expect("loads");
     assert_eq!(config.patches_dir.as_deref(), Some("custom-patches"));
 }
 
@@ -291,15 +323,21 @@ pub fn max_sockets_accepts_both_spellings_from_the_environment() {
     assert_eq!(load_with_fake_env(tmp.path()).max_sockets, Some(7));
 
     // The pnpm spelling wins over npm's when a shell exports both.
-    set_fake_env(&[("PNPM_CONFIG_MAXSOCKETS", "7"), ("PNPM_CONFIG_MAX_SOCKETS", "9")]);
+    set_fake_env(&[
+        ("PNPM_CONFIG_MAXSOCKETS", "7"),
+        ("PNPM_CONFIG_MAX_SOCKETS", "9"),
+    ]);
     assert_eq!(load_with_fake_env(tmp.path()).max_sockets, Some(9));
 }
 
 #[test]
 pub fn virtual_store_dir_max_length_env_var_overrides_yaml() {
     let tmp = tempdir().unwrap();
-    fs::write(tmp.path().join("pnpm-workspace.yaml"), "virtualStoreDirMaxLength: 90\n")
-        .expect("write to pnpm-workspace.yaml");
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "virtualStoreDirMaxLength: 90\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
 
     struct HostWithEnvOverride;
     impl EnvVar for HostWithEnvOverride {
@@ -323,7 +361,9 @@ pub fn virtual_store_dir_max_length_env_var_overrides_yaml() {
     inert_link_probe!(HostWithEnvOverride);
     host_current_dir!(HostWithEnvOverride);
 
-    let config = Config::new().current::<HostWithEnvOverride>(tmp.path()).expect("loads");
+    let config = Config::new()
+        .current::<HostWithEnvOverride>(tmp.path())
+        .expect("loads");
     assert_eq!(
         config.virtual_store_dir_max_length, 50,
         "env var must win over pnpm-workspace.yaml",
@@ -364,9 +404,25 @@ pub fn lockfile_dir_env_var_overrides_yaml() {
     inert_link_probe!(HostWithLockfileDirEnv);
     host_current_dir!(HostWithLockfileDirEnv);
 
-    let config = Config::new().current::<HostWithLockfileDirEnv>(tmp.path()).expect("loads");
-    assert_eq!(config.lockfile_dir.as_deref(), Some(tmp.path().join("from-env").as_path()));
-    assert_eq!(config.modules_dir, tmp.path().join("from-env").join("node_modules"));
+    let config = Config::new()
+        .current::<HostWithLockfileDirEnv>(tmp.path())
+        .expect("loads");
+    assert_eq!(
+        config.lockfile_dir.as_deref(),
+        Some(
+            tmp
+                .path()
+                .join("from-env")
+                .as_path()
+        ),
+    );
+    assert_eq!(
+        config.modules_dir,
+        tmp
+            .path()
+            .join("from-env")
+            .join("node_modules"),
+    );
 }
 
 #[test]
@@ -395,7 +451,9 @@ pub fn package_map_settings_load_from_env() {
     host_current_dir!(HostWithPackageMapEnv);
 
     let tmp = tempdir().unwrap();
-    let config = Config::new().current::<HostWithPackageMapEnv>(tmp.path()).expect("loads");
+    let config = Config::new()
+        .current::<HostWithPackageMapEnv>(tmp.path())
+        .expect("loads");
     assert!(config.node_experimental_package_map);
     assert_eq!(config.node_package_map_type, NodePackageMapType::Loose);
 }
@@ -403,8 +461,11 @@ pub fn package_map_settings_load_from_env() {
 #[test]
 pub fn peers_suffix_max_length_env_var_overrides_yaml() {
     let tmp = tempdir().unwrap();
-    fs::write(tmp.path().join("pnpm-workspace.yaml"), "peersSuffixMaxLength: 10\n")
-        .expect("write to pnpm-workspace.yaml");
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "peersSuffixMaxLength: 10\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
 
     struct HostWithEnvOverride;
     impl EnvVar for HostWithEnvOverride {
@@ -428,8 +489,13 @@ pub fn peers_suffix_max_length_env_var_overrides_yaml() {
     inert_link_probe!(HostWithEnvOverride);
     host_current_dir!(HostWithEnvOverride);
 
-    let config = Config::new().current::<HostWithEnvOverride>(tmp.path()).expect("loads");
-    assert_eq!(config.peers_suffix_max_length, 25, "env var must win over pnpm-workspace.yaml");
+    let config = Config::new()
+        .current::<HostWithEnvOverride>(tmp.path())
+        .expect("loads");
+    assert_eq!(
+        config.peers_suffix_max_length, 25,
+        "env var must win over pnpm-workspace.yaml",
+    );
 }
 
 #[test]
@@ -439,7 +505,10 @@ fn an_explicit_strict_setting_wins_over_the_release_age_default() {
     assert!(!config.resolved_minimum_release_age_strict());
 
     let config = config_from_workspace_yaml("minimumReleaseAgeStrict: true\n");
-    assert!(config.resolved_minimum_release_age_strict(), "strict mode stands on its own");
+    assert!(
+        config.resolved_minimum_release_age_strict(),
+        "strict mode stands on its own",
+    );
 }
 
 #[test]
@@ -467,7 +536,9 @@ fn a_release_age_env_var_turns_on_strict_mode() {
     host_current_dir!(HostWithReleaseAgeEnv);
 
     let tmp = tempdir().unwrap();
-    let config = Config::new().current::<HostWithReleaseAgeEnv>(tmp.path()).expect("config loads");
+    let config = Config::new()
+        .current::<HostWithReleaseAgeEnv>(tmp.path())
+        .expect("config loads");
 
     assert!(config.resolved_minimum_release_age_strict());
 }
@@ -493,7 +564,10 @@ pub fn package_manager_bootstrap_ignores_project_npmrc_registry() {
         "package-manager bootstrap ignores the repository-controlled project .npmrc registry",
     );
     assert_eq!(
-        config.package_manager_bootstrap.resolved_registries().get("default").map(String::as_str),
+        config.package_manager_bootstrap
+            .resolved_registries()
+            .get("default")
+            .map(String::as_str),
         Some("https://trusted.example.com/"),
     );
 }
@@ -505,12 +579,18 @@ pub fn package_manager_bootstrap_ignores_project_npmrc_registry() {
 pub fn package_manager_bootstrap_honors_env_registry() {
     fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
-    write_file(&project.path().join(".npmrc"), "registry=https://attacker.example.com/\n");
+    write_file(
+        &project.path().join(".npmrc"),
+        "registry=https://attacker.example.com/\n",
+    );
     set_fake_env(&[("PNPM_CONFIG_REGISTRY", "https://env.example.com/")]);
 
     let config = load_with_fake_env(project.path());
 
-    assert_eq!(config.registry, "https://env.example.com/", "env registry drives normal installs");
+    assert_eq!(
+        config.registry, "https://env.example.com/",
+        "env registry drives normal installs",
+    );
     assert_eq!(
         config.package_manager_bootstrap.registry, "https://env.example.com/",
         "env registry overrides the package-manager bootstrap default",
@@ -549,8 +629,11 @@ pub fn env_registry_override_appends_missing_trailing_slash() {
 pub fn global_config_yaml_kebab_case_key_is_reported() {
     let config_dir = tempdir().expect("config tempdir");
     let config_file = config_dir.path().join("config.yaml");
-    fs::write(&config_file, "store-dir: /kebab-store\nstoreDir: /camel-store\n")
-        .expect("write global config.yaml");
+    fs::write(
+        &config_file,
+        "store-dir: /kebab-store\nstoreDir: /camel-store\n",
+    )
+    .expect("write global config.yaml");
 
     let warnings = capture_warnings(|| {
         let settings = WorkspaceSettings::load_global(config_dir.path())
@@ -599,8 +682,11 @@ pub fn global_config_yaml_keys_it_cannot_set_are_reported() {
 pub fn global_config_yaml_keys_settable_nowhere_are_reported_with_their_route() {
     let config_dir = tempdir().expect("config tempdir");
     let config_file = config_dir.path().join("config.yaml");
-    fs::write(&config_file, "configDir: /elsewhere\nbin: /usr/local/bin\ndir: /work\n")
-        .expect("write global config.yaml");
+    fs::write(
+        &config_file,
+        "configDir: /elsewhere\nbin: /usr/local/bin\ndir: /work\n",
+    )
+    .expect("write global config.yaml");
 
     let warnings = capture_warnings(|| {
         WorkspaceSettings::load_global(config_dir.path())
@@ -625,8 +711,11 @@ pub fn global_config_yaml_keys_settable_nowhere_are_reported_with_their_route() 
 pub fn global_config_yaml_unrecognized_keys_are_reported_with_a_suggestion() {
     let config_dir = tempdir().expect("config tempdir");
     let config_file = config_dir.path().join("config.yaml");
-    fs::write(&config_file, "minimumReleaseAg: 100\nzzzNotASettingZzz: true\n")
-        .expect("write global config.yaml");
+    fs::write(
+        &config_file,
+        "minimumReleaseAg: 100\nzzzNotASettingZzz: true\n",
+    )
+    .expect("write global config.yaml");
 
     let warnings = capture_warnings(|| {
         WorkspaceSettings::load_global(config_dir.path())
@@ -731,10 +820,13 @@ pub fn an_explicit_merge_setting_wins_over_the_branch_pattern() {
     )
     .unwrap();
     static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    REPO_DIR
+        .set(repo.path().to_path_buf())
+        .expect("set once");
     host_in_repo!(HostExplicitlyNotMerging);
 
-    let config =
-        Config::new().current::<HostExplicitlyNotMerging>(repo.path()).expect("yaml is valid");
+    let config = Config::new()
+        .current::<HostExplicitlyNotMerging>(repo.path())
+        .expect("yaml is valid");
     assert!(!config.merge_git_branch_lockfiles);
 }

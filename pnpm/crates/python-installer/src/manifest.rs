@@ -12,7 +12,10 @@ pub struct DependencySelection {
 }
 
 impl DependencySelection {
-    pub const ALL: Self = Self { production: true, development: true };
+    pub const ALL: Self = Self {
+        production: true,
+        development: true,
+    };
 }
 
 #[derive(Deserialize)]
@@ -36,9 +39,15 @@ pub(super) struct Project {
 
 impl Project {
     fn ensure_static_dependencies(&self) -> Result<()> {
-        if self.dynamic.iter().any(|field| {
-            matches!(field.as_str(), "dependencies" | "optional-dependencies" | "requires-python")
-        }) {
+        if self.dynamic
+            .iter()
+            .any(|field| {
+                matches!(
+                    field.as_str(),
+                    "dependencies" | "optional-dependencies" | "requires-python",
+                )
+            })
+        {
             bail!("pnpm Python integration requires static dependency metadata in pyproject.toml");
         }
         Ok(())
@@ -55,13 +64,20 @@ impl Manifest {
         config: &Config,
         selection: DependencySelection,
     ) -> Result<Vec<Requirement>> {
-        let Some(project) = &self.project else { return Ok(Vec::new()) };
+        let Some(project) = &self.project else {
+            return Ok(Vec::new());
+        };
         project.ensure_static_dependencies()?;
-        let mut requirements =
-            if selection.production { project.dependencies.clone() } else { Vec::new() };
-        for extra in config.python.extras.iter().filter(|_| selection.production) {
-            let dependencies = project
-                .optional_dependencies
+        let mut requirements = if selection.production {
+            project.dependencies.clone()
+        } else {
+            Vec::new()
+        };
+        for extra in config.python.extras
+            .iter()
+            .filter(|_| selection.production)
+        {
+            let dependencies = project.optional_dependencies
                 .get(extra)
                 .ok_or_else(|| miette::miette!("unknown Python project extra: {extra}"))?;
             requirements.extend(dependencies.iter().cloned());
@@ -69,7 +85,10 @@ impl Manifest {
         if selection.development {
             self.expand_configured_groups(config, &mut requirements)?;
         }
-        requirements.into_iter().map(|requirement| parse_requirement(&requirement)).collect()
+        requirements
+            .into_iter()
+            .map(|requirement| parse_requirement(&requirement))
+            .collect()
     }
 
     /// Expand every dependency group the config asks for. The `dev` group
@@ -95,11 +114,13 @@ impl Manifest {
         visiting: &mut Vec<String>,
         requirements: &mut Vec<String>,
     ) -> Result<()> {
-        if visiting.iter().any(|name| name == group) {
+        if visiting
+            .iter()
+            .any(|name| name == group)
+        {
             bail!("cyclic Python dependency group: {group}");
         }
-        let entries = self
-            .groups
+        let entries = self.groups
             .get(group)
             .ok_or_else(|| miette::miette!("unknown Python dependency group: {group}"))?;
         visiting.push(group.to_string());
@@ -128,8 +149,11 @@ pub(crate) fn add(path: &Path, requirements: &[String], development: bool) -> Re
     };
     project.ensure_static_dependencies()?;
     let document: BTreeMap<String, TomlTable> = toml::from_str(&original).into_diagnostic()?;
-    let (table_name, key) =
-        if development { ("dependency-groups", "dev") } else { ("project", "dependencies") };
+    let (table_name, key) = if development {
+        ("dependency-groups", "dev")
+    } else {
+        ("project", "dependencies")
+    };
     let table = document.get(table_name);
     let existing_array = table.and_then(|table| table.get_ref().get(key));
     let mut entries = existing_array
@@ -150,8 +174,9 @@ pub(crate) fn add(path: &Path, requirements: &[String], development: bool) -> Re
     } else if let Some(table) = table {
         insert_key_into_table(&mut updated, &original, table, (table_name, key), &array)?;
     } else {
-        writeln!(updated, "\n[{table_name}]\n{key} = {array}")
-            .expect("writing to a String cannot fail");
+        writeln!(updated, "\n[{table_name}]\n{key} = {array}").expect(
+            "writing to a String cannot fail",
+        );
     }
     Manifest::parse(&updated)?;
     pnpm_fs::write_atomic(path, updated.as_bytes()).into_diagnostic()
@@ -165,12 +190,14 @@ type TomlTable = toml::Spanned<BTreeMap<String, toml::Spanned<toml::Value>>>;
 fn merge_requirements(entries: &mut Vec<toml::Value>, requirements: &[String]) -> Result<()> {
     for requirement in requirements {
         let parsed = parse_requirement(requirement)?;
-        let existing = entries.iter().position(|entry| {
-            entry
-                .as_str()
-                .and_then(|value| value.parse::<Requirement>().ok())
-                .is_some_and(|entry| entry.name == parsed.name)
-        });
+        let existing = entries
+            .iter()
+            .position(|entry| {
+                entry
+                    .as_str()
+                    .and_then(|value| value.parse::<Requirement>().ok())
+                    .is_some_and(|entry| entry.name == parsed.name)
+            });
         if let Some(index) = existing {
             entries[index] = toml::Value::String(requirement.clone());
         } else {
@@ -191,7 +218,9 @@ fn insert_key_into_table(
 ) -> Result<()> {
     let span = table.span();
     if original[span.clone()].trim_start().starts_with('[') {
-        let end = original[span.end..].find('\n').map_or(original.len(), |end| span.end + end + 1);
+        let end = original[span.end..]
+            .find('\n')
+            .map_or(original.len(), |end| span.end + end + 1);
         updated.insert_str(end, &format!("\n{key} = {array}\n"));
         return Ok(());
     }

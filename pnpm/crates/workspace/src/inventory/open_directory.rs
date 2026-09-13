@@ -8,7 +8,9 @@ use std::{
 /// relative components are accepted; no parent navigation or identity lookup is used.
 pub(super) fn open_directory(root: &File, path: &Path, opens: &mut usize) -> io::Result<File> {
     if path.as_os_str().is_empty()
-        || path.components().any(|component| !matches!(component, Component::Normal(_)))
+        || path
+            .components()
+            .any(|component| !matches!(component, Component::Normal(_)))
     {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -26,7 +28,12 @@ fn open_components(root: &File, path: &Path, opens: &mut usize) -> io::Result<Fi
     *opens += 1;
     let mut directory = cap_primitives::fs::open_dir_nofollow(
         root,
-        Path::new(components.next().expect("nonempty descendant path").as_os_str()),
+        Path::new(
+            components
+                .next()
+                .expect("nonempty descendant path")
+                .as_os_str(),
+        ),
     )?;
     for component in components {
         *opens += 1;
@@ -157,16 +164,12 @@ mod platform {
     };
 
     pub(super) fn open_directory(root: &File, path: &Path, opens: &mut usize) -> io::Result<File> {
-        let path: std::path::PathBuf = path.components().collect();
-        let mut name: Vec<u16> = path.as_os_str().encode_wide().collect();
-        let length = u16::try_from(name.len() * size_of::<u16>()).map_err(|_| {
-            io::Error::new(io::ErrorKind::InvalidInput, "directory path is too long")
-        })?;
-        if name.contains(&0) {
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, "directory path contains NUL"));
-        }
-        let name =
-            UNICODE_STRING { Length: length, MaximumLength: length, Buffer: name.as_mut_ptr() };
+        let (mut name, length) = native_directory_name(path)?;
+        let name = UNICODE_STRING {
+            Length: length,
+            MaximumLength: length,
+            Buffer: name.as_mut_ptr(),
+        };
         let attributes = OBJECT_ATTRIBUTES {
             Length: size_of::<OBJECT_ATTRIBUTES>() as u32,
             RootDirectory: root.as_raw_handle(),
@@ -195,6 +198,11 @@ mod platform {
                 0,
             )
         };
+        check_directory_open_status(result)?;
+        // SAFETY: NtCreateFile succeeded and transferred a new owned handle to us.
+        Ok(unsafe { File::from_raw_handle(handle) })
+    }
+    fn check_directory_open_status(result: i32) -> io::Result<()> {
         if result == STATUS_REPARSE_POINT_ENCOUNTERED {
             return Err(io::Error::new(
                 io::ErrorKind::NotADirectory,
@@ -204,11 +212,29 @@ mod platform {
         if result < 0 {
             // SAFETY: this function translates a status value without dereferencing memory.
             return Err(io::Error::from_raw_os_error(
-                unsafe { RtlNtStatusToDosError(result) } as i32
+                unsafe { RtlNtStatusToDosError(result) } as i32,
             ));
         }
-        // SAFETY: NtCreateFile succeeded and transferred a new owned handle to us.
-        Ok(unsafe { File::from_raw_handle(handle) })
+        Ok(())
+    }
+
+    fn native_directory_name(path: &Path) -> io::Result<(Vec<u16>, u16)> {
+        let path: std::path::PathBuf = path.components().collect();
+        let name: Vec<u16> = path
+            .as_os_str()
+            .encode_wide()
+            .collect();
+        let length = u16::try_from(name.len() * size_of::<u16>())
+            .map_err(|_| {
+                io::Error::new(io::ErrorKind::InvalidInput, "directory path is too long")
+            })?;
+        if name.contains(&0) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "directory path contains NUL",
+            ));
+        }
+        Ok((name, length))
     }
 }
 

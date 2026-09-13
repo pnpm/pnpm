@@ -8,7 +8,10 @@ fn getconf_glibc() {
 
 #[test]
 fn getconf_musl() {
-    assert_eq!(parse_getconf("musl libc (x86_64)\n"), Some(Implementation::Musl));
+    assert_eq!(
+        parse_getconf("musl libc (x86_64)\n"),
+        Some(Implementation::Musl),
+    );
 }
 
 #[test]
@@ -34,7 +37,10 @@ fn parses_getconf_glibc_version() {
 
 #[test]
 fn parses_ldd_glibc_version() {
-    assert_eq!(parse_glibc_version("ldd (Ubuntu GLIBC 2.35-0ubuntu3.11) 2.35\n"), Some((2, 35)));
+    assert_eq!(
+        parse_glibc_version("ldd (Ubuntu GLIBC 2.35-0ubuntu3.11) 2.35\n"),
+        Some((2, 35)),
+    );
 }
 
 #[test]
@@ -61,12 +67,18 @@ fn ldd_glibc_lowercase() {
 
 #[test]
 fn ldd_glibc_uppercase() {
-    assert_eq!(parse_ldd("ldd (Ubuntu GLIBC 2.42-0ubuntu9) 2.42\n"), Some(Implementation::Glibc));
+    assert_eq!(
+        parse_ldd("ldd (Ubuntu GLIBC 2.42-0ubuntu9) 2.42\n"),
+        Some(Implementation::Glibc),
+    );
 }
 
 #[test]
 fn ldd_glibc_gnu_c_library() {
-    assert_eq!(parse_ldd("GNU C Library (glibc) 2.42\n"), Some(Implementation::Glibc));
+    assert_eq!(
+        parse_ldd("GNU C Library (glibc) 2.42\n"),
+        Some(Implementation::Glibc),
+    );
 }
 
 #[test]
@@ -76,12 +88,18 @@ fn ldd_glibc_gnu_libc() {
 
 #[test]
 fn ldd_musl() {
-    assert_eq!(parse_ldd("musl libc (x86_64)\nVersion 1.2.3\n"), Some(Implementation::Musl));
+    assert_eq!(
+        parse_ldd("musl libc (x86_64)\nVersion 1.2.3\n"),
+        Some(Implementation::Musl),
+    );
 }
 
 #[test]
 fn ldd_musl_wins_over_glibc() {
-    assert_eq!(parse_ldd("musl libc\nsome glibc mention\n"), Some(Implementation::Musl));
+    assert_eq!(
+        parse_ldd("musl libc\nsome glibc mention\n"),
+        Some(Implementation::Musl),
+    );
 }
 
 #[test]

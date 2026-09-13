@@ -24,8 +24,9 @@ pub async fn resolve_optional_subdeps(
     opts: &ConfigDepsInstallOptions<'_>,
     env_lockfile: &mut EnvLockfile,
 ) -> Result<Option<HashMap<PkgName, SnapshotDepRef>>, ConfigDepError> {
-    let Some(optional_deps) =
-        parent_manifest.get("optionalDependencies").and_then(|value| value.as_object())
+    let Some(optional_deps) = parent_manifest
+        .get("optionalDependencies")
+        .and_then(|value| value.as_object())
     else {
         return Ok(None);
     };
@@ -36,27 +37,24 @@ pub async fn resolve_optional_subdeps(
     let mut resolved: HashMap<PkgName, SnapshotDepRef> = HashMap::new();
     for (subdep_name, subdep_spec) in optional_deps {
         let subdep_spec = subdep_spec.as_str().unwrap_or_default();
-        if subdep_spec.parse::<node_semver::Version>().is_err() {
-            return Err(ConfigDepError::OptionalNotExact {
-                parent_name: parent_name.to_string(),
-                subdep_name: subdep_name.clone(),
-                spec: subdep_spec.to_string(),
-            });
-        }
+        validate_optional_specifier(parent_name, subdep_name, subdep_spec)?;
 
         let (subdep_version, result) =
             resolve_subdep(resolver, opts, parent_name, subdep_name, subdep_spec).await?;
         record_optional_subdep(env_lockfile, opts, subdep_name, &subdep_version, &result)?;
 
-        let ver_peer =
-            subdep_version.parse::<PkgVerPeer>().map_err(|_| ConfigDepError::BadConfigDep {
+        let ver_peer = subdep_version
+            .parse::<PkgVerPeer>()
+            .map_err(|_| ConfigDepError::BadConfigDep {
                 message: format!(
                     "Resolved optionalDependency version {subdep_version} is not a valid version",
                 ),
             })?;
-        let pkg_name: PkgName = subdep_name.parse().map_err(|_| ConfigDepError::BadConfigDep {
-            message: format!("Resolved optionalDependency name {subdep_name} is invalid"),
-        })?;
+        let pkg_name: PkgName = subdep_name
+            .parse()
+            .map_err(|_| ConfigDepError::BadConfigDep {
+                message: format!("Resolved optionalDependency name {subdep_name} is invalid"),
+            })?;
         resolved.insert(pkg_name, SnapshotDepRef::Plain(ver_peer));
     }
 
@@ -71,23 +69,25 @@ fn record_optional_subdep(
     result: &ResolveResult,
 ) -> Result<(), ConfigDepError> {
     let registry = opts.pick_registry(subdep_name);
-    let pkg_key: PackageKey = format!("{subdep_name}@{subdep_version}").parse().map_err(|_| {
-        ConfigDepError::BadConfigDep {
+    let pkg_key: PackageKey = format!("{subdep_name}@{subdep_version}")
+        .parse()
+        .map_err(|_| ConfigDepError::BadConfigDep {
             message: format!(
                 "Resolved optionalDependency {subdep_name}@{subdep_version} has an unparsable key",
             ),
-        }
-    })?;
+        })?;
 
     env_lockfile.packages.insert(
         pkg_key.clone(),
         package_metadata(subdep_name, subdep_version, result, registry, false)
             .map_err(ConfigDepError::LockfileForm)?,
     );
-    env_lockfile
-        .snapshots
+    env_lockfile.snapshots
         .entry(pkg_key)
-        .or_insert_with(|| SnapshotEntry { optional: true, ..SnapshotEntry::default() });
+        .or_insert_with(|| SnapshotEntry {
+            optional: true,
+            ..SnapshotEntry::default()
+        });
     Ok(())
 }
 
@@ -119,7 +119,11 @@ async fn resolve_subdep(
             error,
         })?
         .ok_or_else(no_integrity)?;
-    let version = result.package.name_ver.as_ref().ok_or_else(no_integrity)?.suffix.to_string();
+    let version = result.package.name_ver
+        .as_ref()
+        .ok_or_else(no_integrity)?
+        .suffix
+        .to_string();
     if !resolution_has_integrity(&result.resolution) {
         return Err(no_integrity());
     }
@@ -133,4 +137,20 @@ pub(crate) fn resolution_has_integrity(resolution: &pnpm_lockfile::LockfileResol
         LockfileResolution::Tarball(tarball) => tarball.integrity.is_some(),
         _ => false,
     }
+}
+
+fn validate_optional_specifier(
+    parent_name: &str,
+    subdep_name: &str,
+    subdep_spec: &str,
+) -> Result<(), ConfigDepError> {
+    if subdep_spec.parse::<node_semver::Version>().is_err() {
+        return Err(ConfigDepError::OptionalNotExact {
+            parent_name: parent_name.to_string(),
+            subdep_name: subdep_name.to_string(),
+            spec: subdep_spec.to_string(),
+        });
+    }
+
+    Ok(())
 }

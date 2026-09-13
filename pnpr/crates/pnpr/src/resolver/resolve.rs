@@ -96,11 +96,17 @@ pub async fn resolve(
     }
 
     let resolved_packages: ResolvedPackages = DashMap::new();
-    ResolutionInstall { config, client, request, auth_headers, observer }
-        .build(&resolved_packages, &manifest, &lockfile_path)
-        .run::<SilentReporter>()
-        .await
-        .map_err(|err| ResolveError::Install(err.to_string()))?;
+    ResolutionInstall {
+        config,
+        client,
+        request,
+        auth_headers,
+        observer,
+    }
+    .build(&resolved_packages, &manifest, &lockfile_path)
+    .run::<SilentReporter>()
+    .await
+    .map_err(|err| ResolveError::Install(err.to_string()))?;
 
     let lockfile = Lockfile::load_wanted_from_dir(dir)
         .map_err(|err| ResolveError::Install(err.to_string()))?
@@ -160,7 +166,9 @@ async fn write_importer_manifests<'a>(
         // to `.`): writing the same `package.json` twice would silently
         // drop the earlier project's dependency map.
         if !seen_dirs.insert(rel) {
-            return Err(ResolveError::Install(format!("duplicate importer dir: {rel:?}")));
+            return Err(ResolveError::Install(format!(
+                "duplicate importer dir: {rel:?}",
+            )));
         }
         let project_dir = if rel == "." {
             wrote_root = true;
@@ -172,7 +180,10 @@ async fn write_importer_manifests<'a>(
         tokio::fs::create_dir_all(&project_dir).await?;
         write_importer_manifest(&project_dir, rel, project).await?;
     }
-    Ok(Workspace { member_dirs, wrote_root })
+    Ok(Workspace {
+        member_dirs,
+        wrote_root,
+    })
 }
 
 /// Write one importer's manifest, exclusively.
@@ -187,7 +198,9 @@ async fn write_importer_manifest(
     rel: &str,
     project: &ProjectDeps,
 ) -> Result<(), ResolveError> {
-    let name = project.name.clone().unwrap_or_else(|| importer_manifest_name(rel));
+    let name = project.name
+        .clone()
+        .unwrap_or_else(|| importer_manifest_name(rel));
     let version = project.version.as_deref().unwrap_or("0.0.0");
     let manifest_json = serde_json::json!({
         "name": name,
@@ -252,16 +265,12 @@ pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) ->
         return None;
     }
     let importer = lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY)?;
-    let temp = tempfile::Builder::new().prefix("pnpr-frozen-").tempdir().ok()?;
+    let temp = tempfile::Builder::new()
+        .prefix("pnpr-frozen-")
+        .tempdir()
+        .ok()?;
     let manifest_path = temp.path().join("package.json");
-    let manifest_json = serde_json::json!({
-        "name": project.name.as_deref().unwrap_or("pnpr-resolve"),
-        "version": project.version.as_deref().unwrap_or("0.0.0"),
-        "dependencies": project.dependencies,
-        "devDependencies": project.dev_dependencies,
-        "optionalDependencies": project.optional_dependencies,
-    });
-    std::fs::write(&manifest_path, serde_json::to_vec(&manifest_json).ok()?).ok()?;
+    write_project_manifest(&project, &manifest_path)?;
     let manifest = PackageManifest::from_path(manifest_path).ok()?;
     // The synthesized manifest carries no `peerDependencies`, so the
     // auto-install-peers fold is a no-op; pass pnpm's default anyway.
@@ -271,23 +280,30 @@ pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) ->
 }
 
 fn request_has_overrides(request: &ResolveRequest) -> bool {
-    request.overrides.as_ref().is_some_and(|value| match value {
-        serde_json::Value::Object(map) => !map.is_empty(),
-        serde_json::Value::Null => false,
-        _ => true,
-    })
+    request.overrides
+        .as_ref()
+        .is_some_and(|value| match value {
+            serde_json::Value::Object(map) => !map.is_empty(),
+            serde_json::Value::Null => false,
+            _ => true,
+        })
 }
 
 /// Whether the config rewrites the dependency graph in a way a lockfile
 /// cannot be checked against without a resolve.
 fn config_transforms_lockfile(config: &Config) -> bool {
-    config.package_extensions.as_ref().is_some_and(|extensions| !extensions.is_empty())
-        || config
-            .ignored_optional_dependencies
+    config.package_extensions
+        .as_ref()
+        .is_some_and(|extensions| !extensions.is_empty())
+        || config.ignored_optional_dependencies
             .as_ref()
             .is_some_and(|patterns| !patterns.is_empty())
-        || config.patched_dependencies.as_ref().is_some_and(|map| !map.is_empty())
-        || config.patched_dependency_hashes_override.as_ref().is_some_and(|map| !map.is_empty())
+        || config.patched_dependencies
+            .as_ref()
+            .is_some_and(|map| !map.is_empty())
+        || config.patched_dependency_hashes_override
+            .as_ref()
+            .is_some_and(|map| !map.is_empty())
         || config.inject_workspace_packages
 }
 
@@ -309,7 +325,9 @@ fn sanitized_importer_dir(dir: &str) -> Result<&str, ResolveError> {
             .split('/')
             .any(|component| component.is_empty() || component == "." || component == "..")
     {
-        return Err(ResolveError::Install(format!("unsafe importer dir: {dir:?}")));
+        return Err(ResolveError::Install(format!(
+            "unsafe importer dir: {dir:?}",
+        )));
     }
     Ok(dir)
 }
@@ -360,5 +378,20 @@ fn check_frozen_settings(
     )
     .ok()?;
 
+    Some(())
+}
+
+fn write_project_manifest(
+    project: &super::protocol::ProjectDeps,
+    manifest_path: &std::path::Path,
+) -> Option<()> {
+    let manifest_json = serde_json::json!({
+        "name": project.name.as_deref().unwrap_or("pnpr-resolve"),
+        "version": project.version.as_deref().unwrap_or("0.0.0"),
+        "dependencies": project.dependencies,
+        "devDependencies": project.dev_dependencies,
+        "optionalDependencies": project.optional_dependencies,
+    });
+    std::fs::write(manifest_path, serde_json::to_vec(&manifest_json).ok()?).ok()?;
     Some(())
 }

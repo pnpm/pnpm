@@ -53,7 +53,11 @@ fn default_store_dir_windows(home_dir: &Path, current_dir: &Path) -> PathBuf {
         get_drive_letter(home_dir).expect("home dir is an absolute path with drive letter");
 
     if current_drive == home_drive {
-        return home_dir.join("AppData").join("Local").join("pnpm").join("store");
+        return home_dir
+            .join("AppData")
+            .join("Local")
+            .join("pnpm")
+            .join("store");
     }
 
     PathBuf::from(format!(r"{current_drive}:\.pnpm-store"))
@@ -87,7 +91,10 @@ where
     }
 
     if let Some(xdg_data_home) = Sys::var("XDG_DATA_HOME") {
-        return PathBuf::from(xdg_data_home).join("pnpm").join("store").into();
+        return PathBuf::from(xdg_data_home)
+            .join("pnpm")
+            .join("store")
+            .into();
     }
 
     // Using ~ (tilde) for defining home path is not supported in Rust and
@@ -135,7 +142,10 @@ where
     Some(match env::consts::OS {
         "macos" => home_dir.join("Library/pnpm"),
         "windows" => Sys::var("LOCALAPPDATA")
-            .map_or_else(|| home_dir.join(".pnpm"), |local| PathBuf::from(local).join("pnpm")),
+            .map_or_else(
+                || home_dir.join(".pnpm"),
+                |local| PathBuf::from(local).join("pnpm"),
+            ),
         // pnpm treats every non-Windows platform as Unix here.
         _ => home_dir.join(".local/share/pnpm"),
     })
@@ -196,7 +206,9 @@ pub fn resolve_configured_state_dir(default_state_dir: &Path, configured: &str) 
     if configured.is_absolute() {
         return configured.to_path_buf();
     }
-    let Some(state_root) = default_state_dir.parent().filter(|state_root| state_root.is_absolute())
+    let Some(state_root) = default_state_dir
+        .parent()
+        .filter(|state_root| state_root.is_absolute())
     else {
         return PathBuf::new();
     };
@@ -211,7 +223,11 @@ pub fn resolve_configured_state_dir(default_state_dir: &Path, configured: &str) 
     let Ok(resolved) = pnpm_fs::realpath_missing(&resolved) else {
         return PathBuf::new();
     };
-    if resolved.starts_with(&state_root) { resolved } else { PathBuf::new() }
+    if resolved.starts_with(&state_root) {
+        resolved
+    } else {
+        PathBuf::new()
+    }
 }
 
 /// Resolve the default packument-cache directory.
@@ -232,17 +248,21 @@ where
     let home_dir = Sys::home_dir().expect("Home directory is not available");
     match env::consts::OS {
         "macos" => home_dir.join("Library/Caches/pnpm"),
-        "windows" => Sys::var("LOCALAPPDATA").map_or_else(
-            || home_dir.join(".pnpm-cache"),
-            |local_app_data| PathBuf::from(local_app_data).join("pnpm-cache"),
-        ),
+        "windows" => Sys::var("LOCALAPPDATA")
+            .map_or_else(
+                || home_dir.join(".pnpm-cache"),
+                |local_app_data| PathBuf::from(local_app_data).join("pnpm-cache"),
+            ),
         _ => home_dir.join(".cache/pnpm"),
     }
 }
 
 pub fn default_virtual_store_dir() -> PathBuf {
     // TODO: find directory with package.json
-    env::current_dir().expect("current directory is unavailable").join("node_modules").join(".pnpm")
+    env::current_dir()
+        .expect("current directory is unavailable")
+        .join("node_modules")
+        .join(".pnpm")
 }
 
 /// Default for `enableGlobalVirtualStore`: `false` — every project keeps
@@ -279,8 +299,10 @@ pub const DEFAULT_JSR_REGISTRY: &str = "https://npm.jsr.io/";
 /// against, so an org that proxies
 /// npmjs should point `npmjs` at their proxy to keep verification
 /// going there rather than to the public host.
-pub const BUILTIN_REGISTRIES_BY_PREFIX: &[(&str, &str)] =
-    &[("gh", "https://npm.pkg.github.com/"), ("npmjs", "https://registry.npmjs.org/")];
+pub const BUILTIN_REGISTRIES_BY_PREFIX: &[(&str, &str)] = &[
+    ("gh", "https://npm.pkg.github.com/"),
+    ("npmjs", "https://registry.npmjs.org/"),
+];
 
 pub fn default_modules_cache_max_age() -> u64 {
     10080
@@ -408,7 +430,9 @@ pub fn default_workspace_concurrency() -> u32 {
 /// Available CPU parallelism. Floors at 1.
 #[must_use]
 pub fn available_parallelism() -> u32 {
-    std::thread::available_parallelism().map_or(1, |count| count.get() as u32).max(1)
+    std::thread::available_parallelism()
+        .map_or(1, |count| count.get() as u32)
+        .max(1)
 }
 
 /// Resolve `childConcurrency` from a possibly-negative yaml value
@@ -432,7 +456,9 @@ pub fn resolve_child_concurrency_with_parallelism(option: Option<i32>, paralleli
         // panics in debug builds on `n == i32::MIN` (negation
         // overflow); the former returns `i32::MAX as u32 + 1`
         // safely.
-        Some(n) => parallelism.saturating_sub(n.unsigned_abs()).max(1),
+        Some(n) => parallelism
+            .saturating_sub(n.unsigned_abs())
+            .max(1),
     }
 }
 

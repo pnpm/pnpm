@@ -15,5 +15,10 @@ fn foreground_children_stay_in_the_terminal_process_group() {
     assert_eq!(child_group, parent_group);
 
     tracker.cancel();
-    assert!(!child.wait().expect("wait for cancelled child").success());
+    assert!(
+        !child
+            .wait()
+            .expect("wait for cancelled child")
+            .success(),
+    );
 }

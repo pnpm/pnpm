@@ -6,10 +6,16 @@ use std::ffi::OsString;
 
 fn relocate(tokens: &[&str]) -> Vec<String> {
     let cmd = with_boolean_negations(CliArgs::command());
-    relocate_pre_subcommand_flags(&cmd, tokens.iter().map(OsString::from).collect())
-        .into_iter()
-        .map(|token| token.into_string().expect("test tokens are UTF-8"))
-        .collect()
+    relocate_pre_subcommand_flags(
+        &cmd,
+        tokens
+            .iter()
+            .map(OsString::from)
+            .collect(),
+    )
+    .into_iter()
+    .map(|token| token.into_string().expect("test tokens are UTF-8"))
+    .collect()
 }
 
 fn parse(tokens: &[&str]) -> CliArgs {
@@ -18,8 +24,16 @@ fn parse(tokens: &[&str]) -> CliArgs {
 
 fn try_parse(tokens: &[&str]) -> Result<CliArgs, clap::Error> {
     let cmd = with_boolean_negations(CliArgs::command());
-    let argv = relocate_pre_subcommand_flags(&cmd, tokens.iter().map(OsString::from).collect());
-    cmd.try_get_matches_from(argv).and_then(|matches| CliArgs::from_arg_matches(&matches))
+    let argv = relocate_pre_subcommand_flags(
+        &cmd,
+        tokens
+            .iter()
+            .map(OsString::from)
+            .collect(),
+    );
+    cmd
+        .try_get_matches_from(argv)
+        .and_then(|matches| CliArgs::from_arg_matches(&matches))
 }
 
 #[test]
@@ -36,7 +50,15 @@ fn subcommand_flags_before_the_subcommand_move_after_it() {
             "deploy",
             "temp-deploy",
         ]),
-        ["pnpm", "--filter=pnpm", "deploy", "--ignore-scripts", "--force", "--prod", "temp-deploy",],
+        [
+            "pnpm",
+            "--filter=pnpm",
+            "deploy",
+            "--ignore-scripts",
+            "--force",
+            "--prod",
+            "temp-deploy",
+        ],
         "subcommand flags move after `deploy` in order; the global --filter stays put",
     );
 }
@@ -58,13 +80,20 @@ fn relocated_deploy_invocation_parses_with_the_flags_applied() {
     };
     assert!(deploy.install_args.materialization.force);
     assert!(deploy.install_args.scripts.ignore);
-    assert_eq!(deploy.target_dirs, [std::path::PathBuf::from("temp-deploy")]);
+    assert_eq!(
+        deploy.target_dirs,
+        [std::path::PathBuf::from("temp-deploy")],
+    );
 }
 
 #[test]
 fn top_level_options_stay_in_place() {
     let argv = ["pnpm", "-C", "project", "--reporter", "ndjson", "install"];
-    assert_eq!(relocate(&argv), argv, "every token is top-level grammar already");
+    assert_eq!(
+        relocate(&argv),
+        argv,
+        "every token is top-level grammar already",
+    );
 }
 
 #[test]
@@ -93,7 +122,10 @@ fn boolean_negations_move_like_their_positive_forms() {
 
 #[test]
 fn short_subcommand_flag_moves() {
-    assert_eq!(relocate(&["pnpm", "-P", "install"]), ["pnpm", "install", "-P"]);
+    assert_eq!(
+        relocate(&["pnpm", "-P", "install"]),
+        ["pnpm", "install", "-P"],
+    );
 }
 
 #[test]
@@ -123,7 +155,11 @@ fn relocated_mixed_short_cluster_parses_with_both_options_applied() {
 #[test]
 fn global_short_cluster_stays_in_place() {
     let argv = ["pnpm", "-rC", "project", "install"];
-    assert_eq!(relocate(&argv), argv, "every short in the cluster is top-level grammar already");
+    assert_eq!(
+        relocate(&argv),
+        argv,
+        "every short in the cluster is top-level grammar already",
+    );
 }
 
 #[test]
@@ -169,14 +205,25 @@ fn options_another_command_owns_stay_in_place() {
         );
     }
     let argv = ["pnpm", "--tag", "next-11", "exec", "echo"];
-    assert_eq!(relocate(&argv), argv, "a value-taking option of another command stays whole");
-    assert!(try_parse(&argv).is_err(), "clap must reject --tag against exec");
+    assert_eq!(
+        relocate(&argv),
+        argv,
+        "a value-taking option of another command stays whole",
+    );
+    assert!(
+        try_parse(&argv).is_err(),
+        "clap must reject --tag against exec",
+    );
 }
 
 #[test]
 fn external_command_argv_is_untouched() {
     let argv = ["pnpm", "--ignore-scripts", "some-script"];
-    assert_eq!(relocate(&argv), argv, "not a subcommand → script argv must not be reshaped");
+    assert_eq!(
+        relocate(&argv),
+        argv,
+        "not a subcommand → script argv must not be reshaped",
+    );
 }
 
 #[test]

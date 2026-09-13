@@ -53,20 +53,18 @@ impl EffectiveResolverSettings {
     pub(super) fn for_request(request: &ResolveRequest) -> Self {
         static DEFAULTS: LazyLock<PacquetConfig> = LazyLock::new(PacquetConfig::new);
 
-        let lockfile_settings =
-            request.frozen_lockfile.then(|| request.lockfile.as_ref()?.settings.as_ref()).flatten();
+        let lockfile_settings = request.frozen_lockfile
+            .then(|| request.lockfile.as_ref()?.settings.as_ref())
+            .flatten();
 
         EffectiveResolverSettings {
-            auto_install_peers: request
-                .auto_install_peers
+            auto_install_peers: request.auto_install_peers
                 .or_else(|| lockfile_settings.map(|settings| settings.auto_install_peers))
                 .unwrap_or(DEFAULTS.auto_install_peers),
-            dedupe_peers: request
-                .dedupe_peers
+            dedupe_peers: request.dedupe_peers
                 .or_else(|| lockfile_settings.and_then(|settings| settings.dedupe_peers))
                 .unwrap_or(DEFAULTS.dedupe_peers),
-            exclude_links_from_lockfile: request
-                .exclude_links_from_lockfile
+            exclude_links_from_lockfile: request.exclude_links_from_lockfile
                 .or_else(|| lockfile_settings.map(|settings| settings.exclude_links_from_lockfile))
                 .unwrap_or(DEFAULTS.exclude_links_from_lockfile),
         }
@@ -95,11 +93,10 @@ pub(super) fn intern_config(
     max_interned: usize,
     max_key_bytes: usize,
 ) -> Option<&'static PacquetConfig> {
-    let registry =
-        request.registry.clone().unwrap_or_else(|| "https://registry.npmjs.org/".to_string());
-    let registry = if registry.ends_with('/') { registry } else { format!("{registry}/") };
-    let overrides: Option<IndexMap<String, String>> =
-        request.overrides.as_ref().and_then(|value| serde_json::from_value(value.clone()).ok());
+    let registry = request_registry(request);
+    let overrides: Option<IndexMap<String, String>> = request.overrides
+        .as_ref()
+        .and_then(|value| serde_json::from_value(value.clone()).ok());
     let resolver_settings = EffectiveResolverSettings::for_request(request);
     let key = config_cache_key(request, &registry, overrides.as_ref(), &resolver_settings);
     if key.len() > max_key_bytes {
@@ -145,8 +142,13 @@ pub(super) fn config_cache_key(
     overrides: Option<&IndexMap<String, String>>,
     resolver_settings: &EffectiveResolverSettings,
 ) -> String {
-    let overrides_key: Option<std::collections::BTreeMap<&str, &str>> = overrides
-        .map(|overrides| overrides.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect());
+    let overrides_key: Option<std::collections::BTreeMap<&str, &str>> =
+        overrides.map(|overrides| {
+            overrides
+                .iter()
+                .map(|(k, v)| (k.as_str(), v.as_str()))
+                .collect()
+        });
 
     serde_json::json!({
         "registry": registry,
@@ -191,4 +193,15 @@ pub(super) fn apply_request_policy(config: &mut PacquetConfig, request: &Resolve
     config.trust_policy = request.trust_policy;
     config.trust_policy_exclude.clone_from(&request.trust_policy_exclude);
     config.trust_policy_ignore_after = request.trust_policy_ignore_after;
+}
+
+fn request_registry(request: &ResolveRequest) -> String {
+    let registry = request.registry
+        .clone()
+        .unwrap_or_else(|| "https://registry.npmjs.org/".to_string());
+    if registry.ends_with('/') {
+        registry
+    } else {
+        format!("{registry}/")
+    }
 }

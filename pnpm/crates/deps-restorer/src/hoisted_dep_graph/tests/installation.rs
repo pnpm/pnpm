@@ -41,7 +41,9 @@ fn hierarchy_nests_recursively() {
     root_children.insert(PathBuf::from("/repo/node_modules/accepts"), inner.clone());
     let root = DepHierarchy(root_children);
 
-    let accepts = root.0.get(&PathBuf::from("/repo/node_modules/accepts")).expect("accepts entry");
+    let accepts = root.0
+        .get(&PathBuf::from("/repo/node_modules/accepts"))
+        .expect("accepts entry");
     assert_eq!(accepts, &inner);
     assert_eq!(accepts.0.len(), 1);
 }
@@ -70,7 +72,10 @@ fn walker_transitive_dep_flattens_under_root() {
     a_deps.insert(pkg_name("b"), SnapshotDepRef::Plain(ver_peer("1.0.0")));
     snapshots.insert(
         dep_key("a", "1.0.0"),
-        SnapshotEntry { dependencies: Some(a_deps), ..SnapshotEntry::default() },
+        SnapshotEntry {
+            dependencies: Some(a_deps),
+            ..SnapshotEntry::default()
+        },
     );
     snapshots.insert(dep_key("b", "1.0.0"), SnapshotEntry::default());
 
@@ -84,19 +89,30 @@ fn walker_transitive_dep_flattens_under_root() {
 
     let modules = lockfile_dir.join("node_modules");
     assert_eq!(
-        result.graph.keys().cloned().collect::<Vec<_>>(),
+        result.graph
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
         vec![modules.join("a"), modules.join("b")],
         "both nodes hoisted to root, sorted by dir",
     );
-    let a_node = result.graph.get(&modules.join("a")).expect("a in graph");
+    let a_node = result.graph
+        .get(&modules.join("a"))
+        .expect("a in graph");
     assert_eq!(
         a_node.children.get("b"),
         Some(&modules.join("b")),
         r#"a's `children["b"]` points at the hoisted (root-level) dir"#,
     );
 
-    assert_eq!(result.hoisted_locations["a@1.0.0"], vec!["node_modules/a".to_string()]);
-    assert_eq!(result.hoisted_locations["b@1.0.0"], vec!["node_modules/b".to_string()]);
+    assert_eq!(
+        result.hoisted_locations["a@1.0.0"],
+        vec!["node_modules/a".to_string()],
+    );
+    assert_eq!(
+        result.hoisted_locations["b@1.0.0"],
+        vec!["node_modules/b".to_string()],
+    );
 }
 #[test]
 fn walker_version_conflict_keeps_loser_nested() {
@@ -116,7 +132,10 @@ fn walker_version_conflict_keeps_loser_nested() {
     c_deps.insert(pkg_name("a"), SnapshotDepRef::Plain(ver_peer("2.0.0")));
     snapshots.insert(
         dep_key("c", "1.0.0"),
-        SnapshotEntry { dependencies: Some(c_deps), ..SnapshotEntry::default() },
+        SnapshotEntry {
+            dependencies: Some(c_deps),
+            ..SnapshotEntry::default()
+        },
     );
 
     let lockfile = lockfile_with(root_deps, packages, snapshots);
@@ -136,10 +155,19 @@ fn walker_version_conflict_keeps_loser_nested() {
     assert!(result.graph.contains_key(&c_dir), "c at root");
     assert!(result.graph.contains_key(&a2_dir), "a@2 nested under c");
 
-    assert_eq!(result.graph[&a1_dir].package.dep_path, DepPath::from("a@1.0.0".to_string()));
-    assert_eq!(result.graph[&a2_dir].package.dep_path, DepPath::from("a@2.0.0".to_string()));
+    assert_eq!(
+        result.graph[&a1_dir].package.dep_path,
+        DepPath::from("a@1.0.0".to_string()),
+    );
+    assert_eq!(
+        result.graph[&a2_dir].package.dep_path,
+        DepPath::from("a@2.0.0".to_string()),
+    );
 
-    assert_eq!(result.hoisted_locations["a@1.0.0"], vec!["node_modules/a".to_string()]);
+    assert_eq!(
+        result.hoisted_locations["a@1.0.0"],
+        vec!["node_modules/a".to_string()],
+    );
     assert_eq!(
         result.hoisted_locations["a@2.0.0"],
         vec!["node_modules/c/node_modules/a".to_string()],
@@ -186,7 +214,10 @@ fn walker_records_directory_resolution_as_injection_target() {
     let mut packages = HashMap::new();
     packages.insert(
         dep_key("a", "1.0.0"),
-        PackageMetadata { resolution: directory_resolution("../local-a"), ..metadata_stub() },
+        PackageMetadata {
+            resolution: directory_resolution("../local-a"),
+            ..metadata_stub()
+        },
     );
 
     let mut snapshots = HashMap::new();
@@ -219,20 +250,29 @@ fn walker_skips_optional_dep_on_unsupported_platform() {
     let mut snapshots = HashMap::new();
     snapshots.insert(
         dep_key("a", "1.0.0"),
-        SnapshotEntry { optional: true, ..SnapshotEntry::default() },
+        SnapshotEntry {
+            optional: true,
+            ..SnapshotEntry::default()
+        },
     );
 
     let lockfile = lockfile_with(root_deps, packages, snapshots);
     let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &host_aware_opts())
         .expect("walker succeeds");
 
-    assert!(result.graph.is_empty(), "optional incompatible dep not emitted");
+    assert!(
+        result.graph.is_empty(),
+        "optional incompatible dep not emitted",
+    );
     assert!(
         result.skipped.contains("a@1.0.0"),
         "incompatible optional dep added to skipped: {:?}",
         result.skipped,
     );
-    assert!(result.hoisted_locations.is_empty(), "no location recorded for skipped dep");
+    assert!(
+        result.hoisted_locations.is_empty(),
+        "no location recorded for skipped dep",
+    );
 }
 /// `engineStrict = true` + engine mismatch surfaces as
 /// `HoistedDepGraphError::Installability`: the `engineStrict + engine
@@ -247,7 +287,10 @@ fn walker_errors_on_engine_strict_mismatch() {
     let mut packages = HashMap::new();
     packages.insert(
         dep_key("a", "1.0.0"),
-        PackageMetadata { engines: Some(engines), ..metadata_stub() },
+        PackageMetadata {
+            engines: Some(engines),
+            ..metadata_stub()
+        },
     );
 
     let mut snapshots = HashMap::new();
@@ -290,12 +333,22 @@ fn walker_force_bypasses_installability_check() {
     snapshots.insert(dep_key("a", "1.0.0"), SnapshotEntry::default());
 
     let lockfile = lockfile_with(root_deps, packages, snapshots);
-    let opts = LockfileToHoistedDepGraphOptions { force: true, ..host_aware_opts() };
+    let opts = LockfileToHoistedDepGraphOptions {
+        force: true,
+        ..host_aware_opts()
+    };
     let result =
         lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("force bypasses check");
 
-    assert_eq!(result.graph.len(), 1, "force=true emits the dep regardless of platform");
-    assert!(result.skipped.is_empty(), "force=true doesn't add to skipped");
+    assert_eq!(
+        result.graph.len(),
+        1,
+        "force=true emits the dep regardless of platform",
+    );
+    assert!(
+        result.skipped.is_empty(),
+        "force=true doesn't add to skipped",
+    );
 }
 /// The prev-graph walk uses `force: true, skipped: empty` so
 /// the *current* layout is preserved even for packages that
@@ -342,5 +395,8 @@ fn prev_graph_includes_orphan_even_when_now_incompatible() {
         "force: true emits the orphan even though it would now fail installability",
     );
     assert!(result.graph.is_empty(), "wanted graph stays empty");
-    assert!(result.skipped.is_empty(), "skipped from wanted walk only, not prev walk");
+    assert!(
+        result.skipped.is_empty(),
+        "skipped from wanted walk only, not prev walk",
+    );
 }

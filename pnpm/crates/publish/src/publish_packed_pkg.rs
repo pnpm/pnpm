@@ -106,15 +106,12 @@ where
     let registry = resolved.registry.clone();
     let is_stage = opts.stage;
 
-    global_info::<Reporter>(&format!("📦 {name}@{version} → {}", registry_for_display(&registry)));
+    report_publishing_package::<Reporter>(&name, &version, &registry);
 
     let mut summary = pkg.summary();
 
     if opts.dry_run {
-        global_warn::<Reporter>(&format!(
-            "Skip {verb} {name}@{version} (dry run)",
-            verb = if is_stage { "staging" } else { "publishing" },
-        ));
+        report_dry_run::<Reporter>(&name, &version, is_stage);
         return Ok(summary);
     }
 
@@ -139,7 +136,11 @@ where
     finish_publish::<Reporter>(
         response,
         &mut summary,
-        &PublishedPkg { name: &name, version: &version, is_stage },
+        &PublishedPkg {
+            name: &name,
+            version: &version,
+            is_stage,
+        },
     )?;
     Ok(summary)
 }
@@ -164,7 +165,10 @@ where
         &resolved.registry,
         resolved.access,
         &resolved.default_tag,
-        &DistHashes { integrity: &summary.integrity, shasum: &summary.shasum },
+        &DistHashes {
+            integrity: &summary.integrity,
+            shasum: &summary.shasum,
+        },
     )?;
 
     // Provenance is requested either explicitly (`--provenance`) or by OIDC
@@ -212,13 +216,15 @@ fn finish_publish<Reporter: self::Reporter>(
 ) -> Result<(), PublishPackedPkgError> {
     let PublishedPkg { name, version, is_stage } = *published;
     if !response.ok {
-        return Err(PublishPackedPkgError::FailedToPublish(FailedToPublishError::new(
-            name,
-            version,
-            response.status,
-            response.status_text,
-            response.body,
-        )));
+        return Err(PublishPackedPkgError::FailedToPublish(
+            FailedToPublishError::new(
+                name,
+                version,
+                response.status,
+                response.status_text,
+                response.body,
+            ),
+        ));
     }
     if is_stage {
         summary.stage_id = response.stage_id;
@@ -236,8 +242,7 @@ fn publish_authorization(
     registry: &NormalizedRegistryUrl,
     name: &str,
 ) -> Option<String> {
-    resolved
-        .auth_token_override
+    resolved.auth_token_override
         .as_ref()
         .map(|token| format!("Bearer {token}"))
         .or_else(|| network.auth_headers.for_url_with_package(registry.as_str(), Some(name)))
@@ -252,7 +257,11 @@ fn publish_endpoint(
     is_stage: bool,
 ) -> Result<String, PublishPackedPkgError> {
     let escaped = escaped_package_name(name);
-    let path = if is_stage { format!("-/stage/package/{escaped}") } else { escaped };
+    let path = if is_stage {
+        format!("-/stage/package/{escaped}")
+    } else {
+        escaped
+    };
     join_registry(registry, &path)
 }
 
@@ -360,3 +369,21 @@ mod document;
 use document::manifest_string;
 
 mod request;
+
+fn report_dry_run<Reporter: self::Reporter>(name: &str, version: &str, is_stage: bool) {
+    global_warn::<Reporter>(&format!(
+        "Skip {verb} {name}@{version} (dry run)",
+        verb = if is_stage { "staging" } else { "publishing" },
+    ));
+}
+
+fn report_publishing_package<Reporter: self::Reporter>(
+    name: &str,
+    version: &str,
+    registry: &NormalizedRegistryUrl,
+) {
+    global_info::<Reporter>(&format!(
+        "📦 {name}@{version} → {}",
+        registry_for_display(registry),
+    ));
+}

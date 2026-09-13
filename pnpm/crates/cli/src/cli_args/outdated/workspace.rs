@@ -16,11 +16,16 @@ pub(super) struct DependentProject {
 
 /// The directory the manifest sits in, or its path when it has no parent.
 pub(super) fn project_dir(manifest: &PackageManifest) -> &std::path::Path {
-    manifest.path().parent().unwrap_or_else(|| manifest.path())
+    manifest
+        .path()
+        .parent()
+        .unwrap_or_else(|| manifest.path())
 }
 
 pub(super) fn loaded_lockfile(state: &State) -> miette::Result<Option<&Lockfile>> {
-    state.lockfile.get().map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))
+    state.lockfile
+        .get()
+        .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))
 }
 
 /// The pnpm home may contain a workspace config, but each global install
@@ -44,9 +49,11 @@ pub(super) async fn workspace_outdated(
     inputs: &ProjectOutdatedInputs<'_>,
     project_inputs: &[(&PathBuf, &pnpm_workspace::Project, Option<Lockfile>)],
 ) -> miette::Result<Vec<OutdatedInWorkspace>> {
-    let project_queries = project_inputs.iter().map(|(project_dir, project, project_lockfile)| {
-        outdated_for_project(inputs, project_dir, project, project_lockfile.as_ref())
-    });
+    let project_queries = project_inputs
+        .iter()
+        .map(|(project_dir, project, project_lockfile)| {
+            outdated_for_project(inputs, project_dir, project, project_lockfile.as_ref())
+        });
     group_workspace_outdated(futures_util::future::join_all(project_queries).await)
 }
 
@@ -87,7 +94,11 @@ async fn outdated_for_project(
         (project_lockfile, Lockfile::ROOT_IMPORTER_KEY.to_string())
     };
     let Some(lockfile) = lockfile else {
-        let lockfile_dir = if shares_one_lockfile { inputs.lockfile_root } else { project_dir };
+        let lockfile_dir = if shares_one_lockfile {
+            inputs.lockfile_root
+        } else {
+            project_dir
+        };
         return Err(no_lockfile_error(lockfile_dir));
     };
     let project_outdated = collect_outdated_for_importer_in_run(
@@ -99,8 +110,7 @@ async fn outdated_for_project(
     )
     .await?;
     let dependent = DependentProject {
-        name: project
-            .manifest
+        name: project.manifest
             .value()
             .get("name")
             .and_then(|name| name.as_str())
@@ -120,9 +130,12 @@ pub(super) fn recursive_project_inputs<'a>(
     let mut project_inputs = Vec::new();
     for (project_dir, node) in &selection.selected {
         let project = node.package.project;
-        let has_any_dependency = project
-            .manifest
-            .dependencies([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional])
+        let has_any_dependency = project.manifest
+            .dependencies([
+                DependencyGroup::Prod,
+                DependencyGroup::Dev,
+                DependencyGroup::Optional,
+            ])
             .next()
             .is_some();
         if !has_any_dependency {
@@ -149,12 +162,18 @@ fn group_workspace_outdated(
         let (project_outdated, dependent) = result?;
         for package in project_outdated {
             let dependency_type: &'static str = package.belongs_to.into();
-            let key = format!("{}\0{}\0{}", package.package_name, package.current, dependency_type);
+            let key = format!(
+                "{}\0{}\0{}",
+                package.package_name, package.current, dependency_type,
+            );
             if let Some(&index) = outdated_indexes.get(&key) {
                 outdated[index].dependents.push(dependent.clone());
             } else {
                 outdated_indexes.insert(key, outdated.len());
-                outdated.push(OutdatedInWorkspace { package, dependents: vec![dependent.clone()] });
+                outdated.push(OutdatedInWorkspace {
+                    package,
+                    dependents: vec![dependent.clone()],
+                });
             }
         }
     }

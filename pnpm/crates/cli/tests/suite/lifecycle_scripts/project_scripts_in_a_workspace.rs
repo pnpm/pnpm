@@ -32,8 +32,11 @@ fn installed_workspace(members: &[&str]) -> (TempDir, std::path::PathBuf, AddMoc
 
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
-    fs::write(&yaml_path, format!("{}\npackages:\n  - 'packages/*'\n", yaml.trim_end()))
-        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        &yaml_path,
+        format!("{}\npackages:\n  - 'packages/*'\n", yaml.trim_end()),
+    )
+    .expect("write pnpm-workspace.yaml");
     fs::write(workspace.join("package.json"), project_manifest("root"))
         .expect("write the root package.json");
     for member in members {
@@ -50,7 +53,10 @@ fn installed_workspace(members: &[&str]) -> (TempDir, std::path::PathBuf, AddMoc
 }
 
 fn pacquet(cwd: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Command {
-    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(cwd).with_args(args)
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(cwd)
+        .with_args(args)
 }
 
 fn stamp_path(workspace: &Path, project: &str) -> std::path::PathBuf {
@@ -73,8 +79,11 @@ fn clear_stamps(workspace: &Path, members: &[&str]) {
 
 #[track_caller]
 fn assert_ran(workspace: &Path, expected: &[&str], all: &[&str]) {
-    let ran: Vec<&str> =
-        all.iter().copied().filter(|project| stamp_path(workspace, project).exists()).collect();
+    let ran: Vec<&str> = all
+        .iter()
+        .copied()
+        .filter(|project| stamp_path(workspace, project).exists())
+        .collect();
     assert_eq!(ran, expected, "projects whose own postinstall ran");
 }
 
@@ -186,7 +195,12 @@ fn recursive_bare_update_runs_every_project_scripts() {
 fn add_in_a_member_runs_that_member_and_the_workspace_root() {
     let (root, workspace, anchor) = installed_workspace(&["a", "b"]);
 
-    pacquet(&workspace.join("packages").join("a"), ["add", "@pnpm.e2e/foo"]).assert().success();
+    pacquet(
+        &workspace.join("packages").join("a"),
+        ["add", "@pnpm.e2e/foo"],
+    )
+    .assert()
+    .success();
 
     assert_ran(&workspace, &["root", "a"], &["root", "a", "b"]);
 

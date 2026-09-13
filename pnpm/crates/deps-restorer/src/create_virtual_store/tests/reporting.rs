@@ -16,7 +16,10 @@ fn removed_child_aliases_reports_dropped_children_only() {
         .collect();
     removed.sort();
 
-    assert_eq!(removed, vec!["dropped".to_string(), "opt-dropped".to_string()]);
+    assert_eq!(
+        removed,
+        vec!["dropped".to_string(), "opt-dropped".to_string()],
+    );
 }
 /// `emit_warm_snapshot_progress` fires `resolved` then
 /// `found_in_store` when no earlier fetch path already emitted the
@@ -30,11 +33,17 @@ fn emits_resolved_then_found_in_store_when_not_progress_reported() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
     emit_warm_snapshot_progress::<RecordingReporter>("react@18.0.0", "/proj", false);
 
     let captured = EVENTS.lock().unwrap();
@@ -68,11 +77,17 @@ fn emits_only_resolved_when_progress_reported() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
     emit_warm_snapshot_progress::<RecordingReporter>("react@18.0.0", "/proj", true);
 
     let captured = EVENTS.lock().unwrap();

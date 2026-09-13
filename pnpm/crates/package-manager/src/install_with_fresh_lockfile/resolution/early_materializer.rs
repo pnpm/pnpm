@@ -18,10 +18,12 @@ pub(in super::super) fn start_early_materialization<Reporter: self::Reporter + '
         has_custom_fetcher: setup.chain.custom_fetcher_session.is_some(),
     })
     .then(|| {
-        Arc::new(crate::early_materializer::EarlyMaterializer::<Reporter>::new(
-            install.drivers.config,
-            Arc::clone(&owned.fetching.tarball_mem_cache),
-        ))
+        Arc::new(
+            crate::early_materializer::EarlyMaterializer::<Reporter>::new(
+                install.drivers.config,
+                Arc::clone(&owned.fetching.tarball_mem_cache),
+            ),
+        )
     })
 }
 /// What decides whether virtual-store slots may be populated ahead of the
@@ -70,6 +72,10 @@ pub(in super::super) fn interactive_policy(
     policy_excludes: PolicyExcludes,
     dry_run: bool,
 ) -> (bool, PolicyExcludes) {
-    let policy_excludes = if dry_run { policy_excludes.without_writes() } else { policy_excludes };
+    let policy_excludes = if dry_run {
+        policy_excludes.without_writes()
+    } else {
+        policy_excludes
+    };
     (can_prompt && !dry_run, policy_excludes)
 }

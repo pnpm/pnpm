@@ -134,7 +134,12 @@ fn serialize(out: &mut Vec<u8>, value: &Value, sort: bool) {
 /// land alongside a real caller that needs it.
 fn serialize_array(out: &mut Vec<u8>, arr: &[Value], sort: bool) {
     out.extend_from_slice(b"array:");
-    out.extend_from_slice(arr.len().to_string().as_bytes());
+    out.extend_from_slice(
+        arr
+            .len()
+            .to_string()
+            .as_bytes(),
+    );
     out.push(b':');
     for entry in arr {
         serialize(out, entry, sort);
@@ -146,7 +151,12 @@ fn serialize_array(out: &mut Vec<u8>, arr: &[Value], sort: bool) {
 /// `_string` and each value through the normal dispatcher.
 fn serialize_object(out: &mut Vec<u8>, map: &serde_json::Map<String, Value>, sort: bool) {
     out.extend_from_slice(b"object:");
-    out.extend_from_slice(map.len().to_string().as_bytes());
+    out.extend_from_slice(
+        map
+            .len()
+            .to_string()
+            .as_bytes(),
+    );
     out.push(b':');
     if !sort {
         for (key, value) in map {

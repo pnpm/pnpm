@@ -26,9 +26,11 @@ pub async fn collect_oci_blobs(
             reason: format!("{registry:?} is not a concrete OCI registry"),
         });
     }
-    let hosted = config.routing.hosted.get(registry).ok_or_else(|| RegistryError::BadRequest {
-        reason: format!("{registry:?} is not a hosted registry"),
-    })?;
+    let hosted = config.routing.hosted
+        .get(registry)
+        .ok_or_else(|| RegistryError::BadRequest {
+            reason: format!("{registry:?} is not a hosted registry"),
+        })?;
     let storage = Storage::new(
         &config.storage.hosted_backend,
         config.storage.hosted_dir.clone(),
@@ -36,9 +38,7 @@ pub async fn collect_oci_blobs(
     )?
     .for_hosted(&hosted.org);
     let excluded: HashSet<&str> = if hosted.org.is_empty() {
-        config
-            .routing
-            .hosted
+        config.routing.hosted
             .values()
             .map(|hosted| hosted.org.as_str())
             .filter(|org| !org.is_empty())
@@ -46,7 +46,14 @@ pub async fn collect_oci_blobs(
     } else {
         HashSet::new()
     };
-    collect(&storage, min_age, dry_run, &excluded, config.http.oci.max_manifest_bytes).await
+    collect(
+        &storage,
+        min_age,
+        dry_run,
+        &excluded,
+        config.http.oci.max_manifest_bytes,
+    )
+    .await
 }
 
 async fn collect(
@@ -94,13 +101,17 @@ async fn inventory_hosted_blobs(
         let Some((repository, filename)) = inventoried_blob_path(&file.path, excluded) else {
             continue;
         };
-        inventory.execute("INSERT OR IGNORE INTO repositories VALUES (?)", [repository])?;
+        inventory.execute(
+            "INSERT OR IGNORE INTO repositories VALUES (?)",
+            [repository],
+        )?;
         if filename == "package.json" {
             continue;
         }
-        let size = i64::try_from(file.size).map_err(|_| RegistryError::BadRequest {
-            reason: format!("blob {} is too large to inventory", file.path),
-        })?;
+        let size = i64::try_from(file.size)
+            .map_err(|_| RegistryError::BadRequest {
+                reason: format!("blob {} is too large to inventory", file.path),
+            })?;
         inventory.execute(
             "INSERT INTO blobs (repository, filename, size, old) VALUES (?, ?, ?, ?)",
             params![
@@ -121,7 +132,11 @@ fn inventoried_blob_path<'a>(
     path: &'a str,
     excluded: &HashSet<&str>,
 ) -> Option<(&'a str, &'a str)> {
-    if path.split('/').next().is_some_and(|part| excluded.contains(part)) {
+    if path
+        .split('/')
+        .next()
+        .is_some_and(|part| excluded.contains(part))
+    {
         return None;
     }
     let (repository, filename) = path.rsplit_once('/')?;
@@ -168,7 +183,9 @@ async fn remove_unreferenced_blobs(
             "SELECT rowid, repository, filename, size FROM blobs WHERE rowid > ? AND old = 1 AND keep = 0 ORDER BY rowid LIMIT 1",
             [cursor], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, i64>(3)?)),
         )?;
-        let Some((row, repository, filename, size)) = candidate else { break };
+        let Some((row, repository, filename, size)) = candidate else {
+            break;
+        };
         cursor = row;
         let size = u64::try_from(size).expect("inventory only records nonnegative blob sizes");
         let name = CanonicalPackageName::parse(&repository, Ecosystem::Oci)?;
@@ -199,9 +216,13 @@ async fn finish_pending_deletions(
     while let Some(repository) = next_repository(inventory, &previous)? {
         let name = CanonicalPackageName::parse(&repository, Ecosystem::Oci)?;
         previous = repository;
-        let Some(body) = storage.read_hosted_document(&name).await? else { continue };
+        let Some(body) = storage.read_hosted_document(&name).await? else {
+            continue;
+        };
         let mut document = ImageDocument::parse(&body)?;
-        let Some(digest) = document.deleting_blob.take() else { continue };
+        let Some(digest) = document.deleting_blob.take() else {
+            continue;
+        };
         let size = storage
             .open_hosted_blob(&name, &digest.blob_filename())
             .await?
@@ -211,11 +232,12 @@ async fn finish_pending_deletions(
             removed += 1;
             bytes += size;
         }
-        storage
-            .update_hosted_document_with_retry(&name, pnpr_storage::DOCUMENT_WRITE_RETRIES, |_| {
-                Ok(Some(document.to_bytes()))
-            })
-            .await?;
+        storage.update_hosted_document_with_retry(
+            &name,
+            pnpr_storage::DOCUMENT_WRITE_RETRIES,
+            |_| Ok(Some(document.to_bytes())),
+        )
+        .await?;
     }
     Ok((removed, bytes))
 }
@@ -244,7 +266,9 @@ struct Inventory {
 )]
 impl Inventory {
     fn open(path: &std::path::Path) -> Result<Self> {
-        Ok(Self { connection: Connection::open(path)? })
+        Ok(Self {
+            connection: Connection::open(path)?,
+        })
     }
 
     fn execute_batch(&mut self, sql: &str) -> Result<()> {
@@ -275,7 +299,9 @@ async fn referenced_blobs(
     name: &CanonicalPackageName,
     manifest_limit: usize,
 ) -> Result<HashSet<String>> {
-    let Some(bytes) = storage.read_hosted_document(name).await? else { return Ok(HashSet::new()) };
+    let Some(bytes) = storage.read_hosted_document(name).await? else {
+        return Ok(HashSet::new());
+    };
     let document = ImageDocument::parse(&bytes)?;
     referenced_document_blobs(storage, name, &document, manifest_limit).await
 }
@@ -299,9 +325,14 @@ pub(crate) async fn referenced_document_blobs(
         }
         let filename = digest.blob_filename();
         reachable.insert(filename.clone());
-        let manifest =
-            read_manifest_blob(storage, name, &digest, content_type.as_deref(), manifest_limit)
-                .await?;
+        let manifest = read_manifest_blob(
+            storage,
+            name,
+            &digest,
+            content_type.as_deref(),
+            manifest_limit,
+        )
+        .await?;
         for reference in manifest.references() {
             reachable.insert(reference.digest.blob_filename());
             if media_type::is_index(manifest.media_type()) {
@@ -310,15 +341,7 @@ pub(crate) async fn referenced_document_blobs(
             }
         }
     }
-    if document
-        .deleting_blob
-        .as_ref()
-        .is_some_and(|digest| reachable.contains(&digest.blob_filename()))
-    {
-        return Err(RegistryError::BadRequest {
-            reason: format!("pending deletion in {} references a retained blob", name.as_str()),
-        });
-    }
+    check_pending_blob_deletion(document, name, &reachable)?;
     Ok(reachable)
 }
 
@@ -326,10 +349,13 @@ fn resolve_reference_media_type(
     reference: &Descriptor,
     document: &ImageDocument,
 ) -> Option<String> {
-    reference
-        .media_type
+    reference.media_type
         .clone()
-        .or_else(|| document.manifest(&reference.digest).map(|entry| entry.media_type.clone()))
+        .or_else(|| {
+            document
+                .manifest(&reference.digest)
+                .map(|entry| entry.media_type.clone())
+        })
 }
 
 /// Read one retained manifest back and parse it, checking it is the blob its
@@ -349,8 +375,7 @@ async fn read_manifest_blob(
         .open_hosted_blob(name, &filename)
         .await?
         .ok_or_else(|| invalid("retained manifest is missing".into()))?;
-    let bytes = axum::body::to_bytes(body, manifest_limit)
-        .await
+    let bytes = axum::body::to_bytes(body, manifest_limit).await
         .map_err(|error| invalid(error.to_string()))?;
     if Digest::of(&bytes) != *digest {
         return Err(invalid("manifest digest mismatch".into()));
@@ -360,3 +385,22 @@ async fn read_manifest_blob(
 
 #[cfg(test)]
 mod tests;
+
+fn check_pending_blob_deletion(
+    document: &ImageDocument,
+    name: &CanonicalPackageName,
+    reachable: &HashSet<String>,
+) -> Result<()> {
+    if document.deleting_blob
+        .as_ref()
+        .is_some_and(|digest| reachable.contains(&digest.blob_filename()))
+    {
+        return Err(RegistryError::BadRequest {
+            reason: format!(
+                "pending deletion in {} references a retained blob",
+                name.as_str(),
+            ),
+        });
+    }
+    Ok(())
+}

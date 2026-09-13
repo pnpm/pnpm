@@ -19,8 +19,11 @@ fn set_quarantine(path: &Path) {
 }
 
 fn list_xattrs(path: &Path) -> String {
-    let output =
-        Command::new("/usr/bin/xattr").arg("-l").arg(path).output().expect("spawn xattr -l");
+    let output = Command::new("/usr/bin/xattr")
+        .arg("-l")
+        .arg(path)
+        .output()
+        .expect("spawn xattr -l");
     String::from_utf8_lossy(&output.stdout).into_owned()
 }
 
@@ -117,8 +120,14 @@ fn sweep_targets_only_native_binaries_under_dir() {
     ]);
     remove_quarantine_from_native_binaries(dir.path(), &cas_paths);
 
-    assert!(!has_quarantine(&native), "native binary should be unquarantined");
-    assert!(has_quarantine(&script), "non-binary files must be left untouched");
+    assert!(
+        !has_quarantine(&native),
+        "native binary should be unquarantined",
+    );
+    assert!(
+        has_quarantine(&script),
+        "non-binary files must be left untouched",
+    );
 }
 
 #[test]

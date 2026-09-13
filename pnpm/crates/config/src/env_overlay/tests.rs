@@ -126,9 +126,15 @@ fn save_workspace_protocol_env_var_accepts_all_three_shapes() {
         ("false", SaveWorkspaceProtocol::Off),
         ("rolling", SaveWorkspaceProtocol::Rolling),
     ] {
-        assert_eq!(parse_json_or_string::<SaveWorkspaceProtocol>(value), Some(expected));
+        assert_eq!(
+            parse_json_or_string::<SaveWorkspaceProtocol>(value),
+            Some(expected),
+        );
     }
-    assert_eq!(parse_json_or_string::<SaveWorkspaceProtocol>("nonsense"), None);
+    assert_eq!(
+        parse_json_or_string::<SaveWorkspaceProtocol>("nonsense"),
+        None,
+    );
 }
 
 /// The binding is wired to the `PNPM_CONFIG_*` name pnpm uses, not just
@@ -142,13 +148,22 @@ fn save_workspace_protocol_reads_from_the_environment() {
         }
     }
     let settings = WorkspaceSettings::from_pnpm_config_env::<EnvPinned>();
-    assert_eq!(settings.save_workspace_protocol, Some(SaveWorkspaceProtocol::On));
+    assert_eq!(
+        settings.save_workspace_protocol,
+        Some(SaveWorkspaceProtocol::On),
+    );
 }
 
 #[test]
 fn enum_env_var_accepts_bare_identifier() {
-    assert_eq!(parse_json_or_string::<NodeLinker>("hoisted"), Some(NodeLinker::Hoisted));
-    assert_eq!(parse_json_or_string::<TrustPolicy>("no-downgrade"), Some(TrustPolicy::NoDowngrade));
+    assert_eq!(
+        parse_json_or_string::<NodeLinker>("hoisted"),
+        Some(NodeLinker::Hoisted),
+    );
+    assert_eq!(
+        parse_json_or_string::<TrustPolicy>("no-downgrade"),
+        Some(TrustPolicy::NoDowngrade),
+    );
     assert_eq!(
         parse_json_or_string::<NodePackageMapType>("loose"),
         Some(NodePackageMapType::Loose),
@@ -252,7 +267,10 @@ fn empty_scope_env_var_survives_to_clobber_lower_layers() {
 
 #[test]
 fn tri_array_env_var_parses_arrays_and_rejects_null() {
-    assert_eq!(parse_tri_array(r#"["a","b"]"#), Some(Some(vec!["a".to_owned(), "b".to_owned()])));
+    assert_eq!(
+        parse_tri_array(r#"["a","b"]"#),
+        Some(Some(vec!["a".to_owned(), "b".to_owned()])),
+    );
     assert_eq!(parse_tri_array("null"), None);
     assert_eq!(parse_tri_array("not-json"), None);
 }
@@ -282,7 +300,10 @@ fn virtual_store_type_env_var_parses_its_two_values() {
         WorkspaceSettings::from_pnpm_config_env::<EnvProject>().virtual_store_type,
         Some(VirtualStoreType::Project),
     );
-    assert_eq!(WorkspaceSettings::from_pnpm_config_env::<EnvNonsense>().virtual_store_type, None);
+    assert_eq!(
+        WorkspaceSettings::from_pnpm_config_env::<EnvNonsense>().virtual_store_type,
+        None,
+    );
 }
 
 /// The environment can only spell the boolean, so it reaches the same
@@ -314,5 +335,8 @@ sideEffectsCache:
 
     assert!(!config.side_effects_cache_read());
     assert!(!config.side_effects_cache_write());
-    assert_eq!(config.remote_side_effects_cache.expect("shared cache config").org, "acme");
+    assert_eq!(
+        config.remote_side_effects_cache.expect("shared cache config").org,
+        "acme",
+    );
 }

@@ -54,15 +54,18 @@ pub enum BuildSnapshotError {
 /// package installed from the default registry.
 pub fn registry_package_key(package: &PackageVersion) -> Result<PackageKey, BuildSnapshotError> {
     let name = PkgName::parse(package.name.as_str())
-        .map_err(|source| BuildSnapshotError::ParseName { name: package.name.clone(), source })?;
+        .map_err(|source| BuildSnapshotError::ParseName {
+            name: package.name.clone(),
+            source,
+        })?;
     let version_string = package.version.to_string();
-    let peer = version_string.parse::<PkgVerPeer>().map_err(|source| {
-        BuildSnapshotError::ParseVersion {
+    let peer = version_string
+        .parse::<PkgVerPeer>()
+        .map_err(|source| BuildSnapshotError::ParseVersion {
             name: package.name.clone(),
             version: version_string,
             source,
-        }
-    })?;
+        })?;
     Ok(PkgNameVerPeer::new(name, peer))
 }
 
@@ -83,7 +86,10 @@ pub fn build_package_snapshot(
     let mut dependencies: HashMap<PkgName, SnapshotDepRef> = HashMap::new();
     for (dep_name, ver_peer) in resolved_dependencies {
         let parsed = PkgName::parse(dep_name.as_str())
-            .map_err(|source| BuildSnapshotError::ParseName { name: dep_name.clone(), source })?;
+            .map_err(|source| BuildSnapshotError::ParseName {
+                name: dep_name.clone(),
+                source,
+            })?;
         dependencies.insert(parsed, SnapshotDepRef::Plain(ver_peer.clone()));
     }
 
@@ -111,21 +117,24 @@ pub fn build_package_snapshot(
         optional: false,
     };
 
-    Ok(BuiltSnapshot { package_key, metadata, snapshot })
+    Ok(BuiltSnapshot {
+        package_key,
+        metadata,
+        snapshot,
+    })
 }
 
 #[cfg(test)]
 mod tests;
 
 fn registry_resolution(package: &PackageVersion) -> Result<RegistryResolution, BuildSnapshotError> {
-    let integrity =
-        package.dist.integrity.clone().ok_or_else(|| BuildSnapshotError::MissingIntegrity {
+    let integrity = package.dist.integrity
+        .clone()
+        .ok_or_else(|| BuildSnapshotError::MissingIntegrity {
             name: package.name.clone(),
             version: package.version.to_string(),
         })?;
-    let revision = package
-        .dist
-        .revision
+    let revision = package.dist.revision
         .clone()
         .map(serde_json::from_value::<TarballRevision>)
         .transpose()
@@ -136,5 +145,8 @@ fn registry_resolution(package: &PackageVersion) -> Result<RegistryResolution, B
             ))
         })?;
 
-    Ok(RegistryResolution { integrity, revision })
+    Ok(RegistryResolution {
+        integrity,
+        revision,
+    })
 }

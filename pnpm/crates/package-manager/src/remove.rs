@@ -68,7 +68,11 @@ pub enum RemoveError {
 
 impl Remove<'_> {
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), RemoveError> {
-        let Self { options: remove, resources: owned, manifest } = self;
+        let Self {
+            options: remove,
+            resources: owned,
+            manifest,
+        } = self;
         validate_removable(manifest, remove.package_names, remove.save_type)
             .map_err(RemoveError::Validation)?;
         prepare_manifest::<Reporter>(manifest, remove.package_names, remove.save_type);
@@ -97,7 +101,11 @@ impl Remove<'_> {
         self,
         selected: SelectedProjects<'_>,
     ) -> Result<(), RemoveError> {
-        let Self { options: remove, resources: owned, manifest } = self;
+        let Self {
+            options: remove,
+            resources: owned,
+            manifest,
+        } = self;
         let selected_indices = selected_project_indices(
             selected.projects,
             selected.ordered_dirs,
@@ -114,9 +122,7 @@ impl Remove<'_> {
             remove.package_names,
             remove.save_type,
         );
-        let workspace_root = remove.config.workspace_dir.clone().unwrap_or_else(|| {
-            manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf()
-        });
+        let workspace_root = remove_workspace_root(remove.config, manifest);
 
         let ignored_builds = remove_install(remove, owned, manifest)
             .run_selected::<Reporter>(selected.selection())
@@ -278,7 +284,10 @@ fn persist_manifest<Reporter: self::Reporter>(
     let prefix = package_manifest_prefix(manifest);
     Reporter::emit(&LogEvent::PackageManifest(PackageManifestLog {
         level: LogLevel::Debug,
-        message: PackageManifestMessage::Updated { prefix, updated },
+        message: PackageManifestMessage::Updated {
+            prefix,
+            updated,
+        },
     }));
     Ok(())
 }
@@ -294,14 +303,22 @@ fn validate_removable(
         return Err(RemoveValidationError::MustRemoveSomething);
     }
     let available_dependencies = manifest.available_dependency_names(save_type);
-    let available_lookup: HashSet<&str> =
-        available_dependencies.iter().map(String::as_str).collect();
-    let non_matched_dependencies: Vec<&String> =
-        package_names.iter().filter(|name| !available_lookup.contains(name.as_str())).collect();
+    let available_lookup: HashSet<&str> = available_dependencies
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let non_matched_dependencies: Vec<&String> = package_names
+        .iter()
+        .filter(|name| !available_lookup.contains(name.as_str()))
+        .collect();
     if non_matched_dependencies.is_empty() {
         return Ok(());
     }
-    Err(cannot_remove_missing_deps(&available_dependencies, &non_matched_dependencies, save_type))
+    Err(cannot_remove_missing_deps(
+        &available_dependencies,
+        &non_matched_dependencies,
+        save_type,
+    ))
 }
 
 /// Build the `ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS` error, with its
@@ -324,15 +341,28 @@ fn cannot_remove_missing_deps(
             }
             None => message.push_str("project has no dependencies of any kind"),
         }
-        return RemoveValidationError::CannotRemoveMissingDeps { message, hint: None };
+        return RemoveValidationError::CannotRemoveMissingDeps {
+            message,
+            hint: None,
+        };
     }
-    let noun = if non_matched_dependencies.len() > 1 { "dependencies" } else { "dependency" };
+    let noun = if non_matched_dependencies.len() > 1 {
+        "dependencies"
+    } else {
+        "dependency"
+    };
     let in_field = target_dependencies_field
         .map(|field| format!(" in '{}'", <&str>::from(field)))
         .unwrap_or_default();
     write!(message, "no such {noun} found{in_field}").unwrap();
-    let hint = format!("Available dependencies: {}", available_dependencies.join(", "));
-    RemoveValidationError::CannotRemoveMissingDeps { message, hint: Some(hint) }
+    let hint = format!(
+        "Available dependencies: {}",
+        available_dependencies.join(", "),
+    );
+    RemoveValidationError::CannotRemoveMissingDeps {
+        message,
+        hint: Some(hint),
+    }
 }
 
 #[cfg(test)]
@@ -349,4 +379,16 @@ impl RemoveOptions<'_> {
             dry_run: false,
         }
     }
+}
+
+fn remove_workspace_root(config: &Config, manifest: &PackageManifest) -> std::path::PathBuf {
+    config.workspace_dir
+        .clone()
+        .unwrap_or_else(|| {
+            manifest
+                .path()
+                .parent()
+                .expect("manifest path always has a parent dir")
+                .to_path_buf()
+        })
 }

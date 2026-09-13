@@ -7,8 +7,12 @@ use std::collections::BTreeMap;
 #[test]
 fn signed_claims_expire_and_cannot_be_tampered_with() {
     let key = SigningKey::from_slice(&[1; 32]).unwrap();
-    let claims =
-        Claims { parent: None, audience: String::new(), expires: 100, scopes: BTreeMap::new() };
+    let claims = Claims {
+        parent: None,
+        audience: String::new(),
+        expires: 100,
+        scopes: BTreeMap::new(),
+    };
     let payload = serde_json::to_vec(&claims).unwrap();
     let signature: Signature = key.sign(&payload);
     let token = format!(
@@ -37,8 +41,14 @@ fn scope_checks_keep_upload_cancellation_and_registry_boundaries() {
         scopes: BTreeMap::from([("acme/v2/app".into(), vec!["pull".into(), "push".into()])]),
     };
     assert!(claims.permits("/oci/~images/v2/acme/v2/app/manifests/latest", &Method::GET));
-    assert!(claims.permits("/oci/~images/v2/acme/v2/app/blobs/uploads/session", &Method::DELETE,));
-    assert!(!claims.permits("/oci/~images/v2/acme/v2/app/manifests/latest", &Method::DELETE));
+    assert!(claims.permits(
+        "/oci/~images/v2/acme/v2/app/blobs/uploads/session",
+        &Method::DELETE,
+    ),);
+    assert!(!claims.permits(
+        "/oci/~images/v2/acme/v2/app/manifests/latest",
+        &Method::DELETE
+    ),);
     assert!(!claims.permits("/v2/acme/v2/app/manifests/latest", &Method::GET));
     assert!(!claims.permits("/oci/~other/v2/acme/v2/app/manifests/latest", &Method::GET));
 }

@@ -24,8 +24,14 @@ fn a_repository_name_runs_up_to_the_trailing_verb() {
 
 #[test]
 fn an_upload_is_told_apart_from_a_blob_by_its_uploads_segment() {
-    assert!(matches!(endpoint("acme/app/blobs/uploads"), Endpoint::StartUpload { .. }));
-    assert!(matches!(endpoint("acme/app/blobs/uploads/"), Endpoint::StartUpload { .. }));
+    assert!(matches!(
+        endpoint("acme/app/blobs/uploads"),
+        Endpoint::StartUpload { .. }
+    ));
+    assert!(matches!(
+        endpoint("acme/app/blobs/uploads/"),
+        Endpoint::StartUpload { .. }
+    ));
     match endpoint("acme/app/blobs/uploads/deadbeef") {
         Endpoint::Upload { name, id } => {
             assert_eq!(name, "acme/app");
@@ -46,27 +52,51 @@ fn tags_and_the_catalog_are_recognized() {
 
 #[test]
 fn a_tail_with_no_repository_name_is_not_an_endpoint() {
-    for tail in ["manifests/1.0", "blobs/uploads", "tags/list", "acme/app", ""] {
-        assert!(parse_endpoint(tail).is_none(), "{tail:?} should name no endpoint");
+    for tail in [
+        "manifests/1.0",
+        "blobs/uploads",
+        "tags/list",
+        "acme/app",
+        "",
+    ] {
+        assert!(
+            parse_endpoint(tail).is_none(),
+            "{tail:?} should name no endpoint",
+        );
     }
 }
 
 #[test]
 fn the_api_base_is_whatever_preceded_the_captured_tail() {
-    assert_eq!(api_base("/v2/acme/app/manifests/1.0", "acme/app/manifests/1.0"), "/v2");
     assert_eq!(
-        api_base("/oci/~images/v2/acme/app/blobs/uploads/", "acme/app/blobs/uploads/"),
+        api_base("/v2/acme/app/manifests/1.0", "acme/app/manifests/1.0"),
+        "/v2",
+    );
+    assert_eq!(
+        api_base(
+            "/oci/~images/v2/acme/app/blobs/uploads/",
+            "acme/app/blobs/uploads/"
+        ),
         "/oci/~images/v2",
     );
     // A registry named `v2` does not confuse the split: the base is matched
     // from the end, not by looking for the API segment.
-    assert_eq!(api_base("/~v2/v2/acme/app/tags/list", "acme/app/tags/list"), "/~v2/v2");
+    assert_eq!(
+        api_base("/~v2/v2/acme/app/tags/list", "acme/app/tags/list"),
+        "/~v2/v2",
+    );
 }
 
 #[test]
 fn a_digest_is_read_from_the_raw_query() {
-    assert_eq!(query_param(Some("digest=sha256%3Aabc"), "digest").as_deref(), Some("sha256:abc"));
-    assert_eq!(query_param(Some("a=1&digest=sha256:abc"), "digest").as_deref(), Some("sha256:abc"));
+    assert_eq!(
+        query_param(Some("digest=sha256%3Aabc"), "digest").as_deref(),
+        Some("sha256:abc"),
+    );
+    assert_eq!(
+        query_param(Some("a=1&digest=sha256:abc"), "digest").as_deref(),
+        Some("sha256:abc"),
+    );
     assert_eq!(query_param(Some("mount=x&from=y"), "digest"), None);
     assert_eq!(query_param(None, "digest"), None);
 }
@@ -77,7 +107,10 @@ fn the_blob_ceiling_bounds_the_whole_upload_not_one_chunk() {
 
     let ceiling = 10;
     assert_eq!(advance_within_ceiling(0, 1, ceiling), Some(1));
-    assert_eq!(advance_within_ceiling(ceiling - 1, 1, ceiling), Some(ceiling));
+    assert_eq!(
+        advance_within_ceiling(ceiling - 1, 1, ceiling),
+        Some(ceiling),
+    );
     // A chunk that is itself small still refuses once the upload is full,
     // which is what the per-request body limit cannot see.
     assert_eq!(advance_within_ceiling(ceiling, 1, ceiling), None);
@@ -114,7 +147,12 @@ fn refusals_preserve_registry_errors_for_batch_responses() {
     let restored = pnpr_error::RegistryError::from(super::Refusal::from(err));
     assert_eq!(restored.public_message(), expected);
     assert_eq!(restored.status_code(), axum::http::StatusCode::FORBIDDEN);
-    let err = pnpr_error::RegistryError::Internal { reason: "test".to_string() };
+    let err = pnpr_error::RegistryError::Internal {
+        reason: "test".to_string(),
+    };
     let restored = pnpr_error::RegistryError::from(super::Refusal::from(err));
-    assert_eq!(restored.status_code(), axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(
+        restored.status_code(),
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+    );
 }

@@ -11,7 +11,10 @@ use std::{fs, path::Path};
 /// Write a `pnpm-workspace.yaml` listing `names` as packages, plus a
 /// `package.json` (name + version) per name under its own subdirectory.
 fn write_workspace(workspace: &Path, names: &[&str]) {
-    let packages = names.iter().map(|name| format!("  - {name}")).collect::<Vec<_>>();
+    let packages = names
+        .iter()
+        .map(|name| format!("  - {name}"))
+        .collect::<Vec<_>>();
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         format!("packages:\n{}\n", packages.join("\n")),
@@ -48,10 +51,15 @@ fn recursive_pack_filter_packs_only_selected_project() {
         .assert()
         .success();
 
-    assert!(out.join("project-1-1.0.0.tgz").exists(), "the selected project-1 should be packed");
+    assert!(
+        out.join("project-1-1.0.0.tgz").exists(),
+        "the selected project-1 should be packed",
+    );
     for name in ["project-2", "project-3"] {
         assert!(
-            !out.join(format!("{name}-1.0.0.tgz")).exists(),
+            !out
+                .join(format!("{name}-1.0.0.tgz"))
+                .exists(),
             "{name} is not selected by --filter and must not be packed",
         );
     }
@@ -79,10 +87,15 @@ fn filter_without_recursive_flag_enters_recursive_pack() {
         .assert()
         .success();
 
-    assert!(out.join("project-1-1.0.0.tgz").exists(), "the selected project-1 should be packed");
+    assert!(
+        out.join("project-1-1.0.0.tgz").exists(),
+        "the selected project-1 should be packed",
+    );
     for name in ["project-2", "project-3"] {
         assert!(
-            !out.join(format!("{name}-1.0.0.tgz")).exists(),
+            !out
+                .join(format!("{name}-1.0.0.tgz"))
+                .exists(),
             "a bare --filter (no -r) should still scope the pack to the selection",
         );
     }
@@ -98,8 +111,11 @@ fn filter_without_recursive_flag_enters_recursive_pack() {
 #[test]
 fn recursive_pack_includes_workspace_root() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
-        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\n",
+    )
+    .expect("write pnpm-workspace.yaml");
     fs::write(
         workspace.join("package.json"),
         json!({ "name": "root-pkg", "version": "1.0.0" }).to_string(),
@@ -130,7 +146,12 @@ fn recursive_pack_includes_workspace_root() {
         "pack is not in the auto-exclusion set, so the workspace root must be packed",
     );
     for name in ["project-1", "project-2"] {
-        assert!(out.join(format!("{name}-1.0.0.tgz")).exists(), "{name} should be packed");
+        assert!(
+            out
+                .join(format!("{name}-1.0.0.tgz"))
+                .exists(),
+            "{name} should be packed",
+        );
     }
 
     drop(root);

@@ -28,25 +28,19 @@ pub(super) fn render_stage_item(item: &Value) -> String {
     push("version", object.get("version"));
     push("tag", object.get("tag"));
     push("date staged", object.get("createdAt"));
-    let staged_by = match object
-        .get("actorType")
-        .and_then(Value::as_str)
-        .filter(|actor_type| !actor_type.is_empty())
-    {
-        Some(actor_type) => {
-            let actor = object
-                .get("actor")
-                .filter(|value| !value.is_null())
-                .map(render_value)
-                .unwrap_or_default();
-            Some(Value::String(format!("{actor} ({actor_type})")))
-        }
-        None => object.get("actor").cloned(),
-    };
+    let staged_by = render_staged_actor(object);
     push("staged by", staged_by.as_ref());
     push("shasum", object.get("shasum"));
-    const KNOWN_KEYS: [&str; 8] =
-        ["id", "packageName", "version", "tag", "createdAt", "actor", "actorType", "shasum"];
+    const KNOWN_KEYS: [&str; 8] = [
+        "id",
+        "packageName",
+        "version",
+        "tag",
+        "createdAt",
+        "actor",
+        "actorType",
+        "shasum",
+    ];
     for (key, value) in object {
         if !KNOWN_KEYS.contains(&key.as_str()) {
             push(key, Some(value));
@@ -69,7 +63,10 @@ fn render_value(value: &Value) -> String {
 /// The non-JSON `stage download` report: the tarball's contents and details,
 /// in pnpm's `renderTarballSummary` shape.
 pub(super) fn render_tarball_summary(summary: &PublishSummary) -> String {
-    let files: Vec<&str> = summary.files.iter().map(|file| file.path.as_str()).collect();
+    let files: Vec<&str> = summary.files
+        .iter()
+        .map(|file| file.path.as_str())
+        .collect();
     format!(
         "package: {name}@{version}\nTarball Contents\n{contents}\nTarball Details\nname: \
          {name}\nversion: {version}\nfilename: {filename}\npackage size: {size}\nunpacked size: \
@@ -90,4 +87,22 @@ pub(super) fn render_tarball_summary(summary: &PublishSummary) -> String {
 /// `--json` outputs print.
 pub(super) fn json_pretty(value: &Value) -> miette::Result<String> {
     serde_json::to_string_pretty(value).into_diagnostic()
+}
+
+fn render_staged_actor(object: &serde_json::Map<String, Value>) -> Option<Value> {
+    match object
+        .get("actorType")
+        .and_then(Value::as_str)
+        .filter(|actor_type| !actor_type.is_empty())
+    {
+        Some(actor_type) => {
+            let actor = object
+                .get("actor")
+                .filter(|value| !value.is_null())
+                .map(render_value)
+                .unwrap_or_default();
+            Some(Value::String(format!("{actor} ({actor_type})")))
+        }
+        None => object.get("actor").cloned(),
+    }
 }

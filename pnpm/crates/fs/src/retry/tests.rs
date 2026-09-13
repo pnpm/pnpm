@@ -72,12 +72,20 @@ fn stops_retrying_at_the_budget_deadline() {
 fn transient_file_lock_error_classifier_is_windows_specific() {
     for kind in [io::ErrorKind::PermissionDenied, io::ErrorKind::ResourceBusy] {
         let error = io::Error::from(kind);
-        assert_eq!(is_transient_file_lock_error(&error), cfg!(windows), "{kind:?}");
+        assert_eq!(
+            is_transient_file_lock_error(&error),
+            cfg!(windows),
+            "{kind:?}",
+        );
     }
 
     for code in [ERROR_SHARING_VIOLATION, ERROR_LOCK_VIOLATION] {
         let error = io::Error::from_raw_os_error(code);
-        assert_eq!(is_transient_file_lock_error(&error), cfg!(windows), "os error {code}");
+        assert_eq!(
+            is_transient_file_lock_error(&error),
+            cfg!(windows),
+            "os error {code}",
+        );
     }
 
     for kind in [
@@ -88,7 +96,10 @@ fn transient_file_lock_error_classifier_is_windows_specific() {
         io::ErrorKind::Unsupported,
         io::ErrorKind::Other,
     ] {
-        assert!(!is_transient_file_lock_error(&io::Error::from(kind)), "{kind:?}");
+        assert!(
+            !is_transient_file_lock_error(&io::Error::from(kind)),
+            "{kind:?}",
+        );
     }
 }
 
@@ -114,7 +125,10 @@ fn remove_dir_all_with_retry_removes_the_tree() {
 
     remove_dir_all_with_retry(&target).expect("remove should succeed");
 
-    assert!(!target.exists(), "directory tree should be gone after removal");
+    assert!(
+        !target.exists(),
+        "directory tree should be gone after removal",
+    );
 }
 
 #[cfg(windows)]

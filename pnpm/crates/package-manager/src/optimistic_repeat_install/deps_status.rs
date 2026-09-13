@@ -45,8 +45,10 @@ pub fn check_deps_status_before_run(
     state: &WorkspaceState,
 ) -> RunDepsStatus {
     let install_args = install_args_from_state(state);
-    let outdated =
-        |issue: String| RunDepsStatus::Outdated { issue, install_args: install_args.clone() };
+    let outdated = |issue: String| RunDepsStatus::Outdated {
+        issue,
+        install_args: install_args.clone(),
+    };
 
     if check.layout.node_linker == NodeLinker::Pnp {
         return RunDepsStatus::SkippedPnp;
@@ -66,8 +68,9 @@ pub fn check_deps_status_before_run(
     }
 
     let projects_to_check = drift.projects_to_check(modified);
-    let filesystem_now =
-        check.is_workspace_install.then(|| filesystem_now_ms(check.workspace_root)).flatten();
+    let filesystem_now = check.is_workspace_install
+        .then(|| filesystem_now_ms(check.workspace_root))
+        .flatten();
     // The TypeScript run/exec handler does not forward `dedupePeers`
     // into `checkDepsStatus`, so its pre-run lockfile check uses the
     // false default even when the workspace setting is true.
@@ -92,17 +95,13 @@ fn first_lockfile_or_setting_drift(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
 ) -> Option<String> {
-    let &OptimisticRepeatInstallCheck {
-        workspace_root,
-        config,
-        catalogs,
-        layout: crate::RepeatInstallLayout { node_linker, included, supported_architectures, .. },
-        ..
-    } = check;
     if let Some((lockfile_path, failure)) =
         first_lockfile_requiring_conflict_safe_install(check, state.last_validated_timestamp)
     {
-        let lockfile_dir = lockfile_path.parent().unwrap_or(workspace_root).display();
+        let lockfile_dir = lockfile_path
+            .parent()
+            .unwrap_or(check.workspace_root)
+            .display();
         return Some(match failure {
             LockfileConflictCheckFailure::MergeConflict => {
                 format!("The lockfile in {lockfile_dir} has merge conflicts")
@@ -114,18 +113,18 @@ fn first_lockfile_or_setting_drift(
     }
     if let Some(setting) = first_setting_drift(
         state,
-        config,
-        node_linker,
-        included,
-        supported_architectures,
+        check.config,
+        check.layout.node_linker,
+        check.layout.included,
+        check.layout.supported_architectures,
         &["dev", "optional", "production"],
     ) {
         return Some(format!("The value of the {setting} setting has changed"));
     }
-    if config_dependencies_drifted(config, state) {
+    if config_dependencies_drifted(check.config, state) {
         return Some("Configuration dependencies are not up to date".to_string());
     }
-    if !catalogs_cache_matches(state.settings.catalogs.as_ref(), catalogs) {
+    if !catalogs_cache_matches(state.settings.catalogs.as_ref(), check.catalogs) {
         return Some("Catalogs cache outdated".to_string());
     }
     None
@@ -135,36 +134,46 @@ fn first_workspace_drift(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
 ) -> Option<String> {
-    let &OptimisticRepeatInstallCheck {
-        workspace_root,
-        config,
-        project_manifests,
-        is_workspace_install,
-        layout: crate::RepeatInstallLayout { node_linker, .. },
-        ..
-    } = check;
-    if !project_structure_matches(state, project_manifests) {
+    if !project_structure_matches(state, check.project_manifests) {
         return Some("The workspace structure has changed since last install".to_string());
     }
     // A filtered install legitimately leaves unselected projects
     // without a modules directory.
     if !state.filtered_install
-        && let Some(id) = first_project_missing_modules_dir(config, node_linker, project_manifests)
+        && let Some(id) = first_project_missing_modules_dir(
+            check.config,
+            check.layout.node_linker,
+            check.project_manifests,
+        )
     {
         return Some(format!(
             "Workspace package {id} has dependencies but does not have a modules directory",
         ));
     }
-    if !is_workspace_install
-        && !workspace_root.join(config.wanted_lockfile_name()).exists()
-        && !current_lockfile_file_has_content(&config.virtual_store_dir)
+    if !check.is_workspace_install
+        && !check.workspace_root
+            .join(check.config.wanted_lockfile_name())
+            .exists()
+        && !current_lockfile_file_has_content(&check.config.virtual_store_dir)
     {
-        return Some(format!("Cannot find a lockfile in {}", workspace_root.display()));
+        return Some(format!(
+            "Cannot find a lockfile in {}",
+            check.workspace_root.display(),
+        ));
     }
-    if patches_modified_since(workspace_root, config, state.last_validated_timestamp) {
+    if patches_modified_since(
+        check.workspace_root,
+        check.config,
+        state.last_validated_timestamp,
+    ) {
         return Some("Patches were modified".to_string());
     }
-    pnpmfiles_drift(workspace_root, config, &state.pnpmfiles, state.last_validated_timestamp)
+    pnpmfiles_drift(
+        check.workspace_root,
+        check.config,
+        &state.pnpmfiles,
+        state.last_validated_timestamp,
+    )
 }
 
 /// The verdict the gate can already reach from what the current lockfile
@@ -200,27 +209,18 @@ fn settle_content_check(
     state: &WorkspaceState,
     filesystem_now: Option<i64>,
 ) -> Result<(), String> {
-    let &OptimisticRepeatInstallCheck {
-        workspace_root,
-        config,
-        project_manifests,
-        is_workspace_install,
-        catalogs,
-        layout: crate::RepeatInstallLayout { node_linker, included, supported_architectures, .. },
-        ..
-    } = check;
     missing_wanted_lockfile_stand_in_ok(check)?;
-    if !is_workspace_install {
+    if !check.is_workspace_install {
         return Ok(());
     }
     let mut new_state = crate::install::build_workspace_state::<Host>(
-        workspace_root,
-        config,
-        node_linker,
-        included,
-        supported_architectures,
-        catalogs,
-        project_manifests,
+        check.workspace_root,
+        check.config,
+        check.layout.node_linker,
+        check.layout.included,
+        check.layout.supported_architectures,
+        check.catalogs,
+        check.project_manifests,
         state.filtered_install,
         filesystem_now,
     );
@@ -231,7 +231,7 @@ fn settle_content_check(
     new_state.settings.dev = state.settings.dev;
     new_state.settings.optional = state.settings.optional;
     new_state.settings.production = state.settings.production;
-    if let Err(error) = update_workspace_state(workspace_root, &new_state) {
+    if let Err(error) = update_workspace_state(check.workspace_root, &new_state) {
         tracing::warn!(
             target: "pacquet::run",
             ?error,
@@ -254,7 +254,10 @@ pub(crate) fn missing_wanted_lockfile_stand_in_ok(
     }
     match Lockfile::load_current_from_virtual_store_dir(&check.config.virtual_store_dir) {
         Ok(Some(_)) => Ok(()),
-        Ok(None) => Err(format!("Cannot find a lockfile in {}", check.workspace_root.display())),
+        Ok(None) => Err(format!(
+            "Cannot find a lockfile in {}",
+            check.workspace_root.display(),
+        )),
         Err(_) => Err("the current lockfile cannot be loaded".to_string()),
     }
 }

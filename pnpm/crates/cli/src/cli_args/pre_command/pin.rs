@@ -29,8 +29,7 @@ fn resolve_package_manager_pin(
     root_manifest: &Value,
     pm: &WantedPackageManager,
 ) -> miette::Result<PinOutcome> {
-    let PinResolution { input, config, roots, process_state, .. } = *resolution;
-    let on_fail = effective_on_fail(config, pm);
+    let on_fail = effective_on_fail(resolution.config, pm);
     if on_fail == PmOnFail::Ignore {
         return Ok(PinOutcome::Sync(None));
     }
@@ -40,33 +39,36 @@ fn resolve_package_manager_pin(
     // left to report. Corepack is the opposite case: it manages the version
     // and picked the wrong one, so the mismatch is reported rather than
     // switched.
-    if switch_wanted && process_state.package_manager_switch_disabled {
+    if switch_wanted && resolution.process_state.package_manager_switch_disabled {
         // Which pnpm runs is the user's choice here; which one the lockfile
         // records is still the project's, and a frozen install has to find it
         // there (pnpm/pnpm#14575).
-        if input.global {
+        if resolution.input.global {
             return Ok(PinOutcome::Sync(None));
         }
         return Ok(PinOutcome::Sync(env_lockfile_sync(
-            config,
+            resolution.config,
             root_manifest,
-            roots,
+            resolution.roots,
             on_fail,
             ReadEnvLockfile::NotYet,
         )?));
     }
-    if switch_wanted && !process_state.executed_by_corepack {
+    if switch_wanted && !resolution.process_state.executed_by_corepack {
         return switch_or_sync(resolution, root_manifest, on_fail);
     }
-    if input.global {
-        global_warn(input.emit, "Using --global skips the package manager check for this project");
+    if resolution.input.global {
+        global_warn(
+            resolution.input.emit,
+            "Using --global skips the package manager check for this project",
+        );
         return Ok(PinOutcome::Sync(None));
     }
-    check_package_manager(pm, on_fail, process_state, input.emit)?;
+    check_package_manager(pm, on_fail, resolution.process_state, resolution.input.emit)?;
     Ok(PinOutcome::Sync(env_lockfile_sync(
-        config,
+        resolution.config,
         root_manifest,
-        roots,
+        resolution.roots,
         on_fail,
         ReadEnvLockfile::NotYet,
     )?))
@@ -91,7 +93,11 @@ fn check_package_manager(
         let name = sanitize_inline(&pm.name).into_owned();
         if should_error {
             let hint = other_pm_hint(&name);
-            return Err(PreCommandError::OtherPmExpected { name, hint }.into());
+            return Err(PreCommandError::OtherPmExpected {
+                name,
+                hint,
+            }
+            .into());
         }
         global_warn(emit, &format!("This project is configured to use {name}"));
         return Ok(());
@@ -102,13 +108,7 @@ fn check_package_manager(
     if version_satisfies(PNPM_VERSION, wanted) {
         return Ok(());
     }
-    let (note, hint) = if process_state.executed_by_corepack {
-        (COREPACK_NOTE, format!("{COREPACK_PM_HINT_PREFIX}\n{PM_ON_FAIL_HINT}"))
-    } else {
-        ("", PM_ON_FAIL_HINT.to_string())
-    };
-    let error =
-        PreCommandError::BadPmVersion { wanted: sanitize_inline(wanted).into_owned(), note, hint };
+    let error = package_manager_version_error(wanted, process_state.executed_by_corepack);
     if should_error {
         return Err(error.into());
     }
@@ -213,10 +213,32 @@ pub(super) fn resolve_input_pin(
         && let Some(pm) = wanted_pm
     {
         return resolve_package_manager_pin(
-            &PinResolution { input, config, roots, process_state, switch: &input.switch },
+            &PinResolution {
+                input,
+                config,
+                roots,
+                process_state,
+                switch: &input.switch,
+            },
             root_manifest,
             &pm,
         );
     }
     Ok(PinOutcome::Sync(None))
+}
+
+fn package_manager_version_error(wanted: &str, executed_by_corepack: bool) -> PreCommandError {
+    let (note, hint) = if executed_by_corepack {
+        (
+            COREPACK_NOTE,
+            format!("{COREPACK_PM_HINT_PREFIX}\n{PM_ON_FAIL_HINT}"),
+        )
+    } else {
+        ("", PM_ON_FAIL_HINT.to_string())
+    };
+    PreCommandError::BadPmVersion {
+        wanted: sanitize_inline(wanted).into_owned(),
+        note,
+        hint,
+    }
 }

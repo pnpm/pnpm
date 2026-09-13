@@ -1,6 +1,6 @@
 use super::{
-    DedupeResolutionReporter, emit_dedupe_check_error, render_dedupe_check_error,
-    render_dedupe_check_issues, reusable_skipped_package_id,
+    DedupeResolutionReporter, emit_dedupe_check_error, render::render_dedupe_check_issues,
+    render_dedupe_check_error, reusable_skipped_package_id,
 };
 use pnpm_lockfile::PackageMetadata;
 use pnpm_package_manager::{InstallabilityHost, LockfileDiff, SnapshotDiff};
@@ -37,12 +37,18 @@ Run pnpm dedupe to apply the changes above.
 #[test]
 fn check_error_emits_the_structured_pnpm_event() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -64,12 +70,18 @@ fn check_error_emits_the_structured_pnpm_event() {
 #[test]
 fn resolution_observer_emits_resolved_progress() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -99,12 +111,18 @@ fn resolution_observer_emits_resolved_progress() {
 #[test]
 fn resolution_observer_reports_packages_found_in_store() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -113,7 +131,10 @@ fn resolution_observer_reports_packages_found_in_store() {
     std::fs::create_dir_all(store_dir.root()).unwrap();
     StoreIndex::open_in(&store_dir)
         .unwrap()
-        .set(&store_index_key("sha512-test", "dep@2.0.0"), &PackageFilesIndex::default())
+        .set(
+            &store_index_key("sha512-test", "dep@2.0.0"),
+            &PackageFilesIndex::default(),
+        )
         .unwrap();
     let observer = DedupeResolutionReporter::<RecordingReporter> {
         requester: "/project".to_string(),
@@ -141,12 +162,18 @@ fn resolution_observer_reports_packages_found_in_store() {
 #[test]
 fn resolution_observer_reports_skipped_packages_as_reused() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -276,5 +303,10 @@ fn an_empty_section_is_omitted() {
 }
 
 fn snapshot_diff(id: &str) -> SnapshotDiff {
-    SnapshotDiff { id: id.to_string(), added: Vec::new(), removed: Vec::new(), updated: Vec::new() }
+    SnapshotDiff {
+        id: id.to_string(),
+        added: Vec::new(),
+        removed: Vec::new(),
+        updated: Vec::new(),
+    }
 }

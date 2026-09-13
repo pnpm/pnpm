@@ -10,8 +10,16 @@ use std::{
 };
 
 fn git(root: &Path, args: &[&str]) {
-    let output = Command::new("git").current_dir(root).args(args).output().unwrap();
-    assert!(output.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&output.stderr));
+    let output = Command::new("git")
+        .current_dir(root)
+        .args(args)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "git {args:?}: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
 }
 
 fn pnpm(root: &Path, cache: &Path, args: &[&str]) -> String {
@@ -50,7 +58,11 @@ fn cargo_state_is_shared_between_worktrees_and_survives_cache_deletion() {
     let cache = temp.path().join("cache");
     fs::create_dir_all(first_worktree.join("src")).unwrap();
     pnpm_testing_utils::git_repo::init_isolated_repo(&first_worktree);
-    fs::write(first_worktree.join(".gitignore"), "target/\nnode_modules/\n").unwrap();
+    fs::write(
+        first_worktree.join(".gitignore"),
+        "target/\nnode_modules/\n",
+    )
+    .unwrap();
     fs::write(
         first_worktree.join("Cargo.toml"),
         "[package]\nname = 'probe'\nversion = '0.1.0'\nedition = '2024'\n[workspace]\n",
@@ -82,7 +94,15 @@ fn cargo_state_is_shared_between_worktrees_and_survives_cache_deletion() {
     pnpm(&first_worktree, &cache, &["install"]);
     git(&first_worktree, &["add", "."]);
     git(&first_worktree, &["commit", "-m", "fixture"]);
-    git(&first_worktree, &["worktree", "add", "--detach", second_worktree.to_str().unwrap()]);
+    git(
+        &first_worktree,
+        &[
+            "worktree",
+            "add",
+            "--detach",
+            second_worktree.to_str().unwrap(),
+        ],
+    );
 
     let first = pnpm(&first_worktree, &cache, &["pipeline", "--full"]);
     assert!(first.contains("task-executed"), "{first}");
@@ -90,11 +110,20 @@ fn cargo_state_is_shared_between_worktrees_and_survives_cache_deletion() {
     let second = pnpm(&second_worktree, &cache, &["pipeline", "--full"]);
     assert!(second.contains("restored Cargo build state"), "{second}");
     assert!(second.contains("task-executed"), "{second}");
-    assert_eq!(run_binary(&first_worktree), format!("one\n{}\n", first_worktree.display()));
-    assert_eq!(run_binary(&second_worktree), format!("one\n{}\n", second_worktree.display()));
+    assert_eq!(
+        run_binary(&first_worktree),
+        format!("one\n{}\n", first_worktree.display()),
+    );
+    assert_eq!(
+        run_binary(&second_worktree),
+        format!("one\n{}\n", second_worktree.display()),
+    );
 
     let source = second_worktree.join("src/main.rs");
-    let timestamp = fs::metadata(&source).unwrap().modified().unwrap();
+    let timestamp = fs::metadata(&source)
+        .unwrap()
+        .modified()
+        .unwrap();
     fs::write(
         &source,
         "fn main() { println!(\"two\"); println!(\"{}\", env!(\"BUILD_ROOT\")); }\n",
@@ -107,14 +136,33 @@ fn cargo_state_is_shared_between_worktrees_and_survives_cache_deletion() {
         .set_times(FileTimes::new().set_modified(timestamp))
         .unwrap();
     pnpm(&second_worktree, &cache, &["pipeline", "--full"]);
-    assert_eq!(run_binary(&second_worktree), format!("two\n{}\n", second_worktree.display()));
-    assert_eq!(run_binary(&first_worktree), format!("one\n{}\n", first_worktree.display()));
+    assert_eq!(
+        run_binary(&second_worktree),
+        format!("two\n{}\n", second_worktree.display()),
+    );
+    assert_eq!(
+        run_binary(&first_worktree),
+        format!("one\n{}\n", first_worktree.display()),
+    );
 
     fs::remove_dir_all(cache.join("pnpm/cargo-build")).unwrap();
-    assert_eq!(run_binary(&second_worktree), format!("two\n{}\n", second_worktree.display()));
-    assert_eq!(run_binary(&first_worktree), format!("one\n{}\n", first_worktree.display()));
-    let repeat = pnpm(&first_worktree, &cache, &["pipeline", "--full", "--no-cache"]);
+    assert_eq!(
+        run_binary(&second_worktree),
+        format!("two\n{}\n", second_worktree.display()),
+    );
+    assert_eq!(
+        run_binary(&first_worktree),
+        format!("one\n{}\n", first_worktree.display()),
+    );
+    let repeat = pnpm(
+        &first_worktree,
+        &cache,
+        &["pipeline", "--full", "--no-cache"],
+    );
     assert!(!cache.join("pnpm/cargo-build").exists());
     assert!(repeat.contains("task-executed"), "{repeat}");
-    assert_eq!(run_binary(&first_worktree), format!("one\n{}\n", first_worktree.display()));
+    assert_eq!(
+        run_binary(&first_worktree),
+        format!("one\n{}\n", first_worktree.display()),
+    );
 }

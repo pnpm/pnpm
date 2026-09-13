@@ -115,7 +115,14 @@ pub(super) async fn get_tarball(
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<TarballPath>,
 ) -> Response {
-    serve_tarball(&state, &identity, registry.as_deref(), &path.name, &path.filename).await
+    serve_tarball(
+        &state,
+        &identity,
+        registry.as_deref(),
+        &path.name,
+        &path.filename,
+    )
+    .await
 }
 
 /// `GET {base}/@{scope}/{pkg}/-/{filename}`.
@@ -222,7 +229,14 @@ pub(super) async fn unpublish_tarball(
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<TarballPath>,
 ) -> Response {
-    delete_tarball(&state, &identity, registry.as_deref(), &path.name, &path.filename).await
+    delete_tarball(
+        &state,
+        &identity,
+        registry.as_deref(),
+        &path.name,
+        &path.filename,
+    )
+    .await
 }
 
 /// `DELETE {base}/@{scope}/{pkg}/-/{filename}/-rev/{rev}` — remove one scoped
@@ -251,7 +265,13 @@ pub(super) async fn get_package_dist_tags(
     Path(path): Path<NamePath>,
 ) -> Response {
     let response = get_dist_tags(&state, &identity, registry.as_deref(), &path.name).await;
-    caller_scoped(&state, Ecosystem::Npm, registry.as_deref(), Some(&path.name), response)
+    caller_scoped(
+        &state,
+        Ecosystem::Npm,
+        registry.as_deref(),
+        Some(&path.name),
+        response,
+    )
 }
 
 /// `PUT {base}/-/package/{pkg}/dist-tags/{tag}`.
@@ -262,7 +282,15 @@ pub(super) async fn put_package_dist_tag(
     Path(path): Path<DistTagPath>,
     body: axum::body::Bytes,
 ) -> Response {
-    set_dist_tag(&state, &identity, registry.as_deref(), &path.name, &path.tag, &body).await
+    set_dist_tag(
+        &state,
+        &identity,
+        registry.as_deref(),
+        &path.name,
+        &path.tag,
+        &body,
+    )
+    .await
 }
 
 /// `DELETE {base}/-/package/{pkg}/dist-tags/{tag}`.
@@ -272,5 +300,12 @@ pub(super) async fn delete_package_dist_tag(
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<DistTagPath>,
 ) -> Response {
-    remove_dist_tag(&state, &identity, registry.as_deref(), &path.name, &path.tag).await
+    remove_dist_tag(
+        &state,
+        &identity,
+        registry.as_deref(),
+        &path.name,
+        &path.tag,
+    )
+    .await
 }

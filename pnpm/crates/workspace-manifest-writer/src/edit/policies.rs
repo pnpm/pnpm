@@ -73,7 +73,9 @@ fn remove_audit_config_ghsas(manifest: &mut Manifest, block: &str) -> bool {
     // Nothing to remove if `ignoreGhsas` isn't present — and crucially,
     // don't touch sibling `auditConfig` keys.
     if locate(text, &[block]).is_none()
-        || !mapping_keys(text, &[block]).iter().any(|key| key == "ignoreGhsas")
+        || !mapping_keys(text, &[block])
+            .iter()
+            .any(|key| key == "ignoreGhsas")
     {
         return false;
     }
@@ -91,10 +93,16 @@ fn remove_block_list_key(manifest: &mut Manifest, block: &str, key: &str) {
         return;
     }
     let keys = mapping_keys(text, &[block]);
-    if !keys.iter().any(|k| k == key) {
+    if !keys
+        .iter()
+        .any(|k| k == key)
+    {
         return;
     }
-    if keys.iter().all(|k| k == key) {
+    if keys
+        .iter()
+        .all(|k| k == key)
+    {
         let new_text = remove_top_level_block(text, block);
         manifest.document.set_text(new_text);
         manifest.document.keys.retain(|k| k != block);
@@ -151,13 +159,18 @@ fn set_exclude_list(manifest: &mut Manifest, list: ExcludeList, items: &[String]
     }
     // `text` borrows the manifest for the rest of the write, so the
     // reconciliation reads the current entries from a copy.
-    let current: Vec<String> = decoded(manifest).as_deref().unwrap_or_default().to_vec();
+    let current: Vec<String> = decoded(manifest)
+        .as_deref()
+        .unwrap_or_default()
+        .to_vec();
 
     let text = manifest.document.text();
     match locate_sequence(text, &[block]) {
         Inline::Flow(collection) => {
-            let rendered: Vec<String> =
-                items.iter().map(|item| render::render_value(item)).collect();
+            let rendered: Vec<String> = items
+                .iter()
+                .map(|item| render::render_value(item))
+                .collect();
             manifest.document.set_text(flow::set_items(text, &collection, &rendered));
             *decoded(manifest) = Some(items.to_vec());
             return true;
@@ -175,22 +188,16 @@ fn set_exclude_list(manifest: &mut Manifest, list: ExcludeList, items: &[String]
         return true;
     }
 
-    let rendered = render_top_level_sequence(block, items);
-    if let Some(span) = top_level_span(text, block) {
-        manifest.document.set_text(replace_top_level_block(text, &span, &rendered));
-    } else {
-        let new_text = insert_top_level_block(manifest, block, &rendered);
-        manifest.document.set_text(new_text);
-        manifest.document.keys =
-            render::target_order(&manifest.document.keys, &[block.to_string()]);
-    }
+    replace_exclude_block(manifest, block, items);
     *decoded(manifest) = Some(items.to_vec());
     true
 }
 
 fn remove_exclude_list(manifest: &mut Manifest, list: ExcludeList) -> bool {
     let ExcludeList { key: block, decoded } = list;
-    let has_block = manifest.document.keys.iter().any(|key| key == block);
+    let has_block = manifest.document.keys
+        .iter()
+        .any(|key| key == block);
     if !has_block {
         return false;
     }
@@ -250,4 +257,17 @@ fn render_audit_config_block(ghsas: &[String]) -> String {
         block.push('\n');
     }
     block
+}
+
+fn replace_exclude_block(manifest: &mut Manifest, block: &str, items: &[String]) {
+    let text = manifest.document.text();
+    let rendered = render_top_level_sequence(block, items);
+    if let Some(span) = top_level_span(text, block) {
+        manifest.document.set_text(replace_top_level_block(text, &span, &rendered));
+    } else {
+        let new_text = insert_top_level_block(manifest, block, &rendered);
+        manifest.document.set_text(new_text);
+        manifest.document.keys =
+            render::target_order(&manifest.document.keys, &[block.to_string()]);
+    }
 }

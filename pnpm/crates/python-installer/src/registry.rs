@@ -39,12 +39,15 @@ pub(super) struct Registry<'a> {
 
 impl Registry<'_> {
     pub(super) async fn fetch_index(&mut self, name: &PackageName) -> Result<()> {
-        let index_url = self.index.join(&format!("{name}/")).into_diagnostic()?;
-        let cache = self
-            .config
-            .cache_dir
+        let index_url = self.index
+            .join(&format!("{name}/"))
+            .into_diagnostic()?;
+        let cache = self.config.cache_dir
             .join("python-index-v2")
-            .join(format!("{}.json", pnpm_crypto_hash::create_hex_hash(index_url.as_str())));
+            .join(format!(
+                "{}.json",
+                pnpm_crypto_hash::create_hex_hash(index_url.as_str()),
+            ));
         let cached = if self.config.offline {
             read_cached_index(&cache, name).await?
         } else {
@@ -53,11 +56,14 @@ impl Registry<'_> {
         if cached.body.get().len() > MAX_INDEX_BYTES {
             bail!("Python index response for {name} exceeds {MAX_INDEX_BYTES} bytes");
         }
-        let candidates =
-            candidates_from_page(cached.body.get(), &cached.url, name, &self.interpreter.target)?;
+        let candidates = candidates_from_page(
+            cached.body.get(),
+            &cached.url,
+            name,
+            &self.interpreter.target,
+        )?;
         if !self.config.offline {
-            tokio::fs::create_dir_all(cache.parent().expect("cache file has a parent"))
-                .await
+            tokio::fs::create_dir_all(cache.parent().expect("cache file has a parent")).await
                 .into_diagnostic()?;
             let contents = serde_json::to_vec(&cached).into_diagnostic()?;
             if contents.len() > MAX_CACHE_BYTES {
@@ -71,8 +77,7 @@ impl Registry<'_> {
 
     /// Fetch the Simple JSON index for `name` from the configured index.
     async fn download_index(&self, index_url: &Url, name: &PackageName) -> Result<CachedIndex> {
-        let response = self
-            .client
+        let response = self.client
             .get_limited_bytes_with_secure_auth_and_retry(
                 index_url.as_str(),
                 &self.auth,
@@ -86,7 +91,10 @@ impl Registry<'_> {
             bail!("Python index response for {name} exceeds {MAX_INDEX_BYTES} bytes");
         }
         if !response.status.is_success() {
-            bail!("Python index request for {name} returned {}", response.status);
+            bail!(
+                "Python index request for {name} returned {}",
+                response.status,
+            );
         }
         Ok(CachedIndex {
             url: response.url.parse().into_diagnostic()?,
@@ -189,18 +197,27 @@ impl Registry<'_> {
         )
         .await?;
         validate_wheel_metadata(&metadata, name, version)?;
-        Ok(Wheel { files, metadata })
+        Ok(Wheel {
+            files,
+            metadata,
+        })
     }
 }
 
 /// The index cached from an earlier run, which is the only source an
 /// offline resolution has.
 async fn read_cached_index(cache: &std::path::Path, name: &PackageName) -> Result<CachedIndex> {
-    let file = tokio::fs::File::open(cache).await.into_diagnostic().wrap_err_with(|| {
-        format!("Python index for {name} is not cached for offline resolution")
-    })?;
+    let file = tokio::fs::File::open(cache).await
+        .into_diagnostic()
+        .wrap_err_with(|| {
+            format!("Python index for {name} is not cached for offline resolution")
+        })?;
     let mut contents = Vec::new();
-    file.take(MAX_CACHE_BYTES as u64 + 1).read_to_end(&mut contents).await.into_diagnostic()?;
+    file
+        .take(MAX_CACHE_BYTES as u64 + 1)
+        .read_to_end(&mut contents)
+        .await
+        .into_diagnostic()?;
     if contents.len() > MAX_CACHE_BYTES {
         bail!("Python index cache for {name} exceeds {MAX_CACHE_BYTES} bytes");
     }
@@ -217,8 +234,7 @@ fn validate_wheel_metadata(
     {
         bail!("Python wheel metadata identity mismatch for {name}=={version}");
     }
-    let (directory_name, directory_version) = metadata
-        .dist_info
+    let (directory_name, directory_version) = metadata.dist_info
         .strip_suffix(".dist-info")
         .and_then(|stem| stem.rsplit_once('-'))
         .ok_or_else(|| {
@@ -240,7 +256,10 @@ fn validate_wheel_identity(
 ) -> Result<()> {
     pnpm_python_resolver::validate_url(&Url::parse(&wheel.url).into_diagnostic()?)?;
     let Some((wheel_name, wheel_version, _)) = wheel_identity(&wheel.name, tags)? else {
-        bail!("Python wheel is incompatible with this interpreter: {}", wheel.name)
+        bail!(
+            "Python wheel is incompatible with this interpreter: {}",
+            wheel.name,
+        )
     };
     if wheel_name != *name || wheel_version != *version {
         bail!("Python lockfile wheel identity mismatch: {}", wheel.name);

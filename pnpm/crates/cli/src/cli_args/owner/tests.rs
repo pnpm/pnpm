@@ -36,7 +36,9 @@ fn error_rm_args_required_display() {
 
 #[test]
 fn error_package_not_found_display() {
-    let err = OwnerError::PackageNotFound { package_name: "my-pkg".to_string() };
+    let err = OwnerError::PackageNotFound {
+        package_name: "my-pkg".to_string(),
+    };
     assert!(err.to_string().contains("my-pkg"));
     assert!(err.to_string().contains("not found"));
 }
@@ -79,31 +81,58 @@ fn error_registry_write_failed_includes_package() {
 }
 
 fn config_with_registry(registry: &str) -> Config {
-    let url = if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") };
-    Config { registry: url, ..Config::default() }
+    let url = if registry.ends_with('/') {
+        registry.to_string()
+    } else {
+        format!("{registry}/")
+    };
+    Config {
+        registry: url,
+        ..Config::default()
+    }
 }
 
 fn config_with_registry_no_retries(registry: &str) -> Config {
-    let url = if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") };
-    Config { registry: url, fetch_retries: 0, ..Config::default() }
+    let url = if registry.ends_with('/') {
+        registry.to_string()
+    } else {
+        format!("{registry}/")
+    };
+    Config {
+        registry: url,
+        fetch_retries: 0,
+        ..Config::default()
+    }
 }
 
 fn owner_args(subcommand: &str, params: &[&str]) -> OwnerArgs {
     let mut all_params = vec![subcommand.to_string()];
     all_params.extend(params.iter().map(ToString::to_string));
-    OwnerArgs { registry: None, otp: None, params: all_params }
+    OwnerArgs {
+        registry: None,
+        otp: None,
+        params: all_params,
+    }
 }
 
 fn owner_args_with_registry(registry: &str, subcommand: &str, params: &[&str]) -> OwnerArgs {
     let mut all_params = vec![subcommand.to_string()];
     all_params.extend(params.iter().map(ToString::to_string));
-    OwnerArgs { registry: Some(registry.to_string()), otp: None, params: all_params }
+    OwnerArgs {
+        registry: Some(registry.to_string()),
+        otp: None,
+        params: all_params,
+    }
 }
 
 fn owner_args_with_otp(otp: &str, subcommand: &str, params: &[&str]) -> OwnerArgs {
     let mut all_params = vec![subcommand.to_string()];
     all_params.extend(params.iter().map(ToString::to_string));
-    OwnerArgs { registry: None, otp: Some(otp.to_string()), params: all_params }
+    OwnerArgs {
+        registry: None,
+        otp: Some(otp.to_string()),
+        params: all_params,
+    }
 }
 
 // ── owner ls HTTP-flow tests ──────────────────────────────────────────
@@ -130,14 +159,20 @@ async fn owner_ls_success() {
 
     mock.assert_async().await;
     eprintln!("OWNERS:\n{}\n", result.as_deref().unwrap_or_default());
-    assert_eq!(result.as_deref(), Some("alice <alice@example.com>\nbob <bob@example.com>"));
+    assert_eq!(
+        result.as_deref(),
+        Some("alice <alice@example.com>\nbob <bob@example.com>"),
+    );
 }
 
 #[tokio::test]
 async fn owner_ls_404_returns_package_not_found() {
     let mut server = mockito::Server::new_async().await;
-    let mock =
-        server.mock("GET", "/-/package/unknown-pkg/owners").with_status(404).create_async().await;
+    let mock = server
+        .mock("GET", "/-/package/unknown-pkg/owners")
+        .with_status(404)
+        .create_async()
+        .await;
 
     let config = config_with_registry(&server.url());
     let args = owner_args("ls", &["unknown-pkg"]);
@@ -146,7 +181,10 @@ async fn owner_ls_404_returns_package_not_found() {
     mock.assert_async().await;
     let report: miette::Report = err;
     let formatted = format!("{report:?}");
-    assert!(formatted.contains("not found"), "expected PackageNotFound, got: {formatted}");
+    assert!(
+        formatted.contains("not found"),
+        "expected PackageNotFound, got: {formatted}",
+    );
 }
 
 // The `ls` fetch path shares the `add`/`rm` write path's status mapping (TS
@@ -265,7 +303,11 @@ async fn owner_ls_list_alias() {
 #[tokio::test]
 async fn owner_ls_no_params_returns_package_required() {
     let config = config_with_registry("http://unused/");
-    let args = OwnerArgs { registry: None, otp: None, params: vec!["ls".to_string()] };
+    let args = OwnerArgs {
+        registry: None,
+        otp: None,
+        params: vec!["ls".to_string()],
+    };
     let err = args.run(&config).await.unwrap_err();
     let report: miette::Report = err;
     let formatted = format!("{report:?}");
@@ -309,7 +351,10 @@ async fn owner_add_401_returns_unauthorized() {
     mock.assert_async().await;
     let report: miette::Report = err;
     let formatted = format!("{report:?}");
-    assert!(formatted.contains("logged in"), "expected Unauthorized, got: {formatted}");
+    assert!(
+        formatted.contains("logged in"),
+        "expected Unauthorized, got: {formatted}",
+    );
 }
 
 #[tokio::test]
@@ -329,7 +374,10 @@ async fn owner_add_403_returns_forbidden() {
     mock.assert_async().await;
     let report: miette::Report = err;
     let formatted = format!("{report:?}");
-    assert!(formatted.contains("permission"), "expected Forbidden, got: {formatted}");
+    assert!(
+        formatted.contains("permission"),
+        "expected Forbidden, got: {formatted}",
+    );
 }
 
 // The write path (add/rm) mirrors the TypeScript `throwRegistryError`, whose
@@ -376,8 +424,14 @@ async fn owner_add_500_returns_registry_error_with_body() {
     mock.assert_async().await;
     let report: miette::Report = err;
     let formatted = format!("{report:?}");
-    assert!(formatted.contains("500"), "expected status code in error, got: {formatted}");
-    assert!(formatted.contains("package"), "expected 'package' in error message for TS parity");
+    assert!(
+        formatted.contains("500"),
+        "expected status code in error, got: {formatted}",
+    );
+    assert!(
+        formatted.contains("package"),
+        "expected 'package' in error message for TS parity",
+    );
 }
 
 #[tokio::test]
@@ -444,7 +498,10 @@ async fn owner_rm_401_returns_unauthorized() {
     mock.assert_async().await;
     let report: miette::Report = err;
     let formatted = format!("{report:?}");
-    assert!(formatted.contains("logged in"), "expected Unauthorized, got: {formatted}");
+    assert!(
+        formatted.contains("logged in"),
+        "expected Unauthorized, got: {formatted}",
+    );
 }
 
 #[tokio::test]
@@ -464,7 +521,10 @@ async fn owner_rm_403_returns_forbidden() {
     mock.assert_async().await;
     let report: miette::Report = err;
     let formatted = format!("{report:?}");
-    assert!(formatted.contains("permission"), "expected Forbidden, got: {formatted}");
+    assert!(
+        formatted.contains("permission"),
+        "expected Forbidden, got: {formatted}",
+    );
 }
 
 #[tokio::test]
@@ -483,7 +543,10 @@ async fn owner_rm_404_returns_package_not_found() {
     mock.assert_async().await;
     let report: miette::Report = err;
     let formatted = format!("{report:?}");
-    assert!(formatted.contains("not found"), "expected PackageNotFound, got: {formatted}");
+    assert!(
+        formatted.contains("not found"),
+        "expected PackageNotFound, got: {formatted}",
+    );
 }
 
 #[tokio::test]
@@ -544,7 +607,11 @@ async fn owner_no_subcommand_defaults_to_ls() {
         .await;
 
     let config = config_with_registry(&server.url());
-    let args = OwnerArgs { registry: None, otp: None, params: vec!["my-pkg".to_string()] };
+    let args = OwnerArgs {
+        registry: None,
+        otp: None,
+        params: vec!["my-pkg".to_string()],
+    };
     let result = args.run(&config).await.expect("default ls must succeed");
 
     mock.assert_async().await;

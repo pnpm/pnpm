@@ -6,8 +6,14 @@ fn the_ignored_builds_instruction_defaults_to_the_pnpm_command() {
 
     let frame = render(&mut reporter, vec![ignored_scripts(&["esbuild"])]);
 
-    assert!(frame.contains("Ignored build scripts: esbuild."), "frame: {frame}");
-    assert!(frame.contains(r#"Run "pnpm approve-builds""#), "frame: {frame}");
+    assert!(
+        frame.contains("Ignored build scripts: esbuild."),
+        "frame: {frame}",
+    );
+    assert!(
+        frame.contains(r#"Run "pnpm approve-builds""#),
+        "frame: {frame}",
+    );
 }
 
 /// An embedder whose users approve builds through its own configuration
@@ -22,7 +28,13 @@ fn the_ignored_builds_instruction_can_be_replaced() {
 
     let frame = render(&mut reporter, vec![ignored_scripts(&["esbuild"])]);
 
-    assert!(frame.contains("Ignored build scripts: esbuild."), "frame: {frame}");
-    assert!(frame.contains("Set allowScripts in workspace.jsonc."), "frame: {frame}");
+    assert!(
+        frame.contains("Ignored build scripts: esbuild."),
+        "frame: {frame}",
+    );
+    assert!(
+        frame.contains("Set allowScripts in workspace.jsonc."),
+        "frame: {frame}",
+    );
     assert!(!frame.contains("pnpm approve-builds"), "frame: {frame}");
 }

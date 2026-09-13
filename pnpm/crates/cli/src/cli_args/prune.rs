@@ -44,8 +44,14 @@ impl PruneArgs {
 
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
         let lockfile_path = state.lockfile_path();
-        let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
-            &state;
+        let State {
+            tarball_mem_cache,
+            http_client,
+            config,
+            manifest,
+            lockfile,
+            resolved_packages,
+        } = &state;
 
         let dependency_groups: Vec<DependencyGroup> =
             self.dependency_groups(config.optional).collect();

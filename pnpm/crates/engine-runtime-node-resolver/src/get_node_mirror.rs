@@ -28,7 +28,11 @@ pub fn get_node_mirror(
 }
 
 fn normalize_node_mirror(mirror: &str) -> String {
-    if mirror.ends_with('/') { mirror.to_string() } else { format!("{mirror}/") }
+    if mirror.ends_with('/') {
+        mirror.to_string()
+    } else {
+        format!("{mirror}/")
+    }
 }
 
 #[cfg(test)]

@@ -23,7 +23,9 @@ use std::{fs, path::Path, process::Command};
 /// the default reporter only prints a message whose prefix is the current
 /// directory, and a pinned `lockfileDir` is by definition somewhere else.
 fn reported_up_to_date(ndjson: &str) -> bool {
-    ndjson.lines().any(|line| line.contains(r#""message":"Already up to date""#))
+    ndjson
+        .lines()
+        .any(|line| line.contains(r#""message":"Already up to date""#))
 }
 
 /// The `importers:` keys of the lockfile at `lockfile_dir`, sorted —
@@ -53,8 +55,11 @@ fn external_lockfile_dir_holds_the_lockfile_and_the_virtual_store() {
     let lockfile_dir = workspace.join("nested");
     let project_dir = lockfile_dir.join("project");
     fs::create_dir_all(&project_dir).expect("create the project dir");
-    fs::write(project_dir.join("package.json"), r#"{"name":"project","version":"1.0.0"}"#)
-        .expect("write package.json");
+    fs::write(
+        project_dir.join("package.json"),
+        r#"{"name":"project","version":"1.0.0"}"#,
+    )
+    .expect("write package.json");
 
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
@@ -85,15 +90,26 @@ fn external_lockfile_dir_holds_the_lockfile_and_the_virtual_store() {
 /// without passing a flag on every command.
 #[test]
 fn lockfile_dir_setting_is_read_from_the_workspace_manifest() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    fs::write(workspace.join("package.json"), r#"{"name":"project","version":"1.0.0"}"#)
-        .expect("write package.json");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"name":"project","version":"1.0.0"}"#,
+    )
+    .expect("write package.json");
     append_workspace_yaml_key(&workspace, "lockfileDir", "..");
 
-    pacquet.with_args(["install", "is-positive@1.0.0"]).assert().success();
+    pacquet
+        .with_args(["install", "is-positive@1.0.0"])
+        .assert()
+        .success();
 
     let lockfile_dir = root.path();
     assert_eq!(importer_ids(lockfile_dir), ["workspace"]);
@@ -122,12 +138,21 @@ fn lockfile_dir_conflicts_with_global() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let output = pacquet
-        .with_args(["add", "--global", "is-positive@1.0.0", "--lockfile-dir", "."])
+        .with_args([
+            "add",
+            "--global",
+            "is-positive@1.0.0",
+            "--lockfile-dir",
+            ".",
+        ])
         .output()
         .expect("spawn pacquet add");
 
     let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
-    assert!(!output.status.success(), "the conflicting flags must fail the command:\n{stderr}");
+    assert!(
+        !output.status.success(),
+        "the conflicting flags must fail the command:\n{stderr}",
+    );
     assert!(
         stderr.contains("ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_DIR_WITH_GLOBAL"),
         "the error must carry pnpm's code:\n{stderr}",
@@ -142,8 +167,13 @@ fn lockfile_dir_conflicts_with_global() {
 /// date", but nothing has been written at the pin yet.
 #[test]
 fn adopting_lockfile_dir_re_installs_at_the_pin() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -157,8 +187,14 @@ fn adopting_lockfile_dir_re_installs_at_the_pin() {
     )
     .expect("write package.json");
 
-    pacquet.with_arg("install").assert().success();
-    assert!(workspace.join("pnpm-lock.yaml").is_file(), "the first install writes in place");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(
+        workspace.join("pnpm-lock.yaml").is_file(),
+        "the first install writes in place",
+    );
 
     append_workspace_yaml_key(&workspace, "lockfileDir", "..");
     let output = pacquet_in(&workspace)
@@ -166,7 +202,10 @@ fn adopting_lockfile_dir_re_installs_at_the_pin() {
         .output()
         .expect("spawn pacquet install");
     let ndjson = String::from_utf8_lossy(&output.stderr);
-    assert!(output.status.success(), "the re-anchored install must succeed:\n{ndjson}");
+    assert!(
+        output.status.success(),
+        "the re-anchored install must succeed:\n{ndjson}",
+    );
     assert!(
         !reported_up_to_date(&ndjson),
         "the pin has no lockfile yet, so the install cannot report up to date:\n{ndjson}",
@@ -189,8 +228,13 @@ fn adopting_lockfile_dir_re_installs_at_the_pin() {
 #[cfg(unix)]
 #[test]
 fn a_pinned_install_is_current_for_repeat_installs_and_for_run() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let marker = workspace.join("marker.txt");
@@ -207,21 +251,29 @@ fn a_pinned_install_is_current_for_repeat_installs_and_for_run() {
     .expect("write package.json");
     append_workspace_yaml_key(&workspace, "lockfileDir", "..");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let output = pacquet_in(&workspace)
         .with_args(["install", "--reporter=ndjson"])
         .output()
         .expect("spawn pacquet install");
     let ndjson = String::from_utf8_lossy(&output.stderr);
-    assert!(output.status.success(), "the repeat install must succeed:\n{ndjson}");
+    assert!(
+        output.status.success(),
+        "the repeat install must succeed:\n{ndjson}",
+    );
     assert!(
         reported_up_to_date(&ndjson),
         "the repeat install must short-circuit on the state written at the pin:\n{ndjson}",
     );
 
-    let output =
-        pacquet_in(&workspace).with_args(["run", "hello"]).output().expect("spawn pacquet run");
+    let output = pacquet_in(&workspace)
+        .with_args(["run", "hello"])
+        .output()
+        .expect("spawn pacquet run");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(output.status.success(), "the script must run:\n{stdout}");
     assert!(marker.is_file(), "the script must have run:\n{stdout}");
@@ -239,8 +291,13 @@ fn a_pinned_install_is_current_for_repeat_installs_and_for_run() {
 /// run with a `lockfileDir` through its shared-lockfile branch.
 #[test]
 fn a_pin_overrides_dedicated_per_project_lockfiles() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let package_dir = workspace.join("packages/a");
@@ -255,16 +312,25 @@ fn a_pin_overrides_dedicated_per_project_lockfiles() {
         .to_string(),
     )
     .expect("write the package manifest");
-    fs::write(workspace.join("package.json"), r#"{"name":"root","version":"1.0.0"}"#)
-        .expect("write the root manifest");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"name":"root","version":"1.0.0"}"#,
+    )
+    .expect("write the root manifest");
     append_workspace_yaml_key(&workspace, "packages", "['packages/*']");
     append_workspace_yaml_key(&workspace, "sharedWorkspaceLockfile", false);
     append_workspace_yaml_key(&workspace, "lockfileDir", "..");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let lockfile_dir = root.path();
-    assert_eq!(importer_ids(lockfile_dir), ["workspace", "workspace/packages/a"]);
+    assert_eq!(
+        importer_ids(lockfile_dir),
+        ["workspace", "workspace/packages/a"],
+    );
     assert!(
         !package_dir.join("pnpm-lock.yaml").exists() && !workspace.join("pnpm-lock.yaml").exists(),
         "the pin replaces the per-project lockfiles and leaves none at the workspace root",
@@ -281,9 +347,16 @@ fn a_pin_overrides_dedicated_per_project_lockfiles() {
 fn frozen_replay_resolves_local_overrides_from_the_custom_lockfile_dir() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let lockfile_dir = root.path();
-    fs::write(lockfile_dir.join("vendored.tgz"), minimal_tarball("vendored", "1.0.0"))
-        .expect("write tarball at the lockfile root");
-    write_project_manifest(&lockfile_dir.join("linked"), "linked", ManifestDeps::default());
+    fs::write(
+        lockfile_dir.join("vendored.tgz"),
+        minimal_tarball("vendored", "1.0.0"),
+    )
+    .expect("write tarball at the lockfile root");
+    write_project_manifest(
+        &lockfile_dir.join("linked"),
+        "linked",
+        ManifestDeps::default(),
+    );
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         "packages: ['packages/*']\n\
@@ -306,12 +379,18 @@ fn frozen_replay_resolves_local_overrides_from_the_custom_lockfile_dir() {
         );
     }
 
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
     let lockfile_path = lockfile_dir.join("pnpm-lock.yaml");
     let lockfile =
         fs::read(&lockfile_path).expect("read generated lockfile at the custom location");
 
-    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
     assert_eq!(fs::read(&lockfile_path).unwrap(), lockfile);
     assert!(
         !workspace.join("pnpm-lock.yaml").exists(),
@@ -319,7 +398,12 @@ fn frozen_replay_resolves_local_overrides_from_the_custom_lockfile_dir() {
     );
     for project in [".", "packages/a"] {
         for name in ["vendored", "linked"] {
-            let installed = read_manifest(&workspace.join(project).join("node_modules").join(name));
+            let installed = read_manifest(
+                &workspace
+                    .join(project)
+                    .join("node_modules")
+                    .join(name),
+            );
             assert_eq!(installed["name"], name);
             assert_eq!(installed["version"], "1.0.0");
         }

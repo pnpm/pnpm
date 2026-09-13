@@ -14,12 +14,24 @@ impl GitCommandRunner for Stub {
         repo: &'a str,
         ref_: Option<&'a str>,
     ) -> Pin<Box<dyn Future<Output = Result<String, GitRunError>> + Send + 'a>> {
-        self.last_args.lock().unwrap().push((repo.to_string(), ref_.map(str::to_string)));
-        Box::pin(async move { self.result.clone().map_err(|message| GitRunError { message }) })
+        self.last_args
+            .lock()
+            .unwrap()
+            .push((repo.to_string(), ref_.map(str::to_string)));
+        Box::pin(async move {
+            self.result
+                .clone()
+                .map_err(|message| GitRunError {
+                    message,
+                })
+        })
     }
 }
 fn stub(stdout: &str) -> Stub {
-    Stub { result: Ok(stdout.to_string()), last_args: Mutex::new(Vec::new()) }
+    Stub {
+        result: Ok(stdout.to_string()),
+        last_args: Mutex::new(Vec::new()),
+    }
 }
 
 #[tokio::test]
@@ -34,7 +46,13 @@ async fn full_commit_returns_unchanged_without_network() {
     .await
     .expect("resolved");
     assert_eq!(commit, "163360a8d3ae6bee9524541043197ff356f8ed99");
-    assert!(stub.last_args.lock().unwrap().is_empty(), "no ls-remote for full commit");
+    assert!(
+        stub.last_args
+            .lock()
+            .unwrap()
+            .is_empty(),
+        "no ls-remote for full commit",
+    );
 }
 
 #[tokio::test]
@@ -133,13 +151,15 @@ fn assert_repo_redacted(err: &GitResolveRefError) {
     let message = err.to_string();
     assert!(!message.contains("hunter2"), "{message}");
     assert!(!message.contains("x-oauth-basic"), "{message}");
-    assert!(message.contains("https://github.com/foo/bar.git"), "{message}");
+    assert!(
+        message.contains("https://github.com/foo/bar.git"),
+        "{message}",
+    );
 }
 
 #[tokio::test]
 async fn an_unknown_ref_redacts_the_credentials_the_repository_url_carries() {
-    let err = resolve_ref(&stub(""), AUTHENTICATED_REPO, "no-such-branch", None)
-        .await
+    let err = resolve_ref(&stub(""), AUTHENTICATED_REPO, "no-such-branch", None).await
         .expect_err("unknown ref");
 
     assert_repo_redacted(&err);
@@ -147,8 +167,7 @@ async fn an_unknown_ref_redacts_the_credentials_the_repository_url_carries() {
 
 #[tokio::test]
 async fn an_unparsable_range_redacts_the_credentials_the_repository_url_carries() {
-    let err = resolve_ref(&stub(""), AUTHENTICATED_REPO, "HEAD", Some("not-a-range"))
-        .await
+    let err = resolve_ref(&stub(""), AUTHENTICATED_REPO, "HEAD", Some("not-a-range")).await
         .expect_err("unparsable range");
 
     assert_repo_redacted(&err);
@@ -156,8 +175,7 @@ async fn an_unparsable_range_redacts_the_credentials_the_repository_url_carries(
 
 #[tokio::test]
 async fn a_range_matching_no_tag_redacts_the_credentials_the_repository_url_carries() {
-    let err = resolve_ref(&stub(""), AUTHENTICATED_REPO, "HEAD", Some("^1.0.0"))
-        .await
+    let err = resolve_ref(&stub(""), AUTHENTICATED_REPO, "HEAD", Some("^1.0.0")).await
         .expect_err("no matching tag");
 
     assert_repo_redacted(&err);

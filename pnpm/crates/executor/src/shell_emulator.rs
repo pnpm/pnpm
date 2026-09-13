@@ -60,19 +60,26 @@ pub fn execute_emulated(
     output: EmulatedOutput<'_>,
     process_tracker: Option<&ProcessTracker>,
 ) -> Result<i32, ShellEmulatorError> {
-    let list = parser::parse(script).map_err(|error| ShellEmulatorError::Parse {
-        script: script.to_string(),
-        message: error.to_string(),
-    })?;
+    let list = parser::parse(script)
+        .map_err(|error| ShellEmulatorError::Parse {
+            script: script.to_string(),
+            message: error.to_string(),
+        })?;
     // `ShellState` requires an absolute cwd. Every production caller
     // already passes one; resolving here keeps a relative path from
     // reaching the panic inside the shell.
     let cwd = path::absolute(cwd)
-        .map_err(|source| ShellEmulatorError::Start { script: script.to_string(), source })?;
+        .map_err(|source| ShellEmulatorError::Start {
+            script: script.to_string(),
+            source,
+        })?;
     let cancellation = process_tracker.map(ProcessTracker::track_emulated);
     let run = EmulatedRun {
         list,
-        env: env.iter().map(|(key, value)| (OsString::from(key), OsString::from(value))).collect(),
+        env: env
+            .iter()
+            .map(|(key, value)| (OsString::from(key), OsString::from(value)))
+            .collect(),
         cwd,
         cancellation: cancellation.as_ref().map(EmulatedCancellation::receiver),
     };
@@ -130,8 +137,10 @@ impl EmulatedRun {
     ) -> Result<i32, ShellEmulatorError> {
         let run = thread::spawn(move || self.execute(stdout, stderr));
         match run.join() {
-            Ok(result) => result
-                .map_err(|source| ShellEmulatorError::Start { script: script.to_string(), source }),
+            Ok(result) => result.map_err(|source| ShellEmulatorError::Start {
+                script: script.to_string(),
+                source,
+            }),
             Err(payload) => std::panic::resume_unwind(payload),
         }
     }
@@ -153,7 +162,10 @@ impl EmulatedRun {
         }
         let state = ShellState::new(env, cwd, HashMap::new(), kill_signal);
         let stdin = ShellPipeReader::stdin();
-        Ok(local_set.block_on(&runtime, execute_with_pipes(list, state, stdin, stdout, stderr)))
+        Ok(local_set.block_on(
+            &runtime,
+            execute_with_pipes(list, state, stdin, stdout, stderr),
+        ))
     }
 }
 
@@ -163,7 +175,11 @@ fn pump_lines(
     stdio: LifecycleStdio,
     sink: &(dyn Fn(LifecycleStdio, String) + Sync),
 ) {
-    let mut writer = LineWriter { stdio, sink, pending: Vec::new() };
+    let mut writer = LineWriter {
+        stdio,
+        sink,
+        pending: Vec::new(),
+    };
     let _ = reader.pipe_to(&mut writer);
     writer.flush_pending();
 }
@@ -181,7 +197,10 @@ impl LineWriter<'_> {
     /// newline. A stream that ended on a newline leaves nothing here.
     fn flush_pending(&mut self) {
         if !self.pending.is_empty() {
-            (self.sink)(self.stdio, String::from_utf8_lossy(&self.pending).into_owned());
+            (self.sink)(
+                self.stdio,
+                String::from_utf8_lossy(&self.pending).into_owned(),
+            );
             self.pending.clear();
         }
     }
@@ -190,8 +209,13 @@ impl LineWriter<'_> {
 impl Write for LineWriter<'_> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.pending.extend_from_slice(buf);
-        while let Some(end) = self.pending.iter().position(|&byte| byte == b'\n') {
-            let mut line = self.pending.drain(..=end).collect::<Vec<_>>();
+        while let Some(end) = self.pending
+            .iter()
+            .position(|&byte| byte == b'\n')
+        {
+            let mut line = self.pending
+                .drain(..=end)
+                .collect::<Vec<_>>();
             line.pop();
             if line.last() == Some(&b'\r') {
                 line.pop();

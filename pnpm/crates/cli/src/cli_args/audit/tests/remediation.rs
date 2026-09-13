@@ -19,16 +19,37 @@ fn create_overrides_sorts_and_skips_unfixable() {
     let advisories = BTreeMap::from([
         (
             "1".to_string(),
-            fix_advisory(1, "zoo", "<2.0.0", Some(">=2.0.0"), ConfigAuditLevel::High, "GHSA-a"),
+            fix_advisory(
+                1,
+                "zoo",
+                "<2.0.0",
+                Some(">=2.0.0"),
+                ConfigAuditLevel::High,
+                "GHSA-a",
+            ),
         ),
         (
             "2".to_string(),
-            fix_advisory(2, "abc", "<1.5.0", Some(">=1.5.0"), ConfigAuditLevel::Low, "GHSA-b"),
+            fix_advisory(
+                2,
+                "abc",
+                "<1.5.0",
+                Some(">=1.5.0"),
+                ConfigAuditLevel::Low,
+                "GHSA-b",
+            ),
         ),
         // No patched range: cannot produce an override.
         (
             "3".to_string(),
-            fix_advisory(3, "unfixable", ">=0.0.0", None, ConfigAuditLevel::High, "GHSA-c"),
+            fix_advisory(
+                3,
+                "unfixable",
+                ">=0.0.0",
+                None,
+                ConfigAuditLevel::High,
+                "GHSA-c",
+            ),
         ),
     ]);
 
@@ -46,8 +67,22 @@ fn create_overrides_sorts_and_skips_unfixable() {
 #[test]
 fn filter_advisories_for_fix_drops_below_level_and_ignored() {
     let report = report_of(vec![
-        fix_advisory(1, "high", "<2.0.0", Some(">=2.0.0"), ConfigAuditLevel::High, "GHSA-high-1"),
-        fix_advisory(2, "info", "<2.0.0", Some(">=2.0.0"), ConfigAuditLevel::Info, "GHSA-info-1"),
+        fix_advisory(
+            1,
+            "high",
+            "<2.0.0",
+            Some(">=2.0.0"),
+            ConfigAuditLevel::High,
+            "GHSA-high-1",
+        ),
+        fix_advisory(
+            2,
+            "info",
+            "<2.0.0",
+            Some(">=2.0.0"),
+            ConfigAuditLevel::Info,
+            "GHSA-info-1",
+        ),
         fix_advisory(
             3,
             "ignored",
@@ -63,7 +98,10 @@ fn filter_advisories_for_fix_drops_below_level_and_ignored() {
     let filtered = filter_advisories_for_fix(&report, ConfigAuditLevel::Low, &config);
 
     assert!(filtered.contains_key("1"), "high stays");
-    assert!(!filtered.contains_key("2"), "info is below the low audit level");
+    assert!(
+        !filtered.contains_key("2"),
+        "info is below the low audit level",
+    );
     assert!(!filtered.contains_key("3"), "ignored GHSA is dropped");
 }
 
@@ -106,7 +144,14 @@ fn format_fix_with_update_output_lists_fixed_and_remaining() {
 #[test]
 fn minimum_release_age_excludes_uses_patched_minimums_and_skips_unfixable() {
     let advisories = report_of(vec![
-        fix_advisory(1, "foo", "<2.0.0", Some(">=2.0.0"), ConfigAuditLevel::High, "GHSA-a"),
+        fix_advisory(
+            1,
+            "foo",
+            "<2.0.0",
+            Some(">=2.0.0"),
+            ConfigAuditLevel::High,
+            "GHSA-a",
+        ),
         // No patched range: contributes no exclude entry.
         fix_advisory(2, "bar", ">=0.0.0", None, ConfigAuditLevel::High, "GHSA-b"),
     ])
@@ -122,8 +167,22 @@ fn minimum_release_age_excludes_uses_patched_minimums_and_skips_unfixable() {
 #[test]
 fn minimum_release_age_excludes_drops_versions_older_than_the_cutoff() {
     let advisories = report_of(vec![
-        fix_advisory(1, "old", "<2.0.0", Some(">=2.0.0"), ConfigAuditLevel::High, "GHSA-a"),
-        fix_advisory(2, "fresh", "<3.0.0", Some(">=3.0.0"), ConfigAuditLevel::High, "GHSA-b"),
+        fix_advisory(
+            1,
+            "old",
+            "<2.0.0",
+            Some(">=2.0.0"),
+            ConfigAuditLevel::High,
+            "GHSA-a",
+        ),
+        fix_advisory(
+            2,
+            "fresh",
+            "<3.0.0",
+            Some(">=3.0.0"),
+            ConfigAuditLevel::High,
+            "GHSA-b",
+        ),
     ])
     .advisories;
     let times = HashMap::from([
@@ -146,7 +205,11 @@ fn minimum_release_age_excludes_drops_versions_older_than_the_cutoff() {
     let excludes =
         minimum_release_age_excludes(&advisories, &times, age_cutoff()).expect("compute excludes");
 
-    assert_eq!(excludes, vec!["fresh@3.0.0".to_string()], "the old fix needs no bypass");
+    assert_eq!(
+        excludes,
+        vec!["fresh@3.0.0".to_string()],
+        "the old fix needs no bypass",
+    );
 }
 
 #[test]
@@ -165,14 +228,31 @@ fn minimum_release_age_excludes_drops_versions_published_exactly_at_the_cutoff()
     let excludes =
         minimum_release_age_excludes(&advisories, &times, age_cutoff()).expect("compute excludes");
 
-    assert!(excludes.is_empty(), "a version at the cutoff is mature: {excludes:?}");
+    assert!(
+        excludes.is_empty(),
+        "a version at the cutoff is mature: {excludes:?}",
+    );
 }
 
 #[test]
 fn minimum_release_age_excludes_keeps_versions_with_unknown_publish_times() {
     let advisories = report_of(vec![
-        fix_advisory(2, "garbled", "<3.0.0", Some(">=3.0.0"), ConfigAuditLevel::High, "GHSA-b"),
-        fix_advisory(3, "unfetchable", "<4.0.0", Some(">=4.0.0"), ConfigAuditLevel::High, "GHSA-c"),
+        fix_advisory(
+            2,
+            "garbled",
+            "<3.0.0",
+            Some(">=3.0.0"),
+            ConfigAuditLevel::High,
+            "GHSA-b",
+        ),
+        fix_advisory(
+            3,
+            "unfetchable",
+            "<4.0.0",
+            Some(">=4.0.0"),
+            ConfigAuditLevel::High,
+            "GHSA-c",
+        ),
     ])
     .advisories;
     let times = HashMap::from([
@@ -216,7 +296,10 @@ fn minimum_release_age_excludes_drops_versions_missing_from_the_packument() {
     let excludes =
         minimum_release_age_excludes(&advisories, &times, age_cutoff()).expect("compute excludes");
 
-    assert!(excludes.is_empty(), "an unpublished patched version gets no bypass: {excludes:?}");
+    assert!(
+        excludes.is_empty(),
+        "an unpublished patched version gets no bypass: {excludes:?}",
+    );
 }
 
 #[test]
@@ -259,7 +342,10 @@ fn minimum_release_age_excludes_skips_deprecated_versions() {
     // version satisfying >=4.18.0.
     let mut info = publish_times(
         "lodash-es",
-        &[("4.18.0", "2026-06-01T00:00:00Z"), ("4.18.1", "2026-06-01T01:00:00Z")],
+        &[
+            ("4.18.0", "2026-06-01T00:00:00Z"),
+            ("4.18.1", "2026-06-01T01:00:00Z"),
+        ],
     );
     deprecate(&mut info, "lodash-es", "4.18.0");
 
@@ -288,7 +374,10 @@ fn minimum_release_age_excludes_skips_deprecated_versions_spelled_differently() 
     // source of the deprecation set — does not.
     let mut info = publish_times(
         "lodash-es",
-        &[("v4.18.0", "2026-06-01T00:00:00Z"), ("4.18.1", "2026-06-01T01:00:00Z")],
+        &[
+            ("v4.18.0", "2026-06-01T00:00:00Z"),
+            ("4.18.1", "2026-06-01T01:00:00Z"),
+        ],
     );
     deprecate(&mut info, "lodash-es", "4.18.0");
 
@@ -317,7 +406,10 @@ fn minimum_release_age_excludes_prefers_a_stable_release_over_a_lower_prerelease
     // pointed at as the fix.
     let times = publish_times(
         "foo",
-        &[("2.0.0-beta.1", "2026-06-01T00:00:00Z"), ("2.0.0", "2026-06-01T01:00:00Z")],
+        &[
+            ("2.0.0-beta.1", "2026-06-01T00:00:00Z"),
+            ("2.0.0", "2026-06-01T01:00:00Z"),
+        ],
     );
 
     let excludes =
@@ -333,12 +425,33 @@ fn minimum_release_age_excludes_prefers_a_stable_release_over_a_lower_prerelease
 #[test]
 fn classify_for_update_routes_unparsable_ranges_to_remaining() {
     let advisories = report_of(vec![
-        fix_advisory(1, "ok", "<2.0.0", Some(">=2.0.0"), ConfigAuditLevel::High, "GHSA-a"),
+        fix_advisory(
+            1,
+            "ok",
+            "<2.0.0",
+            Some(">=2.0.0"),
+            ConfigAuditLevel::High,
+            "GHSA-a",
+        ),
         fix_advisory(2, "any", ">=0.0.0", None, ConfigAuditLevel::High, "GHSA-b"),
         // An untrusted registry could send a range we can't parse.
-        fix_advisory(3, "broken", "not a range", None, ConfigAuditLevel::High, "GHSA-c"),
+        fix_advisory(
+            3,
+            "broken",
+            "not a range",
+            None,
+            ConfigAuditLevel::High,
+            "GHSA-c",
+        ),
         // ...or pad an unfixable sentinel with whitespace.
-        fix_advisory(4, "padded", "  >=0.0.0  ", None, ConfigAuditLevel::High, "GHSA-d"),
+        fix_advisory(
+            4,
+            "padded",
+            "  >=0.0.0  ",
+            None,
+            ConfigAuditLevel::High,
+            "GHSA-d",
+        ),
     ])
     .advisories;
 
@@ -350,7 +463,11 @@ fn classify_for_update_routes_unparsable_ranges_to_remaining() {
         classification.unfixable.contains_key("padded"),
         "a padded sentinel is still unfixable",
     );
-    assert_eq!(classification.unparsable, vec![3], "an unparsable range must not be dropped");
+    assert_eq!(
+        classification.unparsable,
+        vec![3],
+        "an unparsable range must not be dropped",
+    );
 }
 
 #[test]
@@ -378,7 +495,10 @@ fn report_fixed_remaining_keeps_non_semver_installed_packages_remaining() {
     let mut vulnerabilities: HashMap<String, Vec<(u64, Range)>> = HashMap::new();
     vulnerabilities.insert("gone".to_string(), vec![(1, "<2.0.0".parse().unwrap())]);
     vulnerabilities.insert("bumped".to_string(), vec![(2, "<2.0.0".parse().unwrap())]);
-    vulnerabilities.insert("non-semver".to_string(), vec![(3, "<2.0.0".parse().unwrap())]);
+    vulnerabilities.insert(
+        "non-semver".to_string(),
+        vec![(3, "<2.0.0".parse().unwrap())],
+    );
 
     // `non-semver` is still installed but only under a non-semver key, so its
     // version can't be range-checked.

@@ -32,7 +32,10 @@ fn safe_to_skip_does_not_accept_a_slot_that_is_still_being_written() {
     )
     .expect("an unfinished slot must be completed, not accepted");
 
-    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"1.0.0\"}");
+    assert_eq!(
+        fs::read(target.join("package.json")).unwrap(),
+        b"{\"version\":\"1.0.0\"}",
+    );
     assert_eq!(
         fs::read(target.join("index.js")).unwrap(),
         b"module.exports = 1",
@@ -64,7 +67,10 @@ fn safe_to_skip_repairs_a_slot_damaged_after_it_was_completed() {
     )
     .expect("a damaged slot must be repaired");
 
-    assert_eq!(fs::read(target.join("index.js")).unwrap(), b"module.exports = 1");
+    assert_eq!(
+        fs::read(target.join("index.js")).unwrap(),
+        b"module.exports = 1",
+    );
 }
 // A package with bundled dependencies ships its own node_modules/, and the interrupted-build
 // call shape asks for it to be preserved. Repairing in place preserves it by never removing
@@ -97,9 +103,18 @@ fn safe_to_skip_repairs_a_slot_holding_a_nested_node_modules_in_place() {
     .expect("an incomplete slot must be repaired");
 
     assert_eq!(fs::metadata(&target).unwrap().ino(), occupied);
-    assert_eq!(fs::read(bundled.join("index.js")).unwrap(), b"bundled dependency");
-    assert_eq!(fs::read(target.join("index.js")).unwrap(), b"module.exports = 1");
-    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"1.0.0\"}");
+    assert_eq!(
+        fs::read(bundled.join("index.js")).unwrap(),
+        b"bundled dependency",
+    );
+    assert_eq!(
+        fs::read(target.join("index.js")).unwrap(),
+        b"module.exports = 1",
+    );
+    assert_eq!(
+        fs::read(target.join("package.json")).unwrap(),
+        b"{\"version\":\"1.0.0\"}",
+    );
 }
 #[test]
 fn safe_to_skip_imports_into_an_absent_shared_slot() {
@@ -110,7 +125,10 @@ fn safe_to_skip_imports_into_an_absent_shared_slot() {
     let index = write_source(&src_root, "index.js", b"module.exports = 1");
     let cas = cas_map(&[("package.json", pkg_json), ("lib/index.js", index)]);
 
-    let target = tmp.path().join("nested").join("slot");
+    let target = tmp
+        .path()
+        .join("nested")
+        .join("slot");
     import_indexed_dir::<SilentReporter>(
         &AtomicU8::new(0),
         PackageImportMethod::Hardlink,
@@ -120,8 +138,14 @@ fn safe_to_skip_imports_into_an_absent_shared_slot() {
     )
     .expect("an absent shared slot must be created and filled");
 
-    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"1.0.0\"}");
-    assert_eq!(fs::read(target.join("lib/index.js")).unwrap(), b"module.exports = 1");
+    assert_eq!(
+        fs::read(target.join("package.json")).unwrap(),
+        b"{\"version\":\"1.0.0\"}",
+    );
+    assert_eq!(
+        fs::read(target.join("lib/index.js")).unwrap(),
+        b"module.exports = 1",
+    );
 }
 // The isolated linker imports without `force`, so the marker-less repair is where a shared slot
 // left half-written by an importer that died is met on the next install.
@@ -147,8 +171,14 @@ fn shared_slot_repair_without_force_replaces_a_damaged_file() {
     )
     .expect("a marker-less shared slot must be repaired");
 
-    assert_eq!(fs::read(target.join("index.js")).unwrap(), b"module.exports = 1");
-    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"1.0.0\"}");
+    assert_eq!(
+        fs::read(target.join("index.js")).unwrap(),
+        b"module.exports = 1",
+    );
+    assert_eq!(
+        fs::read(target.join("package.json")).unwrap(),
+        b"{\"version\":\"1.0.0\"}",
+    );
 }
 // A private slot holds only this install's own interrupted work, so its repair keeps adopting.
 #[test]
@@ -174,5 +204,8 @@ fn private_slot_repair_without_force_adopts_what_is_there() {
     .expect("a marker-less private slot must be repaired");
 
     assert_eq!(fs::read(target.join("index.js")).unwrap(), b"half-written");
-    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"1.0.0\"}");
+    assert_eq!(
+        fs::read(target.join("package.json")).unwrap(),
+        b"{\"version\":\"1.0.0\"}",
+    );
 }

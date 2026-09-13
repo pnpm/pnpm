@@ -22,7 +22,8 @@ impl fmt::Debug for RouteHook {
     /// Redacts `Self::secret` — the descriptor-HMAC key must never reach a
     /// log line or panic dump, or the private namespace becomes correlatable.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("RouteHook")
+        f
+            .debug_struct("RouteHook")
             .field("context", &self.context)
             .field("identity", &self.identity)
             .field("footprint", &self.footprint)
@@ -39,7 +40,12 @@ impl RouteHook {
         footprint: Arc<Mutex<Footprint>>,
         secret: Arc<[u8]>,
     ) -> Self {
-        Self { context, identity, footprint, secret }
+        Self {
+            context,
+            identity,
+            footprint,
+            secret,
+        }
     }
 }
 
@@ -48,22 +54,26 @@ impl UpstreamRouteHook for RouteHook {
         match self.context.classify(&self.identity, url, package) {
             RouteClass::Public => None,
             RouteClass::Hosted { policy_id } => {
-                self.record(PrivateAccessDescriptor::Hosted { policy_id });
+                self.record(PrivateAccessDescriptor::Hosted {
+                    policy_id,
+                });
                 // Hosted packages are served by pnpr itself; no upstream
                 // credential is involved.
                 None
             }
             RouteClass::Proxied { alias, credential_digest } => {
-                let authorization = self
-                    .context
-                    .aliases
+                let authorization = self.context.aliases
                     .iter()
                     .find(|candidate| candidate.name == alias)
                     .map(|candidate| candidate.authorization.clone());
                 // Package-qualified only when the upstream's rules explicitly
                 // refine this name, so replay re-checks the refinement.
                 let package = self.context.alias_package_qualifier(&alias, package);
-                self.record(PrivateAccessDescriptor::Alias { alias, credential_digest, package });
+                self.record(PrivateAccessDescriptor::Alias {
+                    alias,
+                    credential_digest,
+                    package,
+                });
                 authorization
             }
         }
@@ -79,14 +89,20 @@ impl UpstreamRouteHook for RouteHook {
         match self.context.classify(&self.identity, url, package) {
             RouteClass::Public => MetadataCacheScope::Public,
             RouteClass::Hosted { policy_id } => MetadataCacheScope::Private {
-                descriptor_id: PrivateAccessDescriptor::Hosted { policy_id }
-                    .digest_id(&self.secret),
+                descriptor_id: PrivateAccessDescriptor::Hosted {
+                    policy_id,
+                }
+                .digest_id(&self.secret),
             },
             RouteClass::Proxied { alias, credential_digest } => MetadataCacheScope::Private {
                 descriptor_id: {
                     let package = self.context.alias_package_qualifier(&alias, package);
-                    PrivateAccessDescriptor::Alias { alias, credential_digest, package }
-                        .digest_id(&self.secret)
+                    PrivateAccessDescriptor::Alias {
+                        alias,
+                        credential_digest,
+                        package,
+                    }
+                    .digest_id(&self.secret)
                 },
             },
         }
@@ -95,6 +111,9 @@ impl UpstreamRouteHook for RouteHook {
 
 impl RouteHook {
     pub(super) fn record(&self, descriptor: PrivateAccessDescriptor) {
-        self.footprint.lock().expect("footprint poisoned").add(descriptor);
+        self.footprint
+            .lock()
+            .expect("footprint poisoned")
+            .add(descriptor);
     }
 }

@@ -220,9 +220,13 @@ where
 /// unpublished, or it never had any.
 fn no_versions_error(meta: &Package, spec: &RegistryPackageSpec) -> PickPackageFromMetaError {
     if has_unpublished_versions(meta) {
-        return PickPackageFromMetaError::Unpublished { pkg_name: spec.name.clone() };
+        return PickPackageFromMetaError::Unpublished {
+            pkg_name: spec.name.clone(),
+        };
     }
-    PickPackageFromMetaError::NoVersions { pkg_name: spec.name.clone() }
+    PickPackageFromMetaError::NoVersions {
+        pkg_name: spec.name.clone(),
+    }
 }
 
 /// GitHub registry quirk: a scoped package can be published as `@owner/foo`
@@ -256,7 +260,9 @@ fn mature_view<'a>(
     let modified_date = meta.modified.as_deref().and_then(parse_packument_timestamp);
     match modified_date {
         Some(date) if date <= cutoff => Ok(meta),
-        _ => Err(PickPackageFromMetaError::MissingTime { pkg_name: meta.name.clone() }),
+        _ => Err(PickPackageFromMetaError::MissingTime {
+            pkg_name: meta.name.clone(),
+        }),
     }
 }
 
@@ -294,8 +300,7 @@ fn without_version(meta: &Package, version: &str) -> Package {
         // Tags pointing at the removed version go with it — the
         // latest-tag fast path would otherwise re-pick the version
         // this clone exists to exclude.
-        dist_tags: meta
-            .dist_tags
+        dist_tags: meta.dist_tags
             .iter()
             .filter(|(_, target)| *target != version)
             .map(|(tag, target)| (tag.clone(), target.clone()))
@@ -345,7 +350,10 @@ pub fn pick_version_by_version_range(
         return Some(latest.to_string());
     }
 
-    let all_versions: Vec<&str> = opts.meta.versions.keys().map(String::as_str).collect();
+    let all_versions: Vec<&str> = opts.meta.versions
+        .keys()
+        .map(String::as_str)
+        .collect();
     let max_pick = max_satisfying(&all_versions, opts.version_range)?;
     non_deprecated_pick(opts, &all_versions, &max_pick).or(Some(max_pick))
 }
@@ -360,7 +368,9 @@ fn preferred_max_pick(
     let groups = prioritize_preferred_versions(opts.meta, opts.version_range, Some(selectors));
     for group in groups {
         if let Some(latest) = latest
-            && group.iter().any(|version| version == latest)
+            && group
+                .iter()
+                .any(|version| version == latest)
             && semver_satisfies_loose(latest, opts.version_range)
         {
             return Some(latest.to_string());
@@ -407,14 +417,23 @@ pub fn pick_lowest_version_by_version_range(
         }
     }
 
-    let all_versions: Vec<&str> = opts.meta.versions.keys().map(String::as_str).collect();
+    let all_versions: Vec<&str> = opts.meta.versions
+        .keys()
+        .map(String::as_str)
+        .collect();
     if opts.version_range == "*" {
         let mut parsed: Vec<(Version, &str)> = all_versions
             .iter()
-            .filter_map(|raw| Version::parse(raw).ok().map(|version| (version, *raw)))
+            .filter_map(|raw| {
+                Version::parse(raw)
+                    .ok()
+                    .map(|version| (version, *raw))
+            })
             .collect();
         parsed.sort_by(|left, right| left.0.cmp(&right.0));
-        return parsed.first().map(|(_, raw)| (*raw).to_string());
+        return parsed
+            .first()
+            .map(|(_, raw)| (*raw).to_string());
     }
     min_satisfying(&all_versions, opts.version_range)
 }
@@ -441,8 +460,12 @@ pub fn pick_stable_cached_range_version(
 }
 
 fn has_unpublished_versions(meta: &Package) -> bool {
-    let Some(time) = meta.time.as_ref() else { return false };
-    let Some(unpublished) = time.get("unpublished") else { return false };
+    let Some(time) = meta.time.as_ref() else {
+        return false;
+    };
+    let Some(unpublished) = time.get("unpublished") else {
+        return false;
+    };
     unpublished
         .get("versions")
         .and_then(serde_json::Value::as_array)

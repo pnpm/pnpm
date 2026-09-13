@@ -1,5 +1,4 @@
 pub(super) mod options;
-
 pub use commands::CliCommand;
 
 use super::{
@@ -148,7 +147,13 @@ pub struct CliWorkspaceArgs {
 pub struct CliPathArgs {
     /// Set working directory. Accepted anywhere on the command line,
     /// before or after the subcommand, like every other rc-option.
-    #[clap(short = 'C', long, alias = "prefix", default_value = ".", global = true)]
+    #[clap(
+        short = 'C',
+        long,
+        alias = "prefix",
+        default_value = ".",
+        global = true
+    )]
     pub dir: PathBuf,
     /// Whether `--dir` came from the command line rather than from its
     /// default. pnpm keeps that distinction: a `--dir` it was given is
@@ -171,7 +176,12 @@ pub struct CliPathArgs {
     )]
     pub store_dir: Option<PathBuf>,
     /// Directory in which pnpm persists machine-local state.
-    #[clap(long = "state-dir", value_name = "DIR", global = true, overrides_with = "state_dir")]
+    #[clap(
+        long = "state-dir",
+        value_name = "DIR",
+        global = true,
+        overrides_with = "state_dir"
+    )]
     pub state_dir: Option<PathBuf>,
     /// Path to an `.npmrc` to read auth settings from, overriding the
     /// default `~/.npmrc`.
@@ -220,7 +230,12 @@ pub struct PresentationArgs {
     )]
     pub color: Option<pnpm_config::ColorMode>,
     /// Disable colored output.
-    #[clap(long = "no-color", global = true, hide = true, overrides_with = "color")]
+    #[clap(
+        long = "no-color",
+        global = true,
+        hide = true,
+        overrides_with = "color"
+    )]
     pub no_color: bool,
     /// Reporter output format.
     // Self-override so a repeated `--reporter` takes the last occurrence,
@@ -299,7 +314,12 @@ pub struct WorkspaceOrderingArgs {
     #[clap(long, global = true, overrides_with = "no_reverse")]
     pub reverse: bool,
     /// Process recursive workspace projects in their normal order.
-    #[clap(long = "no-reverse", global = true, hide = true, overrides_with = "reverse")]
+    #[clap(
+        long = "no-reverse",
+        global = true,
+        hide = true,
+        overrides_with = "reverse"
+    )]
     pub no_reverse: bool,
     /// Maximum number of workspace projects to process in parallel.
     #[clap(long = "workspace-concurrency", global = true)]

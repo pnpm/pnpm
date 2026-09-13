@@ -90,7 +90,9 @@ impl LogLevel {
 /// defaults. Missing block = default pretty/info config; missing
 /// individual fields fall back to their `Default` impls.
 pub(super) fn build_log_config(entry: Option<&LogEntryFile>) -> LogConfig {
-    let Some(entry) = entry else { return LogConfig::default() };
+    let Some(entry) = entry else {
+        return LogConfig::default();
+    };
     LogConfig {
         format: entry.format.unwrap_or_default(),
         level: entry.level.unwrap_or_default(),

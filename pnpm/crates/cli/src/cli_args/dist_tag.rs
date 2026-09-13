@@ -19,10 +19,7 @@ use registry::{
 };
 use reqwest::{RequestBuilder, Response, StatusCode};
 use serde::Deserialize;
-use std::{
-    collections::{BTreeMap, HashMap},
-    time::Duration,
-};
+use std::collections::{BTreeMap, HashMap};
 
 const DIST_TAGS_BODY_LIMIT: usize = 1024 * 1024;
 const DIST_TAG_ERROR_BODY_LIMIT: usize = 64 * 1024;
@@ -197,20 +194,17 @@ impl DistTagArgs {
     }
 
     fn context<'config>(&self, config: &'config Config) -> miette::Result<DistTagContext<'config>> {
-        let mut registries: HashMap<String, String> =
-            config.resolved_registries().into_iter().collect();
+        let mut registries: HashMap<String, String> = config
+            .resolved_registries()
+            .into_iter()
+            .collect();
         if let Some(registry) = &self.registry {
             registries.insert("default".to_string(), normalize_registry_url(registry));
         }
         Ok(DistTagContext {
             config,
             http_client: build_http_client(config)?,
-            retry_opts: RetryOpts {
-                retries: config.fetch_retries,
-                factor: config.fetch_retry_factor,
-                min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-                max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-            },
+            retry_opts: config.retry_opts(),
             registries,
             otp: self.otp.clone(),
         })
@@ -222,8 +216,13 @@ async fn dist_tag_ls(context: &DistTagContext<'_>, params: &[String]) -> miette:
     let package_name = package_name_for_url(package_name)?;
     let registry_url = registry_for_package(context, &package_name);
     let auth_header = auth_header_for_registry(context, &registry_url, &package_name);
-    let dist_tags =
-        fetch_dist_tags(context, &package_name, &registry_url, auth_header.as_deref()).await?;
+    let dist_tags = fetch_dist_tags(
+        context,
+        &package_name,
+        &registry_url,
+        auth_header.as_deref(),
+    )
+    .await?;
     let mut lines = Vec::with_capacity(dist_tags.len());
     for (tag, version) in dist_tags {
         lines.push(format!("{tag}: {version}"));
@@ -236,12 +235,15 @@ async fn dist_tag_add(context: &DistTagContext<'_>, params: &[String]) -> miette
     let PackageSpec { name: package_name, version } = parse_package_spec(spec)?;
     let raw_version = version.ok_or(DistTagError::AddVersionRequired)?;
     let Some(version) = normalize_exact_semver(&raw_version) else {
-        return Err(DistTagError::AddInvalidVersion { version: raw_version }.into());
+        return Err(DistTagError::AddInvalidVersion {
+            version: raw_version,
+        }
+        .into());
     };
     let tag = params.get(1).map_or("latest", String::as_str);
     let registry_url = registry_for_package(context, &package_name);
     let auth_header = auth_header_for_registry(context, &registry_url, &package_name);
-    let auth_type = if context.otp.is_some() { AuthType::Legacy } else { AuthType::Web };
+    let auth_type = dist_tag_auth_type(context);
     set_dist_tag(
         context,
         SetDistTagRequest {
@@ -269,13 +271,20 @@ async fn dist_tag_rm(context: &DistTagContext<'_>, params: &[String]) -> miette:
     }
     let registry_url = registry_for_package(context, &package_name);
     let auth_header = auth_header_for_registry(context, &registry_url, &package_name);
-    let dist_tags =
-        fetch_dist_tags(context, &package_name, &registry_url, auth_header.as_deref()).await?;
-    let version = dist_tags.get(tag).ok_or_else(|| DistTagError::DistTagNotFound {
-        tag: tag.clone(),
-        package_name: package_name.clone(),
-    })?;
-    let auth_type = if context.otp.is_some() { AuthType::Legacy } else { AuthType::Web };
+    let dist_tags = fetch_dist_tags(
+        context,
+        &package_name,
+        &registry_url,
+        auth_header.as_deref(),
+    )
+    .await?;
+    let version = dist_tags
+        .get(tag)
+        .ok_or_else(|| DistTagError::DistTagNotFound {
+            tag: tag.clone(),
+            package_name: package_name.clone(),
+        })?;
+    let auth_type = dist_tag_auth_type(context);
     delete_dist_tag(
         context,
         DeleteDistTagRequest {
@@ -293,10 +302,14 @@ async fn dist_tag_rm(context: &DistTagContext<'_>, params: &[String]) -> miette:
 
 fn parse_package_spec(spec: &str) -> Result<PackageSpec, DistTagError> {
     let parsed = parse_wanted_dependency(spec);
-    let name =
-        parsed.alias.ok_or_else(|| DistTagError::InvalidPackageSpec { spec: spec.to_string() })?;
+    let name = parsed.alias.ok_or_else(|| DistTagError::InvalidPackageSpec {
+        spec: spec.to_string(),
+    })?;
     let version = parsed.bare_specifier.filter(|version| !version.is_empty());
-    Ok(PackageSpec { name, version })
+    Ok(PackageSpec {
+        name,
+        version,
+    })
 }
 
 fn normalize_exact_semver(version: &str) -> Option<String> {
@@ -317,5 +330,13 @@ impl AuthType {
             AuthType::Legacy => "legacy",
             AuthType::Web => "web",
         }
+    }
+}
+
+fn dist_tag_auth_type(context: &DistTagContext<'_>) -> AuthType {
+    if context.otp.is_some() {
+        AuthType::Legacy
+    } else {
+        AuthType::Web
     }
 }

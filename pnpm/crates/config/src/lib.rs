@@ -154,11 +154,13 @@ fn collect_explicit_settings(
         }
         target.insert(key, value);
     }
-    let virtual_store_type = settings
-        .virtual_store_type
-        .or_else(|| settings.enable_global_virtual_store.map(VirtualStoreType::from_enable_global));
+    let virtual_store_type = settings.virtual_store_type.or_else(|| {
+        settings.enable_global_virtual_store.map(VirtualStoreType::from_enable_global)
+    });
     if let Some(virtual_store_type) = virtual_store_type {
-        let Ok(named) = serde_json::to_value(virtual_store_type) else { return };
+        let Ok(named) = serde_json::to_value(virtual_store_type) else {
+            return;
+        };
         target.insert("virtualStoreType".to_string(), named);
         target.insert(
             "enableGlobalVirtualStore".to_string(),
@@ -167,8 +169,13 @@ fn collect_explicit_settings(
     }
     // `audit.level` supersedes the deprecated `auditLevel` spelling; mirror it
     // there so `config get audit-level` answers the way pnpm does.
-    if let Some(level) = settings.audit.as_ref().and_then(|audit| audit.level) {
-        let Ok(level) = serde_json::to_value(level) else { return };
+    if let Some(level) = settings.audit
+        .as_ref()
+        .and_then(|audit| audit.level)
+    {
+        let Ok(level) = serde_json::to_value(level) else {
+            return;
+        };
         target.insert("auditLevel".to_string(), level);
     }
 }

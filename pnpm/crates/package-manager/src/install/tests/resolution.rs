@@ -28,7 +28,11 @@ async fn install_with_drop_all_seed_policy_bumps_dependency_within_range() {
     // Pin 100.0.0 exactly so the first install writes that version, even
     // though 100.1.0 exists and satisfies the widened range used below.
     manifest
-        .add_dependency("@pnpm.e2e/dep-of-pkg-with-1-dep", "100.0.0", DependencyGroup::Prod)
+        .add_dependency(
+            "@pnpm.e2e/dep-of-pkg-with-1-dep",
+            "100.0.0",
+            DependencyGroup::Prod,
+        )
         .unwrap();
     manifest.save().unwrap();
 
@@ -104,7 +108,11 @@ async fn install_with_drop_all_seed_policy_bumps_dependency_within_range() {
 
     // Widen the range and reload the lockfile (which now pins 100.0.0).
     manifest
-        .add_dependency("@pnpm.e2e/dep-of-pkg-with-1-dep", "^100.0.0", DependencyGroup::Prod)
+        .add_dependency(
+            "@pnpm.e2e/dep-of-pkg-with-1-dep",
+            "^100.0.0",
+            DependencyGroup::Prod,
+        )
         .unwrap();
     manifest.save().unwrap();
     let lockfile = Lockfile::load_current_from_virtual_store_dir(&dirs.virtual_store_dir)
@@ -185,7 +193,11 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
     let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
-        .add_dependency("@pnpm.e2e/abc-optional-peers", "1.0.0", DependencyGroup::Prod)
+        .add_dependency(
+            "@pnpm.e2e/abc-optional-peers",
+            "1.0.0",
+            DependencyGroup::Prod,
+        )
         .unwrap();
     manifest.save().unwrap();
 
@@ -250,19 +262,28 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
     let virtual_store_slots: Vec<String> = std::fs::read_dir(&dirs.virtual_store_dir)
         .expect("read virtual store dirs.dir")
         .filter_map(Result::ok)
-        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .collect();
 
     assert!(
-        virtual_store_slots.iter().any(|name| name.starts_with("@pnpm.e2e+peer-a@")),
+        virtual_store_slots
+            .iter()
+            .any(|name| name.starts_with("@pnpm.e2e+peer-a@")),
         "required peer `peer-a` must be auto-installed under \
          `autoInstallPeers: true`; virtual-store slots: {virtual_store_slots:?}",
     );
 
     for optional_peer in ["peer-b", "peer-c"] {
         let slot_prefix = format!("@pnpm.e2e+{optional_peer}@");
-        let cascaded: Vec<&String> =
-            virtual_store_slots.iter().filter(|name| name.starts_with(&slot_prefix)).collect();
+        let cascaded: Vec<&String> = virtual_store_slots
+            .iter()
+            .filter(|name| name.starts_with(&slot_prefix))
+            .collect();
         assert!(
             cascaded.is_empty(),
             "optional peer `{optional_peer}` must NOT reach the virtual store; \
@@ -278,9 +299,9 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
          virtual-store slots: {virtual_store_slots:?}",
     );
     assert!(
-        is_symlink_or_junction(
-            &dirs.project_root.join("node_modules/@pnpm.e2e/abc-optional-peers")
-        )
+        is_symlink_or_junction(&dirs.project_root.join(
+            "node_modules/@pnpm.e2e/abc-optional-peers"
+        ))
         .unwrap(),
         "abc-optional-peers must be symlinked at the importer level",
     );
@@ -305,7 +326,11 @@ async fn meta_only_optional_peers_absent_from_the_graph_are_not_installed() {
     let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
-        .add_dependency("@pnpm.e2e/abc-optional-peers-meta-only", "1.0.0", DependencyGroup::Prod)
+        .add_dependency(
+            "@pnpm.e2e/abc-optional-peers-meta-only",
+            "1.0.0",
+            DependencyGroup::Prod,
+        )
         .unwrap();
     manifest.save().unwrap();
 
@@ -370,7 +395,12 @@ async fn meta_only_optional_peers_absent_from_the_graph_are_not_installed() {
     let virtual_store_slots: Vec<String> = std::fs::read_dir(&dirs.virtual_store_dir)
         .expect("read virtual store dirs.dir")
         .filter_map(Result::ok)
-        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .collect();
 
     // peer-a is declared in `peerDependencies` so it stays required and
@@ -379,14 +409,18 @@ async fn meta_only_optional_peers_absent_from_the_graph_are_not_installed() {
     // never fetched, only deduped onto a version already in the graph,
     // and no version of either is in this graph.
     assert!(
-        virtual_store_slots.iter().any(|name| name.starts_with("@pnpm.e2e+peer-a@")),
+        virtual_store_slots
+            .iter()
+            .any(|name| name.starts_with("@pnpm.e2e+peer-a@")),
         "required peer `peer-a` must be auto-installed; \
          virtual-store slots: {virtual_store_slots:?}",
     );
     for optional_peer in ["peer-b", "peer-c"] {
         let slot_prefix = format!("@pnpm.e2e+{optional_peer}@");
-        let cascaded: Vec<&String> =
-            virtual_store_slots.iter().filter(|name| name.starts_with(&slot_prefix)).collect();
+        let cascaded: Vec<&String> = virtual_store_slots
+            .iter()
+            .filter(|name| name.starts_with(&slot_prefix))
+            .collect();
         assert!(
             cascaded.is_empty(),
             "meta-only optional peer `{optional_peer}` must NOT reach the virtual store; \
@@ -523,7 +557,11 @@ async fn fresh_install_records_user_written_specifier() {
     let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
-        .add_dependency("@pnpm.e2e/hello-world-js-bin", "^1.0.0", DependencyGroup::Prod)
+        .add_dependency(
+            "@pnpm.e2e/hello-world-js-bin",
+            "^1.0.0",
+            DependencyGroup::Prod,
+        )
         .unwrap();
     manifest.save().unwrap();
 
@@ -597,7 +635,10 @@ async fn fresh_install_records_user_written_specifier() {
     let deps = importer.dependencies.as_ref().expect("prod deps");
     let key = pnpm_lockfile::PkgName::parse("@pnpm.e2e/hello-world-js-bin").unwrap();
     let entry = deps.get(&key).expect("hello-world-js-bin entry");
-    assert_eq!(entry.specifier, "^1.0.0", "specifier must echo the manifest declaration");
+    assert_eq!(
+        entry.specifier, "^1.0.0",
+        "specifier must echo the manifest declaration",
+    );
 
     drop((dirs.dir, mock_instance));
 }
@@ -745,5 +786,8 @@ async fn test_install_resolve_only_ignores_layout_mismatch() {
     .expect("2nd install success");
 
     // Canary should still exist because dry_run doesn't mutate node_modules
-    assert!(canary_path.exists(), "canary was deleted despite dry_run: true");
+    assert!(
+        canary_path.exists(),
+        "canary was deleted despite dry_run: true",
+    );
 }

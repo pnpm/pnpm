@@ -231,7 +231,10 @@ impl FsReadDir for Host {
         // `flatten()` silently drops per-entry errors, matching the
         // `tinyglobby`-style ENOENT-on-subtree behaviour pacquet's
         // callers expect.
-        std::fs::read_dir(path)?.flatten().map(|entry| entry.path()).pipe(Ok)
+        std::fs::read_dir(path)?
+            .flatten()
+            .map(|entry| entry.path())
+            .pipe(Ok)
     }
 }
 
@@ -242,7 +245,8 @@ impl FsWalkFiles for Host {
         // top-level missing-dir case also flows through here as a
         // single dropped `Err`, so a missing `bin_dir` produces an
         // empty stream rather than an error.
-        path.pipe(walkdir::WalkDir::new)
+        path
+            .pipe(walkdir::WalkDir::new)
             .follow_links(false)
             .into_iter()
             .flatten()
@@ -282,12 +286,18 @@ impl FsWrite for Host {
 
     fn write_new(path: &Path, bytes: &[u8]) -> io::Result<()> {
         use std::io::Write;
-        std::fs::File::options().write(true).create_new(true).open(path)?.write_all(bytes)
+        std::fs::File::options()
+            .write(true)
+            .create_new(true)
+            .open(path)?
+            .write_all(bytes)
     }
 
     fn write_replace(path: &Path, bytes: &[u8]) -> io::Result<()> {
         use std::io::Write;
-        let parent = path.parent().ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?;
+        let parent = path
+            .parent()
+            .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?;
         let file_name = path
             .file_name()
             .and_then(std::ffi::OsStr::to_str)
@@ -299,12 +309,15 @@ impl FsWrite for Host {
         // this loop forever.
         for attempt in 0u32..1024 {
             let tmp_path = parent.join(format!(".{file_name}.{pid}.{attempt}.tmp"));
-            let mut tmp =
-                match std::fs::File::options().write(true).create_new(true).open(&tmp_path) {
-                    Ok(tmp) => tmp,
-                    Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
-                    Err(error) => return Err(error),
-                };
+            let mut tmp = match std::fs::File::options()
+                .write(true)
+                .create_new(true)
+                .open(&tmp_path)
+            {
+                Ok(tmp) => tmp,
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(error),
+            };
             let written = tmp.write_all(bytes);
             drop(tmp);
             let result = written.and_then(|()| pnpm_fs::rename_with_retry(&tmp_path, path));

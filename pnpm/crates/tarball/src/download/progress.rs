@@ -61,8 +61,9 @@ pub(crate) const PRIORITY_BYTES_PER_FILE: u64 = 3_000;
 #[must_use]
 pub fn download_priority(unpacked_size: Option<usize>, file_count: Option<usize>) -> u64 {
     let size = unpacked_size.map_or(0, |size| size as u64);
-    let per_file =
-        file_count.map_or(0, |count| (count as u64).saturating_mul(PRIORITY_BYTES_PER_FILE));
+    let per_file = file_count.map_or(0, |count| {
+        (count as u64).saturating_mul(PRIORITY_BYTES_PER_FILE)
+    });
     // `UNPRIORITIZED` and `BACKGROUND` are class sentinels; a hostile
     // registry publishing absurd `dist` stats must not be able to
     // saturate a download's priority into either class.

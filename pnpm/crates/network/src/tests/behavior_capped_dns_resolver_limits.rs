@@ -99,7 +99,10 @@ fn no_proxy_matcher_reverse_dot_match() {
         ("org", false),
     ] {
         let got = matcher.matches_host(host);
-        assert_eq!(got, expected, "host={host}: expected match={expected}, got={got}");
+        assert_eq!(
+            got, expected,
+            "host={host}: expected match={expected}, got={got}",
+        );
     }
 }
 
@@ -113,7 +116,10 @@ fn no_proxy_matcher_leading_dot_matches_subdomains() {
         ("evilnpmjs.org", false),
     ] {
         let got = matcher.matches_host(host);
-        assert_eq!(got, expected, "host={host}: expected match={expected}, got={got}");
+        assert_eq!(
+            got, expected,
+            "host={host}: expected match={expected}, got={got}",
+        );
     }
 }
 
@@ -124,16 +130,21 @@ fn no_proxy_matcher_empty_entries_never_match() {
     // must still fail to match — defense in depth at the matcher.
     let matcher = NoProxyMatcher::from(Some(&list(&[""])));
     let got = matcher.matches_host("anything.example");
-    assert!(!got, "matcher={matcher:?} host=anything.example expected miss, got match");
+    assert!(
+        !got,
+        "matcher={matcher:?} host=anything.example expected miss, got match",
+    );
 }
 
 #[test]
 fn no_proxy_matcher_multiple_entries() {
     let matcher = NoProxyMatcher::from(Some(&list(&["npmjs.org", "internal.example"])));
     eprintln!("matcher={matcher:?}");
-    for (host, expected) in
-        [("registry.npmjs.org", true), ("ci.internal.example", true), ("public.example", false)]
-    {
+    for (host, expected) in [
+        ("registry.npmjs.org", true),
+        ("ci.internal.example", true),
+        ("public.example", false),
+    ] {
         let got = matcher.matches_host(host);
         assert_eq!(got, expected, "host={host}: expected={expected}, got={got}");
     }
@@ -210,7 +221,10 @@ fn strip_userinfo_returns_none_when_absent() {
     let (clean, auth) = strip_userinfo(url.clone());
     assert_eq!(clean, url);
     let is_none = auth.is_none();
-    assert!(is_none, "auth={auth:?}: expected None on URL without userinfo");
+    assert!(
+        is_none,
+        "auth={auth:?}: expected None on URL without userinfo",
+    );
 }
 
 #[test]
@@ -250,8 +264,16 @@ fn for_installs_with_empty_proxy_urls_treats_them_as_unset() {
 #[test]
 fn for_installs_with_invalid_proxy_url_errors() {
     for proxy in [
-        ProxyConfig { https_proxy: Some("://nonsense".into()), http_proxy: None, no_proxy: None },
-        ProxyConfig { https_proxy: None, http_proxy: Some("://nonsense".into()), no_proxy: None },
+        ProxyConfig {
+            https_proxy: Some("://nonsense".into()),
+            http_proxy: None,
+            no_proxy: None,
+        },
+        ProxyConfig {
+            https_proxy: None,
+            http_proxy: Some("://nonsense".into()),
+            no_proxy: None,
+        },
     ] {
         let err = ThrottledClient::for_installs(
             &proxy,
@@ -261,8 +283,14 @@ fn for_installs_with_invalid_proxy_url_errors() {
         )
         .expect_err("must error");
         eprintln!("proxy={proxy:?} err={err:?}");
-        let is_invalid = matches!(err, ForInstallsError::Proxy(ProxyError::InvalidProxy { .. }));
-        assert!(is_invalid, "err={err:?}: expected ForInstallsError::Proxy(InvalidProxy)");
+        let is_invalid = matches!(
+            err,
+            ForInstallsError::Proxy(ProxyError::InvalidProxy { .. }),
+        );
+        assert!(
+            is_invalid,
+            "err={err:?}: expected ForInstallsError::Proxy(InvalidProxy)",
+        );
     }
 }
 
@@ -338,7 +366,11 @@ async fn mockito_integration_no_proxy_bypasses_proxy() {
     .expect("valid proxy");
     let guard = client.acquire().await;
     let url = format!("{}{}", target_server.url(), target_path);
-    let resp = guard.get(&url).send().await.expect("direct request");
+    let resp = guard
+        .get(&url)
+        .send()
+        .await
+        .expect("direct request");
     assert_eq!(resp.status(), 200);
     assert_eq!(resp.text().await.expect("body"), "direct");
     proxy_mock.assert_async().await;
@@ -402,7 +434,10 @@ async fn socks5_proxy_connects_to_real_target() {
         assert_eq!(greeting[0], 5);
         let mut methods = vec![0; usize::from(greeting[1])];
         inbound.read_exact(&mut methods).await.expect("read SOCKS5 methods");
-        inbound.write_all(&[5, 0]).await.expect("accept no-auth method");
+        inbound
+            .write_all(&[5, 0])
+            .await
+            .expect("accept no-auth method");
 
         let mut request = [0; 4];
         inbound.read_exact(&mut request).await.expect("read SOCKS5 request");
@@ -431,8 +466,7 @@ async fn socks5_proxy_connects_to_real_target() {
             .write_all(&[5, 0, 0, 1, 127, 0, 0, 1, (port >> 8) as u8, port as u8])
             .await
             .expect("accept SOCKS5 connect");
-        tokio::io::copy_bidirectional(&mut inbound, &mut outbound)
-            .await
+        tokio::io::copy_bidirectional(&mut inbound, &mut outbound).await
             .expect("forward SOCKS5 traffic");
     });
 
@@ -459,13 +493,19 @@ async fn socks5_proxy_connects_to_real_target() {
     assert_eq!(response.status(), 200);
     assert_eq!(response.text().await.expect("target body"), "ok");
     let request = target.await.expect("target task");
-    assert!(request.starts_with("GET /package HTTP/1.1\r\n"), "got {request:?}");
+    assert!(
+        request.starts_with("GET /package HTTP/1.1\r\n"),
+        "got {request:?}",
+    );
     socks.await.expect("SOCKS5 task");
 }
 
 #[test]
 fn for_installs_with_valid_ca_pem_builds() {
-    let tls = TlsConfig { ca: vec![TEST_CA_PEM.to_string()], ..TlsConfig::default() };
+    let tls = TlsConfig {
+        ca: vec![TEST_CA_PEM.to_string()],
+        ..TlsConfig::default()
+    };
     ThrottledClient::for_installs(
         &ProxyConfig::default(),
         &tls,
@@ -499,7 +539,10 @@ fn for_installs_strict_ssl_false_relaxes_verification() {
     // client builds is the best we can do here; a live-traffic
     // integration test would need a TLS-capable mock server (e.g.
     // `wiremock` with rustls) and is left as a future enhancement.
-    let tls = TlsConfig { strict_ssl: Some(false), ..TlsConfig::default() };
+    let tls = TlsConfig {
+        strict_ssl: Some(false),
+        ..TlsConfig::default()
+    };
     ThrottledClient::for_installs(
         &ProxyConfig::default(),
         &tls,
@@ -516,7 +559,10 @@ fn for_installs_strict_ssl_default_is_true() {
     // same as strict_ssl=true). Asserting the client builds is the
     // best we can do without a server; the absence of
     // `danger_accept_invalid_certs(true)` is the contract.
-    let tls = TlsConfig { strict_ssl: None, ..TlsConfig::default() };
+    let tls = TlsConfig {
+        strict_ssl: None,
+        ..TlsConfig::default()
+    };
     ThrottledClient::for_installs(
         &ProxyConfig::default(),
         &tls,
@@ -529,7 +575,10 @@ fn for_installs_strict_ssl_default_is_true() {
 #[test]
 fn for_installs_local_address_pinned() {
     use std::net::Ipv4Addr;
-    let tls = TlsConfig { local_address: Some(Ipv4Addr::LOCALHOST.into()), ..TlsConfig::default() };
+    let tls = TlsConfig {
+        local_address: Some(Ipv4Addr::LOCALHOST.into()),
+        ..TlsConfig::default()
+    };
     ThrottledClient::for_installs(
         &ProxyConfig::default(),
         &tls,
@@ -556,9 +605,14 @@ fn for_installs_with_malformed_client_identity_errors() {
     )
     .expect_err("malformed cert/key must error");
     eprintln!("err={err:?}");
-    let is_invalid =
-        matches!(err, ForInstallsError::Tls(super::super::TlsError::InvalidClientIdentity { .. }));
-    assert!(is_invalid, "err={err:?}: expected Tls(InvalidClientIdentity)");
+    let is_invalid = matches!(
+        err,
+        ForInstallsError::Tls(super::super::TlsError::InvalidClientIdentity { .. }),
+    );
+    assert!(
+        is_invalid,
+        "err={err:?}: expected Tls(InvalidClientIdentity)",
+    );
 }
 
 // --- Per-registry routing tests ---
@@ -573,11 +627,17 @@ fn for_installs_builds_per_registry_clients() {
     let mut map = HashMap::new();
     map.insert(
         "//reg-a.example.com/".to_string(),
-        RegistryTls { ca: Some(TEST_CA_PEM.to_string()), ..RegistryTls::default() },
+        RegistryTls {
+            ca: Some(TEST_CA_PEM.to_string()),
+            ..RegistryTls::default()
+        },
     );
     map.insert(
         "//reg-b.example.com/".to_string(),
-        RegistryTls { ca: Some(TEST_CA_PEM.to_string()), ..RegistryTls::default() },
+        RegistryTls {
+            ca: Some(TEST_CA_PEM.to_string()),
+            ..RegistryTls::default()
+        },
     );
     let per_registry = PerRegistryTls::from_map(map);
     ThrottledClient::for_installs(
@@ -606,7 +666,10 @@ async fn acquire_for_url_routes_per_registry_then_falls_back() {
     let mut map = HashMap::new();
     map.insert(
         "//reg.example.com/".to_string(),
-        RegistryTls { ca: Some(TEST_CA_PEM.to_string()), ..RegistryTls::default() },
+        RegistryTls {
+            ca: Some(TEST_CA_PEM.to_string()),
+            ..RegistryTls::default()
+        },
     );
     let per_registry = PerRegistryTls::from_map(map);
     let throttled = ThrottledClient::for_installs(
@@ -626,12 +689,14 @@ async fn acquire_for_url_routes_per_registry_then_falls_back() {
         "scoped and default URLs must route through different reqwest clients",
     );
 
-    let scoped_guard = throttled
-        .acquire_for_url_without_redirects_with_priority("https://reg.example.com/pkg", 0)
-        .await;
-    let default_guard = throttled
-        .acquire_for_url_without_redirects_with_priority("https://other.example.org/pkg", 0)
-        .await;
+    let scoped_guard =
+        throttled.acquire_for_url_without_redirects_with_priority("https://reg.example.com/pkg", 0)
+            .await;
+    let default_guard = throttled.acquire_for_url_without_redirects_with_priority(
+        "https://other.example.org/pkg",
+        0,
+    )
+    .await;
     let scoped_ptr: *const reqwest::Client = &raw const *scoped_guard;
     let default_ptr: *const reqwest::Client = &raw const *default_guard;
     assert_ne!(
@@ -667,7 +732,10 @@ async fn per_registry_route_selects_the_client_for_the_requested_redirect_mode()
     let mut map = HashMap::new();
     map.insert(
         format!("//{}/", registry.host_with_port()),
-        RegistryTls { ca: Some(TEST_CA_PEM.to_string()), ..RegistryTls::default() },
+        RegistryTls {
+            ca: Some(TEST_CA_PEM.to_string()),
+            ..RegistryTls::default()
+        },
     );
     let per_registry = PerRegistryTls::from_map(map);
     let throttled = ThrottledClient::for_installs(
@@ -687,7 +755,10 @@ async fn per_registry_route_selects_the_client_for_the_requested_redirect_mode()
         let unmatched_guard = throttled.acquire_for_url("https://other.example.org/pkg").await;
         let routed: *const reqwest::Client = &raw const *routed_guard;
         let unmatched: *const reqwest::Client = &raw const *unmatched_guard;
-        assert_ne!(routed, unmatched, "the fixture URL must reach its own routed client");
+        assert_ne!(
+            routed, unmatched,
+            "the fixture URL must reach its own routed client",
+        );
     }
 
     let blocked = throttled
@@ -697,7 +768,11 @@ async fn per_registry_route_selects_the_client_for_the_requested_redirect_mode()
         .send()
         .await
         .expect("the redirect response itself is successful HTTP transport");
-    assert_eq!(blocked.status(), 302, "the routed no-redirect client must not follow");
+    assert_eq!(
+        blocked.status(),
+        302,
+        "the routed no-redirect client must not follow",
+    );
 
     let followed = throttled
         .acquire_for_url(&url)
@@ -706,7 +781,11 @@ async fn per_registry_route_selects_the_client_for_the_requested_redirect_mode()
         .send()
         .await
         .expect("the routed redirect-following client reaches the target");
-    assert_eq!(followed.status(), 200, "the routed redirect-following client must follow");
+    assert_eq!(
+        followed.status(),
+        200,
+        "the routed redirect-following client must follow",
+    );
 
     start_mock.assert_async().await;
     final_mock.assert_async().await;
@@ -722,7 +801,10 @@ async fn acquire_for_url_falls_back_to_default_when_no_overrides() {
     let permit_b = throttled.acquire_for_url("https://other.example.org/").await;
     let a_ptr: *const reqwest::Client = &raw const *permit_a;
     let b_ptr: *const reqwest::Client = &raw const *permit_b;
-    assert_eq!(a_ptr, b_ptr, "without overrides every URL should hit the default client");
+    assert_eq!(
+        a_ptr, b_ptr,
+        "without overrides every URL should hit the default client",
+    );
 }
 
 #[test]
@@ -752,7 +834,10 @@ fn for_installs_with_pkcs1_client_key_builds() {
 fn for_installs_rejects_zero_network_concurrency() {
     // A zero-permit semaphore would hang every fetch; pnpm rejects the
     // same value, so `for_installs` must fail fast rather than deadlock.
-    let settings = NetworkSettings { network_concurrency: 0, ..NetworkSettings::default() };
+    let settings = NetworkSettings {
+        network_concurrency: 0,
+        ..NetworkSettings::default()
+    };
     let err = ThrottledClient::for_installs(
         &ProxyConfig::default(),
         &TlsConfig::default(),
@@ -760,5 +845,8 @@ fn for_installs_rejects_zero_network_concurrency() {
         &settings,
     )
     .expect_err("zero network concurrency must error");
-    assert!(matches!(err, ForInstallsError::ZeroNetworkConcurrency), "got {err:?}");
+    assert!(
+        matches!(err, ForInstallsError::ZeroNetworkConcurrency),
+        "got {err:?}",
+    );
 }

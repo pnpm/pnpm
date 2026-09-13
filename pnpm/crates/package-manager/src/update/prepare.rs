@@ -83,7 +83,10 @@ impl SelectedUpdatePreparation {
     fn merge(&mut self, index: usize, importer_id: String, prepared: UpdatePreparation) {
         self.any_work = true;
         for (name, selectors) in prepared.preferred_versions_override {
-            self.preferred_versions_override.entry(name).or_default().extend(selectors);
+            self.preferred_versions_override
+                .entry(name)
+                .or_default()
+                .extend(selectors);
         }
         if !prepared.bump_targets.is_empty() {
             self.bump_targets.insert(importer_id.clone(), prepared.bump_targets);
@@ -116,16 +119,18 @@ pub(super) fn update_read_package_hook<Reporter: self::Reporter>(
     else {
         return Ok(None);
     };
-    let log = hook.source_path().map_or_else(
-        || Arc::new(|_| {}) as pnpm_hooks::LogFn,
-        |from| {
-            crate::install_with_fresh_lockfile::hook_log_fn::<Reporter>(
-                workspace_root,
-                from,
-                "readPackage",
-            )
-        },
-    );
+    let log = hook
+        .source_path()
+        .map_or_else(
+            || Arc::new(|_| {}) as pnpm_hooks::LogFn,
+            |from| {
+                crate::install_with_fresh_lockfile::hook_log_fn::<Reporter>(
+                    workspace_root,
+                    from,
+                    "readPackage",
+                )
+            },
+        );
     Ok(Some((hook, log)))
 }
 pub(super) async fn apply_read_package_hook_to_update_manifest(
@@ -133,7 +138,10 @@ pub(super) async fn apply_read_package_hook_to_update_manifest(
     hook: &Arc<dyn pnpm_hooks::PnpmfileHooks>,
     log: &pnpm_hooks::LogFn,
 ) -> Result<(), UpdateError> {
-    let ctx = pnpm_hooks::HookContext { log: Arc::clone(log), dir: None };
+    let ctx = pnpm_hooks::HookContext {
+        log: Arc::clone(log),
+        dir: None,
+    };
     let value = hook
         .read_package(manifest.value().clone(), ctx)
         .await
@@ -198,13 +206,21 @@ pub(super) async fn decide_update<Reporter: self::Reporter>(
         },
         latest_chain,
         &mut catalog_ctx,
-        (update.selection.workspace_packages, workspace_targets(update, &selectors, &direct)?),
+        (
+            update.selection.workspace_packages,
+            workspace_targets(update, &selectors, &direct)?,
+        ),
     )
     .await?
     else {
         return Ok(None);
     };
-    Ok(Some(UpdateDecision { plan, seed_policy, direct, catalog_ctx }))
+    Ok(Some(UpdateDecision {
+        plan,
+        seed_policy,
+        direct,
+        catalog_ctx,
+    }))
 }
 pub(super) fn update_scope<'a>(
     update: UpdateOptions<'a>,
@@ -238,14 +254,21 @@ pub(super) fn declared_direct(
         .collect()
 }
 pub(super) fn updates_all_groups(include_direct: &[DependencyGroup]) -> bool {
-    DIRECT_GROUPS.iter().all(|group| include_direct.contains(group))
+    DIRECT_GROUPS
+        .iter()
+        .all(|group| include_direct.contains(group))
 }
 pub(super) fn apply_update_decision<Reporter: self::Reporter>(
     manifest: &mut PackageManifest,
     update: UpdateOptions<'_>,
     decision: UpdateDecision,
 ) -> Result<UpdatePreparation, UpdateError> {
-    let UpdateDecision { mut plan, seed_policy, direct, mut catalog_ctx } = decision;
+    let UpdateDecision {
+        mut plan,
+        seed_policy,
+        direct,
+        mut catalog_ctx,
+    } = decision;
     // Reconcile only manifest rewrites. Existing `catalog:` references retain
     // their group, and non-manual catalog modes may promote direct versions.
     let mut updated_catalogs = Catalogs::new();
@@ -291,7 +314,9 @@ pub(super) fn merged_catalogs_override(
     updated_catalogs: &Catalogs,
 ) -> Option<Catalogs> {
     (!updated_catalogs.is_empty()).then(|| {
-        let mut merged = catalog_ctx.map(|ctx| ctx.catalogs.clone()).unwrap_or_default();
+        let mut merged = catalog_ctx
+            .map(|ctx| ctx.catalogs.clone())
+            .unwrap_or_default();
         merge_catalogs(&mut merged, updated_catalogs);
         merged
     })
@@ -315,8 +340,10 @@ pub(super) async fn prepare_selected_manifests<Reporter: self::Reporter>(
     // selectors outright.
     if !update.version.latest && update.selection.depth > 0 {
         let selectors = parse_selectors(update.selection.packages);
-        let manifests =
-            selected_indices.iter().map(|&index| &projects[index].manifest).collect::<Vec<_>>();
+        let manifests = selected_indices
+            .iter()
+            .map(|&index| &projects[index].manifest)
+            .collect::<Vec<_>>();
         reject_versions_of_indirect_update_specs::<Reporter>(
             &selectors,
             &manifests,

@@ -18,10 +18,7 @@ pub(super) async fn read(
 ) -> Response {
     let result = async {
         let key = CompilerCacheKey::try_from(key)?;
-        state
-            .inner
-            .builds
-            .artifacts
+        state.inner.builds.artifacts
             .as_ref()
             .expect("compiler cache routes require an artifact store")
             .read_compiler_cache(&cache, &key)
@@ -44,10 +41,7 @@ pub(super) async fn write(
 ) -> Response {
     let result = async {
         let key = CompilerCacheKey::try_from(key)?;
-        state
-            .inner
-            .builds
-            .artifacts
+        state.inner.builds.artifacts
             .as_ref()
             .expect("compiler cache routes require an artifact store")
             .publish_compiler_cache(&cache, &key, bytes)
@@ -67,10 +61,7 @@ pub(super) async fn head(
 ) -> Response {
     let result = async {
         let key = CompilerCacheKey::try_from(key)?;
-        state
-            .inner
-            .builds
-            .artifacts
+        state.inner.builds.artifacts
             .as_ref()
             .expect("compiler cache routes require an artifact store")
             .compiler_cache_size(&cache, &key)
@@ -113,7 +104,11 @@ pub(super) async fn authorize_request(
             Ok(permit) => Some(permit),
             Err(_) => {
                 return private_no_cache(
-                    (StatusCode::SERVICE_UNAVAILABLE, [(header::RETRY_AFTER, "1")]).into_response(),
+                    (
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        [(header::RETRY_AFTER, "1")],
+                    )
+                        .into_response(),
                 );
             }
         }
@@ -152,7 +147,10 @@ pub(super) async fn directory(
     // sccache probes parents before PUT. Collections are virtual; only entries
     // occupy storage, so probing one must not create a directory or consume quota.
     let cache: String = url::form_urlencoded::byte_serialize(path.cache.as_bytes()).collect();
-    let href = format!("/-/pnpr/v0/compiler-cache/{cache}/{}", path.key.unwrap_or_default());
+    let href = format!(
+        "/-/pnpr/v0/compiler-cache/{cache}/{}",
+        path.key.unwrap_or_default(),
+    );
     private_no_cache((
         StatusCode::MULTI_STATUS,
         [(header::CONTENT_TYPE, "application/xml")],

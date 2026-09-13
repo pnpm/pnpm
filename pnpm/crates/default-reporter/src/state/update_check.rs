@@ -36,7 +36,10 @@ pub(super) fn update_command(source: PnpmInstallSource) -> String {
 }
 
 pub(super) fn is_strictly_newer(latest: &str, version: &str) -> bool {
-    match (node_semver::Version::parse(latest), node_semver::Version::parse(version)) {
+    match (
+        node_semver::Version::parse(latest),
+        node_semver::Version::parse(version),
+    ) {
         (Ok(l), Ok(v)) => l > v,
         _ => false,
     }

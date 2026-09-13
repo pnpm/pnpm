@@ -126,9 +126,18 @@ fn resolution_cache_key_changes_with_project_transforms() {
     let base = request("hash-one", "1.0.0", false);
     let base_key = resolution_cache_key(&config, &base);
 
-    assert_ne!(base_key, resolution_cache_key(&config, &request("hash-two", "1.0.0", false)));
-    assert_ne!(base_key, resolution_cache_key(&config, &request("hash-one", "2.0.0", false)));
-    assert_ne!(base_key, resolution_cache_key(&config, &request("hash-one", "1.0.0", true)));
+    assert_ne!(
+        base_key,
+        resolution_cache_key(&config, &request("hash-two", "1.0.0", false)),
+    );
+    assert_ne!(
+        base_key,
+        resolution_cache_key(&config, &request("hash-one", "2.0.0", false)),
+    );
+    assert_ne!(
+        base_key,
+        resolution_cache_key(&config, &request("hash-one", "1.0.0", true)),
+    );
 }
 
 #[test]
@@ -176,12 +185,20 @@ importers:
     )
     .unwrap();
 
-    let request =
-        |lockfile| ResolveRequest { lockfile: Some(lockfile), ..ResolveRequest::default() };
+    let request = |lockfile| ResolveRequest {
+        lockfile: Some(lockfile),
+        ..ResolveRequest::default()
+    };
     let config = config();
     let first_key = resolution_cache_key(&config, &request(first_lockfile));
-    assert_eq!(first_key, resolution_cache_key(&config, &request(reordered_lockfile)));
-    assert_ne!(first_key, resolution_cache_key(&config, &request(drifted_lockfile)));
+    assert_eq!(
+        first_key,
+        resolution_cache_key(&config, &request(reordered_lockfile)),
+    );
+    assert_ne!(
+        first_key,
+        resolution_cache_key(&config, &request(drifted_lockfile)),
+    );
 }
 
 #[test]
@@ -238,7 +255,10 @@ fn reject_off_allowlist_fetches_blocks_unconfigured_hosts() {
     // A git dependency to an off-allowlist host is rejected the same way.
     let git_dep = ResolveRequest {
         registry: Some("https://registry.npmjs.org/".to_string()),
-        dependencies: Some(deps(&[("foo", "git+https://169.254.169.254/repo.git#main")])),
+        dependencies: Some(deps(&[(
+            "foo",
+            "git+https://169.254.169.254/repo.git#main",
+        )])),
         ..ResolveRequest::default()
     };
     assert!(reject_off_allowlist_fetches(&git_dep, &context).is_some());
@@ -301,8 +321,10 @@ fn intern_config_applies_project_transforms() {
 
     assert!(config.allow_unused_patches);
     assert_eq!(
-        config.patched_dependency_hashes().expect("read precomputed hashes").expect("patch hashes")
-            ["foo@1.0.0"],
+        config
+            .patched_dependency_hashes()
+            .expect("read precomputed hashes")
+            .expect("patch hashes")["foo@1.0.0"],
         "abc123",
     );
     let extensions = config.package_extensions.as_ref().expect("package extensions");
@@ -323,7 +345,10 @@ fn intern_config_uses_lockfile_settings_for_a_legacy_frozen_request() {
     let cache_dir = PathBuf::from("/tmp/pnpr-lockfile-settings-cache");
     let request = |settings: Option<pnpm_lockfile::LockfileSettings>| ResolveRequest {
         registry: Some("https://a.test/".to_string()),
-        lockfile: Some(Lockfile { settings, ..lockfile("1.0.0") }),
+        lockfile: Some(Lockfile {
+            settings,
+            ..lockfile("1.0.0")
+        }),
         frozen_lockfile: true,
         ..ResolveRequest::default()
     };
@@ -392,12 +417,20 @@ fn intern_config_prefers_request_settings_and_keys_effective_values() {
             .expect("intern config")
     };
     let effective = |config: &PacquetConfig| {
-        (config.auto_install_peers, config.dedupe_peers, config.exclude_links_from_lockfile)
+        (
+            config.auto_install_peers,
+            config.dedupe_peers,
+            config.exclude_links_from_lockfile,
+        )
     };
     let legacy = serde_json::from_value::<ResolveRequest>(serde_json::json!({}))
         .expect("legacy resolve request parses");
     assert_eq!(
-        (legacy.auto_install_peers, legacy.dedupe_peers, legacy.exclude_links_from_lockfile),
+        (
+            legacy.auto_install_peers,
+            legacy.dedupe_peers,
+            legacy.exclude_links_from_lockfile
+        ),
         (None, None, None),
     );
 
@@ -415,11 +448,16 @@ fn intern_config_prefers_request_settings_and_keys_effective_values() {
         ((None, Some(true), None), (false, false, false)),
         ((None, None, Some(false)), (false, true, true)),
     ] {
-        let partial = intern(&configs, &request(request_settings, Some(lockfile_settings), true));
+        let partial = intern(
+            &configs,
+            &request(request_settings, Some(lockfile_settings), true),
+        );
         assert!(std::ptr::eq(frozen, partial));
     }
-    let partial_update =
-        intern(&configs, &request((None, Some(true), None), Some((false, false, true)), false));
+    let partial_update = intern(
+        &configs,
+        &request((None, Some(true), None), Some((false, false, true)), false),
+    );
     assert_eq!(effective(partial_update), (true, true, false));
 
     let intern_key = |settings| intern(&configs, &request(requested(settings), None, false));
@@ -428,7 +466,11 @@ fn intern_config_prefers_request_settings_and_keys_effective_values() {
     for auto_install_peers in [false, true] {
         for dedupe_peers in [false, true] {
             for exclude_links_from_lockfile in [false, true] {
-                let settings = (auto_install_peers, dedupe_peers, exclude_links_from_lockfile);
+                let settings = (
+                    auto_install_peers,
+                    dedupe_peers,
+                    exclude_links_from_lockfile,
+                );
                 let config = intern_key(settings);
                 assert_eq!(effective(config), settings);
                 let cache_key =
@@ -437,7 +479,13 @@ fn intern_config_prefers_request_settings_and_keys_effective_values() {
             }
         }
     }
-    assert_eq!(configs.lock().expect("config cache poisoned").len(), 8);
+    assert_eq!(
+        configs
+            .lock()
+            .expect("config cache poisoned")
+            .len(),
+        8,
+    );
     assert_eq!(cache_keys.len(), 8);
 }
 
@@ -470,7 +518,10 @@ fn intern_config_uses_server_defaults_for_a_legacy_update_request() {
     let defaults = PacquetConfig::new();
     assert_eq!(config.auto_install_peers, defaults.auto_install_peers);
     assert_eq!(config.dedupe_peers, defaults.dedupe_peers);
-    assert_eq!(config.exclude_links_from_lockfile, defaults.exclude_links_from_lockfile);
+    assert_eq!(
+        config.exclude_links_from_lockfile,
+        defaults.exclude_links_from_lockfile,
+    );
 }
 
 /// Only the three effective fields may reach the interning key. The rest of
@@ -526,7 +577,14 @@ fn intern_config_caps_distinct_leaked_configs_but_keeps_serving_known_ones() {
         ..ResolveRequest::default()
     };
     let intern = |registry: &str| {
-        intern_config(&configs, &store_dir, &cache_dir, &request(registry), max, usize::MAX)
+        intern_config(
+            &configs,
+            &store_dir,
+            &cache_dir,
+            &request(registry),
+            max,
+            usize::MAX,
+        )
     };
 
     // Distinct registry configurations are interned up to the cap.
@@ -538,7 +596,13 @@ fn intern_config_caps_distinct_leaked_configs_but_keeps_serving_known_ones() {
     // leak by varying its registry/policy fields.
     assert!(intern("https://c.test/").is_none());
     // ...and nothing was interned beyond the cap (the refusal didn't leak).
-    assert_eq!(configs.lock().expect("config cache poisoned").len(), max);
+    assert_eq!(
+        configs
+            .lock()
+            .expect("config cache poisoned")
+            .len(),
+        max,
+    );
 
     // An already-interned configuration is still served even at the cap.
     assert!(intern("https://a.test/").is_some());
@@ -558,7 +622,14 @@ fn intern_config_refuses_a_config_key_larger_than_the_byte_cap() {
         ..ResolveRequest::default()
     };
     let intern = |registry: &str| {
-        intern_config(&configs, &store_dir, &cache_dir, &request(registry), 10, 1024)
+        intern_config(
+            &configs,
+            &store_dir,
+            &cache_dir,
+            &request(registry),
+            10,
+            1024,
+        )
     };
 
     // A normal configuration is interned.
@@ -579,7 +650,10 @@ fn intern_config_keys_overrides_canonically_regardless_of_order() {
     let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-canon-test-store"));
     let cache_dir = PathBuf::from("/tmp/pnpr-canon-test-cache");
     let intern = |overrides: serde_json::Value| {
-        let request = ResolveRequest { overrides: Some(overrides), ..ResolveRequest::default() };
+        let request = ResolveRequest {
+            overrides: Some(overrides),
+            ..ResolveRequest::default()
+        };
         intern_config(&configs, &store_dir, &cache_dir, &request, 10, usize::MAX)
     };
 
@@ -590,7 +664,13 @@ fn intern_config_keys_overrides_canonically_regardless_of_order() {
         intern(serde_json::json!({ "a": "1.0.0", "b": "2.0.0" })).expect("first config interned");
     let second = intern(serde_json::json!({ "b": "2.0.0", "a": "1.0.0" })).expect("config reused");
     assert!(std::ptr::eq(first, second));
-    assert_eq!(configs.lock().expect("config cache poisoned").len(), 1);
+    assert_eq!(
+        configs
+            .lock()
+            .expect("config cache poisoned")
+            .len(),
+        1,
+    );
 }
 
 /// The client's `resolutionMode` decides which version a pick lands on, so a
@@ -616,9 +696,18 @@ fn intern_config_resolves_in_the_client_s_resolution_mode() {
     assert_eq!(intern(&legacy).resolution_mode, ResolutionMode::Highest);
 
     for mode in [ResolutionMode::TimeBased, ResolutionMode::LowestDirect] {
-        let request = ResolveRequest { resolution_mode: mode, ..ResolveRequest::default() };
+        let request = ResolveRequest {
+            resolution_mode: mode,
+            ..ResolveRequest::default()
+        };
         assert_eq!(intern(&request).resolution_mode, mode);
     }
 
-    assert_eq!(configs.lock().expect("config cache").len(), 3);
+    assert_eq!(
+        configs
+            .lock()
+            .expect("config cache")
+            .len(),
+        3,
+    );
 }

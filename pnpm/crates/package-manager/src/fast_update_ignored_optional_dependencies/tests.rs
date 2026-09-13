@@ -69,7 +69,11 @@ snapshots:
 
     let updated = try_fast_update_ignored_optional_dependencies(
         &lockfile,
-        &["root-only".to_string(), "shared".to_string(), "unique".to_string()],
+        &[
+            "root-only".to_string(),
+            "shared".to_string(),
+            "unique".to_string(),
+        ],
     )
     .expect("additions should update");
 
@@ -195,5 +199,8 @@ snapshots:
         try_fast_update_ignored_optional_dependencies(&lockfile, &["is-positive".to_string()])
             .expect("ignoring the sole referent needs no resolution");
 
-    assert!(updated.catalogs.is_none(), "the orphaned catalog entry goes with its referent");
+    assert!(
+        updated.catalogs.is_none(),
+        "the orphaned catalog entry goes with its referent",
+    );
 }

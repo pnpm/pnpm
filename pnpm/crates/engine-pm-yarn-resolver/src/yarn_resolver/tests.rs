@@ -20,7 +20,11 @@ fn picked(version_spec: &str) -> Option<String> {
 #[test]
 fn the_newest_release_wins_for_an_open_specifier() {
     for version_spec in ["latest", "*", "", "  "] {
-        assert_eq!(picked(version_spec).as_deref(), Some("7.0.0"), "{version_spec}");
+        assert_eq!(
+            picked(version_spec).as_deref(),
+            Some("7.0.0"),
+            "{version_spec}",
+        );
     }
 }
 

@@ -39,7 +39,9 @@ pub(super) fn purge_inconsistent_modules_dir(
         );
         return Ok(());
     }
-    let Some(target) = target_dir else { return Ok(()) };
+    let Some(target) = target_dir else {
+        return Ok(());
+    };
     purge_modules_dir_entries(&target, context.config, context.modules_manifest)
 }
 /// The canonicalized directory the purge may sweep, and whether sweeping it is
@@ -49,10 +51,14 @@ pub(super) fn purge_target(config: &Config, workspace_root: &Path) -> (bool, Opt
     if !config.modules_dir.exists() {
         return (true, None);
     }
-    match (std::fs::canonicalize(&config.modules_dir), std::fs::canonicalize(workspace_root)) {
-        (Ok(modules_canon), Ok(root_canon)) => {
-            (is_safe_modules_purge_target(&modules_canon, &root_canon), Some(modules_canon))
-        }
+    match (
+        std::fs::canonicalize(&config.modules_dir),
+        std::fs::canonicalize(workspace_root),
+    ) {
+        (Ok(modules_canon), Ok(root_canon)) => (
+            is_safe_modules_purge_target(&modules_canon, &root_canon),
+            Some(modules_canon),
+        ),
         _ => (false, None),
     }
 }
@@ -61,7 +67,10 @@ pub(super) fn purge_modules_dir_entries(
     config: &Config,
     modules_manifest: Option<&pnpm_modules_yaml::ModulesLayout>,
 ) -> Result<(), InstallError> {
-    let read_error = |error| InstallError::ReadModulesDir { path: target.to_path_buf(), error };
+    let read_error = |error| InstallError::ReadModulesDir {
+        path: target.to_path_buf(),
+        error,
+    };
     let entries = match std::fs::read_dir(target) {
         Ok(entries) => entries,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
@@ -91,7 +100,10 @@ pub(super) fn purge_modules_entry(
         return Ok(());
     }
     let entry_path = entry.path();
-    if entry.file_type().is_ok_and(|file_type| file_type.is_dir()) {
+    if entry
+        .file_type()
+        .is_ok_and(|file_type| file_type.is_dir())
+    {
         return remove_modules_dir(&entry_path);
     }
     remove_modules_file(&entry_path)
@@ -103,7 +115,9 @@ pub(super) fn is_pnpm_owned_entry(
 ) -> bool {
     file_name == ".bin"
         || file_name == ".modules.yaml"
-        || config.virtual_store_dir.file_name().is_some_and(|name| name == file_name)
+        || config.virtual_store_dir
+            .file_name()
+            .is_some_and(|name| name == file_name)
         || modules_manifest.is_some_and(|manifest| {
             recorded_virtual_store_name(manifest, config).is_some_and(|name| name == file_name)
         })
@@ -133,7 +147,10 @@ pub(super) fn remove_modules_dir(entry_path: &Path) -> Result<(), InstallError> 
         && let Err(error) = std::fs::remove_dir_all(entry_path)
         && error.kind() != std::io::ErrorKind::NotFound
     {
-        return Err(InstallError::RemoveModulesDir { path: entry_path.to_path_buf(), error });
+        return Err(InstallError::RemoveModulesDir {
+            path: entry_path.to_path_buf(),
+            error,
+        });
     }
     Ok(())
 }
@@ -141,7 +158,10 @@ pub(super) fn remove_modules_file(entry_path: &Path) -> Result<(), InstallError>
     if let Err(error) = std::fs::remove_file(entry_path)
         && error.kind() != std::io::ErrorKind::NotFound
     {
-        return Err(InstallError::RemoveModulesDir { path: entry_path.to_path_buf(), error });
+        return Err(InstallError::RemoveModulesDir {
+            path: entry_path.to_path_buf(),
+            error,
+        });
     }
     Ok(())
 }
@@ -166,8 +186,12 @@ pub(super) fn prune_excluded_direct_deps(
     if context.eligibility.resolve_only || context.eligibility.is_inconsistent {
         return Ok(());
     }
-    let Some(modules) = context.modules_manifest else { return Ok(()) };
-    let Some(current) = context.current_lockfile else { return Ok(()) };
+    let Some(modules) = context.modules_manifest else {
+        return Ok(());
+    };
+    let Some(current) = context.current_lockfile else {
+        return Ok(());
+    };
     if !context.eligibility.filtered_install && modules.included == context.included {
         return Ok(());
     }
@@ -181,15 +205,8 @@ pub(super) fn prune_excluded_direct_deps(
         )
         .importer_ids
     });
-    let previously_included = if context.eligibility.filtered_install {
-        IncludedDependencies {
-            dependencies: true,
-            dev_dependencies: true,
-            optional_dependencies: true,
-        }
-    } else {
-        modules.included
-    };
+    let previously_included =
+        previous_prune_groups(context.eligibility.filtered_install, modules.included);
     crate::prune_direct_deps_excluded_by_groups(
         current,
         previously_included,
@@ -199,4 +216,16 @@ pub(super) fn prune_excluded_direct_deps(
         selected_prune_importer_ids.as_ref(),
     )
     .map_err(InstallError::PruneDirectDeps)
+}
+
+fn previous_prune_groups(filtered: bool, recorded: IncludedDependencies) -> IncludedDependencies {
+    if filtered {
+        IncludedDependencies {
+            dependencies: true,
+            dev_dependencies: true,
+            optional_dependencies: true,
+        }
+    } else {
+        recorded
+    }
 }

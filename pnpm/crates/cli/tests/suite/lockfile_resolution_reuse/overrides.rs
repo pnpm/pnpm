@@ -27,7 +27,10 @@ fn compatible_catalog_range_update_reuses_the_locked_peer_snapshot() {
         ),
     )
     .expect("write initial catalog");
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let workspace_yaml = fs::read_to_string(&workspace_yaml_path).expect("read initial catalog");
     fs::write(
@@ -48,7 +51,10 @@ fn compatible_catalog_range_update_reuses_the_locked_peer_snapshot() {
     fs::write(&npmrc_path, format!("registry={dead_registry}\n{npmrc}\n"))
         .expect("rewrite .npmrc with a dead registry");
 
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load wanted lockfile")
@@ -82,15 +88,17 @@ fn exact_override_update_reuses_the_locked_children() {
         format!("{workspace_yaml}overrides:\n  '@pnpm.e2e/pkg-with-1-dep': 100.0.0\n"),
     )
     .expect("write initial override");
-    pacquet_at(&fixture.workspace).with_arg("install").assert().success();
+    pacquet_at(&fixture.workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let before = pnpm_lockfile::Lockfile::load_wanted_from_dir(&fixture.workspace)
         .expect("load wanted lockfile")
         .expect("wanted lockfile");
     let old_key = "@pnpm.e2e/pkg-with-1-dep@100.0.0".parse().expect("old key");
     let child_name = "@pnpm.e2e/dep-of-pkg-with-1-dep".parse().expect("child name");
-    let old_child = before
-        .snapshots
+    let old_child = before.snapshots
         .as_ref()
         .and_then(|snapshots| snapshots.get(&old_key))
         .and_then(|snapshot| snapshot.dependencies.as_ref())
@@ -101,11 +109,16 @@ fn exact_override_update_reuses_the_locked_children() {
     let workspace_yaml = fs::read_to_string(&workspace_yaml_path).expect("read initial override");
     fs::write(
         &workspace_yaml_path,
-        workspace_yaml
-            .replace("'@pnpm.e2e/pkg-with-1-dep': 100.0.0", "'@pnpm.e2e/pkg-with-1-dep': 100.1.0"),
+        workspace_yaml.replace(
+            "'@pnpm.e2e/pkg-with-1-dep': 100.0.0",
+            "'@pnpm.e2e/pkg-with-1-dep': 100.1.0",
+        ),
     )
     .expect("update exact override");
-    pacquet_at(&fixture.workspace).with_arg("install").assert().success();
+    pacquet_at(&fixture.workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&fixture.workspace)
         .expect("load updated wanted lockfile")
@@ -118,8 +131,7 @@ fn exact_override_update_reuses_the_locked_children() {
     let new_key = "@pnpm.e2e/pkg-with-1-dep@100.1.0".parse().expect("new key");
     for lockfile in [&wanted, &current] {
         assert_eq!(
-            lockfile
-                .snapshots
+            lockfile.snapshots
                 .as_ref()
                 .and_then(|snapshots| snapshots.get(&new_key))
                 .and_then(|snapshot| snapshot.dependencies.as_ref())
@@ -127,7 +139,9 @@ fn exact_override_update_reuses_the_locked_children() {
             Some(&old_child),
         );
         assert!(
-            lockfile.snapshots.as_ref().is_some_and(|snapshots| !snapshots.contains_key(&old_key)),
+            lockfile.snapshots
+                .as_ref()
+                .is_some_and(|snapshots| !snapshots.contains_key(&old_key)),
         );
     }
 
@@ -153,14 +167,23 @@ fn dependency_removal_override_prunes_the_locked_subtree_without_resolving() {
     .expect("write package.json");
     let workspace_yaml =
         fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
-    fs::write(&workspace_yaml_path, format!("{workspace_yaml}trustLockfile: true\n"))
-        .expect("enable trusted lockfile");
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    fs::write(
+        &workspace_yaml_path,
+        format!("{workspace_yaml}trustLockfile: true\n"),
+    )
+    .expect("enable trusted lockfile");
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let workspace_yaml =
         fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
-    fs::write(&workspace_yaml_path, format!("{workspace_yaml}overrides:\n  is-positive: '-'\n"))
-        .expect("add dependency removal override");
+    fs::write(
+        &workspace_yaml_path,
+        format!("{workspace_yaml}overrides:\n  is-positive: '-'\n"),
+    )
+    .expect("add dependency removal override");
     let dead_registry = dead_registry_url();
     let npmrc = fs::read_to_string(&npmrc_path).expect("read .npmrc");
     let npmrc = npmrc
@@ -171,14 +194,17 @@ fn dependency_removal_override_prunes_the_locked_subtree_without_resolving() {
     fs::write(&npmrc_path, format!("registry={dead_registry}\n{npmrc}\n"))
         .expect("rewrite .npmrc with a dead registry");
 
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load updated wanted lockfile")
         .expect("updated wanted lockfile");
-    let current = pnpm_lockfile::Lockfile::load_current_from_virtual_store_dir(
-        &workspace.join("node_modules/.pnpm"),
-    )
+    let current = pnpm_lockfile::Lockfile::load_current_from_virtual_store_dir(&workspace.join(
+        "node_modules/.pnpm",
+    ))
     .expect("load current lockfile")
     .expect("current lockfile");
     let parent_key = "@pnpm.e2e/pkg-with-good-optional@1.0.0".parse().expect("parent package key");
@@ -187,21 +213,21 @@ fn dependency_removal_override_prunes_the_locked_subtree_without_resolving() {
     for lockfile in [&wanted, &current] {
         dbg!(&lockfile.snapshots, &lockfile.packages);
         assert!(
-            lockfile
-                .snapshots
+            lockfile.snapshots
                 .as_ref()
                 .and_then(|snapshots| snapshots.get(&parent_key))
                 .and_then(|snapshot| snapshot.optional_dependencies.as_ref())
                 .is_none_or(|dependencies| !dependencies.contains_key(&removed_name)),
         );
         assert!(
-            lockfile
-                .snapshots
+            lockfile.snapshots
                 .as_ref()
                 .is_none_or(|snapshots| !snapshots.contains_key(&removed_key)),
         );
         assert!(
-            lockfile.packages.as_ref().is_none_or(|packages| !packages.contains_key(&removed_key)),
+            lockfile.packages
+                .as_ref()
+                .is_none_or(|packages| !packages.contains_key(&removed_key)),
         );
     }
     dbg!(&workspace);
@@ -248,12 +274,18 @@ fn removal_override_composes_with_a_settled_catalog_override() {
         ),
     )
     .expect("write the settled catalog override");
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let workspace_yaml =
         fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
-    fs::write(&workspace_yaml_path, format!("{workspace_yaml}  is-positive: '-'\n"))
-        .expect("add dependency removal override");
+    fs::write(
+        &workspace_yaml_path,
+        format!("{workspace_yaml}  is-positive: '-'\n"),
+    )
+    .expect("add dependency removal override");
     let dead_registry = dead_registry_url();
     let npmrc = fs::read_to_string(&npmrc_path).expect("read .npmrc");
     let npmrc = npmrc
@@ -264,7 +296,10 @@ fn removal_override_composes_with_a_settled_catalog_override() {
     fs::write(&npmrc_path, format!("registry={dead_registry}\n{npmrc}\n"))
         .expect("rewrite .npmrc with a dead registry");
 
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load updated wanted lockfile")
@@ -274,7 +309,9 @@ fn removal_override_composes_with_a_settled_catalog_override() {
     assert_eq!(overrides["is-positive"], "-");
     let removed_key = "is-positive@1.0.0".parse().expect("removed package key");
     assert!(
-        wanted.snapshots.as_ref().is_none_or(|snapshots| !snapshots.contains_key(&removed_key)),
+        wanted.snapshots
+            .as_ref()
+            .is_none_or(|snapshots| !snapshots.contains_key(&removed_key)),
     );
 
     drop((root, mock_instance));
@@ -306,7 +343,10 @@ fn an_override_on_a_cataloged_package_drops_the_catalog_entry() {
         format!("{workspace_yaml}catalog:\n  '@pnpm.e2e/pkg-with-1-dep': 100.0.0\n"),
     )
     .expect("write initial catalog");
-    pacquet_at(&fixture.workspace).with_arg("install").assert().success();
+    pacquet_at(&fixture.workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let workspace_yaml = fs::read_to_string(&workspace_yaml_path).expect("read initial catalog");
     fs::write(
@@ -314,7 +354,10 @@ fn an_override_on_a_cataloged_package_drops_the_catalog_entry() {
         format!("{workspace_yaml}overrides:\n  '@pnpm.e2e/pkg-with-1-dep': 100.1.0\n"),
     )
     .expect("add the override");
-    pacquet_at(&fixture.workspace).with_arg("install").assert().success();
+    pacquet_at(&fixture.workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&fixture.workspace)
         .expect("load updated wanted lockfile")
@@ -357,7 +400,10 @@ fn a_catalog_edit_and_a_removal_override_are_absorbed_in_one_pass() {
         ),
     )
     .expect("write initial catalog");
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let workspace_yaml = fs::read_to_string(&workspace_yaml_path).expect("read initial catalog");
     fs::write(
@@ -381,7 +427,10 @@ fn a_catalog_edit_and_a_removal_override_are_absorbed_in_one_pass() {
     fs::write(&npmrc_path, format!("registry={dead_registry}\n{npmrc}\n"))
         .expect("rewrite .npmrc with a dead registry");
 
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
         .expect("load updated wanted lockfile")
@@ -391,9 +440,15 @@ fn a_catalog_edit_and_a_removal_override_are_absorbed_in_one_pass() {
     assert_eq!(entry.version, "1.0.0");
     let removed_key = "is-positive@1.0.0".parse().expect("removed package key");
     assert!(
-        wanted.snapshots.as_ref().is_none_or(|snapshots| !snapshots.contains_key(&removed_key)),
+        wanted.snapshots
+            .as_ref()
+            .is_none_or(|snapshots| !snapshots.contains_key(&removed_key)),
     );
-    assert!(wanted.packages.as_ref().is_none_or(|packages| !packages.contains_key(&removed_key)));
+    assert!(
+        wanted.packages
+            .as_ref()
+            .is_none_or(|packages| !packages.contains_key(&removed_key)),
+    );
 
     drop((root, mock_instance));
 }

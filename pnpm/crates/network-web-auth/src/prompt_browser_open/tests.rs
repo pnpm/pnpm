@@ -199,7 +199,10 @@ async fn returns_the_poll_result_when_poll_completes_before_enter_keypress() {
 
     assert_eq!(token, "my-token");
     assert!(closed(), "the listener should be closed");
-    assert!(open_calls().is_empty(), "the browser must not be opened without a keypress");
+    assert!(
+        open_calls().is_empty(),
+        "the browser must not be opened without a keypress",
+    );
 }
 
 #[tokio::test]
@@ -221,7 +224,9 @@ async fn opens_browser_when_enter_key_is_pressed_before_poll_completes() {
 
             assert_eq!(open_calls(), vec![AUTH_URL.to_owned()]);
 
-            poll_tx.send(Ok("token-after-enter".to_owned())).expect("send poll result");
+            poll_tx
+                .send(Ok("token-after-enter".to_owned()))
+                .expect("send poll result");
             let token = handle.await.expect("join").expect("a token");
 
             assert_eq!(token, "token-after-enter");
@@ -248,13 +253,17 @@ async fn warns_and_continues_polling_when_open_fails() {
             tokio::task::yield_now().await;
 
             assert!(
-                warns().iter().any(|message| message.contains("xdg-open not found")),
+                warns()
+                    .iter()
+                    .any(|message| message.contains("xdg-open not found")),
                 "open failure should warn, got {:?}",
                 warns(),
             );
             assert!(infos().contains(&"Please open the URL shown above manually.".to_owned()));
 
-            poll_tx.send(Ok("tok".to_owned())).expect("send poll result");
+            poll_tx
+                .send(Ok("tok".to_owned()))
+                .expect("send poll result");
             let token = handle.await.expect("join").expect("a token");
             assert_eq!(token, "tok");
         })
@@ -276,7 +285,9 @@ async fn warns_and_falls_back_to_plain_poll_when_listen_fails() {
 
     assert_eq!(token, "fallback-token");
     assert!(
-        warns().iter().any(|message| message.contains("setRawMode not supported")),
+        warns()
+            .iter()
+            .any(|message| message.contains("setRawMode not supported")),
         "listener setup failure should warn, got {:?}",
         warns(),
     );
@@ -329,7 +340,10 @@ async fn does_not_open_browser_for_non_http_auth_url() {
         .expect("a token");
 
         assert_eq!(token, "tok");
-        assert!(open_calls().is_empty(), "{auth_url} must not open a browser");
+        assert!(
+            open_calls().is_empty(),
+            "{auth_url} must not open a browser",
+        );
     }
 }
 
@@ -346,5 +360,8 @@ async fn cleans_up_when_poll_rejects() {
     .expect_err("poll rejected");
 
     assert_eq!(error.0, "timeout");
-    assert!(closed(), "the listener should be closed even when the poll rejects");
+    assert!(
+        closed(),
+        "the listener should be closed even when the poll rejects",
+    );
 }

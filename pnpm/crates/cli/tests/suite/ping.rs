@@ -36,8 +36,10 @@ fn empty_auth_file(root: &Path) -> PathBuf {
 }
 
 fn run_ping(workspace: &Path, auth_file: &Path, registry: Option<&str>) -> std::process::Output {
-    let mut command =
-        pacquet_at(workspace).with_arg("--npmrc-auth-file").with_arg(auth_file).with_arg("ping");
+    let mut command = pacquet_at(workspace)
+        .with_arg("--npmrc-auth-file")
+        .with_arg(auth_file)
+        .with_arg("ping");
     if let Some(registry) = registry {
         command = command.with_arg("--registry").with_arg(registry);
     }
@@ -56,7 +58,10 @@ fn reports_ping_and_pong_for_a_reachable_registry() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
-    let mock = ping_mock(&mut server, "").with_status(200).with_body("{}").create();
+    let mock = ping_mock(&mut server, "")
+        .with_status(200)
+        .with_body("{}")
+        .create();
     let auth_file = empty_auth_file(root.path());
 
     let output = run_ping(&workspace, &auth_file, Some(&registry));
@@ -68,10 +73,21 @@ fn reports_ping_and_pong_for_a_reachable_registry() {
         String::from_utf8_lossy(&output.stderr),
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let lines: Vec<&str> = stdout.trim().lines().collect();
-    assert_eq!(lines.len(), 2, "an empty JSON body produces no details: {stdout:?}");
+    let lines: Vec<&str> = stdout
+        .trim()
+        .lines()
+        .collect();
+    assert_eq!(
+        lines.len(),
+        2,
+        "an empty JSON body produces no details: {stdout:?}",
+    );
     assert_eq!(lines[0], format!("PING {registry}"));
-    let pong = lines[1].strip_prefix("PONG ").expect("PONG line").strip_suffix("ms").expect("ms");
+    let pong = lines[1]
+        .strip_prefix("PONG ")
+        .expect("PONG line")
+        .strip_suffix("ms")
+        .expect("ms");
     pong.parse::<u128>().expect("the elapsed time must be a number of milliseconds");
     drop((root, server));
 }
@@ -82,7 +98,10 @@ fn includes_details_when_the_body_is_non_empty_json() {
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
     let body = r#"{"host":"npm","user":"anonymous"}"#;
-    let mock = ping_mock(&mut server, "").with_status(200).with_body(body).create();
+    let mock = ping_mock(&mut server, "")
+        .with_status(200)
+        .with_body(body)
+        .create();
     let auth_file = empty_auth_file(root.path());
 
     let output = run_ping(&workspace, &auth_file, Some(&registry));
@@ -94,9 +113,15 @@ fn includes_details_when_the_body_is_non_empty_json() {
         String::from_utf8_lossy(&output.stderr),
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains(&format!("PING {registry}")), "missing PING line: {stdout:?}");
+    assert!(
+        stdout.contains(&format!("PING {registry}")),
+        "missing PING line: {stdout:?}",
+    );
     assert!(stdout.contains("PONG "), "missing PONG line: {stdout:?}");
-    assert!(stdout.contains(r#""host": "npm""#), "missing pretty-printed details: {stdout:?}");
+    assert!(
+        stdout.contains(r#""host": "npm""#),
+        "missing pretty-printed details: {stdout:?}",
+    );
     drop((root, server));
 }
 
@@ -104,9 +129,15 @@ fn includes_details_when_the_body_is_non_empty_json() {
 fn uses_the_configured_registry_when_no_flag_is_given() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
-    fs::write(workspace.join(".npmrc"), format!("registry={}\n", server.url()))
-        .expect("write project .npmrc");
-    let mock = ping_mock(&mut server, "").with_status(200).with_body("{}").create();
+    fs::write(
+        workspace.join(".npmrc"),
+        format!("registry={}\n", server.url()),
+    )
+    .expect("write project .npmrc");
+    let mock = ping_mock(&mut server, "")
+        .with_status(200)
+        .with_body("{}")
+        .create();
     let auth_file = empty_auth_file(root.path());
 
     let output = run_ping(&workspace, &auth_file, None);
@@ -161,7 +192,10 @@ fn preserves_a_registry_path_prefix() {
     let mut server = mockito::Server::new();
     // No trailing slash: ping must still target `<prefix>/-/ping`.
     let registry = format!("{}/custom-prefix", server.url());
-    let mock = ping_mock(&mut server, "/custom-prefix").with_status(200).with_body("{}").create();
+    let mock = ping_mock(&mut server, "/custom-prefix")
+        .with_status(200)
+        .with_body("{}")
+        .create();
     let auth_file = empty_auth_file(root.path());
 
     let output = run_ping(&workspace, &auth_file, Some(&registry));
@@ -173,7 +207,10 @@ fn preserves_a_registry_path_prefix() {
         String::from_utf8_lossy(&output.stderr),
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains(&format!("PING {registry}")), "PING must echo the raw URL: {stdout:?}");
+    assert!(
+        stdout.contains(&format!("PING {registry}")),
+        "PING must echo the raw URL: {stdout:?}",
+    );
     drop((root, server));
 }
 
@@ -181,7 +218,10 @@ fn preserves_a_registry_path_prefix() {
 fn redacts_inline_credentials_in_the_ping_line() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
-    let mock = ping_mock(&mut server, "").with_status(200).with_body("{}").create();
+    let mock = ping_mock(&mut server, "")
+        .with_status(200)
+        .with_body("{}")
+        .create();
     // A registry URL carrying inline basic-auth credentials, which must not
     // leak into the echoed `PING` line.
     let host = server.url();
@@ -213,8 +253,13 @@ fn fails_on_a_network_failure() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let auth_file = empty_auth_file(root.path());
     let socket = tokio::net::TcpSocket::new_v4().expect("create registry socket");
-    socket.bind("127.0.0.1:0".parse().expect("loopback address")).expect("reserve registry port");
-    let registry = format!("http://{}/", socket.local_addr().expect("registry socket address"));
+    socket
+        .bind("127.0.0.1:0".parse().expect("loopback address"))
+        .expect("reserve registry port");
+    let registry = format!(
+        "http://{}/",
+        socket.local_addr().expect("registry socket address"),
+    );
 
     let output = run_ping(&workspace, &auth_file, Some(&registry));
 

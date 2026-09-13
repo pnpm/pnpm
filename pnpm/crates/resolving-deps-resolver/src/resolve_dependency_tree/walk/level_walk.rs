@@ -28,24 +28,7 @@ pub(super) fn assign_level_owners<'seed>(
             _ => None,
         })
         .collect();
-    let winners: Vec<usize> = {
-        let mut best: HashMap<&str, usize> = HashMap::default();
-        for (index, pending) in level.iter().enumerate() {
-            let best_so_far = *best.entry(pending.identity.id.as_str()).or_insert(index);
-            let standing = &level[best_so_far];
-            // Depth joins the comparison even though one level shares
-            // it, so this cannot drift from [`ChildrenOwner::wins_over`]
-            // if a frontier ever carries more than one depth.
-            if (standing.ancestry.depth, &standing.ancestry.parent_ancestors)
-                > (pending.ancestry.depth, &pending.ancestry.parent_ancestors)
-            {
-                best.insert(pending.identity.id.as_str(), index);
-            }
-        }
-        let mut winners: Vec<usize> = best.into_values().collect();
-        winners.sort_unstable();
-        winners
-    };
+    let winners = level_owner_winners(&level);
     for index in winners {
         let pending = &mut *level[index];
         let peer_shadowed = std::mem::take(&mut pending.peer_shadowed);
@@ -81,7 +64,9 @@ pub(super) fn install_owner_peer_dependencies(
         catalogs_for_children(ctx, pending.resolves_children_through_catalogs),
     )?;
     let mut packages = lock_recoverable(&ctx.workspace.tree.packages);
-    let Some(existing) = packages.get_mut(pending.identity.id.as_str()) else { return Ok(()) };
+    let Some(existing) = packages.get_mut(pending.identity.id.as_str()) else {
+        return Ok(());
+    };
     if existing.peer_dependencies == peer_dependencies {
         return Ok(());
     }
@@ -107,7 +92,9 @@ pub(super) fn settle_seeds(
 ) -> Vec<FrontierNode> {
     let mut frontier = Vec::new();
     for seed in seeds {
-        let NodeSeed::Pending(mut pending) = seed else { continue };
+        let NodeSeed::Pending(mut pending) = seed else {
+            continue;
+        };
         let claim = pending.claim.take();
         // Linked nodes don't walk their manifest's deps — see the
         // `is_link` comment block in [`fn@resolve_node_seed`]. They get
@@ -122,8 +109,7 @@ pub(super) fn settle_seeds(
             continue;
         }
         let Some(claim) = claim.filter(|claim| claim.owns_children) else {
-            let children = lazy_children(&pending.ancestry.parent_ancestors);
-            insert_walked_node(ctx, &pending, children);
+            insert_lazy_walked_node(ctx, &pending);
             continue;
         };
         if !pending.resolves_children_through_catalogs
@@ -133,8 +119,7 @@ pub(super) fn settle_seeds(
                 &children_context(ctx, &pending, &claim),
             )
         {
-            let children = lazy_children(&pending.ancestry.parent_ancestors);
-            insert_walked_node(ctx, &pending, children);
+            insert_lazy_walked_node(ctx, &pending);
             continue;
         }
         frontier.push(FrontierNode {
@@ -153,7 +138,12 @@ pub(super) fn settle_level(
     ctx: &TreeCtx,
     mut seeded: Vec<SeededNode>,
 ) -> Result<Vec<FrontierNode>, ResolveDependencyTreeError> {
-    assign_level_owners(ctx, seeded.iter_mut().flat_map(|node| node.seeds.iter_mut()))?;
+    assign_level_owners(
+        ctx,
+        seeded
+            .iter_mut()
+            .flat_map(|node| node.seeds.iter_mut()),
+    )?;
     let mut frontier = Vec::new();
     for node in seeded {
         let SeededNode {
@@ -199,12 +189,17 @@ pub(super) fn record_walked_children(
     if !is_current_children_owner(ctx, &pending.identity.id, &claim.owner) {
         return (lazy_children(&pending.ancestry.parent_ancestors), false);
     }
-    let optional_by_alias: HashMap<&str, bool> =
-        child_specs.iter().map(|(name, _, optional, _)| (name.as_str(), *optional)).collect();
+    let optional_by_alias: HashMap<&str, bool> = child_specs
+        .iter()
+        .map(|(name, _, optional, _)| (name.as_str(), *optional))
+        .collect();
     let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
     let mut by_id: Vec<crate::resolved_tree::ChildEdge> = Vec::new();
     for dep in seeds.iter().filter_map(seeded_dep) {
-        let optional = optional_by_alias.get(dep.alias.as_str()).copied().unwrap_or(false);
+        let optional = optional_by_alias
+            .get(dep.alias.as_str())
+            .copied()
+            .unwrap_or(false);
         by_id.push(crate::resolved_tree::ChildEdge {
             alias: dep.alias.clone(),
             pkg_id: Arc::from(dep.id),
@@ -245,7 +240,10 @@ pub(super) fn children_context(
     RecordedChildrenContext {
         peer_shadowed: Arc::clone(&claim.peer_shadowed),
         prior_key: pending.prior_key.clone(),
-        update_active: !matches!(ctx.update_reuse_scope(), super::super::UpdateReuseScope::All),
+        update_active: !matches!(
+            ctx.update_reuse_scope(),
+            super::super::UpdateReuseScope::All,
+        ),
     }
 }
 
@@ -263,13 +261,23 @@ pub(super) fn insert_walked_node(
     pending: &PendingNode,
     children: crate::resolved_tree::TreeChildren,
 ) {
-    let depth = if pending.is_link { -1 } else { pending.ancestry.depth };
+    let depth = if pending.is_link {
+        -1
+    } else {
+        pending.ancestry.depth
+    };
     remember_node_parent_ids(
         ctx,
         &pending.identity.node_id,
         Arc::clone(&pending.ancestry.parent_ancestors),
     );
-    insert_tree_node(ctx, pending.identity.node_id.clone(), &pending.identity.id, children, depth);
+    insert_tree_node(
+        ctx,
+        pending.identity.node_id.clone(),
+        &pending.identity.id,
+        children,
+        depth,
+    );
 }
 
 /// The install aliases one resolved level contributes to its
@@ -299,13 +307,15 @@ pub(in super::super) fn level_versions(
     for seed in seeds {
         let name_ver = match seed {
             NodeSeed::Pending(pending) => pending.result.package.name_ver.as_ref(),
-            NodeSeed::Done(Some(dep)) => {
-                packages.get(dep.id.as_str()).and_then(|pkg| pkg.result.package.name_ver.as_ref())
-            }
+            NodeSeed::Done(Some(dep)) => packages
+                .get(dep.id.as_str())
+                .and_then(|pkg| pkg.result.package.name_ver.as_ref()),
             NodeSeed::Done(None) => None,
         };
         let Some(name_ver) = name_ver else { continue };
-        let versions = level.entry(name_ver.name.to_string()).or_default();
+        let versions = level
+            .entry(name_ver.name.to_string())
+            .or_default();
         let version = name_ver.suffix.to_string();
         if !versions.contains(&version) {
             versions.push(version);
@@ -326,13 +336,44 @@ pub(super) fn pkgs_info_from_ids(
     ancestor_ids
         .iter()
         .map(|id| {
-            let name_ver =
-                packages.get(id.as_str()).and_then(|pkg| pkg.result.package.name_ver.as_ref());
+            let name_ver = packages
+                .get(id.as_str())
+                .and_then(|pkg| pkg.result.package.name_ver.as_ref());
             SkippedOptionalDependencyParent {
                 id: id.clone(),
-                name: name_ver.map(|name_ver| name_ver.name.to_string()).unwrap_or_default(),
-                version: name_ver.map(|name_ver| name_ver.suffix.to_string()).unwrap_or_default(),
+                name: name_ver
+                    .map(|name_ver| name_ver.name.to_string())
+                    .unwrap_or_default(),
+                version: name_ver
+                    .map(|name_ver| name_ver.suffix.to_string())
+                    .unwrap_or_default(),
             }
         })
         .collect()
+}
+
+fn level_owner_winners(level: &[&mut Box<PendingNode>]) -> Vec<usize> {
+    let mut best: HashMap<&str, usize> = HashMap::default();
+    for (index, pending) in level.iter().enumerate() {
+        let best_so_far = *best
+            .entry(pending.identity.id.as_str())
+            .or_insert(index);
+        let standing = &level[best_so_far];
+        // Depth joins the comparison even though one level shares
+        // it, so this cannot drift from [`ChildrenOwner::wins_over`]
+        // if a frontier ever carries more than one depth.
+        if (standing.ancestry.depth, &standing.ancestry.parent_ancestors)
+            > (pending.ancestry.depth, &pending.ancestry.parent_ancestors)
+        {
+            best.insert(pending.identity.id.as_str(), index);
+        }
+    }
+    let mut winners: Vec<usize> = best.into_values().collect();
+    winners.sort_unstable();
+    winners
+}
+
+fn insert_lazy_walked_node(ctx: &TreeCtx, pending: &PendingNode) {
+    let children = lazy_children(&pending.ancestry.parent_ancestors);
+    insert_walked_node(ctx, pending, children);
 }

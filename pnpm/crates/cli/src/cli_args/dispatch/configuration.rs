@@ -33,17 +33,29 @@ impl RunAnchors {
     /// becomes `config.dir` (used as the install `lockfileDir`, threaded
     /// into every event's `prefix`).
     pub(super) fn resolve(args: &CliArgs) -> miette::Result<Self> {
-        let dir = dunce::canonicalize(&args.paths.dir).into_diagnostic().wrap_err_with(|| {
-            format!("canonicalizing the `--dir` argument: {}", args.paths.dir.display())
-        })?;
+        let dir = dunce::canonicalize(&args.paths.dir)
+            .into_diagnostic()
+            .wrap_err_with(|| {
+                format!(
+                    "canonicalizing the `--dir` argument: {}",
+                    args.paths.dir.display(),
+                )
+            })?;
         let cli_dir = if args.paths.dir_from_command_line {
             dir.clone()
         } else {
-            std::env::current_dir().and_then(dunce::canonicalize).unwrap_or_else(|_| dir.clone())
+            std::env::current_dir()
+                .and_then(dunce::canonicalize)
+                .unwrap_or_else(|_| dir.clone())
         };
         let manifest_path = dir.join("package.json");
         let global_config = default_pnpm_home_dir::<Host>().unwrap_or_else(|| dir.clone());
-        Ok(RunAnchors { dir, cli_dir, manifest_path, global_config })
+        Ok(RunAnchors {
+            dir,
+            cli_dir,
+            manifest_path,
+            global_config,
+        })
     }
 }
 

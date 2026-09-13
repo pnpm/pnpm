@@ -27,8 +27,7 @@ async fn takes_old_format_tarball_url_from_the_packument() {
     let mut opts = options(&harness, root.path(), false);
     opts.registries = &registries;
 
-    resolve_and_install_config_deps::<SilentReporter>(&config_deps, &resolver, &opts)
-        .await
+    resolve_and_install_config_deps::<SilentReporter>(&config_deps, &resolver, &opts).await
         .unwrap();
 
     let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
@@ -39,5 +38,11 @@ async fn takes_old_format_tarball_url_from_the_packument() {
         panic!("expected the tarball URL the packument advertises to be recorded");
     };
     assert_eq!(tarball.tarball, advertised_tarball);
-    assert_eq!(tarball.integrity.as_ref().unwrap().to_string(), integrity);
+    assert_eq!(
+        tarball.integrity
+            .as_ref()
+            .unwrap()
+            .to_string(),
+        integrity,
+    );
 }

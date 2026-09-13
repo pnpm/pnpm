@@ -20,8 +20,11 @@ pub(super) fn overlay_version_view(
             .into_iter()
             .flatten()
             .filter_map(|name| {
-                let mut versions: Vec<String> =
-                    overlay.versions_for(&name).into_iter().map(str::to_string).collect();
+                let mut versions: Vec<String> = overlay
+                    .versions_for(&name)
+                    .into_iter()
+                    .map(str::to_string)
+                    .collect();
                 if versions.is_empty() {
                     return None;
                 }
@@ -44,11 +47,17 @@ pub(super) fn pin_patched_revision(
     let Some(version) = current_pkg.and_then(|current| current.version.as_deref()) else {
         return;
     };
-    let Some(specifier) = wanted.bare_specifier.as_deref() else { return };
+    let Some(specifier) = wanted.bare_specifier.as_deref() else {
+        return;
+    };
     wanted.bare_specifier = exact_registry_specifier_for_revision_refresh(
         specifier,
         version,
-        prior_key.and_then(|key| key.suffix.registry_qualified().map(|(name, _)| name)),
+        prior_key.and_then(|key| {
+            key.suffix
+                .registry_qualified()
+                .map(|(name, _)| name)
+        }),
     )
     .into();
 }
@@ -101,8 +110,7 @@ pub(super) fn pin_locked_version(
     if depth > 0
         && !update_unpins_edge(ctx.update_scope(), wanted, locked_version, depth)
         && let Some(version) = locked_version
-        && wanted
-            .bare_specifier
+        && wanted.bare_specifier
             .as_deref()
             .is_some_and(|spec| spec.parse::<node_semver::Range>().is_ok())
     {
@@ -130,21 +138,30 @@ pub(super) fn exact_registry_specifier_for_revision_refresh(
     if body.parse::<node_semver::Range>().is_ok() {
         return format!("{protocol}:{version}");
     }
-    let Some(delimiter) = body.rfind('@').filter(|index| *index > 0) else {
+    let Some(delimiter) = body
+        .rfind('@')
+        .filter(|index| *index > 0)
+    else {
         return format!("{protocol}:{body}@{version}");
     };
     format!("{protocol}:{}@{version}", &body[..delimiter])
 }
 
 pub(super) fn has_registry_revision_specifier(specifier: &str) -> bool {
-    let selector_start =
-        specifier.rfind([':', '@']).map_or(0, |delimiter| delimiter.saturating_add(1));
+    let selector_start = specifier
+        .rfind([':', '@'])
+        .map_or(0, |delimiter| delimiter.saturating_add(1));
     let selector = &specifier[selector_start..];
     if node_semver::Version::parse(selector).is_err() {
         return false;
     }
-    let Some((_, revision)) = selector.rsplit_once("+r") else { return false };
-    !revision.is_empty() && revision.bytes().all(|byte| byte.is_ascii_digit())
+    let Some((_, revision)) = selector.rsplit_once("+r") else {
+        return false;
+    };
+    !revision.is_empty()
+        && revision
+            .bytes()
+            .all(|byte| byte.is_ascii_digit())
 }
 
 pub(super) fn registry_revisions_conflict(
@@ -177,12 +194,15 @@ pub(in super::super) fn node_alias(
     result: &pnpm_resolving_resolver_base::ResolveResult,
     id: &str,
 ) -> String {
-    wanted
-        .alias
+    wanted.alias
         .clone()
         .filter(|alias| !alias.is_empty())
         .or_else(|| result.alias.clone())
-        .or_else(|| result.package.name_ver.as_ref().map(|name_ver| name_ver.name.to_string()))
+        .or_else(|| {
+            result.package.name_ver
+                .as_ref()
+                .map(|name_ver| name_ver.name.to_string())
+        })
         .unwrap_or_else(|| id.to_string())
 }
 

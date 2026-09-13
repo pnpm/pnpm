@@ -63,6 +63,10 @@ fn a_version_is_matched_against_a_pin_the_way_npm_matches_it() {
     ];
 
     for (version, pin, satisfies) in cases {
-        assert_eq!(version_satisfies(version, pin), satisfies, "{version} against {pin}");
+        assert_eq!(
+            version_satisfies(version, pin),
+            satisfies,
+            "{version} against {pin}",
+        );
     }
 }

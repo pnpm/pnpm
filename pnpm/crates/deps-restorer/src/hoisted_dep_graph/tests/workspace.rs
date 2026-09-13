@@ -24,7 +24,10 @@ fn walker_multi_importer_emits_per_importer_direct_deps() {
     snapshots.insert(dep_key("b", "1.0.0"), SnapshotEntry::default());
 
     let lockfile = workspace_lockfile(
-        vec![(Lockfile::ROOT_IMPORTER_KEY, root_deps), ("packages/foo", foo_deps)],
+        vec![
+            (Lockfile::ROOT_IMPORTER_KEY, root_deps),
+            ("packages/foo", foo_deps),
+        ],
         packages,
         snapshots,
     );
@@ -42,8 +45,15 @@ fn walker_multi_importer_emits_per_importer_direct_deps() {
         result.direct_dependencies_by_importer_id[Lockfile::ROOT_IMPORTER_KEY]["a"],
         modules.join("a"),
     );
-    assert_eq!(result.direct_dependencies_by_importer_id["packages/foo"]["b"], modules.join("b"));
-    assert!(!result.graph.values().any(|node| node.alias.as_deref() == Some("packages%2Ffoo")));
+    assert_eq!(
+        result.direct_dependencies_by_importer_id["packages/foo"]["b"],
+        modules.join("b"),
+    );
+    assert!(
+        !result.graph
+            .values()
+            .any(|node| node.alias.as_deref() == Some("packages%2Ffoo")),
+    );
 }
 /// The linker drives its per-importer parallel fan-out off the hierarchy
 /// map, so an importer missing a hierarchy entry would be silently
@@ -65,7 +75,10 @@ fn walker_multi_importer_emits_per_importer_hierarchy() {
     snapshots.insert(dep_key("b", "1.0.0"), SnapshotEntry::default());
 
     let lockfile = workspace_lockfile(
-        vec![(Lockfile::ROOT_IMPORTER_KEY, root_deps), ("packages/foo", foo_deps)],
+        vec![
+            (Lockfile::ROOT_IMPORTER_KEY, root_deps),
+            ("packages/foo", foo_deps),
+        ],
         packages,
         snapshots,
     );
@@ -77,7 +90,10 @@ fn walker_multi_importer_emits_per_importer_hierarchy() {
     let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
 
     let importer_root = lockfile_dir.join("packages/foo");
-    assert!(result.hierarchy.contains_key(&lockfile_dir), "root importer hierarchy missing");
+    assert!(
+        result.hierarchy.contains_key(&lockfile_dir),
+        "root importer hierarchy missing",
+    );
     assert!(
         result.hierarchy.contains_key(&importer_root),
         "packages/foo hierarchy missing: {:?}",
@@ -106,7 +122,10 @@ fn walker_hoist_workspace_packages_false_keeps_importer_deps() {
     snapshots.insert(dep_key("b", "1.0.0"), SnapshotEntry::default());
 
     let lockfile = workspace_lockfile(
-        vec![(Lockfile::ROOT_IMPORTER_KEY, root_deps), ("packages/foo", foo_deps)],
+        vec![
+            (Lockfile::ROOT_IMPORTER_KEY, root_deps),
+            ("packages/foo", foo_deps),
+        ],
         packages,
         snapshots,
     );
@@ -147,7 +166,10 @@ fn walker_multi_importer_version_conflict_nests_loser() {
     snapshots.insert(dep_key("a", "2.0.0"), SnapshotEntry::default());
 
     let lockfile = workspace_lockfile(
-        vec![(Lockfile::ROOT_IMPORTER_KEY, root_deps), ("packages/foo", foo_deps)],
+        vec![
+            (Lockfile::ROOT_IMPORTER_KEY, root_deps),
+            ("packages/foo", foo_deps),
+        ],
         packages,
         snapshots,
     );
@@ -191,7 +213,10 @@ fn walker_workspace_root_version_wins_root_slot() {
     snapshots.insert(dep_key("webby", "2.0.0"), SnapshotEntry::default());
 
     let lockfile = workspace_lockfile(
-        vec![(Lockfile::ROOT_IMPORTER_KEY, root_deps), ("packages/app", app_deps)],
+        vec![
+            (Lockfile::ROOT_IMPORTER_KEY, root_deps),
+            ("packages/app", app_deps),
+        ],
         packages,
         snapshots,
     );
@@ -203,7 +228,10 @@ fn walker_workspace_root_version_wins_root_slot() {
     let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
 
     let root_webby = lockfile_dir.join("node_modules").join("webby");
-    let nested_webby = lockfile_dir.join("packages/app").join("node_modules").join("webby");
+    let nested_webby = lockfile_dir
+        .join("packages/app")
+        .join("node_modules")
+        .join("webby");
 
     assert_eq!(
         result.graph[&root_webby].package.dep_path,
@@ -219,5 +247,8 @@ fn walker_workspace_root_version_wins_root_slot() {
         result.direct_dependencies_by_importer_id[Lockfile::ROOT_IMPORTER_KEY]["webby"],
         root_webby,
     );
-    assert_eq!(result.direct_dependencies_by_importer_id["packages/app"]["webby"], nested_webby);
+    assert_eq!(
+        result.direct_dependencies_by_importer_id["packages/app"]["webby"],
+        nested_webby,
+    );
 }

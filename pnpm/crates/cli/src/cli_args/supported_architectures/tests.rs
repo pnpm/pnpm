@@ -15,7 +15,11 @@ fn empty_cli_passes_existing_through() {
 
 #[test]
 fn cli_cpu_replaces_config_cpu_only() {
-    let cli = SupportedArchitecturesArgs { cpu: vec!["x64".to_string()], os: vec![], libc: vec![] };
+    let cli = SupportedArchitecturesArgs {
+        cpu: vec!["x64".to_string()],
+        os: vec![],
+        libc: vec![],
+    };
     let existing = Some(SupportedArchitectures {
         os: Some(vec!["darwin".to_string()]),
         cpu: Some(vec!["arm64".to_string()]),

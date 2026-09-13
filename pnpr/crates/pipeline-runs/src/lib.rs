@@ -58,7 +58,9 @@ pub struct PipelineRunStore {
 impl PipelineRunStore {
     #[must_use]
     pub fn new(storage: Storage) -> Self {
-        Self { storage }
+        Self {
+            storage,
+        }
     }
 
     /// Record one run. Append-only: a run id that already exists for the
@@ -106,7 +108,11 @@ impl PipelineRunStore {
         let mut entries = Vec::with_capacity(newest.len());
         for (run_id, workspace) in newest.into_iter().rev() {
             if let Some(record) = self.get(&workspace, &run_id).await? {
-                entries.push(PipelineRunEntry { workspace, run_id, summary: record.summary });
+                entries.push(PipelineRunEntry {
+                    workspace,
+                    run_id,
+                    summary: record.summary,
+                });
             }
         }
         Ok(entries)
@@ -121,11 +127,13 @@ impl PipelineRunStore {
         let Some(bytes) = self.storage.read_pipeline_run(workspace, &key).await? else {
             return Ok(None);
         };
-        serde_json::from_slice(&bytes).map(Some).map_err(|error| RegistryError::Internal {
-            // Name the record: it is one of many in a store several replicas
-            // write, and an operator has to be able to find the one at fault.
-            reason: format!("pipeline run {workspace}/{run_id} is not readable: {error}"),
-        })
+        serde_json::from_slice(&bytes)
+            .map(Some)
+            .map_err(|error| RegistryError::Internal {
+                // Name the record: it is one of many in a store several replicas
+                // write, and an operator has to be able to find the one at fault.
+                reason: format!("pipeline run {workspace}/{run_id} is not readable: {error}"),
+            })
     }
 }
 
@@ -141,7 +149,9 @@ fn keep_newest_runs(
     limit: usize,
 ) {
     for key in keys {
-        let Some(run_id) = key.strip_suffix(RECORD_SUFFIX) else { continue };
+        let Some(run_id) = key.strip_suffix(RECORD_SUFFIX) else {
+            continue;
+        };
         if validate_name(run_id, "runId").is_err() {
             continue;
         }
@@ -160,7 +170,9 @@ fn validate_name(name: &str, field: &str) -> Result<()> {
     let valid = !name.is_empty()
         && name.len() <= MAX_NAME_LEN
         && !name.starts_with('.')
-        && name.chars().all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-'));
+        && name
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-'));
     if valid {
         return Ok(());
     }

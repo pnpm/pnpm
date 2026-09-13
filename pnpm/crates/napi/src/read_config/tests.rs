@@ -33,8 +33,7 @@ fn registries_carry_their_static_auth_headers() {
 
     let resolved = project_config(&config);
 
-    let by_name: BTreeMap<&str, Option<&str>> = resolved
-        .registries
+    let by_name: BTreeMap<&str, Option<&str>> = resolved.registries
         .iter()
         .map(|registry| (registry.name.as_str(), registry.auth_header.as_deref()))
         .collect();
@@ -67,8 +66,7 @@ fn scope_registry_prefers_its_scope_credential() {
 
     let resolved = project_config(&config);
 
-    let scope = resolved
-        .registries
+    let scope = resolved.registries
         .iter()
         .find(|registry| registry.name == "@scope")
         .expect("@scope registry");
@@ -80,8 +78,7 @@ fn scope_registry_prefers_its_scope_credential() {
         BTreeMap::from([("@".to_string(), "Bearer registry-wide".to_string())]),
     )])));
     let resolved = project_config(&config);
-    let scope = resolved
-        .registries
+    let scope = resolved.registries
         .iter()
         .find(|registry| registry.name == "@scope")
         .expect("@scope registry");
@@ -92,10 +89,15 @@ fn scope_registry_prefers_its_scope_credential() {
 fn no_proxy_projects_bypass_as_true_and_hosts_as_a_joined_string() {
     let mut config = Config::default();
     config.proxy.no_proxy = Some(NoProxySetting::Bypass);
-    assert_eq!(project_config(&config).no_proxy, Some(serde_json::Value::Bool(true)));
+    assert_eq!(
+        project_config(&config).no_proxy,
+        Some(serde_json::Value::Bool(true)),
+    );
 
-    config.proxy.no_proxy =
-        Some(NoProxySetting::List(vec!["a.example".to_string(), "b.example".to_string()]));
+    config.proxy.no_proxy = Some(NoProxySetting::List(vec![
+        "a.example".to_string(),
+        "b.example".to_string(),
+    ]));
 
     assert_eq!(
         project_config(&config).no_proxy,
@@ -123,7 +125,10 @@ fn import_method_names_round_trip_through_the_install_parser() {
         (PackageImportMethod::CloneOrCopy, "clone-or-copy"),
     ] {
         assert_eq!(import_method_name(method), name);
-        assert_eq!(crate::install::overlay::parse_import_method(name), Some(method));
+        assert_eq!(
+            crate::install::overlay::parse_import_method(name),
+            Some(method),
+        );
     }
 }
 
@@ -146,25 +151,36 @@ fn read_config_resolves_the_project_npmrc_cascade() {
     )
     .expect("write .npmrc");
 
-    let resolved =
-        super::read_config(super::ReadConfigOptions { dir: dir.path().display().to_string() })
-            .expect("read config");
+    let resolved = super::read_config(super::ReadConfigOptions {
+        dir: dir
+            .path()
+            .display()
+            .to_string(),
+    })
+    .expect("read config");
 
-    let fixture_registry = resolved
-        .registries
+    let fixture_registry = resolved.registries
         .iter()
         .find(|registry| registry.name == "@fixture")
         .expect("@fixture registry resolved from the project .npmrc");
     assert_eq!(fixture_registry.url, "https://reg.fixture.example/scoped/");
-    assert_eq!(fixture_registry.auth_header.as_deref(), Some("Bearer fixture-token"));
+    assert_eq!(
+        fixture_registry.auth_header.as_deref(),
+        Some("Bearer fixture-token"),
+    );
     assert_eq!(
         resolved.auth_header_by_uri.get("//reg.fixture.example/scoped/").map(String::as_str),
         Some("Bearer fixture-token"),
     );
-    assert_eq!(resolved.https_proxy.as_deref(), Some("http://proxy.fixture.example:8080"));
+    assert_eq!(
+        resolved.https_proxy.as_deref(),
+        Some("http://proxy.fixture.example:8080"),
+    );
     assert_eq!(
         resolved.no_proxy,
-        Some(serde_json::Value::String("internal.fixture.example".to_string())),
+        Some(serde_json::Value::String(
+            "internal.fixture.example".to_string()
+        )),
     );
     assert_eq!(resolved.strict_ssl, Some(false));
     assert!(!resolved.store_dir.is_empty());
@@ -183,9 +199,13 @@ fn read_config_reports_explicitly_set_workspace_settings() {
     )
     .expect("write pnpm-workspace.yaml");
 
-    let resolved =
-        super::read_config(super::ReadConfigOptions { dir: dir.path().display().to_string() })
-            .expect("read config");
+    let resolved = super::read_config(super::ReadConfigOptions {
+        dir: dir
+            .path()
+            .display()
+            .to_string(),
+    })
+    .expect("read config");
 
     assert_eq!(resolved.fetch_retries, 7);
     assert_eq!(resolved.fetch_warn_timeout_ms, 2_345);

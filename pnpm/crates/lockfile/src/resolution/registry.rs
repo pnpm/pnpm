@@ -68,7 +68,11 @@ pub fn registry_server_type(
     } else {
         Cow::Owned(format!("{registry}/"))
     };
-    registry_options_by_url.get(key.as_ref()).copied().unwrap_or_default().server_type
+    registry_options_by_url
+        .get(key.as_ref())
+        .copied()
+        .unwrap_or_default()
+        .server_type
 }
 
 /// Whether `registry`'s abbreviated metadata carries the `time` field, per its
@@ -87,7 +91,11 @@ pub fn registry_supports_time_field(
     } else {
         Cow::Owned(format!("{registry}/"))
     };
-    registry_options_by_url.get(key.as_ref()).copied().unwrap_or_default().supports_time_field
+    registry_options_by_url
+        .get(key.as_ref())
+        .copied()
+        .unwrap_or_default()
+        .supports_time_field
 }
 
 /// A declared server type wins; otherwise the built-in layout of a known
@@ -139,9 +147,16 @@ pub fn integrity_addressed_registry_tarball_url(
     registry: &str,
 ) -> Option<String> {
     let path = integrity_addressed_tarball_path(integrity)?;
-    let registry =
-        if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") };
-    url::Url::parse(&registry).ok()?.join(&path).ok().map(Into::into)
+    let registry = if registry.ends_with('/') {
+        registry.to_string()
+    } else {
+        format!("{registry}/")
+    };
+    url::Url::parse(&registry)
+        .ok()?
+        .join(&path)
+        .ok()
+        .map(Into::into)
 }
 
 /// Whether `tarball` is the exact digest route derived from `registry` and `integrity`.
@@ -174,18 +189,25 @@ pub fn is_integrity_addressed_registry_tarball_url(
 #[must_use]
 pub fn npm_tarball_url(name: &str, version: &str, opts: TarballUrlOptions<'_>) -> String {
     let TarballUrlOptions { registry, server_type } = opts;
-    let registry =
-        if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") };
+    let registry = if registry.ends_with('/') {
+        registry.to_string()
+    } else {
+        format!("{registry}/")
+    };
     // Artifactory keeps the scope in the filename of a scoped package's tarball
     // (`@acme/widget/-/@acme/widget-1.0.0.tgz`); the npm layout strips it.
     let filename_name = match server_type {
         Some(RegistryServerType::Artifactory) => name,
         Some(RegistryServerType::Npm) | None => match name.strip_prefix('@') {
-            Some(scoped) => scoped.split_once('/').map_or(name, |(_, bare)| bare),
+            Some(scoped) => scoped
+                .split_once('/')
+                .map_or(name, |(_, bare)| bare),
             None => name,
         },
     };
-    let version = version.split_once('+').map_or(version, |(base, _)| base);
+    let version = version
+        .split_once('+')
+        .map_or(version, |(base, _)| base);
     format!("{registry}{name}/-/{filename_name}-{version}.tgz")
 }
 
@@ -236,14 +258,19 @@ pub fn pick_registry_for_package(
     {
         return url.clone();
     }
-    registries.get("default").cloned().unwrap_or_default()
+    registries
+        .get("default")
+        .cloned()
+        .unwrap_or_default()
 }
 
 fn scope_of(name: &str) -> Option<&str> {
     if !name.starts_with('@') {
         return None;
     }
-    name.find('/').map(|sep| &name[..sep])
+    name
+        .find('/')
+        .map(|sep| &name[..sep])
 }
 
 /// Strip only a leading `http://` or `https://` scheme (case-insensitive) so
@@ -253,7 +280,8 @@ fn remove_protocol(url: &str) -> &str {
     ["https://", "http://"]
         .into_iter()
         .find_map(|scheme| {
-            url.get(..scheme.len())
+            url
+                .get(..scheme.len())
                 .filter(|head| head.eq_ignore_ascii_case(scheme))
                 .map(|_| &url[scheme.len()..])
         })

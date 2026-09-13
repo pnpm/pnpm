@@ -109,7 +109,10 @@ pub(super) async fn warn_stale_overrides<Reporter: self::Reporter + 'static>(
             resolved.overrides.parsed_overrides.as_deref(),
             resolved.overrides.versions_overrider.as_deref(),
             install.projects.lockfile_dir,
-            (setup.policy.published_by, setup.policy.published_by_exclude.as_ref()),
+            (
+                setup.policy.published_by,
+                setup.policy.published_by_exclude.as_ref(),
+            ),
         )
         .await;
     }
@@ -129,9 +132,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
             &self.resolved,
             LockfileViews {
                 importer_manifests: &self.resolved.importer_manifests,
-                wanted_lockfile: self
-                    .resolved
-                    .fixed_wanted_lockfile
+                wanted_lockfile: self.resolved.fixed_wanted_lockfile
                     .as_ref()
                     .or(self.install.lockfiles.wanted),
                 catalogs: &self.resources.catalogs,
@@ -165,10 +166,9 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
 
             requester: self.install.projects.requester,
 
-            store_index_writer: self
-                .stores
-                .writer
-                .expect("store writer is available before materialization"),
+            store_index_writer: self.stores.writer.expect(
+                "store writer is available before materialization",
+            ),
             writer_task: self.stores.writer_task,
         })
         .await
@@ -187,18 +187,24 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
                 early_host_detection: self.resources.early_host_detection.take(),
                 node_version: self.resources.node_version.take(),
             },
-            PlanLockfiles { initial: initial.lockfile(&built_lockfile), built: &built_lockfile },
+            PlanLockfiles {
+                initial: initial.lockfile(&built_lockfile),
+                built: &built_lockfile,
+            },
             &allow_build_policy,
             PlanScope {
                 included: self.install.included(),
-                include_transitive_optional_dependencies: self
-                    .shape
+                include_transitive_optional_dependencies: self.shape
                     .include_transitive_optional_dependencies,
             },
         )
         .await?;
-        let scope =
-            initial.finalize(self.install, self.shape.is_hoisted, &built_lockfile, &plan.skipped);
+        let scope = initial.finalize(
+            self.install,
+            self.shape.is_hoisted,
+            &built_lockfile,
+            &plan.skipped,
+        );
         finish_early_materialization(
             self.resolved.early_materializer.as_deref(),
             initial.lockfile(&built_lockfile).snapshots.as_ref(),
@@ -258,8 +264,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
                     &plan.layout,
                     allow_build_policy,
                 ),
-                include_transitive_optional_dependencies: self
-                    .shape
+                include_transitive_optional_dependencies: self.shape
                     .include_transitive_optional_dependencies,
                 deps_requiring_build_sink: self.resources.deps_requiring_build_sink.take(),
                 patched_dependencies: self.resolved.patches.record.as_deref(),

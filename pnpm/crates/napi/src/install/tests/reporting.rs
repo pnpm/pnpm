@@ -17,7 +17,11 @@ fn take_deps_requiring_build_reports_the_list_in_sorted_order() {
 
     assert_eq!(
         take_deps_requiring_build(Some(&sink), Vec::new()),
-        Some(vec!["aaa@1.0.0".to_string(), "mmm@1.0.0".to_string(), "zzz@1.0.0".to_string()]),
+        Some(vec![
+            "aaa@1.0.0".to_string(),
+            "mmm@1.0.0".to_string(),
+            "zzz@1.0.0".to_string()
+        ]),
     );
 }
 
@@ -60,7 +64,10 @@ fn return_list_of_deps_requiring_build_reports_an_empty_list_for_a_tree_without_
     run_install_inner(&options, None, EngineMode::Install(Some(Arc::clone(&sink))))
         .expect("install");
 
-    assert_eq!(take_deps_requiring_build(Some(&sink), Vec::new()), Some(Vec::new()));
+    assert_eq!(
+        take_deps_requiring_build(Some(&sink), Vec::new()),
+        Some(Vec::new()),
+    );
 }
 
 #[test]
@@ -71,8 +78,11 @@ fn allow_unused_patches_downgrades_an_unmatched_patch_to_a_warning() {
     std::fs::create_dir(&project_dir).expect("create project dir");
     std::fs::write(project_dir.join("package.json"), "{}\n").expect("write package.json");
     std::fs::create_dir(project_dir.join("patches")).expect("create patches dir");
-    std::fs::write(project_dir.join("patches/unmatched.patch"), WELL_FORMED_PATCH)
-        .expect("write patch file");
+    std::fs::write(
+        project_dir.join("patches/unmatched.patch"),
+        WELL_FORMED_PATCH,
+    )
+    .expect("write patch file");
 
     let project_dir_string = project_dir.to_string_lossy().into_owned();
     let mut options = install_options();
@@ -82,7 +92,13 @@ fn allow_unused_patches_downgrades_an_unmatched_patch_to_a_warning() {
         manifest: serde_json::json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }),
         dependency_manifest: None,
     }];
-    options.store_dir = Some(temp_dir.path().join("store").to_string_lossy().into_owned());
+    options.store_dir = Some(
+        temp_dir
+            .path()
+            .join("store")
+            .to_string_lossy()
+            .into_owned(),
+    );
     options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
     options.patched_dependencies = Some(indexmap::IndexMap::from_iter([(
         "is-negative@1.0.0".to_string(),

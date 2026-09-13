@@ -64,7 +64,11 @@ async fn revision_refresh_does_not_replace_a_registry_resolution_with_a_workspac
         bare_specifier: Some("1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("registry pick");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("registry pick");
     assert_eq!(result.resolved_via, "npm-registry");
     assert_eq!(result.id.as_str(), "acme@1.0.0");
     mock.assert_async().await;
@@ -94,7 +98,11 @@ async fn link_workspace_packages_off_skips_workspace_match() {
         bare_specifier: Some("^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("registry pick");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("registry pick");
     assert_eq!(result.resolved_via, "npm-registry");
     assert_eq!(result.id.as_str(), "acme@1.0.0");
 }
@@ -123,7 +131,11 @@ async fn prefer_workspace_packages_keeps_workspace_over_newer_registry() {
         bare_specifier: Some("^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace pick");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("workspace pick");
     assert_eq!(result.resolved_via, "workspace");
     assert_eq!(result.id.as_str(), "link:../acme");
 }
@@ -131,7 +143,11 @@ async fn prefer_workspace_packages_keeps_workspace_over_newer_registry() {
 #[tokio::test]
 async fn prefer_workspace_packages_skips_the_registry_entirely() {
     let mut server = mockito::Server::new_async().await;
-    let mock = server.mock("GET", "/acme").expect(0).create_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .expect(0)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
@@ -144,7 +160,11 @@ async fn prefer_workspace_packages_skips_the_registry_entirely() {
         bare_specifier: Some("^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace pick");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("workspace pick");
     assert_eq!(result.resolved_via, "workspace");
     assert_eq!(result.id.as_str(), "link:../acme");
     assert_eq!(result.package.latest, None);
@@ -168,7 +188,10 @@ async fn prefer_workspace_packages_still_consults_registry_for_several_local_cop
 
     let packages = build_workspace_packages_at(
         "acme",
-        &[("1.0.0", "/repo/packages/acme-1"), ("1.1.0", "/repo/packages/acme-11")],
+        &[
+            ("1.0.0", "/repo/packages/acme-1"),
+            ("1.1.0", "/repo/packages/acme-11"),
+        ],
     );
     let mut opts = workspace_resolve_options(packages);
     opts.project.prefer_workspace_packages = true;
@@ -178,7 +201,11 @@ async fn prefer_workspace_packages_still_consults_registry_for_several_local_cop
         bare_specifier: Some("^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace pick");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("workspace pick");
     mock.assert_async().await;
     assert_eq!(result.resolved_via, "workspace");
     assert_eq!(result.id.as_str(), "link:../acme-11");
@@ -210,7 +237,11 @@ async fn prefer_workspace_packages_still_consults_registry_for_injected_deps() {
         injected: Some(true),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace pick");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("workspace pick");
     mock.assert_async().await;
     assert_eq!(result.resolved_via, "workspace");
     assert_eq!(result.package.latest.as_deref(), Some("1.1.0"));
@@ -240,7 +271,11 @@ async fn prefer_workspace_packages_does_not_engage_without_a_matching_local_vers
         bare_specifier: Some("^2.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("registry pick");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("registry pick");
     mock.assert_async().await;
     assert_eq!(result.resolved_via, "npm-registry");
     assert_eq!(result.id.as_str(), "acme@2.0.0");
@@ -271,7 +306,11 @@ async fn prefer_workspace_packages_still_consults_registry_under_no_downgrade() 
         bare_specifier: Some("^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace pick");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("workspace pick");
     assert_eq!(result.resolved_via, "workspace");
     assert_eq!(result.id.as_str(), "link:../acme");
     assert_eq!(result.package.latest.as_deref(), Some("1.1.0"));
@@ -303,7 +342,11 @@ async fn prefer_workspace_packages_still_consults_registry_when_updating_checksu
         bare_specifier: Some("^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace pick");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("workspace pick");
     assert_eq!(result.resolved_via, "workspace");
     assert_eq!(result.id.as_str(), "link:../acme");
     assert_eq!(result.package.latest.as_deref(), Some("1.1.0"));
@@ -335,7 +378,11 @@ async fn prefer_workspace_packages_still_consults_registry_when_injecting_worksp
         bare_specifier: Some("^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace pick");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("workspace pick");
     assert_eq!(result.resolved_via, "workspace");
     assert_eq!(result.package.latest.as_deref(), Some("1.1.0"));
     mock.assert_async().await;
@@ -345,7 +392,11 @@ async fn prefer_workspace_packages_still_consults_registry_when_injecting_worksp
 #[tokio::test]
 async fn workspace_fallback_picks_local_prerelease_for_latest_tag() {
     let mut server = mockito::Server::new_async().await;
-    let _mock = server.mock("GET", "/acme").with_status(404).create_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(404)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
@@ -357,7 +408,11 @@ async fn workspace_fallback_picks_local_prerelease_for_latest_tag() {
         bare_specifier: Some("latest".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace fallback");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("workspace fallback");
     assert_eq!(result.resolved_via, "workspace");
     assert_eq!(result.id.as_str(), "link:../acme");
 }
@@ -365,7 +420,11 @@ async fn workspace_fallback_picks_local_prerelease_for_latest_tag() {
 #[tokio::test]
 async fn registry_404_propagates_when_package_not_in_workspace() {
     let mut server = mockito::Server::new_async().await;
-    let _mock = server.mock("GET", "/acme").with_status(404).create_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(404)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
@@ -382,7 +441,10 @@ async fn registry_404_propagates_when_package_not_in_workspace() {
         .await
         .expect_err("package absent from both registry and workspace must fail");
     let err_msg = err.to_string();
-    assert!(err_msg.contains("404"), "expected the 404 to propagate, got: {err_msg}");
+    assert!(
+        err_msg.contains("404"),
+        "expected the 404 to propagate, got: {err_msg}",
+    );
     assert!(
         !err_msg.contains("inside the workspace"),
         "workspace mismatch must not surface when the package is not in the workspace, got: {err_msg}",

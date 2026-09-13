@@ -35,7 +35,9 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
     let mem_cache = Arc::new(MemCache::default());
     mem_cache.insert(
         tarball_url,
-        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded.clone())))),
+        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(
+            seeded.clone(),
+        )))),
     );
 
     let layout = crate::VirtualStoreLayout::legacy(store_tmp.path().join("vstore"), 120);
@@ -121,7 +123,9 @@ async fn without_mem_cache_skips_coordination_and_downloads() {
     let mem_cache = Arc::new(MemCache::default());
     mem_cache.insert(
         "https://registry.test/foo/-/foo-1.0.0.tgz".to_string(),
-        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded)))),
+        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(
+            seeded,
+        )))),
     );
 
     let layout = crate::VirtualStoreLayout::legacy(store_tmp.path().join("vstore"), 120);

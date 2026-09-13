@@ -46,7 +46,10 @@ fn upsert_dependency(
 ) -> Result<String> {
     let Some((section_start, section_end)) = find_table(contents, table) else {
         let separator = appended_table_separator(contents);
-        return Ok(format!("{contents}{separator}[{table}]\n{name} = {}\n", quoted(version_spec)));
+        return Ok(format!(
+            "{contents}{separator}[{table}]\n{name} = {}\n",
+            quoted(version_spec),
+        ));
     };
 
     let section = &contents[section_start..section_end];
@@ -60,8 +63,16 @@ fn upsert_dependency(
     }
 
     let prefix = &contents[..section_end];
-    let newline = if !prefix.is_empty() && !prefix.ends_with('\n') { "\n" } else { "" };
-    Ok(format!("{prefix}{newline}{name} = {}\n{}", quoted(version_spec), &contents[section_end..]))
+    let newline = if !prefix.is_empty() && !prefix.ends_with('\n') {
+        "\n"
+    } else {
+        ""
+    };
+    Ok(format!(
+        "{prefix}{newline}{name} = {}\n{}",
+        quoted(version_spec),
+        &contents[section_end..],
+    ))
 }
 
 /// What has to come between the existing contents and a table appended
@@ -83,7 +94,9 @@ fn find_table(contents: &str, table: &str) -> Option<(usize, usize)> {
     let mut offset = 0;
     for line in contents.split_inclusive('\n') {
         let trimmed = line.trim();
-        let trimmed = comment_start(trimmed).map_or(trimmed, |start| &trimmed[..start]).trim_end();
+        let trimmed = comment_start(trimmed)
+            .map_or(trimmed, |start| &trimmed[..start])
+            .trim_end();
         if section_start.is_some() && is_table_header(trimmed) {
             return section_start.map(|start| (start, offset));
         }
@@ -107,11 +120,7 @@ fn dependency_value_range(line: &str, name: &str) -> Option<Range<usize>> {
     }
     let equals = content.find('=')?;
     let key = content[..equals].trim();
-    let key = key
-        .strip_prefix('"')
-        .and_then(|key| key.strip_suffix('"'))
-        .or_else(|| key.strip_prefix('\'').and_then(|key| key.strip_suffix('\'')))
-        .unwrap_or(key);
+    let key = unquote_dependency_key(key);
     if key != name {
         return None;
     }
@@ -119,8 +128,15 @@ fn dependency_value_range(line: &str, name: &str) -> Option<Range<usize>> {
     let whitespace = line[after_equals..].len() - line[after_equals..].trim_start().len();
     let start = after_equals + whitespace;
     let end = comment_start(&line[start..])
-        .map_or_else(|| line.trim_end_matches(['\r', '\n']).len(), |comment| start + comment);
-    Some(start..end - line[..end].len().saturating_sub(line[..end].trim_end().len()))
+        .map_or_else(
+            || {
+                line
+                    .trim_end_matches(['\r', '\n'])
+                    .len()
+            },
+            |comment| start + comment,
+        );
+    Some(start..line[..end].trim_end().len())
 }
 
 fn comment_start(value: &str) -> Option<usize> {
@@ -158,14 +174,12 @@ fn replace_dependency_value(
             "cannot update crate {name}: its Cargo.toml dependency declaration is not a string or single-line inline table"
         ));
     };
-    Ok(
-        format!(
-            "{}{}{}",
-            &contents[..value_range.start],
-            replacement,
-            &contents[value_range.end..],
-        ),
-    )
+    Ok(format!(
+        "{}{}{}",
+        &contents[..value_range.start],
+        replacement,
+        &contents[value_range.end..],
+    ))
 }
 
 fn is_quoted(value: &str) -> bool {
@@ -192,7 +206,10 @@ fn is_identifier_byte(byte: u8) -> bool {
 }
 
 fn inline_version_range(value: &str) -> Option<Range<usize>> {
-    let mut scan = InlineScan { bytes: value.as_bytes(), cursor: 0 };
+    let mut scan = InlineScan {
+        bytes: value.as_bytes(),
+        cursor: 0,
+    };
     while let Some(byte) = scan.peek() {
         // A quoted value may contain anything, `version =` included.
         if matches!(byte, b'"' | b'\'') {
@@ -264,7 +281,10 @@ impl InlineScan<'_> {
         matches!(self.peek(), Some(b'"' | b'\''))
     }
     fn skip_whitespace(&mut self) {
-        while self.peek().is_some_and(|byte| byte.is_ascii_whitespace()) {
+        while self
+            .peek()
+            .is_some_and(|byte| byte.is_ascii_whitespace())
+        {
             self.cursor += 1;
         }
     }
@@ -276,3 +296,15 @@ fn quoted(value: &str) -> String {
 
 #[cfg(test)]
 mod tests;
+
+fn unquote_dependency_key(key: &str) -> &str {
+    key
+        .strip_prefix('"')
+        .and_then(|key| key.strip_suffix('"'))
+        .or_else(|| {
+            key
+                .strip_prefix('\'')
+                .and_then(|key| key.strip_suffix('\''))
+        })
+        .unwrap_or(key)
+}

@@ -47,7 +47,9 @@ use std::{
 pub fn resolve_boolean_values(mut argv: Vec<OsString>) -> Vec<OsString> {
     let flags = boolean_flags();
     let arity = union_arity();
-    let owned_by_pnpm = passthrough_from(&argv).unwrap_or(argv.len()).min(argv.len());
+    let owned_by_pnpm = passthrough_from(&argv)
+        .unwrap_or(argv.len())
+        .min(argv.len());
 
     let mut index = 1;
     while index < owned_by_pnpm {
@@ -60,9 +62,13 @@ pub fn resolve_boolean_values(mut argv: Vec<OsString>) -> Vec<OsString> {
         }
         // A token past the boundary is the child's, so it can be neither
         // rewritten nor read as an option's value.
-        let next = (index + 1 < owned_by_pnpm).then(|| argv[index + 1].to_str()).flatten();
+        let next = (index + 1 < owned_by_pnpm)
+            .then(|| argv[index + 1].to_str())
+            .flatten();
         let width = option_width(token, next, arity).unwrap_or(1);
-        if let Some((name, value)) = token.strip_prefix("--").and_then(|rest| rest.split_once('='))
+        if let Some((name, value)) = token
+            .strip_prefix("--")
+            .and_then(|rest| rest.split_once('='))
             && let Some(spelling) = flags.spelling_for(name, value)
         {
             argv[index] = spelling;
@@ -87,12 +93,18 @@ impl BooleanFlags {
     /// report.
     fn spelling_for(&self, name: &str, value: &str) -> Option<OsString> {
         let opposite = self.opposites.get(name)?;
-        let long = if parse_bool(value)? { name } else { opposite.as_deref()? };
+        let long = if parse_bool(value)? {
+            name
+        } else {
+            opposite.as_deref()?
+        };
         Some(OsString::from(format!("--{long}")))
     }
 
     fn collect(command: &Command) -> Self {
-        let mut flags = Self { opposites: HashMap::new() };
+        let mut flags = Self {
+            opposites: HashMap::new(),
+        };
         let mut value_taking = HashSet::new();
         flags.absorb(command, &mut value_taking);
         // A name some command spells as a value-taking option is left
@@ -100,7 +112,10 @@ impl BooleanFlags {
         // there, and a flag whose opposite is one has no false spelling.
         flags.opposites.retain(|name, _| !value_taking.contains(name));
         for opposite in flags.opposites.values_mut() {
-            if opposite.as_ref().is_some_and(|name| value_taking.contains(name)) {
+            if opposite
+                .as_ref()
+                .is_some_and(|name| value_taking.contains(name))
+            {
                 *opposite = None;
             }
         }
@@ -108,7 +123,10 @@ impl BooleanFlags {
     }
 
     fn absorb(&mut self, command: &Command, value_taking: &mut HashSet<String>) {
-        let longs: HashSet<&str> = command.get_arguments().flat_map(spellings).collect();
+        let longs: HashSet<&str> = command
+            .get_arguments()
+            .flat_map(spellings)
+            .collect();
         for arg in command.get_arguments() {
             if arg.get_action().takes_values() {
                 value_taking.extend(spellings(arg).map(str::to_owned));
@@ -133,23 +151,37 @@ impl BooleanFlags {
         let opposite = match long.strip_prefix("no-") {
             // A negation pairs with the flag it negates, when the
             // command declares one.
-            Some(positive) => longs.contains(positive).then(|| positive.to_string()),
+            Some(positive) => longs
+                .contains(positive)
+                .then(|| positive.to_string()),
             // Every other boolean flag is paired by
             // [`crate::boolean_negations`].
             None => Some(negation_of(long)),
         };
         for spelling in spellings(arg) {
-            self.opposites.entry(spelling.to_string()).or_insert_with(|| opposite.clone());
+            self.opposites
+                .entry(spelling.to_string())
+                .or_insert_with(|| opposite.clone());
         }
         if let Some(opposite) = opposite {
-            self.opposites.entry(opposite).or_insert_with(|| Some(long.to_string()));
+            self.opposites
+                .entry(opposite)
+                .or_insert_with(|| Some(long.to_string()));
         }
     }
 }
 
 /// The long spellings `arg` answers to: its own, plus its aliases.
 fn spellings(arg: &Arg) -> impl Iterator<Item = &str> {
-    arg.get_long().into_iter().chain(arg.get_all_aliases().into_iter().flatten())
+    arg
+        .get_long()
+        .into_iter()
+        .chain(
+            arg
+                .get_all_aliases()
+                .into_iter()
+                .flatten(),
+        )
 }
 
 fn boolean_flags() -> &'static BooleanFlags {

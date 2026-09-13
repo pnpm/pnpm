@@ -91,7 +91,10 @@ pub(super) async fn add_user(state: &AppState, name: &str, body: &[u8]) -> Respo
         Ok(v) => v,
         Err(err) => return RegistryError::Json(err).into_response(),
     };
-    let body_name = body.get("name").and_then(Value::as_str).unwrap_or("");
+    let body_name = body
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("");
     if body_name != name {
         return RegistryError::BadRequest {
             reason: format!("username in URL ({name:?}) does not match body ({body_name:?})"),
@@ -99,8 +102,10 @@ pub(super) async fn add_user(state: &AppState, name: &str, body: &[u8]) -> Respo
         .into_response();
     }
     let Some(password) = body.get("password").and_then(Value::as_str) else {
-        return RegistryError::BadRequest { reason: "missing password".to_string() }
-            .into_response();
+        return RegistryError::BadRequest {
+            reason: "missing password".to_string(),
+        }
+        .into_response();
     };
 
     let (outcome, username) =
@@ -112,6 +117,10 @@ pub(super) async fn add_user(state: &AppState, name: &str, body: &[u8]) -> Respo
         Ok(t) => t,
         Err(err) => return err.into_response(),
     };
+    user_token_response(outcome, &username, &token)
+}
+
+fn user_token_response(outcome: UpsertOutcome, username: &str, token: &str) -> Response {
     let ok_msg = match outcome {
         UpsertOutcome::Created => format!("user '{username}' created"),
         UpsertOutcome::LoggedIn => format!("you are authenticated as '{username}'"),
@@ -178,8 +187,10 @@ pub(super) async fn list_tokens(state: &AppState, identity: &Identity) -> Respon
         Ok(tokens) => tokens,
         Err(err) => return err.into_response(),
     };
-    let objects: Vec<Value> =
-        tokens.into_iter().map(|(key, record)| token_response_object(&key, &record)).collect();
+    let objects: Vec<Value> = tokens
+        .into_iter()
+        .map(|(key, record)| token_response_object(&key, &record))
+        .collect();
     json_response(StatusCode::OK, &json!({ "objects": objects, "urls": {} }))
 }
 
@@ -261,7 +272,10 @@ pub(super) async fn logout(state: &AppState, identity: &Identity, raw_token: &st
 }
 
 pub(super) fn token_response_object(key: &str, record: &pnpr_auth::TokenRecord) -> Value {
-    let preview: String = key.chars().take(6).collect();
+    let preview: String = key
+        .chars()
+        .take(6)
+        .collect();
     let created = token_timestamp_iso(record.created_at);
     let updated = token_timestamp_iso(record.last_used_at);
     json!({

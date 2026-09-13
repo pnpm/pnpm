@@ -46,17 +46,12 @@ impl GlobalInstallTarget<'_> {
     ) -> miette::Result<()> {
         let pkgs = read_installed_packages(install_dir);
         let dependencies = read_direct_dependencies(install_dir);
-        let aliases = dependencies.iter().map(|(alias, _)| alias.clone()).collect::<Vec<_>>();
+        let aliases = dependencies
+            .iter()
+            .map(|(alias, _)| alias.clone())
+            .collect::<Vec<_>>();
         let aliases_to_replace = replacement_aliases(&aliases);
-        let _global_bin_lock = discard_install_dir_on_error(
-            install_dir,
-            acquire_global_bin_lock(self.global_bin_dir),
-        )?;
-
-        discard_install_dir_on_error(
-            install_dir,
-            check_virtual_shim_conflicts(&pkgs, self.global_bin_dir),
-        )?;
+        let _global_bin_lock = self.lock_and_check_shims(install_dir, &pkgs)?;
 
         let bins_to_skip = discard_install_dir_on_error(
             install_dir,
@@ -133,14 +128,7 @@ impl GlobalInstallTarget<'_> {
     ) -> miette::Result<()> {
         let pkgs = read_installed_packages(install_dir);
         let dependencies = read_direct_dependencies(install_dir);
-        let _global_bin_lock = discard_install_dir_on_error(
-            install_dir,
-            acquire_global_bin_lock(self.global_bin_dir),
-        )?;
-        discard_install_dir_on_error(
-            install_dir,
-            check_virtual_shim_conflicts(&pkgs, self.global_bin_dir),
-        )?;
+        let _global_bin_lock = self.lock_and_check_shims(install_dir, &pkgs)?;
         let bins_to_skip = discard_install_dir_on_error(
             install_dir,
             check_global_bin_conflicts(
@@ -172,6 +160,24 @@ impl GlobalInstallTarget<'_> {
             protected_bins: &protected,
             hash: &pkg.hash,
         })
+    }
+
+    fn lock_and_check_shims(
+        &self,
+        install_dir: &Path,
+        pkgs: &[super::PackageBinSource],
+    ) -> miette::Result<pnpm_fs::DirLock> {
+        let global_bin_lock = discard_install_dir_on_error(
+            install_dir,
+            acquire_global_bin_lock(self.global_bin_dir),
+        )?;
+
+        discard_install_dir_on_error(
+            install_dir,
+            check_virtual_shim_conflicts(pkgs, self.global_bin_dir),
+        )?;
+
+        Ok(global_bin_lock)
     }
 
     /// Link the group's bins into the global bin directory over the groups

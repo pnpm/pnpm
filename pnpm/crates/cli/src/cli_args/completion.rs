@@ -69,15 +69,22 @@ pub fn shell_from_args(
     extra: &[String],
 ) -> Result<CompletionShell, CompletionError> {
     if !extra.is_empty() {
-        return Err(CompletionError::RedundantParameters { count: extra.len() });
+        return Err(CompletionError::RedundantParameters {
+            count: extra.len(),
+        });
     }
 
-    let Some(shell) = shell.map(str::trim).filter(|shell| !shell.is_empty()) else {
+    let Some(shell) = shell
+        .map(str::trim)
+        .filter(|shell| !shell.is_empty())
+    else {
         return Err(CompletionError::MissingShellName);
     };
 
     CompletionShell::from_name(shell)
-        .ok_or_else(|| CompletionError::UnsupportedShell { shell: shell.to_string() })
+        .ok_or_else(|| CompletionError::UnsupportedShell {
+            shell: shell.to_string(),
+        })
 }
 
 impl CompletionArgs {
@@ -98,13 +105,18 @@ impl CompletionServerArgs {
 }
 
 pub fn generate_completion(shell: CompletionShell, output: &mut dyn Write) -> miette::Result<()> {
-    output.write_all(shell.script().as_bytes()).into_diagnostic()
+    output
+        .write_all(shell.script().as_bytes())
+        .into_diagnostic()
 }
 
 pub fn complete_words(words: &[String]) -> Vec<String> {
     let words = words_without_binary(words);
     let (before_current, current_word) = split_current_word(&words);
-    if before_current.iter().any(|word| word == "--") {
+    if before_current
+        .iter()
+        .any(|word| word == "--")
+    {
         return Vec::new();
     }
 
@@ -125,7 +137,10 @@ pub fn complete_words(words: &[String]) -> Vec<String> {
 
     if context.command_name == Some("completion") {
         return filter_by_prefix(
-            SUPPORTED_SHELLS.iter().map(|shell| (*shell).to_string()).collect(),
+            SUPPORTED_SHELLS
+                .iter()
+                .map(|shell| (*shell).to_string())
+                .collect(),
             current_word,
         );
     }
@@ -164,7 +179,11 @@ impl<'a> CompletionContext<'a> {
             index += 1;
         }
 
-        Self { root, command, command_name }
+        Self {
+            root,
+            command,
+            command_name,
+        }
     }
 }
 
@@ -206,7 +225,10 @@ fn split_current_word(words: &[String]) -> (&[String], &str) {
 }
 
 fn command_matches(command: &Command, word: &str) -> bool {
-    command.get_name() == word || command.get_all_aliases().any(|alias| alias == word)
+    command.get_name() == word
+        || command
+            .get_all_aliases()
+            .any(|alias| alias == word)
 }
 
 fn visible_subcommands(command: &Command) -> Vec<String> {
@@ -214,7 +236,10 @@ fn visible_subcommands(command: &Command) -> Vec<String> {
         .get_subcommands()
         .filter(|subcommand| !subcommand.is_hide_set())
         .flat_map(|subcommand| {
-            subcommand.get_name_and_visible_aliases().into_iter().map(String::from)
+            subcommand
+                .get_name_and_visible_aliases()
+                .into_iter()
+                .map(String::from)
         })
         .collect()
 }
@@ -231,11 +256,17 @@ fn visible_options(context: &CompletionContext<'_>) -> Vec<String> {
 }
 
 fn filter_by_prefix(candidates: Vec<String>, prefix: &str) -> Vec<String> {
-    candidates.into_iter().filter(|candidate| candidate.starts_with(prefix)).collect()
+    candidates
+        .into_iter()
+        .filter(|candidate| candidate.starts_with(prefix))
+        .collect()
 }
 
 fn extend_visible_options(options: &mut Vec<String>, command: &Command) {
-    for argument in command.get_arguments().filter(|argument| !argument.is_hide_set()) {
+    for argument in command
+        .get_arguments()
+        .filter(|argument| !argument.is_hide_set())
+    {
         if let Some(short) = argument.get_short() {
             options.push(format!("-{short}"));
         }
@@ -243,7 +274,11 @@ fn extend_visible_options(options: &mut Vec<String>, command: &Command) {
             options.push(format!("--{long}"));
         }
         if let Some(aliases) = argument.get_visible_aliases() {
-            options.extend(aliases.into_iter().map(|alias| format!("--{alias}")));
+            options.extend(
+                aliases
+                    .into_iter()
+                    .map(|alias| format!("--{alias}")),
+            );
         }
     }
 }
@@ -270,8 +305,9 @@ fn equals_option_values(
 }
 
 fn option_values(context: &CompletionContext<'_>, words: &[String]) -> Option<Vec<String>> {
-    let option =
-        words.last().filter(|word| word.starts_with('-') && option_has_separate_value(word))?;
+    let option = words
+        .last()
+        .filter(|word| word.starts_with('-') && option_has_separate_value(word))?;
     let argument = find_option_argument(context, option)?;
     let mut values = visible_possible_values(argument);
 
@@ -299,16 +335,24 @@ fn find_option_argument<'a>(context: &'a CompletionContext<'_>, option: &str) ->
 }
 
 fn find_option_argument_in_command<'a>(command: &'a Command, option: &str) -> Option<&'a Arg> {
-    command.get_arguments().find(|argument| argument_matches(argument, option))
+    command
+        .get_arguments()
+        .find(|argument| argument_matches(argument, option))
 }
 
 fn argument_matches(argument: &Arg, option: &str) -> bool {
     if let Some(long) = option.strip_prefix("--") {
-        let long = long.split_once('=').map_or(long, |(name, _)| name);
+        let long = long
+            .split_once('=')
+            .map_or(long, |(name, _)| name);
         return argument.get_long() == Some(long)
             || argument
                 .get_all_aliases()
-                .is_some_and(|aliases| aliases.into_iter().any(|alias| alias == long));
+                .is_some_and(|aliases| {
+                    aliases
+                        .into_iter()
+                        .any(|alias| alias == long)
+                });
     }
 
     if let Some(short) = option.strip_prefix('-') {
@@ -322,7 +366,9 @@ fn argument_matches(argument: &Arg, option: &str) -> bool {
 }
 
 fn argument_takes_value(argument: &Arg) -> bool {
-    argument.get_num_args().is_some_and(|range| range.takes_values())
+    argument
+        .get_num_args()
+        .is_some_and(|range| range.takes_values())
         || matches!(argument.get_action(), ArgAction::Set | ArgAction::Append)
 }
 

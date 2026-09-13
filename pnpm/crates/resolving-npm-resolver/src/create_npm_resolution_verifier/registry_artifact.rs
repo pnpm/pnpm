@@ -37,35 +37,7 @@ impl NpmResolutionVerifier {
             return tarball_url_violation(lockfile_tarball, artifact.current.tarball.as_deref());
         }
 
-        let current_revision = match current_revision_number(&artifact) {
-            Ok(current_revision) => current_revision,
-            Err(violation) => return Some(violation),
-        };
-        if let Some(violation) = current_history_violation(&artifact, current_revision, registry) {
-            return Some(violation);
-        }
-
-        let requested = lockfile_revision(resolution).unwrap_or(0);
-        let integrity = resolution.checkable_integrity().expect("checked before artifact binding");
-        let selected = match select_revision(&artifact, requested, current_revision, integrity) {
-            Ok(selected) => selected,
-            Err(violation) => return Some(violation),
-        };
-        // A historical revision, or a current record the lockfile does not
-        // name, is only trustworthy when its URL is derived from its own
-        // integrity.
-        let integrity_addressed = selected.tarball.as_deref().is_some_and(|tarball| {
-            is_integrity_addressed_registry_tarball_url(tarball, integrity, registry)
-        });
-        if (requested > 0 || current_revision != requested) && !integrity_addressed {
-            return Some(ResolutionVerification::Err {
-                code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
-                reason: format!(
-                    "has revision {requested} that is not addressed by its complete sha512 integrity",
-                ),
-            });
-        }
-        tarball_url_violation(lockfile_tarball, selected.tarball.as_deref())
+        revision_artifact_violation(&artifact, registry, resolution, lockfile_tarball)
     }
 
     /// The registry's own record for this version, recording the dist stats
@@ -84,14 +56,58 @@ impl NpmResolutionVerifier {
     ) -> Result<Option<RegistryArtifactHistory>, ResolutionVerification> {
         let meta = match self.fetch_abbreviated_meta(registry, name).await {
             Ok(meta) => meta,
-            Err(message) => return Err(ResolutionVerification::FetchFailed { message }),
+            Err(message) => {
+                return Err(ResolutionVerification::FetchFailed {
+                    message,
+                });
+            }
         };
         if let Some(sink) = self.artifacts.observed_stats.as_ref()
-            && let Some(stats) =
-                meta.version_dist_stats.as_ref().and_then(|stats| stats.get(version))
+            && let Some(stats) = meta.version_dist_stats
+                .as_ref()
+                .and_then(|stats| stats.get(version))
         {
             sink.insert((name.to_string(), version.to_string()), *stats);
         }
         Ok(meta.version_artifacts.and_then(|artifacts| artifacts.get(version).cloned()))
     }
+}
+
+fn revision_artifact_violation(
+    artifact: &RegistryArtifactHistory,
+    registry: &str,
+    resolution: &LockfileResolution,
+    lockfile_tarball: Option<&str>,
+) -> Option<ResolutionVerification> {
+    let current_revision = match current_revision_number(artifact) {
+        Ok(current_revision) => current_revision,
+        Err(violation) => return Some(violation),
+    };
+    if let Some(violation) = current_history_violation(artifact, current_revision, registry) {
+        return Some(violation);
+    }
+
+    let requested = lockfile_revision(resolution).unwrap_or(0);
+    let integrity = resolution.checkable_integrity().expect("checked before artifact binding");
+    let selected = match select_revision(artifact, requested, current_revision, integrity) {
+        Ok(selected) => selected,
+        Err(violation) => return Some(violation),
+    };
+    // A historical revision, or a current record the lockfile does not
+    // name, is only trustworthy when its URL is derived from its own
+    // integrity.
+    let integrity_addressed = selected.tarball
+        .as_deref()
+        .is_some_and(|tarball| {
+            is_integrity_addressed_registry_tarball_url(tarball, integrity, registry)
+        });
+    if (requested > 0 || current_revision != requested) && !integrity_addressed {
+        return Some(ResolutionVerification::Err {
+            code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+            reason: format!(
+                "has revision {requested} that is not addressed by its complete sha512 integrity",
+            ),
+        });
+    }
+    tarball_url_violation(lockfile_tarball, selected.tarball.as_deref())
 }

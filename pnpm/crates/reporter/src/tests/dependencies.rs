@@ -20,7 +20,12 @@ fn skipped_optional_dependency_event_matches_pnpm_wire_shape() {
         prefix: "/projects/x".to_string(),
         reason: SkippedOptionalReason::BuildFailure,
     });
-    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
+    let envelope = Envelope {
+        time: 1_700_000_000_000,
+        hostname: "host",
+        pid: 4242,
+        event: &event,
+    };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
@@ -35,7 +40,10 @@ fn skipped_optional_dependency_event_matches_pnpm_wire_shape() {
     assert_eq!(json["package"]["id"], "/foo/1.0.0");
     assert_eq!(json["package"]["name"], "foo");
     assert_eq!(json["package"]["version"], "1.0.0");
-    assert!(json.get("parents").is_none(), "non-resolver emits carry no parents, got {json:?}");
+    assert!(
+        json.get("parents").is_none(),
+        "non-resolver emits carry no parents, got {json:?}",
+    );
 }
 
 /// `details` is optional upstream and must be omitted from the wire
@@ -54,13 +62,21 @@ fn skipped_optional_omits_absent_details() {
         prefix: "/projects/y".to_string(),
         reason: SkippedOptionalReason::BuildFailure,
     });
-    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
+    let envelope = Envelope {
+        time: 1_700_000_000_000,
+        hostname: "host",
+        pid: 4242,
+        event: &event,
+    };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
         .pipe_as_ref(serde_json::from_str)
         .expect("parse JSON");
-    assert!(json.get("details").is_none(), "details must be omitted when absent, got {json:?}");
+    assert!(
+        json.get("details").is_none(),
+        "details must be omitted when absent, got {json:?}",
+    );
 }
 
 /// All four reason variants serialize as the `snake_case` strings
@@ -69,13 +85,26 @@ fn skipped_optional_omits_absent_details() {
 fn skipped_optional_reason_serializes_in_pnpm_form() {
     let cases = [
         (SkippedOptionalReason::BuildFailure, "build_failure"),
-        (SkippedOptionalReason::UnsupportedEngine, "unsupported_engine"),
-        (SkippedOptionalReason::UnsupportedPlatform, "unsupported_platform"),
-        (SkippedOptionalReason::ResolutionFailure, "resolution_failure"),
+        (
+            SkippedOptionalReason::UnsupportedEngine,
+            "unsupported_engine",
+        ),
+        (
+            SkippedOptionalReason::UnsupportedPlatform,
+            "unsupported_platform",
+        ),
+        (
+            SkippedOptionalReason::ResolutionFailure,
+            "resolution_failure",
+        ),
     ];
     for (reason, expected) in cases {
         let json = serde_json::to_string(&reason).expect("serialize reason");
-        assert_eq!(json, format!(r#""{expected}""#), "{reason:?} must serialize as {expected:?}");
+        assert_eq!(
+            json,
+            format!(r#""{expected}""#),
+            "{reason:?} must serialize as {expected:?}",
+        );
     }
 }
 
@@ -100,7 +129,12 @@ fn peer_dependency_issues_event_matches_pnpm_wire_shape() {
             },
         }),
     });
-    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
+    let envelope = Envelope {
+        time: 1_700_000_000_000,
+        hostname: "host",
+        pid: 4242,
+        event: &event,
+    };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
@@ -109,5 +143,8 @@ fn peer_dependency_issues_event_matches_pnpm_wire_shape() {
 
     assert_eq!(json["name"], "pnpm:peer-dependency-issues");
     assert_eq!(json["level"], "debug");
-    assert_eq!(json["issuesByProjects"]["."]["bad"]["react"][0]["foundVersion"], "19.1.0");
+    assert_eq!(
+        json["issuesByProjects"]["."]["bad"]["react"][0]["foundVersion"],
+        "19.1.0",
+    );
 }

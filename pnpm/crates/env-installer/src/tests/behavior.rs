@@ -13,11 +13,12 @@ async fn force_resync_overwrites_recorded_package_manager_entries() {
     let harness = harness();
     let root = TempDir::new().unwrap();
     let fixtures = || {
-        FixtureResolver::new().package(serde_json::json!({
-            "name": "pnpm",
-            "version": "12.0.0",
-            "bin": "bin/pnpm.cjs",
-        }))
+        FixtureResolver::new()
+            .package(serde_json::json!({
+                "name": "pnpm",
+                "version": "12.0.0",
+                "bin": "bin/pnpm.cjs",
+            }))
     };
 
     resolve_package_manager_integrities(
@@ -47,7 +48,10 @@ async fn force_resync_overwrites_recorded_package_manager_entries() {
     .unwrap();
     let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
     let key: PackageKey = "pnpm@12.0.0".parse().unwrap();
-    assert!(matches!(&env.packages[&key].resolution, LockfileResolution::Registry(_)));
+    assert!(matches!(
+        &env.packages[&key].resolution,
+        LockfileResolution::Registry(_)
+    ));
 }
 
 #[test]
@@ -76,21 +80,37 @@ fn prune_drops_orphan_packages_and_snapshots() {
     // A config dep with one optional subdep — both reachable.
     let parent: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
     let subdep: PackageKey = "@pnpm.e2e/bar@1.0.0".parse().unwrap();
-    env.root_importer_mut().config_dependencies.insert(
-        "@pnpm.e2e/foo".to_string(),
-        SpecifierAndResolution { specifier: "100.0.0".to_string(), version: "100.0.0".to_string() },
-    );
+    env
+        .root_importer_mut()
+        .config_dependencies
+        .insert(
+            "@pnpm.e2e/foo".to_string(),
+            SpecifierAndResolution {
+                specifier: "100.0.0".to_string(),
+                version: "100.0.0".to_string(),
+            },
+        );
     env.packages.insert(parent.clone(), registry_pkg());
     env.packages.insert(subdep.clone(), registry_pkg());
     let mut optionals = std::collections::HashMap::new();
-    optionals
-        .insert("@pnpm.e2e/bar".parse().unwrap(), SnapshotDepRef::Plain("1.0.0".parse().unwrap()));
+    optionals.insert(
+        "@pnpm.e2e/bar".parse().unwrap(),
+        SnapshotDepRef::Plain("1.0.0".parse().unwrap()),
+    );
     env.snapshots.insert(
         parent.clone(),
-        SnapshotEntry { optional_dependencies: Some(optionals), ..SnapshotEntry::default() },
+        SnapshotEntry {
+            optional_dependencies: Some(optionals),
+            ..SnapshotEntry::default()
+        },
     );
-    env.snapshots
-        .insert(subdep.clone(), SnapshotEntry { optional: true, ..SnapshotEntry::default() });
+    env.snapshots.insert(
+        subdep.clone(),
+        SnapshotEntry {
+            optional: true,
+            ..SnapshotEntry::default()
+        },
+    );
 
     // An orphan left over from a previous resolution: no importer (and no
     // reachable snapshot) references it.
@@ -100,8 +120,17 @@ fn prune_drops_orphan_packages_and_snapshots() {
 
     prune_env_lockfile(&mut env);
 
-    assert!(env.packages.contains_key(&parent), "reachable config dep kept");
-    assert!(env.packages.contains_key(&subdep), "reachable optional subdep kept");
+    assert!(
+        env.packages.contains_key(&parent),
+        "reachable config dep kept",
+    );
+    assert!(
+        env.packages.contains_key(&subdep),
+        "reachable optional subdep kept",
+    );
     assert!(!env.packages.contains_key(&orphan), "orphan package pruned");
-    assert!(!env.snapshots.contains_key(&orphan), "orphan snapshot pruned");
+    assert!(
+        !env.snapshots.contains_key(&orphan),
+        "orphan snapshot pruned",
+    );
 }

@@ -57,7 +57,11 @@ fn links_absolute_relative_and_self_reference_specs() {
     assert!(is_symlink_or_junction(&modules.join("rel-linked")).unwrap());
     assert_eq!(
         fs::canonicalize(modules.join("rel-linked")).unwrap(),
-        dir.path().join("sibling").canonicalize().unwrap(),
+        dir
+            .path()
+            .join("sibling")
+            .canonicalize()
+            .unwrap(),
     );
     // `link:.` self-reference resolves back to the project dir.
     assert_eq!(
@@ -143,7 +147,10 @@ fn lockfile_tracked_alias_is_skipped() {
     let mut importers = std::collections::HashMap::new();
     importers.insert(
         "packages/sibling".to_string(),
-        ProjectSnapshot { dependencies: Some(deps), ..ProjectSnapshot::default() },
+        ProjectSnapshot {
+            dependencies: Some(deps),
+            ..ProjectSnapshot::default()
+        },
     );
 
     link_manifest_link_deps::<SilentReporter>(
@@ -190,13 +197,22 @@ fn traversal_alias_is_rejected_without_writes() {
             &LinkBinsOptions::default(),
         );
         assert!(
-            matches!(result, Err(super::LinkManifestLinkDepsError::InvalidAlias(_))),
+            matches!(
+                result,
+                Err(super::LinkManifestLinkDepsError::InvalidAlias(_))
+            ),
             "alias {alias:?} must be rejected",
         );
     }
     // Nothing was written anywhere.
     assert!(!project_dir.join("node_modules").exists());
-    assert!(victim.exists() && fs::read_dir(&victim).unwrap().next().is_none());
+    assert!(
+        victim.exists()
+            && fs::read_dir(&victim)
+                .unwrap()
+                .next()
+                .is_none(),
+    );
 
     drop(dir);
 }
@@ -232,7 +248,10 @@ fn custom_modules_dir_name_is_honored() {
         fs::canonicalize(project_dir.join("custom_modules/dep")).unwrap(),
         external.canonicalize().unwrap(),
     );
-    assert!(!project_dir.join("node_modules").exists(), "no stray node_modules");
+    assert!(
+        !project_dir.join("node_modules").exists(),
+        "no stray node_modules",
+    );
 
     drop(dir);
 }
@@ -269,14 +288,22 @@ fn non_normal_modules_dir_name_is_rejected_without_writes() {
             &LinkBinsOptions::default(),
         );
         assert!(
-            matches!(result, Err(super::LinkManifestLinkDepsError::InvalidModulesDirName { .. })),
+            matches!(
+                result,
+                Err(super::LinkManifestLinkDepsError::InvalidModulesDirName { .. })
+            ),
             "modules dir name {name:?} must be rejected",
         );
     }
     // Nothing was written: no symlink in the project dir, its parent,
     // or any would-be modules dir.
     assert!(!project_dir.join("dep").exists());
-    assert!(!dir.path().join("dep").exists());
+    assert!(
+        !dir
+            .path()
+            .join("dep")
+            .exists(),
+    );
     assert!(!project_dir.join("node_modules").exists());
 
     drop(dir);

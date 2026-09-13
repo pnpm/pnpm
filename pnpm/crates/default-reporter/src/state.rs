@@ -13,7 +13,7 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use pnpm_reporter::{
     AddedRoot, ContextLog, DedupeCheckLog, DependencyType, DeprecationLog, ExecutionTimeLog,
     FetchingProgressMessage, HookLog, IgnoredScriptsLog, InstallingConfigDepsLog,
@@ -23,6 +23,7 @@ use pnpm_reporter::{
     StatsMessage, UpdateCheckLog,
 };
 use serde_json::Value;
+use verification::{cached_verdict, entries_label};
 
 use pnpm_config::standalone_install_command;
 use pnpm_matcher::{Matcher, create_matcher};
@@ -32,7 +33,7 @@ use crate::{
     colors::Colors,
     format::{
         contains_path, cut_line, format_prefix, format_prefix_no_trim, highlight_last_folder,
-        normalize, pretty_bytes, pretty_ms, pretty_ms_compact, relative, visible_width, zoom_out,
+        normalize, pretty_bytes, pretty_ms, relative, visible_width, zoom_out,
     },
 };
 
@@ -87,8 +88,13 @@ enum DepKind {
     NodeModulesOnly,
 }
 
-const SUMMARY_ORDER: [DepKind; 5] =
-    [DepKind::Prod, DepKind::Optional, DepKind::Peer, DepKind::Dev, DepKind::NodeModulesOnly];
+const SUMMARY_ORDER: [DepKind; 5] = [
+    DepKind::Prod,
+    DepKind::Optional,
+    DepKind::Peer,
+    DepKind::Dev,
+    DepKind::NodeModulesOnly,
+];
 
 impl DepKind {
     fn header(self) -> &'static str {
@@ -226,7 +232,10 @@ impl ReporterState {
             cwd,
             width,
             colors,
-            ReporterOptions { append_only, ..ReporterOptions::default() },
+            ReporterOptions {
+                append_only,
+                ..ReporterOptions::default()
+            },
         )
     }
 
@@ -244,7 +253,10 @@ impl ReporterState {
             colors,
             ReporterOptions {
                 append_only,
-                scope: crate::state::ScopeOptions { summary: summary_scope, ..Default::default() },
+                scope: crate::state::ScopeOptions {
+                    summary: summary_scope,
+                    ..Default::default()
+                },
                 ..ReporterOptions::default()
             },
         )
@@ -264,7 +276,10 @@ impl ReporterState {
                 colors,
                 hidden_linked_pkgs: create_matcher(&options.hide_linked_pkgs_diff),
             },
-            display: DisplayState { frame: Frame::new(options.append_only), ..Default::default() },
+            display: DisplayState {
+                frame: Frame::new(options.append_only),
+                ..Default::default()
+            },
             install: InstallProgress::default(),
             summary: SummaryState::default(),
             scripts: LifecycleState::default(),
@@ -364,26 +379,6 @@ fn lifecycle_ids(message: &LifecycleMessage) -> (&str, &str, &str) {
     }
 }
 
-fn entries_label(entries: u64) -> String {
-    if entries == 1 { "1 entry".to_string() } else { format!("{entries} entries") }
-}
-
-/// How a cache-satisfied verification verdict is dated: relative to `now`
-/// when the record carries a parseable timestamp, timeless otherwise. The
-/// age is clamped at zero so a clock that moved backwards between the
-/// verification run and this install cannot render a negative age.
-fn cached_verdict(verified_at: Option<&str>, now: DateTime<Utc>) -> String {
-    let elapsed_ms = verified_at
-        .and_then(|verified_at| DateTime::parse_from_rfc3339(verified_at).ok())
-        .map(|verified_at| (now - verified_at.with_timezone(&Utc)).num_milliseconds().max(0));
-    match elapsed_ms {
-        Some(elapsed_ms) => {
-            format!("verified {} ago", pretty_ms_compact(elapsed_ms.unsigned_abs().into()))
-        }
-        None => "previously verified".to_string(),
-    }
-}
-
 #[cfg(test)]
 mod tests;
 
@@ -414,7 +409,11 @@ impl DisplayState {
     fn finish(&mut self, append_only: bool) -> Output {
         if append_only {
             let lines = std::mem::take(&mut self.frame.pending);
-            if lines.is_empty() { Output::None } else { Output::Lines(lines) }
+            if lines.is_empty() {
+                Output::None
+            } else {
+                Output::Lines(lines)
+            }
         } else {
             let frame = self.frame.render();
             if self.last_frame.as_deref() == Some(frame.as_str()) {
@@ -437,7 +436,10 @@ impl Frame {
 impl Default for SummaryState {
     fn default() -> Self {
         Self {
-            diff: SUMMARY_ORDER.into_iter().map(|kind| (diff_key(kind), HashMap::new())).collect(),
+            diff: SUMMARY_ORDER
+                .into_iter()
+                .map(|kind| (diff_key(kind), HashMap::new()))
+                .collect(),
             manifest_diffs: HashMap::new(),
             slot: BlockSlot::default(),
             seen: false,
@@ -445,3 +447,5 @@ impl Default for SummaryState {
         }
     }
 }
+
+mod verification;

@@ -23,16 +23,22 @@ impl SqlAuth<PostgresDatabase> {
     ) -> Result<Self> {
         let startup_options =
             postgres_pool_options(settings, settings.startup_timeout, settings.startup_timeout)?;
-        let startup_pool =
-            with_auth_timeout(settings.startup_timeout, startup_options.connect(&settings.url))
-                .await?;
-        let startup_db = PostgresDatabase { pool: startup_pool };
+        let startup_pool = with_auth_timeout(
+            settings.startup_timeout,
+            startup_options.connect(&settings.url),
+        )
+        .await?;
+        let startup_db = PostgresDatabase {
+            pool: startup_pool,
+        };
         with_auth_timeout(settings.startup_timeout, startup_db.init_schema()).await?;
         startup_db.pool.close().await;
 
         let pool = postgres_pool_options(settings, settings.timeout, settings.timeout)?
             .connect_lazy(&settings.url)?;
-        let db = PostgresDatabase { pool };
+        let db = PostgresDatabase {
+            pool,
+        };
         Ok(SqlAuth::new(db, max_users, settings.timeout))
     }
 }
@@ -49,8 +55,10 @@ fn postgres_pool_options(
         }
         options = options.max_connections(max_connections);
     }
-    let statement_timeout_sql =
-        format!("SET statement_timeout = {}", timeout_millis(session_timeout));
+    let statement_timeout_sql = format!(
+        "SET statement_timeout = {}",
+        timeout_millis(session_timeout)
+    );
     options = options.after_connect(move |conn, _meta| {
         let statement_timeout_sql = statement_timeout_sql.clone();
         Box::pin(async move {
@@ -68,17 +76,25 @@ impl AuthSqlBackend for PostgresDatabase {
             .bind(username)
             .fetch_optional(&self.pool)
             .await?;
-        row.map(|row| -> std::result::Result<StoredUser, sqlx::Error> {
-            Ok(StoredUser { username: row.try_get(0)?, bcrypt_hash: row.try_get(1)? })
-        })
-        .transpose()
-        .map_err(RegistryError::from)
+        row
+            .map(|row| -> std::result::Result<StoredUser, sqlx::Error> {
+                Ok(StoredUser {
+                    username: row.try_get(0)?,
+                    bcrypt_hash: row.try_get(1)?,
+                })
+            })
+            .transpose()
+            .map_err(RegistryError::from)
     }
 
     async fn user_count(&self) -> Result<u64> {
         let Some(count) = self.user_counter().await? else {
             self.ensure_user_counter().await?;
-            return Ok(self.user_counter().await?.unwrap_or(0).max(0) as u64);
+            return Ok(self
+                .user_counter()
+                .await?
+                .unwrap_or(0)
+                .max(0) as u64);
         };
         Ok(count.max(0) as u64)
     }
@@ -148,7 +164,10 @@ impl AuthSqlBackend for PostgresDatabase {
             .bind(token_hash)
             .fetch_optional(&self.pool)
             .await?;
-        row.map(|row| row.try_get(0)).transpose().map_err(RegistryError::from)
+        row
+            .map(|row| row.try_get(0))
+            .transpose()
+            .map_err(RegistryError::from)
     }
 
     async fn find_token(&self, token_hash: &str) -> Result<Option<TokenRecord>> {
@@ -159,7 +178,9 @@ impl AuthSqlBackend for PostgresDatabase {
         .bind(token_hash)
         .fetch_optional(&self.pool)
         .await?;
-        row.map(|row| token_record_from_row(&row, token_hash)).transpose()
+        row
+            .map(|row| token_record_from_row(&row, token_hash))
+            .transpose()
     }
 
     async fn list_tokens(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
@@ -170,7 +191,10 @@ impl AuthSqlBackend for PostgresDatabase {
         .bind(username)
         .fetch_all(&self.pool)
         .await?;
-        rows.into_iter().map(|row| keyed_token_record_from_row(&row)).collect()
+        rows
+            .into_iter()
+            .map(|row| keyed_token_record_from_row(&row))
+            .collect()
     }
 
     async fn delete_token(&self, token_hash: &str) -> Result<()> {
@@ -289,8 +313,8 @@ fn token_record_from_offset(
     token_hash: &str,
 ) -> Result<TokenRecord> {
     let cidr_json: String = row.try_get(offset + 4)?;
-    let cidr_whitelist: Vec<String> =
-        serde_json::from_str(&cidr_json).map_err(|err| RegistryError::Internal {
+    let cidr_whitelist: Vec<String> = serde_json::from_str(&cidr_json)
+        .map_err(|err| RegistryError::Internal {
             reason: format!("token {token_hash} has an unreadable cidr_whitelist: {err}"),
         })?;
     let readonly: i16 = row.try_get(offset + 3)?;
@@ -304,7 +328,8 @@ fn token_record_from_offset(
 }
 
 fn is_unique_violation(err: &sqlx::Error) -> bool {
-    err.as_database_error()
+    err
+        .as_database_error()
         .and_then(sqlx::error::DatabaseError::code)
         .is_some_and(|code| code.as_ref() == "23505")
 }

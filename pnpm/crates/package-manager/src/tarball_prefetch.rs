@@ -54,7 +54,10 @@ async fn without_store_hits(
     let Some(index) = index else {
         return pending;
     };
-    let keys: Vec<String> = pending.iter().map(|entry| entry.store_key.clone()).collect();
+    let keys: Vec<String> = pending
+        .iter()
+        .map(|entry| entry.store_key.clone())
+        .collect();
     let hits = tokio::task::spawn_blocking(move || {
         let Ok(guard) = index.lock() else {
             return HashSet::new();
@@ -63,7 +66,10 @@ async fn without_store_hits(
     })
     .await
     .unwrap_or_default();
-    pending.into_iter().filter(|entry| !hits.contains(&entry.store_key)).collect()
+    pending
+        .into_iter()
+        .filter(|entry| !hits.contains(&entry.store_key))
+        .collect()
 }
 
 /// One background tarball download. Every field is owned (an `Arc`
@@ -131,7 +137,9 @@ async fn run_tarball_download(
         // against — the frozen materialization install emits its own
         // progress as it consumes each tarball from the mem cache.
         progress_reported: None,
-        store_projection: pnpm_tarball::ArchiveStoreProjection::Package { append_manifest: None },
+        store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
+            append_manifest: None,
+        },
     };
     if download.package.revision_addressed {
         ingest.run_revision_addressed_with_mem_cache::<SilentReporter>(&download.mem_cache).await
@@ -281,35 +289,25 @@ impl TarballPrefetcher {
         let Some(packages) = lockfile.packages.as_ref() else {
             return;
         };
-        let mut pending = Vec::with_capacity(packages.len());
-        for (package_key, metadata) in packages {
-            if !matches!(&metadata.resolution, LockfileResolution::Registry(_)) {
-                continue;
-            }
-            let (tarball_url, integrity) =
-                tarball_url_and_integrity(&metadata.resolution, package_key, config)
-                    .expect("registry resolutions are always fetchable");
-            let package_id = package_key.pkg_id();
-            let integrity =
-                integrity.expect("registry resolutions always carry an integrity").to_string();
-            let revision_addressed = matches!(
-                &metadata.resolution,
-                LockfileResolution::Registry(registry) if registry.revision.is_some(),
-            );
-            pending.push(PendingPrefetch {
-                store_key: store_index_key(&integrity, &package_id),
+        let pending = pending_lockfile_prefetches(packages, config);
+        for entry in without_store_hits(self.store.index.clone(), pending).await {
+            let PendingPrefetch {
                 package_id,
-                package_url: tarball_url.into_owned(),
+                package_url,
                 integrity,
                 revision_addressed,
-            });
-        }
-        for entry in without_store_hits(self.store.index.clone(), pending).await {
-            let PendingPrefetch { package_id, package_url, integrity, revision_addressed, .. } =
-                entry;
+                ..
+            } = entry;
             // The lockfile records no dist size hints, so the downloads
             // queue without a work estimate.
-            self.prefetch(package_id, package_url, &integrity, None, None, revision_addressed);
+            self.prefetch(
+                package_id,
+                package_url,
+                &integrity,
+                None,
+                None,
+                revision_addressed,
+            );
         }
     }
 
@@ -337,8 +335,10 @@ impl PrefetchHttpClient {
     ) -> Self {
         Self {
             http_client: Arc::clone(http_client),
-            auth_headers: auth_override
-                .map_or_else(|| Arc::clone(&config.auth_headers), Arc::clone),
+            auth_headers: auth_override.map_or_else(
+                || Arc::clone(&config.auth_headers),
+                Arc::clone,
+            ),
             retry_opts: retry_opts_from_config(config),
             offline: config.offline,
         }
@@ -352,4 +352,34 @@ impl PrefetchHttpClient {
             offline: self.offline,
         }
     }
+}
+
+fn pending_lockfile_prefetches(
+    packages: &std::collections::HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::PackageMetadata>,
+    config: &Config,
+) -> Vec<PendingPrefetch> {
+    let mut pending = Vec::with_capacity(packages.len());
+    for (package_key, metadata) in packages {
+        if !matches!(&metadata.resolution, LockfileResolution::Registry(_)) {
+            continue;
+        }
+        let (tarball_url, integrity) =
+            tarball_url_and_integrity(&metadata.resolution, package_key, config)
+                .expect("registry resolutions are always fetchable");
+        let package_id = package_key.pkg_id();
+        let integrity =
+            integrity.expect("registry resolutions always carry an integrity").to_string();
+        let revision_addressed = matches!(
+            &metadata.resolution,
+            LockfileResolution::Registry(registry) if registry.revision.is_some(),
+        );
+        pending.push(PendingPrefetch {
+            store_key: store_index_key(&integrity, &package_id),
+            package_id,
+            package_url: tarball_url.into_owned(),
+            integrity,
+            revision_addressed,
+        });
+    }
+    pending
 }

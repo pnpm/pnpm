@@ -164,7 +164,10 @@ fn previews_each_written_path_once() {
     let patched = tempdir().unwrap();
     fs::write(patched.path().join("package.json"), MANIFEST).unwrap();
     let patch_dir = tempdir().unwrap();
-    let patch = write_patch(patch_dir.path(), &format!("{MANIFEST_PATCH}{MANIFEST_SECOND_PATCH}"));
+    let patch = write_patch(
+        patch_dir.path(),
+        &format!("{MANIFEST_PATCH}{MANIFEST_SECOND_PATCH}"),
+    );
 
     let preview = preview_patch(patched.path(), &patch).expect("preview must succeed");
 
@@ -191,14 +194,26 @@ fn previews_the_paths_a_patch_creates() {
 fn previews_no_path_for_a_file_the_patch_creates_and_then_deletes() {
     let patched = tempdir().unwrap();
     let patch_dir = tempdir().unwrap();
-    let patch =
-        write_patch(patch_dir.path(), &format!("{BINDING_GYP_PATCH}{BINDING_GYP_DELETE_PATCH}"));
+    let patch = write_patch(
+        patch_dir.path(),
+        &format!("{BINDING_GYP_PATCH}{BINDING_GYP_DELETE_PATCH}"),
+    );
 
     let preview = preview_patch(patched.path(), &patch).expect("preview must succeed");
 
     apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
-    assert!(preview.written_paths.is_empty(), "written_paths: {:?}", preview.written_paths);
-    assert!(!patched.path().join("binding.gyp").exists(), "no binding.gyp remains");
+    assert!(
+        preview.written_paths.is_empty(),
+        "written_paths: {:?}",
+        preview.written_paths,
+    );
+    assert!(
+        !patched
+            .path()
+            .join("binding.gyp")
+            .exists(),
+        "no binding.gyp remains",
+    );
 }
 
 /// The build phase owns the real apply. Applying twice to one slot is not
@@ -221,7 +236,10 @@ fn missing_patch_file_errors_patch_not_found() {
     let patched = tempdir().unwrap();
     let missing = patched.path().join("does-not-exist.patch");
     let err = apply_patch_to_dir(patched.path(), &missing).expect_err("must fail");
-    assert!(matches!(err, PatchApplyError::PatchNotFound { .. }), "got: {err:?}");
+    assert!(
+        matches!(err, PatchApplyError::PatchNotFound { .. }),
+        "got: {err:?}",
+    );
 }
 
 #[test]
@@ -231,7 +249,10 @@ fn missing_target_file_errors_patch_failed() {
     let patch = write_patch(patch_dir.path(), IS_POSITIVE_PATCH);
 
     let err = apply_patch_to_dir(patched.path(), &patch).expect_err("must fail");
-    assert!(matches!(err, PatchApplyError::PatchFailed { .. }), "got: {err:?}");
+    assert!(
+        matches!(err, PatchApplyError::PatchFailed { .. }),
+        "got: {err:?}",
+    );
 }
 
 #[test]
@@ -386,7 +407,12 @@ fn delete_that_carries_no_preimage_on_an_already_deleted_file_is_noop() {
     );
 
     apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
-    assert!(!patched.path().join("to-delete.txt").exists());
+    assert!(
+        !patched
+            .path()
+            .join("to-delete.txt")
+            .exists(),
+    );
 }
 
 #[cfg(unix)]
@@ -480,7 +506,10 @@ diff --git a/file.txt b/file.txt
     let fresh = tempdir().unwrap();
     fs::write(fresh.path().join("file.txt"), original).unwrap();
     apply_patch_to_dir(fresh.path(), &patch).expect("fresh apply must succeed");
-    assert_eq!(fs::read_to_string(fresh.path().join("file.txt")).unwrap(), already_patched);
+    assert_eq!(
+        fs::read_to_string(fresh.path().join("file.txt")).unwrap(),
+        already_patched,
+    );
 }
 
 /// `Modify` must NOT mutate any other hardlink pointing at the same
@@ -516,8 +545,14 @@ fn modify_does_not_mutate_hardlinked_store_file() {
     let patch = write_patch(patch_dir.path(), IS_POSITIVE_PATCH);
     apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
 
-    assert_eq!(fs::read_to_string(&slot_file).unwrap(), IS_POSITIVE_INDEX_JS_PATCHED);
-    assert_eq!(fs::read_to_string(&store_file).unwrap(), IS_POSITIVE_INDEX_JS);
+    assert_eq!(
+        fs::read_to_string(&slot_file).unwrap(),
+        IS_POSITIVE_INDEX_JS_PATCHED,
+    );
+    assert_eq!(
+        fs::read_to_string(&store_file).unwrap(),
+        IS_POSITIVE_INDEX_JS,
+    );
     assert_ne!(
         fs::metadata(&slot_file).unwrap().ino(),
         fs::metadata(&store_file).unwrap().ino(),
@@ -545,7 +580,10 @@ new file mode 100644
     );
 
     apply_patch_to_dir(patched.path(), &patch).expect("re-apply must succeed");
-    assert_eq!(fs::read_to_string(&target).unwrap(), "first line\nsecond line\n");
+    assert_eq!(
+        fs::read_to_string(&target).unwrap(),
+        "first line\nsecond line\n",
+    );
 }
 
 #[test]
@@ -565,5 +603,10 @@ deleted file mode 100644
     );
 
     apply_patch_to_dir(patched.path(), &patch).expect("re-apply must succeed");
-    assert!(!patched.path().join("to-delete.txt").exists());
+    assert!(
+        !patched
+            .path()
+            .join("to-delete.txt")
+            .exists(),
+    );
 }

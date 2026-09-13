@@ -4,14 +4,20 @@ use pretty_assertions::assert_eq;
 use std::path::PathBuf;
 
 fn dirs(names: &[&str]) -> Vec<PathBuf> {
-    names.iter().map(PathBuf::from).collect()
+    names
+        .iter()
+        .map(PathBuf::from)
+        .collect()
 }
 
 fn make_graph(adjacency: &[(&str, &[&str])]) -> ProjectGraph<()> {
     adjacency
         .iter()
         .map(|(dir, deps)| {
-            let node = ProjectGraphNode { package: (), dependencies: dirs(deps) };
+            let node = ProjectGraphNode {
+                package: (),
+                dependencies: dirs(deps),
+            };
             (PathBuf::from(dir), node)
         })
         .collect()
@@ -26,14 +32,23 @@ fn select(graph: &ProjectGraph<()>, names: &[&str]) -> ProjectGraph<()> {
         .map(|name| {
             let dir = PathBuf::from(name);
             let node = graph.get(&dir).expect("selected project is in the graph");
-            (dir, ProjectGraphNode { package: (), dependencies: node.dependencies.clone() })
+            (
+                dir,
+                ProjectGraphNode {
+                    package: (),
+                    dependencies: node.dependencies.clone(),
+                },
+            )
         })
         .collect()
 }
 
 #[test]
 fn an_orderable_graph_has_no_cycles() {
-    assert_eq!(workspace_cycles(&make_graph(&[("a", &["b"]), ("b", &[])])), None);
+    assert_eq!(
+        workspace_cycles(&make_graph(&[("a", &["b"]), ("b", &[])])),
+        None,
+    );
 }
 
 #[test]

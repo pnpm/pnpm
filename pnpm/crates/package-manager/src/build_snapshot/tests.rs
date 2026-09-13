@@ -79,7 +79,13 @@ fn builds_snapshot_with_resolved_dependencies() {
     let deps = built.snapshot.dependencies.expect("dependencies should be populated");
     assert_eq!(deps.len(), 1);
     let react_key = PkgName::parse("react").unwrap();
-    assert_eq!(deps.get(&react_key).unwrap().to_string(), "17.0.2");
+    assert_eq!(
+        deps
+            .get(&react_key)
+            .unwrap()
+            .to_string(),
+        "17.0.2",
+    );
 }
 
 #[test]
@@ -102,7 +108,9 @@ fn returns_error_when_revision_is_invalid() {
         .expect_err("should fail with an invalid revision");
     assert!(matches!(err, BuildSnapshotError::InvalidRevision(_)));
     assert_eq!(
-        miette::Diagnostic::code(&err).map(|code| code.to_string()).as_deref(),
+        miette::Diagnostic::code(&err)
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_MALFORMED_METADATA"),
     );
 }

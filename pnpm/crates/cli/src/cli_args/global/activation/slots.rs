@@ -34,7 +34,10 @@ where
         .tempdir_in(global_bin_dir)
         .into_diagnostic()
         .wrap_err_with(|| {
-            format!("create global bin backup directory in {}", global_bin_dir.display())
+            format!(
+                "create global bin backup directory in {}",
+                global_bin_dir.display(),
+            )
         })?;
     let saved_bin_slots = backup_bin_slots(bin_names, backup_dir.path(), global_bin_dir)?;
     if let Err(replacement_error) = replace_bins() {
@@ -59,15 +62,7 @@ where
         };
     }
 
-    let backup_path = backup_dir.path().to_path_buf();
-    let leftover_backup = backup_dir.close().err().map(|source| ArtifactCleanupError {
-        context: format!(
-            "Failed to remove the global bin backup directory at {}",
-            backup_path.display(),
-        ),
-        source,
-    });
-    Ok(leftover_backup)
+    Ok(super::cleanup_bin_backup(backup_dir))
 }
 
 /// Drop the slots of commands the linker could not create because the file
@@ -108,7 +103,10 @@ pub(super) fn restore_bin_slots<Sys: FsRename>(
         }
     }
     if !failures.is_empty() {
-        return Err(GlobalActivationError::BinSlotRestorationFailed { failures }.into());
+        return Err(GlobalActivationError::BinSlotRestorationFailed {
+            failures,
+        }
+        .into());
     }
     Ok(())
 }
@@ -148,7 +146,10 @@ fn remove_directory_symlink_slot(path: &Path, failures: &mut Vec<ArtifactCleanup
         Err(error) if error.kind() == io::ErrorKind::NotFound => None,
         Err(error) => {
             failures.push(ArtifactCleanupError {
-                context: format!("read current global bin slot metadata from {}", path.display()),
+                context: format!(
+                    "read current global bin slot metadata from {}",
+                    path.display(),
+                ),
                 source: error,
             });
             return;
@@ -161,7 +162,10 @@ fn remove_directory_symlink_slot(path: &Path, failures: &mut Vec<ArtifactCleanup
         Ok(()) => {}
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Err(source) => failures.push(ArtifactCleanupError {
-            context: format!("remove directory-symlink global bin slot at {}", path.display()),
+            context: format!(
+                "remove directory-symlink global bin slot at {}",
+                path.display(),
+            ),
             source,
         }),
     }
@@ -207,8 +211,10 @@ pub(super) fn backup_bin_slots(
     global_bin_dir: &Path,
 ) -> miette::Result<Vec<SavedBinSlot>> {
     let mut saved_bin_slots = Vec::new();
-    for (index, original) in
-        actual_bin_names.iter().flat_map(|name| bin_slot_paths(global_bin_dir, name)).enumerate()
+    for (index, original) in actual_bin_names
+        .iter()
+        .flat_map(|name| bin_slot_paths(global_bin_dir, name))
+        .enumerate()
     {
         let backup = backup_dir.join(index.to_string());
         if let Some(saved_bin_slot) = backup_bin_slot(original, backup)? {
@@ -221,12 +227,19 @@ pub(super) fn backup_bin_slots(
 /// Every file a bin slot can occupy: the shell flavors cmd-shim writes and
 /// the native shim's executable and sidecar.
 fn bin_slot_paths(global_bin_dir: &Path, name: &str) -> Vec<PathBuf> {
-    let extensions: &[&str] = if cfg!(windows) { &["", ".cmd", ".ps1"] } else { &[""] };
+    let extensions: &[&str] = if cfg!(windows) {
+        &["", ".cmd", ".ps1"]
+    } else {
+        &[""]
+    };
     let mut paths: Vec<PathBuf> = extensions
         .iter()
         .map(|extension| global_bin_dir.join(format!("{name}{extension}")))
         .collect();
-    paths.extend(crate::shim_dispatch::native_shim_paths(global_bin_dir, name));
+    paths.extend(crate::shim_dispatch::native_shim_paths(
+        global_bin_dir,
+        name,
+    ));
     paths.dedup();
     paths
 }
@@ -236,24 +249,34 @@ fn backup_bin_slot(original: PathBuf, backup: PathBuf) -> miette::Result<Option<
         Ok(metadata) => metadata,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(error) => {
-            return Err(error).into_diagnostic().wrap_err_with(|| {
-                format!("read global bin slot metadata from {}", original.display())
-            });
+            return Err(error)
+                .into_diagnostic()
+                .wrap_err_with(|| {
+                    format!("read global bin slot metadata from {}", original.display())
+                });
         }
     };
     let kind = bin_slot_kind(&metadata)
-        .ok_or_else(|| GlobalActivationError::UnsupportedType { path: original.clone() })?;
+        .ok_or_else(|| GlobalActivationError::UnsupportedType {
+            path: original.clone(),
+        })?;
     match kind {
         BinSlotKind::FileSymlink | BinSlotKind::DirectorySymlink => {
-            backup_symlink(&original, &backup, kind).into_diagnostic().wrap_err_with(|| {
-                format!("back up global bin symlink at {}", original.display())
-            })?;
+            backup_symlink(&original, &backup, kind)
+                .into_diagnostic()
+                .wrap_err_with(|| {
+                    format!("back up global bin symlink at {}", original.display())
+                })?;
         }
         BinSlotKind::RegularFile => backup_regular_file(&original, &backup, metadata.permissions())
             .into_diagnostic()
             .wrap_err_with(|| format!("back up global bin file at {}", original.display()))?,
     }
-    Ok(Some(SavedBinSlot { original, backup, kind }))
+    Ok(Some(SavedBinSlot {
+        original,
+        backup,
+        kind,
+    }))
 }
 
 fn backup_regular_file(
@@ -326,11 +349,18 @@ pub(super) fn read_hash_target(hash_link: &Path) -> miette::Result<Option<PathBu
     match read_symlink_dir(hash_link) {
         Ok(target) if target.is_absolute() => Ok(Some(target)),
         Ok(target) => Ok(Some(
-            hash_link.parent().map_or_else(|| target.clone(), |parent| parent.join(&target)),
+            hash_link
+                .parent()
+                .map_or_else(|| target.clone(), |parent| parent.join(&target)),
         )),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(error).into_diagnostic().wrap_err_with(|| {
-            format!("read existing global package hash link at {}", hash_link.display())
-        }),
+        Err(error) => Err(error)
+            .into_diagnostic()
+            .wrap_err_with(|| {
+                format!(
+                    "read existing global package hash link at {}",
+                    hash_link.display(),
+                )
+            }),
     }
 }

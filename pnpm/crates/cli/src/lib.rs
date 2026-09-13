@@ -60,14 +60,16 @@ pub fn main() -> ExitCode {
 }
 
 fn is_reported_error(error: &miette::Report) -> bool {
-    error.code().is_some_and(|code| {
-        matches!(
-            code.to_string().as_str(),
-            "ERR_PNPM_DEDUPE_CHECK_ISSUES"
-                | "ERR_PNPM_PEER_DEP_ISSUES"
-                | cli_args::recursive::NO_MATCHING_PROJECTS_CODE,
-        )
-    })
+    error
+        .code()
+        .is_some_and(|code| {
+            matches!(
+                code.to_string().as_str(),
+                "ERR_PNPM_DEDUPE_CHECK_ISSUES"
+                    | "ERR_PNPM_PEER_DEP_ISSUES"
+                    | cli_args::recursive::NO_MATCHING_PROJECTS_CODE,
+            )
+        })
 }
 
 /// Parse and execute the CLI, including shim dispatch and startup fast paths.
@@ -85,7 +87,11 @@ fn run_cli() -> miette::Result<()> {
         std::process::exit(exit_code);
     }
     let argv_with_alias = argv_with_alias_subcommand(argv);
-    let child_argv = argv_with_alias.iter().skip(1).cloned().collect::<Vec<_>>();
+    let child_argv = argv_with_alias
+        .iter()
+        .skip(1)
+        .cloned()
+        .collect::<Vec<_>>();
     // `pnpm pm <cmd>` is stripped before every other pass, so they all see
     // the command line the prefix stands for; the child argv above keeps
     // it, since a dispatched pnpm has to force the built-in too. See
@@ -125,17 +131,20 @@ fn run_cli() -> miette::Result<()> {
 
 /// Parse argv, recording whether `--dir` came from the command line.
 fn parse_cli_args(command: clap::Command, argv: Vec<OsString>) -> Result<CliArgs, clap::Error> {
-    command.try_get_matches_from(argv).and_then(|matches| {
-        let dir_from_command_line =
-            matches.value_source("dir") == Some(clap::parser::ValueSource::CommandLine);
-        CliArgs::from_arg_matches(&matches).map(|args| CliArgs {
-            paths: crate::cli_args::cli_command::CliPathArgs {
-                dir_from_command_line,
-                ..args.paths
-            },
-            ..args
+    command
+        .try_get_matches_from(argv)
+        .and_then(|matches| {
+            let dir_from_command_line =
+                matches.value_source("dir") == Some(clap::parser::ValueSource::CommandLine);
+            CliArgs::from_arg_matches(&matches)
+                .map(|args| CliArgs {
+                    paths: crate::cli_args::cli_command::CliPathArgs {
+                        dir_from_command_line,
+                        ..args.paths
+                    },
+                    ..args
+                })
         })
-    })
 }
 
 /// pnpm prints the bare version, not clap's `pnpm <version>` rendering —
@@ -168,7 +177,10 @@ fn dispatched_to_pinned_pnpm(
     let Some(plan) = cli_args::pre_command::pre_command_plan(args, config_overrides)? else {
         return Ok(false);
     };
-    block_on_runtime("pacquet-pre-command", cli_args::pre_command::execute_plan(plan, child_argv))
+    block_on_runtime(
+        "pacquet-pre-command",
+        cli_args::pre_command::execute_plan(plan, child_argv),
+    )
 }
 
 /// Stack size for the thread the command runs on. Generous headroom over
@@ -231,8 +243,10 @@ where
 /// themselves — and there `current_exe` is the only signal of the launch name.
 fn argv_with_alias_subcommand(argv: Vec<OsString>) -> Vec<OsString> {
     let exe = std::env::current_exe().ok();
-    let exe_name =
-        exe.as_deref().and_then(Path::file_stem).map(|stem| stem.to_string_lossy().to_lowercase());
+    let exe_name = exe
+        .as_deref()
+        .and_then(Path::file_stem)
+        .map(|stem| stem.to_string_lossy().to_lowercase());
     inject_alias_subcommand(exe_name.as_deref(), argv)
 }
 
@@ -340,8 +354,10 @@ fn run_cli_command(
     // Arm Windows process-tree cleanup until the command succeeds.
     let job_guard = pnpm_executor::arm_process_tree_cleanup();
     configure_rayon_pool();
-    let result =
-        block_on_runtime("pacquet-main", args.run(config_overrides, builtin_command_forced));
+    let result = block_on_runtime(
+        "pacquet-main",
+        args.run(config_overrides, builtin_command_forced),
+    );
     if result.is_ok()
         && let Some(job_guard) = job_guard
     {

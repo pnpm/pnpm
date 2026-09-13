@@ -59,7 +59,10 @@ fn fresh_install_records_a_single_direct_dependency() {
     graph.insert(node.dep_path.clone(), node);
 
     let mut direct = BTreeMap::new();
-    direct.insert("react".to_string(), DepPath::from("react@17.0.2".to_string()));
+    direct.insert(
+        "react".to_string(),
+        DepPath::from("react@17.0.2".to_string()),
+    );
 
     let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
         &manifest, &graph, direct, true, false, None, None,
@@ -120,7 +123,10 @@ fn fresh_install_records_string_libc_without_coercing_scalar_bundle_metadata() {
 
     let package_key: PackageKey = "sass-embedded-linux-musl-x64@1.100.0".parse().unwrap();
     let metadata = &lockfile.packages.as_ref().expect("packages")[&package_key];
-    assert_eq!(metadata.libc.as_deref(), Some(["musl".to_string()].as_slice()));
+    assert_eq!(
+        metadata.libc.as_deref(),
+        Some(["musl".to_string()].as_slice()),
+    );
     assert!(metadata.bundled_dependencies.is_none());
 }
 #[test]
@@ -155,14 +161,20 @@ fn duplicate_manifest_alias_uses_pnpm_dependency_field_precedence() {
     graph.insert(duplicated.dep_path.clone(), duplicated);
 
     let mut direct = BTreeMap::new();
-    direct.insert("duplicated".to_string(), DepPath::from("duplicated@1.0.0".to_string()));
+    direct.insert(
+        "duplicated".to_string(),
+        DepPath::from("duplicated@1.0.0".to_string()),
+    );
 
     let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
         &manifest, &graph, direct, false, false, None, None,
     ));
 
     let importer = lockfile.root_project().expect("root importer");
-    assert!(importer.dev_dependencies.is_none(), "optionalDependencies wins over devDependencies");
+    assert!(
+        importer.dev_dependencies.is_none(),
+        "optionalDependencies wins over devDependencies",
+    );
     let opt = importer.optional_dependencies.as_ref().expect("optional deps");
     assert!(opt.contains_key(&PkgName::parse("duplicated").unwrap()));
 }
@@ -198,7 +210,10 @@ fn snapshot_partitions_optional_children_by_manifest_optional_dependencies() {
     );
 
     let mut outer_children = BTreeMap::new();
-    outer_children.insert("inner".to_string(), DepPath::from("inner@1.0.0".to_string()));
+    outer_children.insert(
+        "inner".to_string(),
+        DepPath::from("inner@1.0.0".to_string()),
+    );
     let outer = make_node(
         "outer",
         "1.0.0",
@@ -217,7 +232,10 @@ fn snapshot_partitions_optional_children_by_manifest_optional_dependencies() {
     graph.insert(outer.dep_path.clone(), outer);
 
     let mut direct = BTreeMap::new();
-    direct.insert("outer".to_string(), DepPath::from("outer@1.0.0".to_string()));
+    direct.insert(
+        "outer".to_string(),
+        DepPath::from("outer@1.0.0".to_string()),
+    );
 
     let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
         &manifest, &graph, direct, false, false, None, None,
@@ -226,7 +244,10 @@ fn snapshot_partitions_optional_children_by_manifest_optional_dependencies() {
     let snapshots = lockfile.snapshots.as_ref().unwrap();
     let outer_key: PackageKey = "outer@1.0.0".parse().unwrap();
     let outer_snap = &snapshots[&outer_key];
-    assert!(outer_snap.dependencies.is_none(), "no regular dep for an optional-only child");
+    assert!(
+        outer_snap.dependencies.is_none(),
+        "no regular dep for an optional-only child",
+    );
     let opt = outer_snap.optional_dependencies.as_ref().expect("opt deps map");
     let inner_key = PkgName::parse("inner").unwrap();
     match opt.get(&inner_key).expect("inner under optionalDependencies") {
@@ -266,7 +287,10 @@ fn snapshot_optional_flag_round_trips_from_dependencies_graph_node() {
     graph.insert(opt.dep_path.clone(), opt);
 
     let mut direct = BTreeMap::new();
-    direct.insert("regular".to_string(), DepPath::from("regular@1.0.0".to_string()));
+    direct.insert(
+        "regular".to_string(),
+        DepPath::from("regular@1.0.0".to_string()),
+    );
     direct.insert("opt".to_string(), DepPath::from("opt@1.0.0".to_string()));
 
     let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
@@ -276,7 +300,10 @@ fn snapshot_optional_flag_round_trips_from_dependencies_graph_node() {
     let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
     let regular_key: PackageKey = "regular@1.0.0".parse().unwrap();
     let opt_key: PackageKey = "opt@1.0.0".parse().unwrap();
-    assert!(!snapshots[&regular_key].optional, "non-optional snapshot stays optional: false");
+    assert!(
+        !snapshots[&regular_key].optional,
+        "non-optional snapshot stays optional: false",
+    );
     assert!(
         snapshots[&opt_key].optional,
         "snapshot marked optional in the graph propagates to the lockfile",
@@ -343,8 +370,14 @@ fn transitive_optional_is_recomputed_for_packages_reachable_via_a_non_optional_p
     let b_key: PackageKey = "b@1.0.0".parse().unwrap();
     let c_key: PackageKey = "c@1.0.0".parse().unwrap();
     assert!(!snapshots[&b_key].optional, "b is a direct prod dep");
-    assert!(!snapshots[&a_key].optional, "a is reachable via prod → b → a");
-    assert!(!snapshots[&c_key].optional, "c is reachable via prod → b → a → c");
+    assert!(
+        !snapshots[&a_key].optional,
+        "a is reachable via prod → b → a",
+    );
+    assert!(
+        !snapshots[&c_key].optional,
+        "c is reachable via prod → b → a → c",
+    );
 }
 #[test]
 fn shared_subdep_reached_through_dev_optional_and_prod_paths_is_marked_non_optional() {
@@ -375,8 +408,14 @@ fn shared_subdep_reached_through_dev_optional_and_prod_paths_is_marked_non_optio
     );
 
     let mut parent_children = BTreeMap::new();
-    parent_children.insert("subdep".to_string(), DepPath::from("subdep@1.0.0".to_string()));
-    parent_children.insert("subdep2".to_string(), DepPath::from("subdep2@1.0.0".to_string()));
+    parent_children.insert(
+        "subdep".to_string(),
+        DepPath::from("subdep@1.0.0".to_string()),
+    );
+    parent_children.insert(
+        "subdep2".to_string(),
+        DepPath::from("subdep2@1.0.0".to_string()),
+    );
     let parent = make_node_with_optional(
         "parent",
         "1.0.0",
@@ -392,7 +431,10 @@ fn shared_subdep_reached_through_dev_optional_and_prod_paths_is_marked_non_optio
     );
 
     let mut prod_children = BTreeMap::new();
-    prod_children.insert("subdep2".to_string(), DepPath::from("subdep2@1.0.0".to_string()));
+    prod_children.insert(
+        "subdep2".to_string(),
+        DepPath::from("subdep2@1.0.0".to_string()),
+    );
     let prod_parent = make_node_with_optional(
         "prod-parent",
         "1.0.0",
@@ -414,8 +456,14 @@ fn shared_subdep_reached_through_dev_optional_and_prod_paths_is_marked_non_optio
     graph.insert(subdep2.dep_path.clone(), subdep2);
 
     let mut direct = BTreeMap::new();
-    direct.insert("parent".to_string(), DepPath::from("parent@1.0.0".to_string()));
-    direct.insert("prod-parent".to_string(), DepPath::from("prod-parent@1.0.0".to_string()));
+    direct.insert(
+        "parent".to_string(),
+        DepPath::from("parent@1.0.0".to_string()),
+    );
+    direct.insert(
+        "prod-parent".to_string(),
+        DepPath::from("prod-parent@1.0.0".to_string()),
+    );
 
     let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
         &manifest, &graph, direct, false, false, None, None,
@@ -424,7 +472,10 @@ fn shared_subdep_reached_through_dev_optional_and_prod_paths_is_marked_non_optio
     let snapshots = lockfile.snapshots.as_ref().unwrap();
     let subdep_key: PackageKey = "subdep@1.0.0".parse().unwrap();
     let subdep2_key: PackageKey = "subdep2@1.0.0".parse().unwrap();
-    assert!(snapshots[&subdep_key].optional, "subdep only reachable via dev → optional path");
+    assert!(
+        snapshots[&subdep_key].optional,
+        "subdep only reachable via dev → optional path",
+    );
     assert!(
         !snapshots[&subdep2_key].optional,
         "subdep2 is reachable via prod-parent → subdep2 (all non-optional)",
@@ -456,7 +507,9 @@ fn file_dep_child_renders_as_bare_file_ref() {
     let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
     let parent_key: PackageKey = "nested-parent@file:parent".parse().unwrap();
     let deps = snapshots[&parent_key].dependencies.as_ref().expect("nested-parent dependencies");
-    let child_ref = deps.get(&PkgName::parse("nested-child").unwrap()).expect("nested-child child");
+    let child_ref = deps
+        .get(&PkgName::parse("nested-child").unwrap())
+        .expect("nested-child child");
     assert_eq!(dbg!(child_ref).to_string(), "file:child");
 }
 /// An injected workspace dep whose alias equals its package name must
@@ -473,8 +526,10 @@ fn same_name_injected_dep_serializes_as_plain_file_ref() {
         resolved_package_id: "file:comp1".to_string(),
         resolve_result: std::sync::Arc::new(ResolveResult {
             id: "file:comp1".into(),
-            resolution: pnpm_lockfile::DirectoryResolution { directory: "comp1".to_string() }
-                .into(),
+            resolution: pnpm_lockfile::DirectoryResolution {
+                directory: "comp1".to_string(),
+            }
+            .into(),
             resolved_via: "local-filesystem".to_string(),
             normalized_bare_specifier: None,
             alias: Some("@scope/comp1".to_string()),
@@ -541,7 +596,10 @@ fn named_registry_package_keeps_the_format_and_drops_a_canonical_tarball() {
     graph.insert(node.dep_path.clone(), node);
 
     let mut direct = BTreeMap::new();
-    direct.insert("foo".to_string(), DepPath::from("foo@work:1.0.0".to_string()));
+    direct.insert(
+        "foo".to_string(),
+        DepPath::from("foo@work:1.0.0".to_string()),
+    );
 
     let registries_by_prefix = named_registries_with("work", "https://npm.enterprise.example.com/");
     let mut opts = single_importer_opts(&manifest, &graph, direct, true, false, None, None);
@@ -585,8 +643,10 @@ fn unchanged_resolutions_keep_their_previous_package_metadata() {
         );
         let mut graph = DependenciesGraph::default();
         graph.insert(node.dep_path.clone(), node);
-        let direct =
-            BTreeMap::from([("react".to_string(), DepPath::from("react@17.0.2".to_string()))]);
+        let direct = BTreeMap::from([(
+            "react".to_string(),
+            DepPath::from("react@17.0.2".to_string()),
+        )]);
         let mut opts = single_importer_opts(&manifest, &graph, direct, true, false, None, None);
         opts.metadata_sources.previous_packages = previous;
         let lockfile = dependencies_graph_to_lockfile(opts);
@@ -595,7 +655,10 @@ fn unchanged_resolutions_keep_their_previous_package_metadata() {
     };
 
     let fresh = build(None);
-    assert_eq!(fresh.deprecated, None, "the freshly served metadata carries no deprecation");
+    assert_eq!(
+        fresh.deprecated, None,
+        "the freshly served metadata carries no deprecation",
+    );
 
     let mut previous_entry = fresh;
     previous_entry.deprecated = Some("No longer maintained".to_string());

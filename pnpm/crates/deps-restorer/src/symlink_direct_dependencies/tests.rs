@@ -14,7 +14,10 @@ use tempfile::tempdir;
 #[test]
 fn validate_importer_id_accepts_root_and_relative_keys() {
     for id in [".", "packages/foo", "packages/foo/bar", "a.b/c"] {
-        assert!(validate_importer_id(id).is_ok(), "expected {id:?} to be accepted");
+        assert!(
+            validate_importer_id(id).is_ok(),
+            "expected {id:?} to be accepted",
+        );
     }
 }
 
@@ -23,10 +26,20 @@ fn validate_importer_id_rejects_escaping_keys() {
     // A lockfile importer key is joined onto the lockfile dir to read the
     // project's manifest; these forms would escape it, so they must be
     // rejected before any on-disk read.
-    for id in
-        ["", "..", "../foo", "packages/../../etc", "/abs/path", r"packages\foo", "C:/x", "C:x"]
-    {
-        assert!(validate_importer_id(id).is_err(), "expected {id:?} to be rejected");
+    for id in [
+        "",
+        "..",
+        "../foo",
+        "packages/../../etc",
+        "/abs/path",
+        r"packages\foo",
+        "C:/x",
+        "C:x",
+    ] {
+        assert!(
+            validate_importer_id(id).is_err(),
+            "expected {id:?} to be rejected",
+        );
     }
 }
 
@@ -44,7 +57,11 @@ fn importer_task_groups_fold_filesystem_name_aliases() {
             "case-aliased keys must share a task on a folding filesystem: {groups:?}",
         );
     } else {
-        assert_eq!(groups.len(), 3, "distinct directories keep their own tasks: {groups:?}");
+        assert_eq!(
+            groups.len(),
+            3,
+            "distinct directories keep their own tasks: {groups:?}",
+        );
     }
 }
 
@@ -59,9 +76,14 @@ fn importer_task_groups_serialize_all_missing_dirs_together() {
     let dir = tempdir().expect("tempdir");
     let nfc = "packages/caf\u{e9}";
     let nfd = "packages/cafe\u{301}";
-    let groups =
-        super::importer_task_groups(dir.path(), vec!["packages/Ghost", nfc, nfd, "packages/ghost"]);
-    assert_eq!(groups, vec![vec!["packages/Ghost", nfc, nfd, "packages/ghost"]]);
+    let groups = super::importer_task_groups(
+        dir.path(),
+        vec!["packages/Ghost", nfc, nfd, "packages/ghost"],
+    );
+    assert_eq!(
+        groups,
+        vec![vec!["packages/Ghost", nfc, nfd, "packages/ghost"]],
+    );
 }
 
 #[cfg(target_os = "macos")]
@@ -74,7 +96,11 @@ fn importer_task_groups_fold_unicode_normalization_aliases() {
     let nfd = "packages/cafe\u{301}";
     fs::create_dir_all(dir.path().join(nfc)).expect("create project dir");
     let groups = super::importer_task_groups(dir.path(), vec![nfc, nfd]);
-    assert_eq!(groups, vec![vec![nfc, nfd]], "normalization aliases must share a task");
+    assert_eq!(
+        groups,
+        vec![vec![nfc, nfd]],
+        "normalization aliases must share a task",
+    );
 }
 
 #[test]
@@ -83,8 +109,18 @@ fn validate_importer_id_rejects_non_canonical_aliases() {
     // the same `node_modules` from two concurrent importer tasks; pnpm
     // only writes canonical relative keys, so every non-canonical form
     // is rejected outright.
-    for id in ["./", "./foo", "packages/./app", "packages//app", "packages/app/", "foo/."] {
-        assert!(validate_importer_id(id).is_err(), "expected {id:?} to be rejected");
+    for id in [
+        "./",
+        "./foo",
+        "packages/./app",
+        "packages//app",
+        "packages/app/",
+        "foo/.",
+    ] {
+        assert!(
+            validate_importer_id(id).is_err(),
+            "expected {id:?} to be rejected",
+        );
     }
 }
 
@@ -97,12 +133,18 @@ fn validate_importer_id_rejects_non_canonical_aliases() {
 #[test]
 fn emits_pnpm_root_added_per_direct_dependency() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -112,7 +154,10 @@ fn emits_pnpm_root_added_per_direct_dependency() {
     let virtual_store_dir = modules_dir.join(".pacquet");
 
     let mut config = Config::new();
-    config.store_dir = dir.path().join("pacquet-store").into();
+    config.store_dir = dir
+        .path()
+        .join("pacquet-store")
+        .into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir.clone();
     let config = config.leak();
@@ -122,10 +167,14 @@ fn emits_pnpm_root_added_per_direct_dependency() {
     // there, and `junction::create` requires the target directory
     // to exist. On Unix `symlink` doesn't care, but creating the
     // dirs here keeps the test platform-uniform.
-    for (store_name, real_name) in
-        [("fastify@4.0.0", "fastify"), ("@pnpm.e2e+dev-dep@1.2.3", "@pnpm.e2e/dev-dep")]
-    {
-        let target = virtual_store_dir.join(store_name).join("node_modules").join(real_name);
+    for (store_name, real_name) in [
+        ("fastify@4.0.0", "fastify"),
+        ("@pnpm.e2e+dev-dep@1.2.3", "@pnpm.e2e/dev-dep"),
+    ] {
+        let target = virtual_store_dir
+            .join(store_name)
+            .join("node_modules")
+            .join(real_name);
         fs::create_dir_all(&target).expect("create symlink target");
     }
 
@@ -136,7 +185,10 @@ fn emits_pnpm_root_added_per_direct_dependency() {
         "fastify".parse().expect("parse fastify pkg name"),
         ResolvedDependencySpec {
             specifier: "^4.0.0".to_string(),
-            version: "4.0.0".parse::<pnpm_lockfile::PkgVerPeer>().unwrap().into(),
+            version: "4.0.0"
+                .parse::<pnpm_lockfile::PkgVerPeer>()
+                .unwrap()
+                .into(),
         },
     );
     let mut dev = ResolvedDependencyMap::new();
@@ -144,7 +196,10 @@ fn emits_pnpm_root_added_per_direct_dependency() {
         "@pnpm.e2e/dev-dep".parse().expect("parse dev pkg name"),
         ResolvedDependencySpec {
             specifier: "^1.2.3".to_string(),
-            version: "1.2.3".parse::<pnpm_lockfile::PkgVerPeer>().unwrap().into(),
+            version: "1.2.3"
+                .parse::<pnpm_lockfile::PkgVerPeer>()
+                .unwrap()
+                .into(),
         },
     );
 
@@ -204,7 +259,10 @@ fn emits_pnpm_root_added_per_direct_dependency() {
     let added: Vec<&AddedRoot> = captured
         .iter()
         .filter_map(|event| match event {
-            LogEvent::Root(RootLog { message: RootMessage::Added { added, prefix }, .. }) => {
+            LogEvent::Root(RootLog {
+                message: RootMessage::Added { added, prefix },
+                ..
+            }) => {
                 assert_eq!(prefix, &expected_prefix);
                 Some(added)
             }
@@ -217,8 +275,10 @@ fn emits_pnpm_root_added_per_direct_dependency() {
     // must carry their version, the matching dependency type, and
     // `realName == name` (pacquet's lockfile snapshots don't
     // preserve npm-alias keys at this layer).
-    let fastify =
-        added.iter().find(|added| added.name == "fastify").expect("fastify added event missing");
+    let fastify = added
+        .iter()
+        .find(|added| added.name == "fastify")
+        .expect("fastify added event missing");
     assert_eq!(fastify.real_name, "fastify");
     assert_eq!(fastify.version.as_deref(), Some("4.0.0"));
     assert_eq!(fastify.dependency_type, Some(DependencyType::Prod));
@@ -244,12 +304,18 @@ fn emits_pnpm_root_added_per_direct_dependency() {
 #[test]
 fn duplicate_dep_across_groups_collapses_to_one_entry() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -259,7 +325,10 @@ fn duplicate_dep_across_groups_collapses_to_one_entry() {
     let virtual_store_dir = modules_dir.join(".pacquet");
 
     let mut config = Config::new();
-    config.store_dir = dir.path().join("pacquet-store").into();
+    config.store_dir = dir
+        .path()
+        .join("pacquet-store")
+        .into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir.clone();
     let config = config.leak();
@@ -268,7 +337,10 @@ fn duplicate_dep_across_groups_collapses_to_one_entry() {
     // versions match here so the symlink target path is the same;
     // a real malformed lockfile that mismatched versions would also
     // collapse here, with first-wins picking the prod entry.
-    let target = virtual_store_dir.join("fastify@4.0.0").join("node_modules").join("fastify");
+    let target = virtual_store_dir
+        .join("fastify@4.0.0")
+        .join("node_modules")
+        .join("fastify");
     fs::create_dir_all(&target).expect("create symlink target");
 
     let mut prod = ResolvedDependencyMap::new();
@@ -276,7 +348,10 @@ fn duplicate_dep_across_groups_collapses_to_one_entry() {
         "fastify".parse().expect("parse fastify pkg name"),
         ResolvedDependencySpec {
             specifier: "^4.0.0".to_string(),
-            version: "4.0.0".parse::<pnpm_lockfile::PkgVerPeer>().unwrap().into(),
+            version: "4.0.0"
+                .parse::<pnpm_lockfile::PkgVerPeer>()
+                .unwrap()
+                .into(),
         },
     );
     let mut optional = ResolvedDependencyMap::new();
@@ -284,7 +359,10 @@ fn duplicate_dep_across_groups_collapses_to_one_entry() {
         "fastify".parse().expect("parse fastify pkg name"),
         ResolvedDependencySpec {
             specifier: "^4.0.0".to_string(),
-            version: "4.0.0".parse::<pnpm_lockfile::PkgVerPeer>().unwrap().into(),
+            version: "4.0.0"
+                .parse::<pnpm_lockfile::PkgVerPeer>()
+                .unwrap()
+                .into(),
         },
     );
 
@@ -330,13 +408,18 @@ fn duplicate_dep_across_groups_collapses_to_one_entry() {
     let added: Vec<&AddedRoot> = captured
         .iter()
         .filter_map(|event| match event {
-            LogEvent::Root(RootLog { message: RootMessage::Added { added, .. }, .. }) => {
-                Some(added)
-            }
+            LogEvent::Root(RootLog {
+                message: RootMessage::Added { added, .. },
+                ..
+            }) => Some(added),
             _ => None,
         })
         .collect();
-    assert_eq!(added.len(), 1, "duplicate dep across groups must collapse to one emit");
+    assert_eq!(
+        added.len(),
+        1,
+        "duplicate dep across groups must collapse to one emit",
+    );
     assert_eq!(added[0].name, "fastify");
     assert_eq!(added[0].dependency_type, Some(DependencyType::Prod));
 
@@ -351,12 +434,18 @@ fn duplicate_dep_across_groups_collapses_to_one_entry() {
 #[test]
 fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -364,7 +453,10 @@ fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
     let workspace_root = dir.path().to_path_buf();
 
     let mut config = Config::new();
-    config.store_dir = dir.path().join("pacquet-store").into();
+    config.store_dir = dir
+        .path()
+        .join("pacquet-store")
+        .into();
     config.modules_dir = workspace_root.join("node_modules");
     config.virtual_store_dir = workspace_root.join("node_modules/.pacquet");
     let config = config.leak();
@@ -374,8 +466,11 @@ fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
     // single-importer test above.)
     let shared_dir = workspace_root.join("packages/shared");
     fs::create_dir_all(&shared_dir).unwrap();
-    fs::write(shared_dir.join("package.json"), r#"{"name": "shared", "version": "1.0.0"}"#)
-        .unwrap();
+    fs::write(
+        shared_dir.join("package.json"),
+        r#"{"name": "shared", "version": "1.0.0"}"#,
+    )
+    .unwrap();
 
     let mut deps = ResolvedDependencyMap::new();
     deps.insert(
@@ -389,7 +484,10 @@ fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
     let mut importers = HashMap::new();
     importers.insert(
         "packages/web".to_string(),
-        ProjectSnapshot { dependencies: Some(deps), ..ProjectSnapshot::default() },
+        ProjectSnapshot {
+            dependencies: Some(deps),
+            ..ProjectSnapshot::default()
+        },
     );
 
     SymlinkDirectDependencies {
@@ -431,15 +529,19 @@ fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
     let added: Vec<(&str, &AddedRoot)> = captured
         .iter()
         .filter_map(|event| match event {
-            LogEvent::Root(RootLog { message: RootMessage::Added { added, prefix }, .. }) => {
-                Some((prefix.as_str(), added))
-            }
+            LogEvent::Root(RootLog {
+                message: RootMessage::Added { added, prefix },
+                ..
+            }) => Some((prefix.as_str(), added)),
             _ => None,
         })
         .collect();
     assert_eq!(added.len(), 1);
     let (prefix, added) = added[0];
-    let expected_prefix = workspace_root.join("packages/web").to_string_lossy().into_owned();
+    let expected_prefix = workspace_root
+        .join("packages/web")
+        .to_string_lossy()
+        .into_owned();
     assert_eq!(prefix, expected_prefix.as_str());
     assert_eq!(added.name, "shared");
     assert_eq!(added.version.as_deref(), Some("link:../shared"));
@@ -459,7 +561,10 @@ fn empty_importers_is_a_no_op() {
     let dir = tempdir().unwrap();
     let project_root = dir.path().join("project");
     let mut config = Config::new();
-    config.store_dir = dir.path().join("pacquet-store").into();
+    config.store_dir = dir
+        .path()
+        .join("pacquet-store")
+        .into();
     config.modules_dir = project_root.join("node_modules");
     config.virtual_store_dir = project_root.join("node_modules/.pacquet");
     let config = config.leak();
@@ -505,12 +610,18 @@ fn empty_importers_is_a_no_op() {
 #[test]
 fn reused_symlinks_do_not_emit_pnpm_root_added() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -520,12 +631,18 @@ fn reused_symlinks_do_not_emit_pnpm_root_added() {
     let virtual_store_dir = modules_dir.join(".pacquet");
 
     let mut config = Config::new();
-    config.store_dir = dir.path().join("pacquet-store").into();
+    config.store_dir = dir
+        .path()
+        .join("pacquet-store")
+        .into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir.clone();
     let config = config.leak();
 
-    let target = virtual_store_dir.join("fastify@4.0.0").join("node_modules").join("fastify");
+    let target = virtual_store_dir
+        .join("fastify@4.0.0")
+        .join("node_modules")
+        .join("fastify");
     fs::create_dir_all(&target).expect("create symlink target");
 
     let mut prod = ResolvedDependencyMap::new();
@@ -533,11 +650,16 @@ fn reused_symlinks_do_not_emit_pnpm_root_added() {
         "fastify".parse().expect("parse fastify pkg name"),
         ResolvedDependencySpec {
             specifier: "^4.0.0".to_string(),
-            version: "4.0.0".parse::<pnpm_lockfile::PkgVerPeer>().unwrap().into(),
+            version: "4.0.0"
+                .parse::<pnpm_lockfile::PkgVerPeer>()
+                .unwrap()
+                .into(),
         },
     );
-    let project_snapshot =
-        ProjectSnapshot { dependencies: Some(prod), ..ProjectSnapshot::default() };
+    let project_snapshot = ProjectSnapshot {
+        dependencies: Some(prod),
+        ..ProjectSnapshot::default()
+    };
     let mut importers = HashMap::new();
     importers.insert(Lockfile::ROOT_IMPORTER_KEY.to_string(), project_snapshot);
     let layout = crate::VirtualStoreLayout::legacy(
@@ -573,11 +695,22 @@ fn reused_symlinks_do_not_emit_pnpm_root_added() {
     };
 
     link();
-    assert_eq!(count_added(&EVENTS), 1, "the first link of a new dep emits one added event");
+    assert_eq!(
+        count_added(&EVENTS),
+        1,
+        "the first link of a new dep emits one added event",
+    );
 
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
     link();
-    assert_eq!(count_added(&EVENTS), 0, "re-linking a reused symlink emits no added event");
+    assert_eq!(
+        count_added(&EVENTS),
+        0,
+        "re-linking a reused symlink emits no added event",
+    );
 
     drop(dir);
 }
@@ -588,7 +721,13 @@ fn count_added(events: &Mutex<Vec<LogEvent>>) -> usize {
         .unwrap()
         .iter()
         .filter(|event| {
-            matches!(event, LogEvent::Root(RootLog { message: RootMessage::Added { .. }, .. }))
+            matches!(
+                event,
+                LogEvent::Root(RootLog {
+                    message: RootMessage::Added { .. },
+                    ..
+                }),
+            )
         })
         .count()
 }
@@ -599,12 +738,18 @@ fn count_added(events: &Mutex<Vec<LogEvent>>) -> usize {
 #[test]
 fn per_importer_prefix_in_pnpm_root_events() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -613,7 +758,10 @@ fn per_importer_prefix_in_pnpm_root_events() {
     let virtual_store_dir = workspace_root.join("node_modules/.pacquet");
 
     let mut config = Config::new();
-    config.store_dir = dir.path().join("pacquet-store").into();
+    config.store_dir = dir
+        .path()
+        .join("pacquet-store")
+        .into();
     config.modules_dir = workspace_root.join("node_modules");
     config.virtual_store_dir = virtual_store_dir.clone();
     let config = config.leak();
@@ -621,8 +769,14 @@ fn per_importer_prefix_in_pnpm_root_events() {
     // Materialize the virtual-store targets each importer's symlink
     // points at — same precondition the single-importer test sets up.
     for store_name in ["fastify@4.0.0", "react@18.0.0"] {
-        let real_name = store_name.split('@').next().unwrap();
-        let target = virtual_store_dir.join(store_name).join("node_modules").join(real_name);
+        let real_name = store_name
+            .split('@')
+            .next()
+            .unwrap();
+        let target = virtual_store_dir
+            .join(store_name)
+            .join("node_modules")
+            .join(real_name);
         fs::create_dir_all(&target).unwrap();
     }
 
@@ -631,7 +785,10 @@ fn per_importer_prefix_in_pnpm_root_events() {
         "fastify".parse().unwrap(),
         ResolvedDependencySpec {
             specifier: "^4.0.0".to_string(),
-            version: "4.0.0".parse::<pnpm_lockfile::PkgVerPeer>().unwrap().into(),
+            version: "4.0.0"
+                .parse::<pnpm_lockfile::PkgVerPeer>()
+                .unwrap()
+                .into(),
         },
     );
     let mut beta_deps = ResolvedDependencyMap::new();
@@ -639,18 +796,27 @@ fn per_importer_prefix_in_pnpm_root_events() {
         "react".parse().unwrap(),
         ResolvedDependencySpec {
             specifier: "^18.0.0".to_string(),
-            version: "18.0.0".parse::<pnpm_lockfile::PkgVerPeer>().unwrap().into(),
+            version: "18.0.0"
+                .parse::<pnpm_lockfile::PkgVerPeer>()
+                .unwrap()
+                .into(),
         },
     );
 
     let mut importers = HashMap::new();
     importers.insert(
         "packages/alpha".to_string(),
-        ProjectSnapshot { dependencies: Some(alpha_deps), ..ProjectSnapshot::default() },
+        ProjectSnapshot {
+            dependencies: Some(alpha_deps),
+            ..ProjectSnapshot::default()
+        },
     );
     importers.insert(
         "packages/beta".to_string(),
-        ProjectSnapshot { dependencies: Some(beta_deps), ..ProjectSnapshot::default() },
+        ProjectSnapshot {
+            dependencies: Some(beta_deps),
+            ..ProjectSnapshot::default()
+        },
     );
 
     SymlinkDirectDependencies {
@@ -686,19 +852,41 @@ fn per_importer_prefix_in_pnpm_root_events() {
     let added: Vec<(&str, &AddedRoot)> = captured
         .iter()
         .filter_map(|event| match event {
-            LogEvent::Root(RootLog { message: RootMessage::Added { added, prefix }, .. }) => {
-                Some((prefix.as_str(), added))
-            }
+            LogEvent::Root(RootLog {
+                message: RootMessage::Added { added, prefix },
+                ..
+            }) => Some((prefix.as_str(), added)),
             _ => None,
         })
         .collect();
     assert_eq!(added.len(), 2, "one event per importer's direct dep");
 
-    let alpha_prefix = workspace_root.join("packages/alpha").to_string_lossy().into_owned();
-    let beta_prefix = workspace_root.join("packages/beta").to_string_lossy().into_owned();
-    let by_prefix: HashMap<&str, &AddedRoot> = added.iter().copied().collect();
-    assert_eq!(by_prefix.get(alpha_prefix.as_str()).unwrap().name, "fastify");
-    assert_eq!(by_prefix.get(beta_prefix.as_str()).unwrap().name, "react");
+    let alpha_prefix = workspace_root
+        .join("packages/alpha")
+        .to_string_lossy()
+        .into_owned();
+    let beta_prefix = workspace_root
+        .join("packages/beta")
+        .to_string_lossy()
+        .into_owned();
+    let by_prefix: HashMap<&str, &AddedRoot> = added
+        .iter()
+        .copied()
+        .collect();
+    assert_eq!(
+        by_prefix
+            .get(alpha_prefix.as_str())
+            .unwrap()
+            .name,
+        "fastify",
+    );
+    assert_eq!(
+        by_prefix
+            .get(beta_prefix.as_str())
+            .unwrap()
+            .name,
+        "react",
+    );
 
     drop(dir);
 }
@@ -727,7 +915,10 @@ fn unsafe_importer_keys_error_before_filesystem_writes() {
         let dir = tempdir().unwrap();
         let workspace_root: PathBuf = dir.path().into();
         let mut config = Config::new();
-        config.store_dir = dir.path().join("pacquet-store").into();
+        config.store_dir = dir
+            .path()
+            .join("pacquet-store")
+            .into();
         config.modules_dir = workspace_root.join("node_modules");
         config.virtual_store_dir = workspace_root.join("node_modules/.pacquet");
         let config = config.leak();
@@ -765,7 +956,10 @@ fn unsafe_importer_keys_error_before_filesystem_writes() {
 
         match result {
             Err(SymlinkDirectDependenciesError::UnsafeImporterPath { importer_id: id }) => {
-                assert_eq!(id, importer_id, "expected the rejected key in the diagnostic");
+                assert_eq!(
+                    id, importer_id,
+                    "expected the rejected key in the diagnostic",
+                );
             }
             other => panic!("expected UnsafeImporterPath for {importer_id:?}, got {other:?}"),
         }
@@ -801,7 +995,10 @@ fn custom_modules_dir_propagates_to_each_importer() {
     let virtual_store_dir = workspace_root.join("custom_modules/.pacquet");
 
     let mut config = Config::new();
-    config.store_dir = dir.path().join("pacquet-store").into();
+    config.store_dir = dir
+        .path()
+        .join("pacquet-store")
+        .into();
     // `config.modules_dir`'s basename is the per-importer suffix.
     // Use a non-default name so a regression to the hard-coded
     // `node_modules` would fail the assertion below.
@@ -809,7 +1006,10 @@ fn custom_modules_dir_propagates_to_each_importer() {
     config.virtual_store_dir = virtual_store_dir.clone();
     let config = config.leak();
 
-    let target = virtual_store_dir.join("fastify@4.0.0").join("node_modules").join("fastify");
+    let target = virtual_store_dir
+        .join("fastify@4.0.0")
+        .join("node_modules")
+        .join("fastify");
     fs::create_dir_all(&target).expect("create symlink target");
 
     let mut deps = ResolvedDependencyMap::new();
@@ -817,13 +1017,19 @@ fn custom_modules_dir_propagates_to_each_importer() {
         "fastify".parse().unwrap(),
         ResolvedDependencySpec {
             specifier: "^4.0.0".to_string(),
-            version: "4.0.0".parse::<pnpm_lockfile::PkgVerPeer>().unwrap().into(),
+            version: "4.0.0"
+                .parse::<pnpm_lockfile::PkgVerPeer>()
+                .unwrap()
+                .into(),
         },
     );
     let mut importers = HashMap::new();
     importers.insert(
         "packages/web".to_string(),
-        ProjectSnapshot { dependencies: Some(deps), ..ProjectSnapshot::default() },
+        ProjectSnapshot {
+            dependencies: Some(deps),
+            ..ProjectSnapshot::default()
+        },
     );
 
     SymlinkDirectDependencies {
@@ -880,7 +1086,10 @@ fn trusted_importer_id_outside_workspace_root_is_linked() {
     let workspace_root: PathBuf = dir.path().join("nested-install-root");
     std::fs::create_dir_all(&workspace_root).unwrap();
     let mut config = Config::new();
-    config.store_dir = dir.path().join("pacquet-store").into();
+    config.store_dir = dir
+        .path()
+        .join("pacquet-store")
+        .into();
     config.modules_dir = workspace_root.join("node_modules");
     config.virtual_store_dir = workspace_root.join("node_modules/.pacquet");
     let config = config.leak();
@@ -947,7 +1156,10 @@ fn trusted_importer_id_outside_workspace_root_is_linked() {
     }
     .run::<SilentReporter>();
     assert!(
-        matches!(result, Err(SymlinkDirectDependenciesError::UnsafeImporterPath { .. })),
+        matches!(
+            result,
+            Err(SymlinkDirectDependenciesError::UnsafeImporterPath { .. })
+        ),
         "an untrusted `..` id must still be rejected",
     );
 

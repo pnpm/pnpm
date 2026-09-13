@@ -32,7 +32,10 @@ fn kebab_conversion() {
     assert_eq!(to_kebab_case("storeDir"), "store-dir");
     assert_eq!(to_kebab_case("fetch-retries"), "fetch-retries");
     assert_eq!(to_kebab_case("httpProxy"), "http-proxy");
-    assert_eq!(to_kebab_case("fetchMinSpeedKiBps"), "fetch-min-speed-ki-bps");
+    assert_eq!(
+        to_kebab_case("fetchMinSpeedKiBps"),
+        "fetch-min-speed-ki-bps",
+    );
     assert_eq!(to_kebab_case("registry"), "registry");
 }
 
@@ -43,5 +46,8 @@ fn camel_conversion() {
     assert_eq!(to_camel_case("package-extensions"), "packageExtensions");
     assert_eq!(to_camel_case("fetchRetries"), "fetchRetries");
     assert_eq!(to_camel_case("registry"), "registry");
-    assert_eq!(to_camel_case("fetch-min-speed-ki-bps"), "fetchMinSpeedKiBps");
+    assert_eq!(
+        to_camel_case("fetch-min-speed-ki-bps"),
+        "fetchMinSpeedKiBps",
+    );
 }

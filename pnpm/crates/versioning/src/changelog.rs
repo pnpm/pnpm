@@ -40,8 +40,7 @@ pub fn compose_changelog_section(release: &PlannedRelease) -> String {
         entries.push(format_list_item(&intent.summary));
     }
     if !release.dependency_updates.is_empty() {
-        let dep_lines: Vec<String> = release
-            .dependency_updates
+        let dep_lines: Vec<String> = release.dependency_updates
             .iter()
             .map(|dep| format!("  - {}@{}", dep.name, dep.new_version))
             .collect();
@@ -128,10 +127,16 @@ pub fn prepend_changelog_section(
         Ok(existing) => Some(existing),
         Err(err) if err.kind() == ErrorKind::NotFound => None,
         Err(source) => {
-            return Err(VersioningError::Read { path: changelog_path, source });
+            return Err(VersioningError::Read {
+                path: changelog_path,
+                source,
+            });
         }
     };
     let content = render_changelog(existing.as_deref(), pkg_name, section);
     fs::write(&changelog_path, content)
-        .map_err(|source| VersioningError::Write { path: changelog_path, source })
+        .map_err(|source| VersioningError::Write {
+            path: changelog_path,
+            source,
+        })
 }

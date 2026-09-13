@@ -158,15 +158,29 @@ pub struct InMemoryPackageMetaCache {
 
 impl PackageMetaCache for InMemoryPackageMetaCache {
     fn get(&self, key: &str) -> Option<CachedPackument> {
-        self.inner.get(key).map(|entry| entry.value().clone())
+        self.inner
+            .get(key)
+            .map(|entry| entry.value().clone())
     }
 
     fn set(&self, key: String, meta: Arc<Package>) {
-        self.inner.insert(key, CachedPackument { meta, registry_verified: true });
+        self.inner.insert(
+            key,
+            CachedPackument {
+                meta,
+                registry_verified: true,
+            },
+        );
     }
 
     fn set_unverified(&self, key: String, meta: Arc<Package>) {
-        self.inner.insert(key, CachedPackument { meta, registry_verified: false });
+        self.inner.insert(
+            key,
+            CachedPackument {
+                meta,
+                registry_verified: false,
+            },
+        );
     }
 }
 

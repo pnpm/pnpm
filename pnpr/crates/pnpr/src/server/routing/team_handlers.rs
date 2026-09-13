@@ -27,7 +27,12 @@ pub(super) async fn get_teams(
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<ScopePath>,
 ) -> Response {
-    private_no_cache(get_org_teams(&state, &identity, registry.as_deref(), &path.scope))
+    private_no_cache(get_org_teams(
+        &state,
+        &identity,
+        registry.as_deref(),
+        &path.scope,
+    ))
 }
 
 /// `GET {base}/-/org/{scope}/package` — the packages of the registry claiming
@@ -48,7 +53,13 @@ pub(super) async fn put_team(
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<ScopePath>,
 ) -> Response {
-    reject_team_mutation(&state, &identity, registry.as_deref(), &path.scope, "create a team")
+    reject_team_mutation(
+        &state,
+        &identity,
+        registry.as_deref(),
+        &path.scope,
+        "create a team",
+    )
 }
 
 /// `DELETE {base}/-/team/{scope}/{team}`.
@@ -58,7 +69,13 @@ pub(super) async fn delete_team(
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<ScopePath>,
 ) -> Response {
-    reject_team_mutation(&state, &identity, registry.as_deref(), &path.scope, "destroy a team")
+    reject_team_mutation(
+        &state,
+        &identity,
+        registry.as_deref(),
+        &path.scope,
+        "destroy a team",
+    )
 }
 
 /// `GET {base}/-/team/{scope}/{team}/user`.
@@ -84,7 +101,13 @@ pub(super) async fn put_team_user(
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<ScopePath>,
 ) -> Response {
-    reject_team_mutation(&state, &identity, registry.as_deref(), &path.scope, "add a team member")
+    reject_team_mutation(
+        &state,
+        &identity,
+        registry.as_deref(),
+        &path.scope,
+        "add a team member",
+    )
 }
 
 /// `DELETE {base}/-/team/{scope}/{team}/user`.

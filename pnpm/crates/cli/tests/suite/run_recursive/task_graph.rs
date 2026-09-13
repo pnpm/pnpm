@@ -40,7 +40,10 @@ fn task_starts_as_soon_as_its_dependencies_finish() {
         ],
     );
 
-    pacquet.with_args(["--workspace-concurrency=2", "-r", "run", "build"]).assert().success();
+    pacquet
+        .with_args(["--workspace-concurrency=2", "-r", "run", "build"])
+        .assert()
+        .success();
 
     let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
     assert_eq!(order, "dep\nmid\nslow\n");
@@ -64,7 +67,10 @@ fn depends_on_runs_the_tasks_a_task_depends_on_in_dependency_order() {
     };
     write_workspace(
         &workspace,
-        &[("project-a", scripts("project-a")), ("project-b", scripts("project-b"))],
+        &[
+            ("project-a", scripts("project-a")),
+            ("project-b", scripts("project-b")),
+        ],
     );
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
@@ -77,12 +83,20 @@ fn depends_on_runs_the_tasks_a_task_depends_on_in_dependency_order() {
     )
     .expect("write workspace settings");
 
-    pacquet.with_args(["-r", "run", "--report-summary", "test"]).assert().success();
+    pacquet
+        .with_args(["-r", "run", "--report-summary", "test"])
+        .assert()
+        .success();
 
     let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
     let lines: Vec<&str> = order.lines().collect();
     dbg!(&lines);
-    let position = |line: &str| lines.iter().position(|found| *found == line).expect(line);
+    let position = |line: &str| {
+        lines
+            .iter()
+            .position(|found| *found == line)
+            .expect(line)
+    };
     assert!(position("project-b-build") < position("project-a-build"));
     assert!(position("project-a-build") < position("project-a-test"));
     assert!(position("project-b-build") < position("project-b-test"));
@@ -90,8 +104,14 @@ fn depends_on_runs_the_tasks_a_task_depends_on_in_dependency_order() {
     // The tasks `dependsOn` pulled in get `#`-qualified summary keys; the
     // requested tasks keep the bare project directory.
     let statuses = summary_statuses(&workspace);
-    assert_eq!(statuses.get("project-a").map(String::as_str), Some("passed"));
-    assert_eq!(statuses.get("project-a#build").map(String::as_str), Some("passed"));
+    assert_eq!(
+        statuses.get("project-a").map(String::as_str),
+        Some("passed"),
+    );
+    assert_eq!(
+        statuses.get("project-a#build").map(String::as_str),
+        Some("passed"),
+    );
 
     drop(root);
 }
@@ -135,7 +155,10 @@ fn explicitly_empty_depends_on_starts_without_waiting() {
     )
     .expect("write workspace settings");
 
-    pacquet.with_args(["--workspace-concurrency=2", "-r", "run", "lint"]).assert().success();
+    pacquet
+        .with_args(["--workspace-concurrency=2", "-r", "run", "lint"])
+        .assert()
+        .success();
 
     let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
     assert_eq!(order, "dependent\ndependency\n");
@@ -177,14 +200,26 @@ fn missing_script_is_reported_skipped_and_does_not_sever_the_chain() {
         ],
     );
 
-    pacquet.with_args(["-r", "run", "--report-summary", "build"]).assert().success();
+    pacquet
+        .with_args(["-r", "run", "--report-summary", "build"])
+        .assert()
+        .success();
 
     let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
     assert_eq!(order, "project-c\nproject-a\n");
     let statuses = summary_statuses(&workspace);
-    assert_eq!(statuses.get("project-a").map(String::as_str), Some("passed"));
-    assert_eq!(statuses.get("project-b").map(String::as_str), Some("skipped"));
-    assert_eq!(statuses.get("project-c").map(String::as_str), Some("passed"));
+    assert_eq!(
+        statuses.get("project-a").map(String::as_str),
+        Some("passed"),
+    );
+    assert_eq!(
+        statuses.get("project-b").map(String::as_str),
+        Some("skipped"),
+    );
+    assert_eq!(
+        statuses.get("project-c").map(String::as_str),
+        Some("passed"),
+    );
 
     drop(root);
 }
@@ -229,16 +264,31 @@ fn no_bail_skips_dependents_of_a_failed_task_and_runs_unrelated_ones() {
         .with_args(["--no-bail", "-r", "run", "--report-summary", "build"])
         .output()
         .expect("run recursive script");
-    assert!(!output.status.success(), "the failed project must fail the run");
+    assert!(
+        !output.status.success(),
+        "the failed project must fail the run",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("failed in 1 packages"), "one failure, not two: {stderr}");
+    assert!(
+        stderr.contains("failed in 1 packages"),
+        "one failure, not two: {stderr}",
+    );
 
     let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
     assert_eq!(order, "project-c\n");
     let statuses = summary_statuses(&workspace);
-    assert_eq!(statuses.get("project-a").map(String::as_str), Some("skipped"));
-    assert_eq!(statuses.get("project-b").map(String::as_str), Some("failure"));
-    assert_eq!(statuses.get("project-c").map(String::as_str), Some("passed"));
+    assert_eq!(
+        statuses.get("project-a").map(String::as_str),
+        Some("skipped"),
+    );
+    assert_eq!(
+        statuses.get("project-b").map(String::as_str),
+        Some("failure"),
+    );
+    assert_eq!(
+        statuses.get("project-c").map(String::as_str),
+        Some("passed"),
+    );
 
     drop(root);
 }
@@ -262,7 +312,10 @@ fn workspace_dependency_cycle_is_an_error_naming_the_participating_tasks() {
         ],
     );
 
-    let output = pacquet.with_args(["-r", "run", "build"]).output().expect("run recursive script");
+    let output = pacquet
+        .with_args(["-r", "run", "build"])
+        .output()
+        .expect("run recursive script");
     assert!(!output.status.success(), "a task cycle must fail the run");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("ERR_PNPM_TASK_CYCLE"), "stderr: {stderr}");
@@ -298,7 +351,10 @@ fn depends_on_cycle_is_an_error() {
     )
     .expect("write workspace settings");
 
-    let output = pacquet.with_args(["-r", "run", "test"]).output().expect("run recursive script");
+    let output = pacquet
+        .with_args(["-r", "run", "test"])
+        .output()
+        .expect("run recursive script");
     assert!(!output.status.success(), "a task cycle must fail the run");
     assert!(String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_TASK_CYCLE"));
 
@@ -339,7 +395,10 @@ fn dry_run_prints_one_stable_linearization_and_runs_nothing() {
         ],
     );
 
-    let output = pacquet.with_args(["-r", "run", "--dry-run", "build"]).output().expect("dry run");
+    let output = pacquet
+        .with_args(["-r", "run", "--dry-run", "build"])
+        .output()
+        .expect("dry run");
     assert!(output.status.success(), "dry run failed: {output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
@@ -348,7 +407,10 @@ fn dry_run_prints_one_stable_linearization_and_runs_nothing() {
         ),
         "stdout: {stdout}",
     );
-    assert!(!workspace.join("order.log").exists(), "a dry run must run nothing");
+    assert!(
+        !workspace.join("order.log").exists(),
+        "a dry run must run nothing",
+    );
 
     drop(root);
 }
@@ -389,8 +451,10 @@ fn dry_run_json_emits_the_tasks_and_their_resolved_edges() {
     )
     .expect("write workspace settings");
 
-    let output =
-        pacquet.with_args(["-r", "run", "--dry-run", "--json", "test"]).output().expect("dry run");
+    let output = pacquet
+        .with_args(["-r", "run", "--dry-run", "--json", "test"])
+        .output()
+        .expect("dry run");
     assert!(output.status.success(), "dry run failed: {output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
     let json_start = stdout.find('{').expect("stdout carries a JSON document");
@@ -433,7 +497,10 @@ fn dry_run_json_emits_the_tasks_and_their_resolved_edges() {
 #[test]
 fn dry_run_outside_a_recursive_run_is_an_error() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_workspace(&workspace, &[("project-a", build_writes_marker("project-a"))]);
+    write_workspace(
+        &workspace,
+        &[("project-a", build_writes_marker("project-a"))],
+    );
 
     let output = pacquet
         .with_current_dir(workspace.join("project-a"))
@@ -472,14 +539,26 @@ fn failed_upstream_task_is_reported_as_the_failure_not_a_missing_script() {
         .with_args(["--no-bail", "-r", "run", "--report-summary", "test"])
         .output()
         .expect("run recursive script");
-    assert!(!output.status.success(), "the failed build must fail the run");
+    assert!(
+        !output.status.success(),
+        "the failed build must fail the run",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("failed in 1 packages"), "stderr: {stderr}");
-    assert!(!stderr.contains("RECURSIVE_RUN_NO_SCRIPT"), "stderr: {stderr}");
+    assert!(
+        !stderr.contains("RECURSIVE_RUN_NO_SCRIPT"),
+        "stderr: {stderr}",
+    );
 
     let statuses = summary_statuses(&workspace);
-    assert_eq!(statuses.get("project-a").map(String::as_str), Some("skipped"));
-    assert_eq!(statuses.get("project-a#build").map(String::as_str), Some("failure"));
+    assert_eq!(
+        statuses.get("project-a").map(String::as_str),
+        Some("skipped"),
+    );
+    assert_eq!(
+        statuses.get("project-a#build").map(String::as_str),
+        Some("failure"),
+    );
 
     drop(root);
 }
@@ -506,10 +585,19 @@ fn missing_requested_script_errors_before_upstream_tasks_run() {
     )
     .expect("write workspace settings");
 
-    let output = pacquet.with_args(["-r", "run", "build"]).output().expect("run recursive script");
-    assert!(!output.status.success(), "a script nothing declares must fail the run");
+    let output = pacquet
+        .with_args(["-r", "run", "build"])
+        .output()
+        .expect("run recursive script");
+    assert!(
+        !output.status.success(),
+        "a script nothing declares must fail the run",
+    );
     assert!(String::from_utf8_lossy(&output.stderr).contains("RECURSIVE_RUN_NO_SCRIPT"));
-    assert!(!workspace.join("order.log").exists(), "the pulled-in task must not have run");
+    assert!(
+        !workspace.join("order.log").exists(),
+        "the pulled-in task must not have run",
+    );
 
     drop(root);
 }
@@ -534,10 +622,15 @@ fn regexp_selected_empty_script_errors_before_upstream_tasks_run() {
     )
     .expect("write workspace settings");
 
-    let output =
-        pacquet.with_args(["-r", "run", "/^build:/"]).output().expect("run recursive script");
+    let output = pacquet
+        .with_args(["-r", "run", "/^build:/"])
+        .output()
+        .expect("run recursive script");
     eprintln!("STATUS: {}", output.status);
-    assert!(!output.status.success(), "an empty selected script must fail the run");
+    assert!(
+        !output.status.success(),
+        "an empty selected script must fail the run",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     eprintln!("STDERR:\n{stderr}\n");
     assert!(stderr.contains("RECURSIVE_RUN_NO_SCRIPT"));
@@ -579,7 +672,10 @@ fn ignore_workspace_cycles_downgrades_the_task_cycle_error_to_a_warning() {
         .with_args(["--workspace-concurrency=1", "-r", "run", "build"])
         .output()
         .expect("run recursive script");
-    assert!(output.status.success(), "the tolerated cycle must not fail the run: {output:?}");
+    assert!(
+        output.status.success(),
+        "the tolerated cycle must not fail the run: {output:?}",
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
         stdout.contains("[WARN] The tasks form a dependency cycle"),
@@ -588,7 +684,11 @@ fn ignore_workspace_cycles_downgrades_the_task_cycle_error_to_a_warning() {
     let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
     let mut lines: Vec<&str> = order.lines().collect();
     lines.sort_unstable();
-    assert_eq!(lines, ["project-a", "project-b"], "both cycle members must run");
+    assert_eq!(
+        lines,
+        ["project-a", "project-b"],
+        "both cycle members must run",
+    );
 
     drop(root);
 }

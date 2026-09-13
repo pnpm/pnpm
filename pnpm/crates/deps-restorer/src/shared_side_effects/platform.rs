@@ -86,14 +86,25 @@ pub(super) fn artifact_platform(
     }
 }
 pub(super) fn macos_product_version() -> Option<(u32, u32)> {
-    let output = Command::new("/usr/bin/sw_vers").arg("-productVersion").output().ok()?;
-    output.status.success().then_some(())?;
+    let output = Command::new("/usr/bin/sw_vers")
+        .arg("-productVersion")
+        .output()
+        .ok()?;
+    output.status
+        .success()
+        .then_some(())?;
     parse_macos_product_version(std::str::from_utf8(&output.stdout).ok()?)
 }
 pub(super) fn parse_macos_product_version(value: &str) -> Option<(u32, u32)> {
     let mut components = value.trim().split('.');
-    let major = components.next()?.parse().ok()?;
-    let minor = components.next()?.parse().ok()?;
+    let major = components
+        .next()?
+        .parse()
+        .ok()?;
+    let minor = components
+        .next()?
+        .parse()
+        .ok()?;
     (major > 0 && major < 1_000_000 && minor < 1_000_000).then_some((major, minor))
 }
 #[cfg(windows)]
@@ -112,8 +123,9 @@ pub(super) fn validate_windows_kernel_version(
     minor: u32,
     build: u32,
 ) -> Option<(u32, u32, u32)> {
-    (major > 0 && major < 1_000 && minor < 1_000 && build > 0 && build < 1_000_000)
-        .then_some((major, minor, build))
+    (major > 0 && major < 1_000 && minor < 1_000 && build > 0 && build < 1_000_000).then_some((
+        major, minor, build,
+    ))
 }
 pub(super) fn patch_hash(snapshot_key: &PackageKey) -> Option<String> {
     let rendered = snapshot_key.to_string();
@@ -122,7 +134,10 @@ pub(super) fn patch_hash(snapshot_key: &PackageKey) -> Option<String> {
     Some(value.split_once(')')?.0.to_string())
 }
 pub(super) fn package_version(package_key: &PackageKey, metadata_version: Option<&str>) -> String {
-    metadata_version.map_or_else(|| package_key.suffix.version().to_string(), ToString::to_string)
+    metadata_version.map_or_else(
+        || package_key.suffix.version().to_string(),
+        ToString::to_string,
+    )
 }
 pub(super) fn digest_integrity(digest: &str) -> Result<String, String> {
     if !digest.len().is_multiple_of(2) {

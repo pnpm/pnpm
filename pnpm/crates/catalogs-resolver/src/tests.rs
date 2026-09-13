@@ -8,15 +8,20 @@ fn catalogs_from(entries: &[(&str, &[(&str, &str)])]) -> Catalogs {
     entries
         .iter()
         .map(|(name, items)| {
-            let catalog: Catalog =
-                items.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect();
+            let catalog: Catalog = items
+                .iter()
+                .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
+                .collect();
             ((*name).to_string(), catalog)
         })
         .collect()
 }
 
 fn wanted(alias: &str, bare_specifier: &str) -> WantedDependency {
-    WantedDependency { alias: alias.to_string(), bare_specifier: bare_specifier.to_string() }
+    WantedDependency {
+        alias: alias.to_string(),
+        bare_specifier: bare_specifier.to_string(),
+    }
 }
 
 #[test]

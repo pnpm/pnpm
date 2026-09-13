@@ -139,7 +139,9 @@ pub(super) fn add_loose_dependencies(
     package_dirs: Option<&BTreeMap<String, PathBuf>>,
     loose_index: Option<&PhysicalPackageIndex>,
 ) {
-    let (Some(package_dirs), Some(loose_index)) = (package_dirs, loose_index) else { return };
+    let (Some(package_dirs), Some(loose_index)) = (package_dirs, loose_index) else {
+        return;
+    };
     for (id, package_dir) in package_dirs {
         let physical = physical_dependencies(package_dir, loose_index);
         if let Some(pkg) = packages.get_mut(id) {
@@ -157,8 +159,14 @@ pub(super) fn physical_dependencies(
     let mut current = package_dir.to_path_buf();
     loop {
         let modules_dir = normalize_path(&current.join("node_modules"));
-        for (name, id) in loose_index.by_modules_dir.get(&modules_dir).into_iter().flatten() {
-            dependencies.entry(name.clone()).or_insert_with(|| id.clone());
+        for (name, id) in loose_index.by_modules_dir
+            .get(&modules_dir)
+            .into_iter()
+            .flatten()
+        {
+            dependencies
+                .entry(name.clone())
+                .or_insert_with(|| id.clone());
         }
         if !current.pop() {
             break;
@@ -195,5 +203,8 @@ pub(super) fn resolve_link_target(
     };
     let dir = lexical_normalize(&dir);
     let id = link_target_id(pathdiff::diff_paths(&dir, lockfile_dir), &dir);
-    LinkTarget { id, dir }
+    LinkTarget {
+        id,
+        dir,
+    }
 }

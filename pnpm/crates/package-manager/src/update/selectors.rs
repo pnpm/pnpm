@@ -20,11 +20,17 @@ pub(super) fn parse_update_param(input: &str) -> ParsedSelector {
             pattern: input[..idx].to_string(),
             version: Some(input[idx + 1..].to_string()),
         },
-        None => ParsedSelector { pattern: input.to_string(), version: None },
+        None => ParsedSelector {
+            pattern: input.to_string(),
+            version: None,
+        },
     }
 }
 pub(super) fn parse_selectors(packages: &[String]) -> Vec<ParsedSelector> {
-    packages.iter().map(|input| parse_update_param(input)).collect()
+    packages
+        .iter()
+        .map(|input| parse_update_param(input))
+        .collect()
 }
 /// `--latest` forbids versioned selectors.
 pub(super) fn reject_versioned_latest_selectors(
@@ -54,8 +60,9 @@ pub(super) fn expand_update_selectors(selectors: &[ParsedSelector]) -> Vec<Parse
             pattern: selector.pattern.clone(),
             version: selector.version.clone(),
         });
-        let Some(aliased) =
-            selector.version.as_deref().and_then(|version| version.strip_prefix("npm:"))
+        let Some(aliased) = selector.version
+            .as_deref()
+            .and_then(|version| version.strip_prefix("npm:"))
         else {
             continue;
         };
@@ -65,7 +72,10 @@ pub(super) fn expand_update_selectors(selectors: &[ParsedSelector]) -> Vec<Parse
         } else {
             alias.pattern
         };
-        expanded.push(ParsedSelector { pattern, version: alias.version });
+        expanded.push(ParsedSelector {
+            pattern,
+            version: alias.version,
+        });
     }
     expanded
 }
@@ -80,12 +90,18 @@ pub(super) fn insert_update_target(
     name: &str,
 ) {
     let mut claimed = false;
-    for selector in selectors.iter().filter(|selector| !selector.pattern.starts_with('!')) {
+    for selector in selectors
+        .iter()
+        .filter(|selector| !selector.pattern.starts_with('!'))
+    {
         if !matcher_one(&selector.pattern).matches(name) {
             continue;
         }
         claimed = true;
-        targets.insert(name.to_string(), selector.version.as_deref().and_then(VersionLine::parse));
+        targets.insert(
+            name.to_string(),
+            selector.version.as_deref().and_then(VersionLine::parse),
+        );
     }
     if !claimed {
         targets.insert(name.to_string(), None);
@@ -99,9 +115,13 @@ pub(super) fn selector_matches_a_direct_dependency(
     include_direct: &[DependencyGroup],
 ) -> bool {
     let matcher = matcher_one(&selector.pattern);
-    manifests.iter().any(|manifest| {
-        manifest.dependencies(include_direct.iter().copied()).any(|(name, _)| matcher.matches(name))
-    })
+    manifests
+        .iter()
+        .any(|manifest| {
+            manifest
+                .dependencies(include_direct.iter().copied())
+                .any(|(name, _)| matcher.matches(name))
+        })
 }
 /// `pacquet update <dep>@<version>` where `<dep>` matches no direct dependency
 /// has nowhere to record the version. An update resolves such a target the way
@@ -128,7 +148,9 @@ pub(super) fn reject_versions_of_indirect_update_specs<Reporter: self::Reporter>
 ) -> Result<(), UpdateError> {
     let mut pinned = Vec::new();
     for selector in selectors {
-        let Some(version) = selector.version.as_deref() else { continue };
+        let Some(version) = selector.version.as_deref() else {
+            continue;
+        };
         // A negated selector excludes names; a version on one asks for nothing.
         if selector.pattern.starts_with('!')
             || selector_matches_a_direct_dependency(selector, manifests, include_direct)
@@ -169,7 +191,11 @@ pub(super) fn indirect_version_error(pinned: &[(String, String)]) -> UpdateError
         .map(|(pattern, version)| format!("    {pattern}@<declared range>: {version}"))
         .collect::<Vec<_>>()
         .join("\n");
-    let names = pinned.iter().map(|(pattern, _)| pattern.as_str()).collect::<Vec<_>>().join(" ");
+    let names = pinned
+        .iter()
+        .map(|(pattern, _)| pattern.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
     UpdateError::UpdateVersionOnIndirectDep {
         message: format!("{subjects} {tail} be recorded."),
         hint: format!(

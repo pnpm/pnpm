@@ -5,14 +5,23 @@ use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{fs, path::Path};
 
 fn emulate_instead_of(workspace: &Path) {
-    append_workspace_yaml_key(workspace, "scriptShell", workspace.join("no-such-shell").display());
+    append_workspace_yaml_key(
+        workspace,
+        "scriptShell",
+        workspace.join("no-such-shell").display(),
+    );
     append_workspace_yaml_key(workspace, "shellEmulator", true);
 }
 
 #[test]
 fn runs_the_projects_own_scripts_and_dev_preinstall() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let package_json = serde_json::json!({
@@ -27,18 +36,32 @@ fn runs_the_projects_own_scripts_and_dev_preinstall() {
         .expect("write package.json");
     emulate_instead_of(&workspace);
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
-    assert!(workspace.join("dev-preinstall.txt").exists(), "pnpm:devPreinstall must run");
-    assert!(workspace.join("postinstall.txt").exists(), "the postinstall must run");
+    assert!(
+        workspace.join("dev-preinstall.txt").exists(),
+        "pnpm:devPreinstall must run",
+    );
+    assert!(
+        workspace.join("postinstall.txt").exists(),
+        "the postinstall must run",
+    );
 
     drop((root, mock_instance));
 }
 
 #[test]
 fn runs_dependency_build_scripts() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let package_json = serde_json::json!({
@@ -46,10 +69,16 @@ fn runs_dependency_build_scripts() {
     });
     fs::write(workspace.join("package.json"), package_json.to_string())
         .expect("write package.json");
-    allow_builds(&workspace, &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
+    allow_builds(
+        &workspace,
+        &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)],
+    );
     emulate_instead_of(&workspace);
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let pkg_dir = workspace.join(
         "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\

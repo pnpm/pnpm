@@ -188,7 +188,10 @@ impl CliArgs {
 
     fn unexpected_argument_error(option: &str) -> clap::Error {
         Self::command()
-            .error(ErrorKind::UnknownArgument, format!("unexpected argument '{option}' found"))
+            .error(
+                ErrorKind::UnknownArgument,
+                format!("unexpected argument '{option}' found"),
+            )
     }
 
     fn validate_report_summary_global_option(&self) -> Result<(), clap::Error> {

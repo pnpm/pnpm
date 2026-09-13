@@ -42,7 +42,9 @@ fn detect_current_shell() -> Option<String> {
         return Some("nu".to_string());
     }
     let shell = std::env::var("SHELL").ok()?;
-    Path::new(&shell).file_name().map(|name| name.to_string_lossy().into_owned())
+    Path::new(&shell)
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
 }
 
 fn update_shell(
@@ -57,7 +59,9 @@ fn update_shell(
         }
         Some("fish") => setup_fish_shell(pnpm_home_dir, opts),
         Some("nu") => setup_nu_shell(pnpm_home_dir, opts),
-        Some(other) => Err(PathExtenderError::UnsupportedShell { shell: other.to_string() }),
+        Some(other) => Err(PathExtenderError::UnsupportedShell {
+            shell: other.to_string(),
+        }),
         None => Err(PathExtenderError::UnknownShell),
     }
 }
@@ -72,7 +76,10 @@ fn setup_shell(
     let content = wrap_settings(opts.config_section_name, &new_settings);
     let (change_type, old_settings) = update_shell_config(&config_file, &content, opts)?;
     Ok(PathExtenderReport {
-        config_file: Some(ConfigReport { path: config_file, change_type }),
+        config_file: Some(ConfigReport {
+            path: config_file,
+            change_type,
+        }),
         old_settings,
         new_settings,
     })
@@ -121,9 +128,14 @@ fn create_path_value(position: AddingPosition, dir: &str) -> String {
 fn get_config_file_path(shell: &str) -> Result<PathBuf, PathExtenderError> {
     match shell {
         "zsh" => Ok(zdotdir_or_home()?.join(".zshrc")),
-        "dash" | "sh" => match std::env::var("ENV").ok().filter(|env| !env.is_empty()) {
+        "dash" | "sh" => match std::env::var("ENV")
+            .ok()
+            .filter(|env| !env.is_empty())
+        {
             Some(env) => Ok(PathBuf::from(env)),
-            None => Err(PathExtenderError::NoShellConfig { shell: shell.to_string() }),
+            None => Err(PathExtenderError::NoShellConfig {
+                shell: shell.to_string(),
+            }),
         },
         _ => Ok(home_dir()?.join(format!(".{shell}rc"))),
     }
@@ -138,7 +150,10 @@ fn setup_fish_shell(
     let content = wrap_settings(opts.config_section_name, &new_settings);
     let (change_type, old_settings) = update_shell_config(&config_file, &content, opts)?;
     Ok(PathExtenderReport {
-        config_file: Some(ConfigReport { path: config_file, change_type }),
+        config_file: Some(ConfigReport {
+            path: config_file,
+            change_type,
+        }),
         old_settings,
         new_settings,
     })
@@ -194,7 +209,10 @@ fn setup_nu_shell(
     let content = wrap_settings(opts.config_section_name, &new_settings);
     let (change_type, old_settings) = update_shell_config(&config_file, &content, opts)?;
     Ok(PathExtenderReport {
-        config_file: Some(ConfigReport { path: config_file, change_type }),
+        config_file: Some(ConfigReport {
+            path: config_file,
+            change_type,
+        }),
         old_settings,
         new_settings,
     })
@@ -211,7 +229,10 @@ fn render_nu_settings(dir: &str, opts: &AddDirToEnvPathOpts) -> String {
                 Some(sub_dir) => format!(r#"($env.{proxy} | path join "{sub_dir}")"#),
                 None => format!("$env.{proxy}"),
             };
-            (format!("$env.{proxy} = {value}\n", value = nu_quote(dir)), path_ref)
+            (
+                format!("$env.{proxy} = {value}\n", value = nu_quote(dir)),
+                path_ref,
+            )
         }
         None => (String::new(), nu_quote(dir)),
     };
@@ -308,7 +329,9 @@ fn replace_section(content: &str, new_section: &str, section: &str) -> String {
     let begin_pat = format!("# {section}");
     let end_pat = format!("# {section} end");
     let begin = content.find(&begin_pat).unwrap_or(0);
-    let end = content.rfind(&end_pat).map_or(content.len(), |index| index + end_pat.len());
+    let end = content
+        .rfind(&end_pat)
+        .map_or(content.len(), |index| index + end_pat.len());
     format!("{}{}{}", &content[..begin], new_section, &content[end..])
 }
 
@@ -317,7 +340,10 @@ fn home_dir() -> Result<PathBuf, PathExtenderError> {
 }
 
 fn zdotdir_or_home() -> Result<PathBuf, PathExtenderError> {
-    match std::env::var("ZDOTDIR").ok().filter(|dir| !dir.is_empty()) {
+    match std::env::var("ZDOTDIR")
+        .ok()
+        .filter(|dir| !dir.is_empty())
+    {
         Some(dir) => Ok(PathBuf::from(dir)),
         None => home_dir(),
     }

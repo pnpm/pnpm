@@ -11,8 +11,14 @@ use assert_cmd::assert::OutputAssertExt;
 /// [`should_hoist_dependencies_repeat_install_preserves_map`].
 #[test]
 fn private_hoist_default_pattern_hoists_transitives() {
-    let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        pnpm,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(
@@ -21,7 +27,10 @@ fn private_hoist_default_pattern_hoists_transitives() {
     );
     generate_lockfile(pnpm);
 
-    pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     assert!(
         is_symlink_or_junction(&workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent"))
@@ -50,8 +59,14 @@ fn private_hoist_default_pattern_hoists_transitives() {
 /// entries.
 #[test]
 fn both_patterns_empty_produces_no_hoist_symlinks() {
-    let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        pnpm,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(
@@ -61,7 +76,10 @@ fn both_patterns_empty_produces_no_hoist_symlinks() {
     generate_lockfile(pnpm);
     write_workspace_yaml(&workspace, "hoistPattern: []\npublicHoistPattern: []\n");
 
-    pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     assert!(
         is_symlink_or_junction(&workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent"))
@@ -84,8 +102,14 @@ fn both_patterns_empty_produces_no_hoist_symlinks() {
 /// the final merged config.
 #[test]
 fn shamefully_hoist_legacy_publicly_hoists_everything() {
-    let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        pnpm,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(
@@ -95,7 +119,10 @@ fn shamefully_hoist_legacy_publicly_hoists_everything() {
     generate_lockfile(pnpm);
     write_workspace_yaml(&workspace, "shamefullyHoist: true\n");
 
-    pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     let public_hoist = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin");
     assert!(
@@ -108,8 +135,14 @@ fn shamefully_hoist_legacy_publicly_hoists_everything() {
 
 #[test]
 fn shamefully_hoist_cli_option_publicly_hoists_everything() {
-    let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        pnpm,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(
@@ -139,8 +172,14 @@ fn shamefully_hoist_cli_option_publicly_hoists_everything() {
 /// `ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF`.
 #[test]
 fn modules_yaml_public_hoist_pattern_matches_pnpm_default() {
-    let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        pnpm,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(
@@ -149,7 +188,10 @@ fn modules_yaml_public_hoist_pattern_matches_pnpm_default() {
     );
     generate_lockfile(pnpm);
 
-    pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     let modules_yaml_text = fs::read_to_string(workspace.join("node_modules/.modules.yaml"))
         .expect("read .modules.yaml");
@@ -166,8 +208,14 @@ fn modules_yaml_public_hoist_pattern_matches_pnpm_default() {
 /// set; the registry mock doesn't carry the `express` family.)
 #[test]
 fn private_hoist_pattern_filters_aliases() {
-    let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        pnpm,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(
@@ -175,9 +223,15 @@ fn private_hoist_pattern_filters_aliases() {
         serde_json::json!({ "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" }),
     );
     generate_lockfile(pnpm);
-    write_workspace_yaml(&workspace, "hoistPattern:\n  - '@pnpm.e2e/*'\npublicHoistPattern: []\n");
+    write_workspace_yaml(
+        &workspace,
+        "hoistPattern:\n  - '@pnpm.e2e/*'\npublicHoistPattern: []\n",
+    );
 
-    pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     let private_hoist =
         workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/hello-world-js-bin");
@@ -196,8 +250,14 @@ fn private_hoist_pattern_filters_aliases() {
 /// `crates/config/src/matcher.rs`.
 #[test]
 fn negation_pattern_excludes_alias_from_hoist() {
-    let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        pnpm,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(
@@ -210,7 +270,10 @@ fn negation_pattern_excludes_alias_from_hoist() {
         "hoistPattern:\n  - '*'\n  - '!@pnpm.e2e/hello-world-js-bin'\npublicHoistPattern: []\n",
     );
 
-    pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     let private_hoist =
         workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/hello-world-js-bin");
@@ -228,15 +291,26 @@ fn negation_pattern_excludes_alias_from_hoist() {
 /// modules dir whose persisted hoist pattern disagrees.
 #[test]
 fn hoist_pattern_mismatch_throws_against_existing_modules_yaml() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_workspace_yaml(&workspace, "hoistPattern: []\n");
-    pacquet.with_args(["add", "is-positive@1.0.0"]).assert().success();
+    pacquet
+        .with_args(["add", "is-positive@1.0.0"])
+        .assert()
+        .success();
 
     write_workspace_yaml(&workspace, "");
-    let output = pacquet_in(&workspace).with_args(["add", "is-negative@1.0.0"]).assert().failure();
+    let output = pacquet_in(&workspace)
+        .with_args(["add", "is-negative@1.0.0"])
+        .assert()
+        .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
     assert!(
         stderr.contains("ERR_PNPM_HOIST_PATTERN_DIFF"),
@@ -251,14 +325,25 @@ fn hoist_pattern_mismatch_throws_against_existing_modules_yaml() {
 /// mirror of the test above.
 #[test]
 fn hoist_pattern_undefined_throws_against_hoisted_modules_yaml() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    pacquet.with_args(["add", "is-positive@1.0.0"]).assert().success();
+    pacquet
+        .with_args(["add", "is-positive@1.0.0"])
+        .assert()
+        .success();
 
     write_workspace_yaml(&workspace, "hoistPattern: []\n");
-    let output = pacquet_in(&workspace).with_args(["add", "is-negative@1.0.0"]).assert().failure();
+    let output = pacquet_in(&workspace)
+        .with_args(["add", "is-negative@1.0.0"])
+        .assert()
+        .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
     assert!(
         stderr.contains("ERR_PNPM_HOIST_PATTERN_DIFF"),
@@ -274,8 +359,13 @@ fn hoist_pattern_undefined_throws_against_hoisted_modules_yaml() {
 /// matches land in root `node_modules`, everything else goes private.
 #[test]
 fn combined_public_and_private_hoist_patterns_split_targets() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_workspace_yaml(
@@ -289,7 +379,10 @@ fn combined_public_and_private_hoist_patterns_split_targets() {
             "@pnpm.e2e/foobarqar": "1.0.0",
         }),
     );
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     assert!(
         workspace.join("node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep").exists(),
@@ -297,11 +390,17 @@ fn combined_public_and_private_hoist_patterns_split_targets() {
     );
     for name in ["foo", "bar"] {
         assert!(
-            workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e").join(name).exists(),
+            workspace
+                .join("node_modules/.pnpm/node_modules/@pnpm.e2e")
+                .join(name)
+                .exists(),
             "{name} must be privately hoisted",
         );
         assert!(
-            !workspace.join("node_modules/@pnpm.e2e").join(name).exists(),
+            !workspace
+                .join("node_modules/@pnpm.e2e")
+                .join(name)
+                .exists(),
             "{name} must not be publicly hoisted",
         );
     }

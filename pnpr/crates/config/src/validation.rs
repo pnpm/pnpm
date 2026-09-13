@@ -46,7 +46,9 @@ impl RoutingConfig {
         self.ensure_concrete_registries_are_served(registry_enabled)?;
         self.ensure_hosted_rows_match_graph()?;
         self.ensure_public_upstreams_send_no_headers()?;
-        self.registries.validate().map_err(|err| registry_err(&err))
+        self.registries
+            .validate()
+            .map_err(|err| registry_err(&err))
     }
 
     /// Every serving upstream is reachable in the graph under its own name.
@@ -132,8 +134,10 @@ impl RoutingConfig {
                     ),
                 });
             }
-            if let Some((other, _)) =
-                self.hosted.iter().take(index).find(|(_, existing)| existing.org == hosted.org)
+            if let Some((other, _)) = self.hosted
+                .iter()
+                .take(index)
+                .find(|(_, existing)| existing.org == hosted.org)
             {
                 return Err(org_collision_error(name, &hosted.org, other));
             }

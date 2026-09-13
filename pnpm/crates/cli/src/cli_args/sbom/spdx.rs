@@ -6,7 +6,13 @@ use super::{
 pub(super) fn sanitize_spdx_id(value: &str) -> String {
     value
         .chars()
-        .map(|ch| if ch.is_ascii_alphanumeric() || ch == '.' || ch == '-' { ch } else { '-' })
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '.' || ch == '-' {
+                ch
+            } else {
+                '-'
+            }
+        })
         .collect()
 }
 
@@ -20,16 +26,13 @@ pub(super) fn serialize_spdx(result: &SbomResult, compact: bool) -> String {
 
     let mut spdx_id_map: HashMap<&str, String> = HashMap::new();
     spdx_id_map.insert(&root_purl, root_spdx_id.to_string());
-    let mut spdx_packages = vec![spdx_root_package(result, &root_purl, root_spdx_id, root_purpose)];
-    for (index, component) in result.components.iter().enumerate() {
-        let spdx_id = format!(
-            "SPDXRef-Package-{}-{}-{index}",
-            sanitize_spdx_id(&component.name),
-            sanitize_spdx_id(&component.version),
-        );
-        spdx_id_map.insert(&component.purl, spdx_id.clone());
-        spdx_packages.push(spdx_component_package(component, &spdx_id));
-    }
+    let mut spdx_packages = vec![spdx_root_package(
+        result,
+        &root_purl,
+        root_spdx_id,
+        root_purpose,
+    )];
+    append_spdx_components(result, &mut spdx_id_map, &mut spdx_packages);
     let spdx_relationships = spdx_relationships(result, root_spdx_id, &spdx_id_map);
 
     let timestamp = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
@@ -163,7 +166,9 @@ fn spdx_root_package(
 fn integrity_to_spdx_checksums(integrity: &str) -> Option<Vec<serde_json::Value>> {
     let mut checksums = Vec::new();
     for part in integrity.split_whitespace() {
-        let Some((alg, hash)) = part.split_once('-') else { continue };
+        let Some((alg, hash)) = part.split_once('-') else {
+            continue;
+        };
         let spdx_alg = match alg {
             "sha1" => "SHA1",
             "sha256" => "SHA256",
@@ -178,7 +183,11 @@ fn integrity_to_spdx_checksums(integrity: &str) -> Option<Vec<serde_json::Value>
             "checksumValue": hex,
         }));
     }
-    if checksums.is_empty() { None } else { Some(checksums) }
+    if checksums.is_empty() {
+        None
+    } else {
+        Some(checksums)
+    }
 }
 
 fn spdx_document_namespace(result: &SbomResult) -> String {
@@ -188,4 +197,20 @@ fn spdx_document_namespace(result: &SbomResult) -> String {
         result.root_version,
         generate_uuid_v4(),
     )
+}
+
+fn append_spdx_components<'a>(
+    result: &'a SbomResult,
+    spdx_id_map: &mut HashMap<&'a str, String>,
+    spdx_packages: &mut Vec<serde_json::Value>,
+) {
+    for (index, component) in result.components.iter().enumerate() {
+        let spdx_id = format!(
+            "SPDXRef-Package-{}-{}-{index}",
+            sanitize_spdx_id(&component.name),
+            sanitize_spdx_id(&component.version),
+        );
+        spdx_id_map.insert(&component.purl, spdx_id.clone());
+        spdx_packages.push(spdx_component_package(component, &spdx_id));
+    }
 }

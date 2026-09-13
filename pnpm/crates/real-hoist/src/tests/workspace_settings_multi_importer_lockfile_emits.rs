@@ -6,7 +6,10 @@ use super::{
 #[test]
 fn multi_importer_lockfile_emits_workspace_children() {
     let mut importers = HashMap::new();
-    importers.insert(Lockfile::ROOT_IMPORTER_KEY.to_string(), ProjectSnapshot::default());
+    importers.insert(
+        Lockfile::ROOT_IMPORTER_KEY.to_string(),
+        ProjectSnapshot::default(),
+    );
     importers.insert("packages/foo".to_string(), ProjectSnapshot::default());
     importers.insert("packages/bar".to_string(), ProjectSnapshot::default());
 
@@ -27,14 +30,18 @@ fn multi_importer_lockfile_emits_workspace_children() {
     };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("workspace hoist succeeds");
-    let mut children: Vec<(String, String)> = result
-        .dependencies
+    let mut children: Vec<(String, String)> = result.dependencies
         .borrow()
         .iter()
         .map(|child| {
             (
                 child.0.name.clone(),
-                child.0.references.borrow().iter().next().cloned().unwrap_or_default(),
+                child.0.references
+                    .borrow()
+                    .iter()
+                    .next()
+                    .cloned()
+                    .unwrap_or_default(),
             )
         })
         .collect();
@@ -42,8 +49,14 @@ fn multi_importer_lockfile_emits_workspace_children() {
     assert_eq!(
         children,
         vec![
-            ("packages%2Fbar".to_string(), "workspace:packages/bar".to_string()),
-            ("packages%2Ffoo".to_string(), "workspace:packages/foo".to_string()),
+            (
+                "packages%2Fbar".to_string(),
+                "workspace:packages/bar".to_string()
+            ),
+            (
+                "packages%2Ffoo".to_string(),
+                "workspace:packages/foo".to_string()
+            ),
         ],
         "non-root importers are encoded as Workspace children",
     );
@@ -57,7 +70,10 @@ fn multi_importer_lockfile_emits_workspace_children() {
 #[test]
 fn hoist_workspace_packages_false_keeps_workspace_children() {
     let mut importers = HashMap::new();
-    importers.insert(Lockfile::ROOT_IMPORTER_KEY.to_string(), ProjectSnapshot::default());
+    importers.insert(
+        Lockfile::ROOT_IMPORTER_KEY.to_string(),
+        ProjectSnapshot::default(),
+    );
     importers.insert("packages/foo".to_string(), ProjectSnapshot::default());
 
     let lockfile = Lockfile {
@@ -76,10 +92,16 @@ fn hoist_workspace_packages_false_keeps_workspace_children() {
         extra: pnpm_lockfile::LockfileExtra::default(),
     };
 
-    let opts = HoistOpts { hoist_workspace_packages: false, ..HoistOpts::default() };
+    let opts = HoistOpts {
+        hoist_workspace_packages: false,
+        ..HoistOpts::default()
+    };
     let result = hoist(&lockfile, &opts).expect("hoist succeeds");
-    let children: Vec<String> =
-        result.dependencies.borrow().iter().map(|child| child.0.name.clone()).collect();
+    let children: Vec<String> = result.dependencies
+        .borrow()
+        .iter()
+        .map(|child| child.0.name.clone())
+        .collect();
     assert_eq!(
         children,
         vec!["packages%2Ffoo".to_string()],
@@ -104,7 +126,10 @@ fn build_hoist_ident_map_skips_root_peer_names() {
 
     let ident_map = build_hoist_ident_map(&root);
     dbg!(&ident_map);
-    assert!(ident_map.contains_key("app"), "the non-peer child is recorded");
+    assert!(
+        ident_map.contains_key("app"),
+        "the non-peer child is recorded",
+    );
     assert!(
         !ident_map.contains_key("react"),
         "a name the root declares as a peer is skipped even when reachable transitively",
@@ -130,7 +155,10 @@ fn build_hoist_ident_map_records_node_peers_without_walking_their_subtree() {
     let ident_map = build_hoist_ident_map(&root);
     dbg!(&ident_map);
     assert!(ident_map.contains_key("app"), "the regular dep is recorded");
-    assert!(ident_map.contains_key("react"), "the node's peer is still a candidate ident");
+    assert!(
+        ident_map.contains_key("react"),
+        "the node's peer is still a candidate ident",
+    );
     assert!(
         !ident_map.contains_key("scheduler"),
         "a peer's exclusive subtree is not walked, so its child never enters the map",

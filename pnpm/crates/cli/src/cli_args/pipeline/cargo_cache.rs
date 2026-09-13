@@ -1,4 +1,7 @@
+pub(super) use snapshot_key::snapshot_entry;
+mod snapshot_key;
 use super::paths::{check_ancestors, validate_relative_path};
+use fingerprints::invalidate_fingerprints;
 use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_from_file};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -67,7 +70,10 @@ impl CargoCache {
             .open(locks.join(create_hex_hash(&target.to_string_lossy())))?;
         lock.lock()?;
         check_ancestors(project, relative)?;
-        Ok(Self { target, _lock: lock })
+        Ok(Self {
+            target,
+            _lock: lock,
+        })
     }
 
     /// Restores only an absent target. Every task still runs, including a hit.
@@ -178,7 +184,10 @@ impl CargoCache {
         }
         let destination = staging.join("files").join(&relative);
         clone_file(&item.path(), &destination)?;
-        files.push(SnapshotFile { path: relative, hash: create_hex_hash_from_file(&destination)? });
+        files.push(SnapshotFile {
+            path: relative,
+            hash: create_hex_hash_from_file(&destination)?,
+        });
         Ok(())
     }
 
@@ -196,129 +205,16 @@ impl CargoCache {
     }
 }
 
-pub(super) fn snapshot_entry(
-    cache_dir: &Path,
-    project: &Path,
-    task_key: &str,
-    environment: &BTreeMap<String, String>,
-) -> io::Result<(PathBuf, String, Vec<String>)> {
-    let repo = PathBuf::from(
-        command_output("git", &["rev-parse", "--show-toplevel"], project, environment)?.trim(),
-    );
-    let common = command_output(
-        "git",
-        &["rev-parse", "--path-format=absolute", "--git-common-dir"],
-        project,
-        environment,
-    )?;
-    let common = dunce::canonicalize(common.trim())?;
-    let mut inputs = vec!["pnpm-cargo-state:v1".to_string(), task_key.to_string()];
-    inputs.push(command_output("rustc", &["-vV"], project, environment)?);
-    inputs.push(command_output("cargo", &["-vV"], project, environment)?);
-    let metadata: serde_json::Value = serde_json::from_str(&command_output(
-        "cargo",
-        &["metadata", "--format-version=1", "--locked", "--offline"],
-        project,
-        environment,
-    )?)?;
-    let local_packages = local_packages_in_repo(&metadata, &repo)?;
-    inputs.push(serde_json::to_string(environment)?);
-    let paths = command_output(
-        "git",
-        &["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
-        &repo,
-        environment,
-    )?;
-    let mut paths: Vec<_> = paths.split('\0').filter(|path| !path.is_empty()).collect();
-    paths.sort_unstable();
-    paths.dedup();
-    for path in paths {
-        add_tracked_file_input(&repo, path, &mut inputs)?;
-    }
-    add_config_inputs(project, environment, &mut inputs)?;
-    let key = create_hex_hash(&serde_json::to_string(&inputs)?);
-    let scope = create_hex_hash(&common.to_string_lossy());
-    Ok((cache_dir.join("cargo-build/v1").join(scope).join(&key), key, local_packages))
-}
-
-/// Every Cargo config file the build reads: `.cargo/config[.toml]` in each
-/// ancestor of the project, then the Cargo home's.
-fn add_config_inputs(
-    project: &Path,
-    environment: &BTreeMap<String, String>,
-    inputs: &mut Vec<String>,
-) -> io::Result<()> {
-    for ancestor in project.ancestors() {
-        for name in ["config", "config.toml"] {
-            add_config(&ancestor.join(".cargo").join(name), project, inputs)?;
-        }
-    }
-    let cargo_home = environment
-        .get("CARGO_HOME")
-        .map(PathBuf::from)
-        .or_else(|| home::home_dir().map(|home| home.join(".cargo")));
-    if let Some(cargo_home) = cargo_home {
-        for name in ["config", "config.toml"] {
-            add_config(&cargo_home.join(name), project, inputs)?;
-        }
-    }
-    Ok(())
-}
-
-/// The workspace's own packages, and the guarantee that each one's
-/// manifest lives inside the repository — a path dependency outside it
-/// is an input the cache key cannot cover.
-fn local_packages_in_repo(metadata: &serde_json::Value, repo: &Path) -> io::Result<Vec<String>> {
-    let canonical_repo = dunce::canonicalize(repo)?;
-    let mut local_packages = Vec::new();
-    let packages = metadata["packages"]
-        .as_array()
-        .ok_or_else(|| io::Error::other("Cargo metadata has no packages"))?;
-    for package in packages.iter().filter(|package| package["source"].is_null()) {
-        local_packages.push(
-            package["name"]
-                .as_str()
-                .ok_or_else(|| io::Error::other("Cargo package has no name"))?
-                .to_string(),
-        );
-        let manifest = package["manifest_path"]
-            .as_str()
-            .ok_or_else(|| io::Error::other("Cargo metadata has no manifest path"))?;
-        if !dunce::canonicalize(manifest)?.starts_with(&canonical_repo) {
-            return Err(io::Error::other(format!(
-                "Cargo path dependency is outside the repository: {manifest}",
-            )));
-        }
-    }
-    Ok(local_packages)
-}
-
-/// Add one tracked file's contents to the cache key. A path git lists
-/// but that is gone is simply not an input; anything that is not a
-/// regular file is one the hash cannot describe.
-fn add_tracked_file_input(repo: &Path, path: &str, inputs: &mut Vec<String>) -> io::Result<()> {
-    check_ancestors(repo, Path::new(path))?;
-    let absolute = repo.join(path);
-    match fs::symlink_metadata(&absolute) {
-        Ok(metadata) if metadata.is_file() => {
-            inputs.push(format!("{path}:{}", create_hex_hash_from_file(&absolute)?));
-            Ok(())
-        }
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Ok(_) => Err(io::Error::other(format!(
-            "Cargo cache input is not a regular file: {}",
-            absolute.display(),
-        ))),
-        Err(error) => Err(error),
-    }
-}
-
 pub(super) fn cache_environment(
     extra: &std::collections::HashMap<String, String>,
     declared: &[String],
 ) -> BTreeMap<String, String> {
     env::vars()
-        .chain(extra.iter().map(|(key, value)| (key.clone(), value.clone())))
+        .chain(
+            extra
+                .iter()
+                .map(|(key, value)| (key.clone(), value.clone())),
+        )
         .filter(|(key, _)| {
             key.starts_with("CARGO_")
                 || key.starts_with("RUST")
@@ -338,27 +234,17 @@ pub(super) fn cache_environment(
         .collect()
 }
 
-fn add_config(path: &Path, project: &Path, inputs: &mut Vec<String>) -> io::Result<()> {
-    match create_hex_hash_from_file(path) {
-        Ok(hash) => {
-            let relative =
-                pathdiff::diff_paths(path, project).unwrap_or_else(|| path.to_path_buf());
-            inputs.push(format!("cargo-config:{}:{hash}", relative.display()));
-        }
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-        Err(error) => return Err(error),
-    }
-    Ok(())
-}
-
 fn command_output(
     program: &str,
     args: &[&str],
     project: &Path,
     environment: &BTreeMap<String, String>,
 ) -> io::Result<String> {
-    let output =
-        Command::new(program).args(args).current_dir(project).envs(environment).output()?;
+    let output = Command::new(program)
+        .args(args)
+        .current_dir(project)
+        .envs(environment)
+        .output()?;
     if !output.status.success() {
         return Err(io::Error::other(format!(
             "{program} {}: {}",
@@ -386,50 +272,10 @@ fn clone_file(source: &Path, target: &Path) -> io::Result<()> {
         use std::os::windows::fs::OpenOptionsExt;
         options.access_mode(windows_sys::Win32::Storage::FileSystem::FILE_WRITE_ATTRIBUTES);
     }
-    options.open(target)?.set_times(FileTimes::new().set_modified(metadata.modified()?))?;
+    options
+        .open(target)?
+        .set_times(FileTimes::new().set_modified(metadata.modified()?))?;
     fs::set_permissions(target, metadata.permissions())
 }
 
-/// Content changes can retain mtimes, and relocated build scripts can retain
-/// the publisher's paths. Invalidate all freshness records for new inputs, or
-/// local units and build-script runs when moving an exact-input snapshot.
-fn invalidate_fingerprints(root: &Path, local_packages: Option<&[String]>) -> io::Result<()> {
-    for entry in fs::read_dir(root)? {
-        let entry = entry?;
-        if !entry.file_type()?.is_dir() {
-            continue;
-        }
-        if entry.file_name() != ".fingerprint" {
-            invalidate_fingerprints(&entry.path(), local_packages)?;
-            continue;
-        }
-        let Some(packages) = local_packages else {
-            fs::remove_dir_all(entry.path())?;
-            continue;
-        };
-        invalidate_local_fingerprints(&entry.path(), packages)?;
-    }
-    Ok(())
-}
-
-/// Drop the fingerprints of the workspace's own packages and of every
-/// build script. The rest describe dependencies the restored snapshot
-/// still matches.
-fn invalidate_local_fingerprints(fingerprint_dir: &Path, packages: &[String]) -> io::Result<()> {
-    for fingerprint in fs::read_dir(fingerprint_dir)? {
-        let fingerprint = fingerprint?;
-        if !fingerprint.file_type()?.is_dir() {
-            continue;
-        }
-        let name = fingerprint.file_name().to_string_lossy().into_owned();
-        let local = packages.iter().any(|package| name.starts_with(&format!("{package}-")));
-        let build_script = fs::read_dir(fingerprint.path())?
-            .collect::<io::Result<Vec<_>>>()?
-            .iter()
-            .any(|file| file.file_name().to_string_lossy().starts_with("run-build-script"));
-        if local || build_script {
-            fs::remove_dir_all(fingerprint.path())?;
-        }
-    }
-    Ok(())
-}
+mod fingerprints;

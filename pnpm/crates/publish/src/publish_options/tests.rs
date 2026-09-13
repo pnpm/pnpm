@@ -56,7 +56,10 @@ fn rejects_unsupported_protocol() {
 #[test]
 fn access_prefers_explicit_then_manifest() {
     let manifest = json!({ "publishConfig": { "access": "restricted" } });
-    assert_eq!(resolve_access(Some(Access::Public), &manifest), Some(Access::Public));
+    assert_eq!(
+        resolve_access(Some(Access::Public), &manifest),
+        Some(Access::Public),
+    );
     assert_eq!(resolve_access(None, &manifest), Some(Access::Restricted));
     assert_eq!(resolve_access(None, &json!({})), None);
 }
@@ -88,7 +91,11 @@ fn github_chain_fetch(
     } else {
         unreachable!("unexpected OIDC request URL: {}", request.url)
     };
-    Ok(OidcResponse { ok: true, status: 200, body })
+    Ok(OidcResponse {
+        ok: true,
+        status: 200,
+        body,
+    })
 }
 
 /// GitHub-Actions provider whose env yields the id-token request token/url.
@@ -209,7 +216,11 @@ async fn oidc_skips_when_auth_exchange_fails() {
                 body: format!(r#"{{"value":"{}"}}"#, public_repo_id_token()),
             })
         } else if request.url.contains("/oidc/token/exchange/") {
-            Ok(OidcResponse { ok: false, status: 422, body: String::new() })
+            Ok(OidcResponse {
+                ok: false,
+                status: 422,
+                body: String::new(),
+            })
         } else {
             unreachable!("visibility is not probed once the exchange fails")
         }
@@ -228,7 +239,10 @@ async fn oidc_skips_when_auth_exchange_fails() {
 
 #[tokio::test]
 async fn oidc_keeps_token_when_provenance_undeterminable() {
-    github_sys!(Sys, |request: OidcRequest<'_>| github_chain_fetch(&request, "not-a-jwt"));
+    github_sys!(Sys, |request: OidcRequest<'_>| github_chain_fetch(
+        &request,
+        "not-a-jwt"
+    ));
 
     let result = fetch_token_and_provenance_by_oidc::<Sys, SilentReporter>(
         "pkg",
@@ -240,7 +254,10 @@ async fn oidc_keeps_token_when_provenance_undeterminable() {
     .unwrap();
     assert_eq!(
         result,
-        Some(OidcTokenProvenance { auth_token: "registry-token".to_owned(), provenance: None }),
+        Some(OidcTokenProvenance {
+            auth_token: "registry-token".to_owned(),
+            provenance: None
+        }),
     );
 }
 
@@ -305,7 +322,10 @@ async fn create_publish_options_applies_oidc_when_enabled() {
 
     let resolved =
         create_publish_options::<Sys, SilentReporter>(&manifest, &input, true).await.unwrap();
-    assert_eq!(resolved.auth_token_override, Some("registry-token".to_owned()));
+    assert_eq!(
+        resolved.auth_token_override,
+        Some("registry-token".to_owned()),
+    );
     assert_eq!(resolved.provenance, Some(true));
 }
 
@@ -342,5 +362,8 @@ async fn create_publish_options_rejects_unsupported_protocol() {
 
     let err =
         create_publish_options::<Sys, SilentReporter>(&manifest, &input, true).await.unwrap_err();
-    assert!(matches!(err, CreatePublishOptionsError::UnsupportedProtocol(_)));
+    assert!(matches!(
+        err,
+        CreatePublishOptionsError::UnsupportedProtocol(_)
+    ));
 }

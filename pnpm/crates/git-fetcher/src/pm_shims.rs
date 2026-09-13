@@ -41,7 +41,9 @@ pub(crate) fn shim_commands(
 pub(crate) fn shim_names(
     pm: crate::preferred_pm::PreferredPm,
 ) -> impl Iterator<Item = &'static str> {
-    shim_commands(pm).iter().map(|(name, _)| *name)
+    shim_commands(pm)
+        .iter()
+        .map(|(name, _)| *name)
 }
 
 /// Write shims for `wanted` into `dir`, which the caller prepends to the
@@ -61,7 +63,11 @@ pub(crate) fn write_pm_shims(
     for (name, run_as) in shim_commands(wanted.pm) {
         // `bunx` runs `bun x`; every other command runs the one it is
         // named after.
-        let run_as: Vec<&str> = if run_as.is_empty() { vec![name] } else { run_as.to_vec() };
+        let run_as: Vec<&str> = if run_as.is_empty() {
+            vec![name]
+        } else {
+            run_as.to_vec()
+        };
         for (file_name, contents) in shim_files(name, &run_as, &spec, pnpm_execpath) {
             let path = dir.join(file_name);
             write_executable(&path, &contents)?;
@@ -80,7 +86,10 @@ fn shim_files(
 ) -> Vec<(String, String)> {
     use pnpm_cmd_shim::sh_single_quote;
 
-    let run_as: Vec<String> = run_as.iter().map(|word| sh_single_quote(word)).collect();
+    let run_as: Vec<String> = run_as
+        .iter()
+        .map(|word| sh_single_quote(word))
+        .collect();
     let contents = format!(
         "#!/bin/sh\nexec {pnpm} dlx --package {spec} {run_as} \"$@\"\n",
         pnpm = sh_single_quote(&pnpm_execpath.to_string_lossy()),
@@ -101,8 +110,10 @@ fn shim_files(
 
     let pnpm = cmd_escape(&pnpm_execpath.to_string_lossy());
     let spec = cmd_escape(spec);
-    let run_as: Vec<String> =
-        run_as.iter().map(|word| format!(r#""{}""#, cmd_escape(word))).collect();
+    let run_as: Vec<String> = run_as
+        .iter()
+        .map(|word| format!(r#""{}""#, cmd_escape(word)))
+        .collect();
     let run_as = run_as.join(" ");
     let contents = format!("@\"{pnpm}\" dlx --package \"{spec}\" {run_as} %*\r\n");
     vec![(format!("{name}.cmd"), contents)]

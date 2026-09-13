@@ -21,12 +21,20 @@ fn bin_prints_the_local_node_modules_bin_dir() {
     fs::write(workspace.join("package.json"), r#"{ "name": "root-pkg" }"#)
         .expect("write package.json");
 
-    let output = pacquet.with_args(["bin"]).output().expect("run pacquet bin");
+    let output = pacquet
+        .with_args(["bin"])
+        .output()
+        .expect("run pacquet bin");
     dbg!(&output);
     assert!(output.status.success(), "pacquet bin should succeed");
 
-    let expected =
-        format!("{}\n", canonicalize(&workspace).join("node_modules").join(".bin").display());
+    let expected = format!(
+        "{}\n",
+        canonicalize(&workspace)
+            .join("node_modules")
+            .join(".bin")
+            .display(),
+    );
     assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
 
     drop(root);
@@ -36,15 +44,26 @@ fn bin_prints_the_local_node_modules_bin_dir() {
 fn bin_ignores_a_custom_modules_dir() {
     // pnpm hardcodes the `.bin` leaf, so a custom modules-dir is ignored.
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    fs::write(workspace.join("pnpm-workspace.yaml"), "modulesDir: custom_nm\n")
-        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "modulesDir: custom_nm\n",
+    )
+    .expect("write pnpm-workspace.yaml");
 
-    let output = pacquet.with_args(["bin"]).output().expect("run pacquet bin");
+    let output = pacquet
+        .with_args(["bin"])
+        .output()
+        .expect("run pacquet bin");
     dbg!(&output);
     assert!(output.status.success(), "pacquet bin should succeed");
 
-    let expected =
-        format!("{}\n", canonicalize(&workspace).join("node_modules").join(".bin").display());
+    let expected = format!(
+        "{}\n",
+        canonicalize(&workspace)
+            .join("node_modules")
+            .join(".bin")
+            .display(),
+    );
     assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
 
     drop(root);
@@ -74,11 +93,17 @@ fn bin_global_prints_the_global_bin_dir_when_on_path() {
         .output()
         .expect("run pacquet bin -g");
     dbg!(&output);
-    assert!(output.status.success(), "pacquet bin -g should succeed when the dir is on PATH");
+    assert!(
+        output.status.success(),
+        "pacquet bin -g should succeed when the dir is on PATH",
+    );
 
     let expected = format!("{}\n", global_bin.display());
     assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
-    assert!(global_bin.is_dir(), "pacquet bin -g should create the global bin dir");
+    assert!(
+        global_bin.is_dir(),
+        "pacquet bin -g should create the global bin dir",
+    );
 
     drop(root);
 }
@@ -103,7 +128,10 @@ fn bin_global_errors_when_not_in_path() {
         .output()
         .expect("run pacquet bin -g");
     dbg!(&output);
-    assert!(!output.status.success(), "pacquet bin -g should fail when the dir is not on PATH");
+    assert!(
+        !output.status.success(),
+        "pacquet bin -g should fail when the dir is not on PATH",
+    );
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
@@ -125,8 +153,11 @@ fn bin_global_errors_when_not_in_path() {
 #[test]
 fn bin_global_writes_warnings_to_stderr_so_stdout_stays_a_clean_path() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    fs::write(workspace.join("package.json"), r#"{ "packageManager": "pnpm@0.0.0" }"#)
-        .expect("write package.json");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{ "packageManager": "pnpm@0.0.0" }"#,
+    )
+    .expect("write package.json");
     let pnpm_home = root.path().join("pnpm-home");
     let global_bin = pnpm_home.join("bin");
     let existing_path = std::env::var("PATH").unwrap_or_default();
@@ -175,10 +206,18 @@ fn bin_prints_the_project_bin_dir_from_a_plain_subdir() {
         .output()
         .expect("run pacquet bin in the subdir");
     dbg!(&output);
-    assert!(output.status.success(), "pacquet bin should succeed in the subdir");
+    assert!(
+        output.status.success(),
+        "pacquet bin should succeed in the subdir",
+    );
 
-    let expected =
-        format!("{}\n", canonicalize(&workspace).join("node_modules").join(".bin").display());
+    let expected = format!(
+        "{}\n",
+        canonicalize(&workspace)
+            .join("node_modules")
+            .join(".bin")
+            .display(),
+    );
     assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
 
     drop(root);
@@ -191,8 +230,14 @@ fn bin_prints_the_project_bin_dir_from_a_plain_subdir() {
 #[test]
 fn bin_walks_past_an_ecosystem_manifest() {
     for (manifest, contents) in [
-        ("Cargo.toml", "[package]\nname = \"member\"\nversion = \"0.1.0\"\n"),
-        ("pyproject.toml", "[project]\nname = 'member'\nversion = '1.0'\n"),
+        (
+            "Cargo.toml",
+            "[package]\nname = \"member\"\nversion = \"0.1.0\"\n",
+        ),
+        (
+            "pyproject.toml",
+            "[project]\nname = 'member'\nversion = '1.0'\n",
+        ),
     ] {
         let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
         fs::write(workspace.join("package.json"), r#"{ "name": "root-pkg" }"#)
@@ -208,11 +253,23 @@ fn bin_walks_past_an_ecosystem_manifest() {
             .output()
             .expect("run pacquet bin in the member");
         dbg!(&output);
-        assert!(output.status.success(), "pacquet bin should succeed in the {manifest} member");
+        assert!(
+            output.status.success(),
+            "pacquet bin should succeed in the {manifest} member",
+        );
 
-        let expected =
-            format!("{}\n", canonicalize(&workspace).join("node_modules").join(".bin").display());
-        assert_eq!(String::from_utf8_lossy(&output.stdout), expected, "manifest: {manifest}");
+        let expected = format!(
+            "{}\n",
+            canonicalize(&workspace)
+                .join("node_modules")
+                .join(".bin")
+                .display(),
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout),
+            expected,
+            "manifest: {manifest}",
+        );
 
         drop(root);
     }
@@ -230,14 +287,23 @@ fn bin_walks_past_an_ecosystem_manifest() {
 fn bin_matches_pnpm_from_a_workspace_subdir() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
 
-    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - \"packages/*\"\n")
-        .expect("write pnpm-workspace.yaml");
-    fs::write(workspace.join("package.json"), r#"{ "name": "wsroot", "version": "1.0.0" }"#)
-        .expect("write workspace-root package.json");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - \"packages/*\"\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "wsroot", "version": "1.0.0" }"#,
+    )
+    .expect("write workspace-root package.json");
     let member = workspace.join("packages/foo");
     fs::create_dir_all(&member).expect("create workspace member dir");
-    fs::write(member.join("package.json"), r#"{ "name": "foo", "version": "1.0.0" }"#)
-        .expect("write member package.json");
+    fs::write(
+        member.join("package.json"),
+        r#"{ "name": "foo", "version": "1.0.0" }"#,
+    )
+    .expect("write member package.json");
 
     let pacquet_out = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
@@ -245,7 +311,10 @@ fn bin_matches_pnpm_from_a_workspace_subdir() {
         .with_args(["bin"])
         .output()
         .expect("run pacquet bin in the subdir");
-    assert!(pacquet_out.status.success(), "pacquet bin should succeed in the subdir");
+    assert!(
+        pacquet_out.status.success(),
+        "pacquet bin should succeed in the subdir",
+    );
 
     let pnpm_out = Command::new("pnpm")
         .with_current_dir(&member)

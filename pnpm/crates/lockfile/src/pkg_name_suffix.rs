@@ -25,7 +25,10 @@ pub struct PkgNameSuffix<Suffix> {
 impl<Suffix> PkgNameSuffix<Suffix> {
     /// Construct a [`PkgNameSuffix`].
     pub fn new(name: PkgName, suffix: Suffix) -> Self {
-        PkgNameSuffix { name, suffix }
+        PkgNameSuffix {
+            name,
+            suffix,
+        }
     }
 }
 
@@ -74,7 +77,10 @@ impl<Suffix: FromStr> FromStr for PkgNameSuffix<Suffix> {
         let suffix =
             suffix.parse::<Suffix>().map_err(ParsePkgNameSuffixError::ParseSuffixFailure)?;
         let name = name.parse().map_err(ParsePkgNameSuffixError::ParseNameFailure)?;
-        Ok(PkgNameSuffix { name, suffix })
+        Ok(PkgNameSuffix {
+            name,
+            suffix,
+        })
     }
 }
 

@@ -14,9 +14,9 @@ pub(super) fn remove_state_file(path: &Path) -> miette::Result<bool> {
         Ok(()) => Ok(true),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(true),
         Err(error) if is_state_unavailable_error(&error) => Ok(false),
-        Err(error) => {
-            Err(error).into_diagnostic().wrap_err_with(|| format!("removing {}", path.display()))
-        }
+        Err(error) => Err(error)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("removing {}", path.display())),
     }
 }
 
@@ -70,7 +70,12 @@ pub(super) fn validate_real_directory(
 pub(super) fn current_generation() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map_or(0, |duration| duration.as_millis().try_into().unwrap_or(u64::MAX))
+        .map_or(0, |duration| {
+            duration
+                .as_millis()
+                .try_into()
+                .unwrap_or(u64::MAX)
+        })
 }
 
 impl TaskRunStateContext {
@@ -99,7 +104,9 @@ impl TaskRunStateContext {
                     .wrap_err_with(|| format!("reading {}", self.latest_state_path.display()));
             }
         };
-        let Some(latest) = latest else { return Ok(None) };
+        let Some(latest) = latest else {
+            return Ok(None);
+        };
         if latest.version != STATE_VERSION
             || latest.invocation != self.invocation
             || !is_run_id(&latest.run)
@@ -118,7 +125,9 @@ impl TaskRunStateContext {
     ) -> Option<HashSet<TaskKey>> {
         // A record is committed by its newline; a process killed during
         // append can leave only the final record torn.
-        let last_newline = contents.iter().rposition(|byte| *byte == b'\n')?;
+        let last_newline = contents
+            .iter()
+            .rposition(|byte| *byte == b'\n')?;
         let complete = std::str::from_utf8(&contents[..last_newline]).ok()?;
         let mut lines = complete.lines();
         let header = serde_json::from_str::<StateHeader>(lines.next()?).ok()?;
@@ -133,7 +142,10 @@ impl TaskRunStateContext {
             let record = serde_json::from_str::<JournalRecord>(line).ok()?;
             match record {
                 JournalRecord::Task(record) if record.run == header.run => {
-                    let id = TaskId { project: record.project, task: record.task };
+                    let id = TaskId {
+                        project: record.project,
+                        task: record.task,
+                    };
                     completed.insert(self.keys_by_id.get(&id)?.clone());
                 }
                 JournalRecord::Finish(record) if record.run == header.run && record.finished => {
@@ -164,11 +176,8 @@ impl TaskRunStateContext {
             invocation: self.invocation.clone(),
             run: run.clone(),
         };
-        let contents = initial_journal_contents(&header, completed);
         let file_path = self.journal_path(&run);
-        pnpm_fs::write_atomic(&file_path, contents.as_bytes())
-            .map_err(|error| StateStorageError::io(error, "writing", &file_path))?;
-        let file = open_journal_for_append(&file_path)?;
+        let file = create_journal(&file_path, &header, completed)?;
         match lock.is_owner() {
             Ok(true) => {}
             Ok(false) => {
@@ -182,10 +191,12 @@ impl TaskRunStateContext {
                 return Err(StateStorageError::io(error, "checking", &lock_path));
             }
         }
-        self.publish_journal(&header, &file_path, file).map(|file| {
-            self.cleanup_older_finished_state(&run);
-            (file_path, run, Some(file))
-        })
+        self
+            .publish_journal(&header, &file_path, file)
+            .map(|file| {
+                self.cleanup_older_finished_state(&run);
+                (file_path, run, Some(file))
+            })
     }
 
     fn publish_journal(
@@ -201,7 +212,11 @@ impl TaskRunStateContext {
         if let Err(error) = latest_write {
             drop(file);
             let _ = fs::remove_file(file_path);
-            return Err(StateStorageError::io(error, "writing", &self.latest_state_path));
+            return Err(StateStorageError::io(
+                error,
+                "writing",
+                &self.latest_state_path,
+            ));
         }
         let published_path = self.published_path(&header.run);
         if let Err(error) = pnpm_fs::write_atomic(&published_path, &[]) {
@@ -227,8 +242,9 @@ impl TaskRunStateContext {
                 entry.map_err(|error| StateStorageError::io(error, "reading", &self.state_dir))?;
             names.insert(entry.file_name());
         }
-        let mut finished =
-            names.contains(OsStr::new(&format!("{prefix}{latest_run}{FINISHED_SUFFIX}")));
+        let mut finished = names.contains(OsStr::new(&format!(
+            "{prefix}{latest_run}{FINISHED_SUFFIX}",
+        )));
         for name in &names {
             let Some((run, candidate_finished)) = Self::state_file_run(name, &prefix, &names)
             else {
@@ -277,7 +293,11 @@ impl TaskRunStateContext {
             }
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
             Err(error) => {
-                return Err(StateStorageError::io(error, "reading", &self.latest_state_path));
+                return Err(StateStorageError::io(
+                    error,
+                    "reading",
+                    &self.latest_state_path,
+                ));
             }
         }
         newest_run = self.newest_state(&newest_run)?.0;
@@ -288,18 +308,35 @@ impl TaskRunStateContext {
     }
 
     fn cleanup_older_finished_state(&self, run: &str) {
-        let Ok(entries) = fs::read_dir(&self.state_dir) else { return };
+        let Ok(entries) = fs::read_dir(&self.state_dir) else {
+            return;
+        };
         let prefix = format!("{}.", self.invocation);
         let generation = run_generation(run);
         for entry in entries.flatten() {
             let name = entry.file_name();
             let Some(name) = name.to_str() else { continue };
-            let Some(name) = name.strip_prefix(&prefix) else { continue };
-            let Some(older_run) = name.strip_suffix(FINISHED_SUFFIX) else { continue };
+            let Some(name) = name.strip_prefix(&prefix) else {
+                continue;
+            };
+            let Some(older_run) = name.strip_suffix(FINISHED_SUFFIX) else {
+                continue;
+            };
             if !is_run_id(older_run) || run_generation(older_run) >= generation {
                 continue;
             }
             let _ = fs::remove_file(entry.path());
         }
     }
+}
+
+fn create_journal(
+    file_path: &Path,
+    header: &StateHeader,
+    completed: &[&TaskId],
+) -> Result<File, StateStorageError> {
+    let contents = initial_journal_contents(header, completed);
+    pnpm_fs::write_atomic(file_path, contents.as_bytes())
+        .map_err(|error| StateStorageError::io(error, "writing", file_path))?;
+    open_journal_for_append(file_path)
 }

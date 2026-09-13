@@ -55,12 +55,19 @@ async fn throws_non_interactive_error_when_stdin_is_not_interactive() {
 
     let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(
         WebAuthFetchOptions::default(),
-        |_otp| async move { Err(FakeOtpError::Otp { body: None }) },
+        |_otp| async move {
+            Err(FakeOtpError::Otp {
+                body: None,
+            })
+        },
     )
     .await
     .expect_err("an error");
 
-    assert!(matches!(error, WithOtpError::NonInteractive(_)), "got {error:?}");
+    assert!(
+        matches!(error, WithOtpError::NonInteractive(_)),
+        "got {error:?}",
+    );
 }
 
 #[tokio::test]
@@ -71,12 +78,19 @@ async fn throws_non_interactive_error_when_stdout_is_not_interactive() {
 
     let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(
         WebAuthFetchOptions::default(),
-        |_otp| async move { Err(FakeOtpError::Otp { body: None }) },
+        |_otp| async move {
+            Err(FakeOtpError::Otp {
+                body: None,
+            })
+        },
     )
     .await
     .expect_err("an error");
 
-    assert!(matches!(error, WithOtpError::NonInteractive(_)), "got {error:?}");
+    assert!(
+        matches!(error, WithOtpError::NonInteractive(_)),
+        "got {error:?}",
+    );
 }
 
 #[tokio::test]
@@ -87,15 +101,25 @@ async fn preserves_web_auth_urls_on_non_interactive_error() {
 
     let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(
         WebAuthFetchOptions::default(),
-        |_otp| async move { Err(FakeOtpError::Otp { body: web_auth_body() }) },
+        |_otp| async move {
+            Err(FakeOtpError::Otp {
+                body: web_auth_body(),
+            })
+        },
     )
     .await
     .expect_err("an error");
 
     match error {
         WithOtpError::NonInteractive(error) => {
-            assert_eq!(error.auth_url.as_deref(), Some("https://registry.npmjs.org/auth/abc"));
-            assert_eq!(error.done_url.as_deref(), Some("https://registry.npmjs.org/auth/abc/done"));
+            assert_eq!(
+                error.auth_url.as_deref(),
+                Some("https://registry.npmjs.org/auth/abc"),
+            );
+            assert_eq!(
+                error.done_url.as_deref(),
+                Some("https://registry.npmjs.org/auth/abc/done"),
+            );
         }
         other => panic!("expected non-interactive error, got {other:?}"),
     }
@@ -114,8 +138,8 @@ async fn strips_credentials_from_web_auth_urls_on_non_interactive_error() {
                 body: Some(OtpErrorBody {
                     auth_url: Some("https://user:secret@registry.npmjs.org/auth/abc".to_owned()),
                     done_url: Some(
-                        "https://user:secret@registry.npmjs.org/auth/abc/done?authId=xyz"
-                            .to_owned(),
+                        "https://user:secret@registry.npmjs.org/auth/abc/done?authId=xyz".to_owned(
+                        ),
                     ),
                 }),
             })
@@ -126,7 +150,10 @@ async fn strips_credentials_from_web_auth_urls_on_non_interactive_error() {
 
     match error {
         WithOtpError::NonInteractive(error) => {
-            assert_eq!(error.auth_url.as_deref(), Some("https://registry.npmjs.org/auth/abc"));
+            assert_eq!(
+                error.auth_url.as_deref(),
+                Some("https://registry.npmjs.org/auth/abc"),
+            );
             assert_eq!(
                 error.done_url.as_deref(),
                 Some("https://registry.npmjs.org/auth/abc/done?authId=xyz"),
@@ -180,7 +207,9 @@ async fn classic_flow_prompts_for_otp_and_retries_operation() {
             async move {
                 counter.set(counter.get() + 1);
                 if counter.get() == 1 {
-                    Err(FakeOtpError::Otp { body: None })
+                    Err(FakeOtpError::Otp {
+                        body: None,
+                    })
                 } else {
                     assert_eq!(otp.as_deref(), Some("654321"));
                     Ok("ok".to_owned())
@@ -203,12 +232,19 @@ async fn classic_flow_throws_second_challenge_error_if_retry_also_requires_otp()
 
     let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(
         WebAuthFetchOptions::default(),
-        |_otp| async move { Err(FakeOtpError::Otp { body: None }) },
+        |_otp| async move {
+            Err(FakeOtpError::Otp {
+                body: None,
+            })
+        },
     )
     .await
     .expect_err("an error");
 
-    assert!(matches!(error, WithOtpError::SecondChallenge(_)), "got {error:?}");
+    assert!(
+        matches!(error, WithOtpError::SecondChallenge(_)),
+        "got {error:?}",
+    );
 }
 
 #[tokio::test]
@@ -226,7 +262,9 @@ async fn classic_flow_throws_non_otp_errors_from_the_retry_as_is() {
             async move {
                 counter.set(counter.get() + 1);
                 if counter.get() == 1 {
-                    Err(FakeOtpError::Otp { body: None })
+                    Err(FakeOtpError::Otp {
+                        body: None,
+                    })
                 } else {
                     Err(FakeOtpError::Other("server error".to_owned()))
                 }
@@ -250,12 +288,19 @@ async fn classic_flow_re_throws_the_original_otp_error_when_prompt_returns_empty
 
     let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(
         WebAuthFetchOptions::default(),
-        |_otp| async move { Err(FakeOtpError::Otp { body: None }) },
+        |_otp| async move {
+            Err(FakeOtpError::Otp {
+                body: None,
+            })
+        },
     )
     .await
     .expect_err("an error");
 
-    assert!(matches!(error, WithOtpError::Operation(FakeOtpError::Otp { .. })), "got {error:?}");
+    assert!(
+        matches!(error, WithOtpError::Operation(FakeOtpError::Otp { .. })),
+        "got {error:?}",
+    );
 }
 
 #[tokio::test]
@@ -266,12 +311,19 @@ async fn classic_flow_re_throws_the_original_otp_error_when_prompt_returns_none(
 
     let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(
         WebAuthFetchOptions::default(),
-        |_otp| async move { Err(FakeOtpError::Otp { body: None }) },
+        |_otp| async move {
+            Err(FakeOtpError::Otp {
+                body: None,
+            })
+        },
     )
     .await
     .expect_err("an error");
 
-    assert!(matches!(error, WithOtpError::Operation(FakeOtpError::Otp { .. })), "got {error:?}");
+    assert!(
+        matches!(error, WithOtpError::Operation(FakeOtpError::Otp { .. })),
+        "got {error:?}",
+    );
 }
 
 #[tokio::test]
@@ -282,12 +334,19 @@ async fn classic_flow_re_throws_the_original_otp_error_when_prompt_is_cancelled(
 
     let error = with_otp_handling::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(
         WebAuthFetchOptions::default(),
-        |_otp| async move { Err(FakeOtpError::Otp { body: None }) },
+        |_otp| async move {
+            Err(FakeOtpError::Otp {
+                body: None,
+            })
+        },
     )
     .await
     .expect_err("an error");
 
-    assert!(matches!(error, WithOtpError::Operation(FakeOtpError::Otp { .. })), "got {error:?}");
+    assert!(
+        matches!(error, WithOtpError::Operation(FakeOtpError::Otp { .. })),
+        "got {error:?}",
+    );
 }
 
 /// pacquet's Enter-key listener is always available, so the flow also emits
@@ -301,7 +360,11 @@ async fn web_auth_flow_polls_done_url_and_uses_returned_token() {
     let fetch_counter = Rc::clone(&fetch_calls);
     set_fetch(Box::new(move || {
         fetch_counter.set(fetch_counter.get() + 1);
-        Ok(if fetch_counter.get() < 3 { ok_202() } else { ok_token("web-token-123") })
+        Ok(if fetch_counter.get() < 3 {
+            ok_202()
+        } else {
+            ok_token("web-token-123")
+        })
     }));
     let op_calls = Rc::new(Cell::new(0));
     let op_counter = Rc::clone(&op_calls);
@@ -313,7 +376,9 @@ async fn web_auth_flow_polls_done_url_and_uses_returned_token() {
             async move {
                 op_counter.set(op_counter.get() + 1);
                 if op_counter.get() == 1 {
-                    Err(FakeOtpError::Otp { body: web_auth_body() })
+                    Err(FakeOtpError::Otp {
+                        body: web_auth_body(),
+                    })
                 } else {
                     assert_eq!(otp.as_deref(), Some("web-token-123"));
                     Ok("published".to_owned())
@@ -328,7 +393,9 @@ async fn web_auth_flow_polls_done_url_and_uses_returned_token() {
     assert_eq!(op_calls.get(), 2);
     assert_eq!(fetch_calls.get(), 3);
     assert!(
-        infos().iter().any(|message| message.contains("https://registry.npmjs.org/auth/abc")),
+        infos()
+            .iter()
+            .any(|message| message.contains("https://registry.npmjs.org/auth/abc")),
         "the auth URL should be surfaced, got {:?}",
         infos(),
     );
@@ -345,7 +412,11 @@ async fn web_auth_flow_keeps_polling_when_the_done_url_body_is_truncated() {
     let fetch_counter = Rc::clone(&fetch_calls);
     set_fetch(Box::new(move || {
         fetch_counter.set(fetch_counter.get() + 1);
-        Ok(if fetch_counter.get() == 1 { ok_truncated() } else { ok_token("web-token-123") })
+        Ok(if fetch_counter.get() == 1 {
+            ok_truncated()
+        } else {
+            ok_token("web-token-123")
+        })
     }));
     let op_calls = Rc::new(Cell::new(0));
     let op_counter = Rc::clone(&op_calls);
@@ -357,7 +428,9 @@ async fn web_auth_flow_keeps_polling_when_the_done_url_body_is_truncated() {
             async move {
                 op_counter.set(op_counter.get() + 1);
                 if op_counter.get() == 1 {
-                    Err(FakeOtpError::Otp { body: web_auth_body() })
+                    Err(FakeOtpError::Otp {
+                        body: web_auth_body(),
+                    })
                 } else {
                     assert_eq!(otp.as_deref(), Some("web-token-123"));
                     Ok("published".to_owned())
@@ -369,7 +442,11 @@ async fn web_auth_flow_keeps_polling_when_the_done_url_body_is_truncated() {
     .expect("a result");
 
     assert_eq!(result, "published");
-    assert_eq!(fetch_calls.get(), 2, "the truncated response must not end the poll");
+    assert_eq!(
+        fetch_calls.get(),
+        2,
+        "the truncated response must not end the poll",
+    );
 }
 
 #[tokio::test]
@@ -407,7 +484,9 @@ async fn web_auth_flow_falls_back_to_url_only_display_when_qr_generation_fails()
 
     assert_eq!(result, "published");
     assert!(
-        warns().iter().any(|message| message.starts_with("Could not generate a QR code:")),
+        warns()
+            .iter()
+            .any(|message| message.starts_with("Could not generate a QR code:")),
         "got {:?}",
         warns(),
     );
@@ -415,7 +494,10 @@ async fn web_auth_flow_falls_back_to_url_only_display_when_qr_generation_fails()
         .into_iter()
         .find(|message| message.contains(&long_auth_url))
         .expect("the auth URL should be surfaced");
-    assert_eq!(auth_message, format!("Authenticate your account at:\n{long_auth_url}"));
+    assert_eq!(
+        auth_message,
+        format!("Authenticate your account at:\n{long_auth_url}"),
+    );
 }
 
 #[tokio::test]
@@ -522,7 +604,13 @@ async fn web_auth_flow_falls_back_to_classic_prompt_when_only_done_url_is_presen
 
 #[tokio::test]
 async fn web_auth_flow_throws_timeout_error_when_polling_times_out() {
-    web_auth_fake!(FakeHost, RecordingReporter, set_sleep_behavior, set_fetch, infos);
+    web_auth_fake!(
+        FakeHost,
+        RecordingReporter,
+        set_sleep_behavior,
+        set_fetch,
+        infos
+    );
     reset();
     set_sleep_behavior(SleepBehavior::AdvanceByFixed(6 * 60 * 1000));
     set_fetch(Box::new(|| Ok(ok_202())));
@@ -535,8 +623,14 @@ async fn web_auth_flow_throws_timeout_error_when_polling_times_out() {
             let counter = Rc::clone(&counter);
             async move {
                 counter.set(counter.get() + 1);
-                assert_eq!(counter.get(), 1, "the operation must not be retried after a timeout");
-                Err(FakeOtpError::Otp { body: web_auth_body() })
+                assert_eq!(
+                    counter.get(),
+                    1,
+                    "the operation must not be retried after a timeout",
+                );
+                Err(FakeOtpError::Otp {
+                    body: web_auth_body(),
+                })
             }
         },
     )
@@ -545,7 +639,9 @@ async fn web_auth_flow_throws_timeout_error_when_polling_times_out() {
 
     assert!(matches!(error, WithOtpError::Timeout(_)), "got {error:?}");
     assert!(
-        infos().iter().any(|message| message.contains("https://registry.npmjs.org/auth/abc")),
+        infos()
+            .iter()
+            .any(|message| message.contains("https://registry.npmjs.org/auth/abc")),
         "the auth URL should be surfaced, got {:?}",
         infos(),
     );
@@ -564,7 +660,10 @@ fn synthetic_otp_error_stores_body() {
         done_url: Some("https://example.com/done".to_owned()),
     };
     let error = SyntheticOtpError::new(Some(body.clone()));
-    assert_eq!(error.as_otp_challenge().expect("a challenge").body, Some(body));
+    assert_eq!(
+        error.as_otp_challenge().expect("a challenge").body,
+        Some(body),
+    );
 }
 
 #[test]
@@ -607,8 +706,18 @@ fn from_unknown_body_warns_when_auth_url_has_wrong_type() {
     let error = SyntheticOtpError::from_unknown_body::<RecordingReporter>(Some(
         &json!({ "authUrl": 123, "doneUrl": "https://example.com/done" }),
     ));
-    assert!(warns().iter().any(|message| message.contains("authUrl")), "got {:?}", warns());
-    let body = error.as_otp_challenge().expect("a challenge").body.expect("a body");
+    assert!(
+        warns()
+            .iter()
+            .any(|message| message.contains("authUrl")),
+        "got {:?}",
+        warns(),
+    );
+    let body = error
+        .as_otp_challenge()
+        .expect("a challenge")
+        .body
+        .expect("a body");
     assert_eq!(body.auth_url, None);
     assert_eq!(body.done_url, Some("https://example.com/done".to_owned()));
 }
@@ -620,8 +729,18 @@ fn from_unknown_body_warns_when_done_url_has_wrong_type() {
     let error = SyntheticOtpError::from_unknown_body::<RecordingReporter>(Some(
         &json!({ "authUrl": "https://example.com/auth", "doneUrl": true }),
     ));
-    assert!(warns().iter().any(|message| message.contains("doneUrl")), "got {:?}", warns());
-    let body = error.as_otp_challenge().expect("a challenge").body.expect("a body");
+    assert!(
+        warns()
+            .iter()
+            .any(|message| message.contains("doneUrl")),
+        "got {:?}",
+        warns(),
+    );
+    let body = error
+        .as_otp_challenge()
+        .expect("a challenge")
+        .body
+        .expect("a body");
     assert_eq!(body.auth_url, Some("https://example.com/auth".to_owned()));
     assert_eq!(body.done_url, None);
 }
@@ -633,9 +752,25 @@ fn from_unknown_body_warns_for_both_when_both_have_wrong_types() {
     let error = SyntheticOtpError::from_unknown_body::<RecordingReporter>(Some(
         &json!({ "authUrl": 42, "doneUrl": false }),
     ));
-    assert!(warns().iter().any(|message| message.contains("authUrl")), "got {:?}", warns());
-    assert!(warns().iter().any(|message| message.contains("doneUrl")), "got {:?}", warns());
-    let body = error.as_otp_challenge().expect("a challenge").body.expect("a body");
+    assert!(
+        warns()
+            .iter()
+            .any(|message| message.contains("authUrl")),
+        "got {:?}",
+        warns(),
+    );
+    assert!(
+        warns()
+            .iter()
+            .any(|message| message.contains("doneUrl")),
+        "got {:?}",
+        warns(),
+    );
+    let body = error
+        .as_otp_challenge()
+        .expect("a challenge")
+        .body
+        .expect("a body");
     assert_eq!(body.auth_url, None);
     assert_eq!(body.done_url, None);
 }
@@ -649,7 +784,10 @@ fn from_unknown_body_returns_empty_body_when_no_auth_url_or_done_url() {
     ));
     assert_eq!(
         error.as_otp_challenge().expect("a challenge").body,
-        Some(OtpErrorBody { auth_url: None, done_url: None }),
+        Some(OtpErrorBody {
+            auth_url: None,
+            done_url: None
+        }),
     );
 }
 
@@ -668,11 +806,15 @@ fn otp_gated_operation(
         let accepted = Rc::clone(&accepted);
         let seen = Rc::clone(&seen);
         Box::pin(async move {
-            seen.borrow_mut().push(otp.clone());
+            seen
+                .borrow_mut()
+                .push(otp.clone());
             if otp.as_deref() == Some(accepted.borrow().as_str()) {
                 Ok("ok".to_owned())
             } else {
-                Err(FakeOtpError::Otp { body: None })
+                Err(FakeOtpError::Otp {
+                    body: None,
+                })
             }
         })
     }

@@ -24,8 +24,10 @@ pub(super) async fn set_dist_tag(
     let body = serde_json::to_string(request.version).expect("a string serializes");
     let (_guard, response) =
         send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let builder =
-                client.put(&url).header("content-type", "application/json").body(body.clone());
+            let builder = client
+                .put(&url)
+                .header("content-type", "application/json")
+                .body(body.clone());
             apply_dist_tag_mutation_headers(
                 builder,
                 request.auth_header,
@@ -101,9 +103,12 @@ pub(super) async fn fetch_dist_tags(
     auth_header: Option<&str>,
 ) -> miette::Result<BTreeMap<String, String>> {
     let url = dist_tags_url(package_name, registry_url)?;
-    retry_async(&url, context.retry_opts, DistTagsFetchError::is_retryable, || async {
-        fetch_dist_tags_once(context, &url, auth_header).await
-    })
+    retry_async(
+        &url,
+        context.retry_opts,
+        DistTagsFetchError::is_retryable,
+        || async { fetch_dist_tags_once(context, &url, auth_header).await },
+    )
     .await
     .map_err(|error| map_dist_tags_fetch_error(error, package_name))
 }
@@ -127,14 +132,18 @@ async fn fetch_dist_tags_once(
         return Err(DistTagsFetchError::NotFound);
     }
     if !response.status().is_success() {
-        return Err(DistTagsFetchError::Status { status: response.status() });
+        return Err(DistTagsFetchError::Status {
+            status: response.status(),
+        });
     }
-    if response.content_length().is_some_and(|length| length > DIST_TAGS_BODY_LIMIT as u64) {
+    if response
+        .content_length()
+        .is_some_and(|length| length > DIST_TAGS_BODY_LIMIT as u64)
+    {
         return Err(DistTagsFetchError::BodyTooLarge);
     }
-    let body = read_limited_body(response, DIST_TAGS_BODY_LIMIT)
-        .await
-        .map_err(DistTagsFetchError::Body)?;
+    let body =
+        read_limited_body(response, DIST_TAGS_BODY_LIMIT).await.map_err(DistTagsFetchError::Body)?;
     if body.truncated {
         return Err(DistTagsFetchError::BodyTooLarge);
     }
@@ -143,29 +152,21 @@ async fn fetch_dist_tags_once(
 
 async fn write_error_from_response(response: Response, action: String) -> miette::Result<()> {
     let status = response.status();
-    let status_text = status.canonical_reason().unwrap_or_default().to_string();
-    let body = read_limited_body(response, DIST_TAG_ERROR_BODY_LIMIT).await.map_err(|source| {
-        registry_operation_error("reading the registry dist-tag error response", source)
-    })?;
-    let web_otp_challenge =
-        if body.truncated { None } else { parse_web_otp_challenge(&body.bytes) };
+    let status_text = status
+        .canonical_reason()
+        .unwrap_or_default()
+        .to_string();
+    let body = read_limited_body(response, DIST_TAG_ERROR_BODY_LIMIT).await
+        .map_err(|source| {
+            registry_operation_error("reading the registry dist-tag error response", source)
+        })?;
+    let web_otp_challenge = if body.truncated {
+        None
+    } else {
+        parse_web_otp_challenge(&body.bytes)
+    };
     let body = sanitize::body_display_string(&body);
-    if status == StatusCode::UNAUTHORIZED {
-        if let Some(challenge) = web_otp_challenge {
-            return Err(DistTagError::WebOtpRequired {
-                action,
-                auth_url: sanitize::sanitize(&challenge.auth_url).into_owned(),
-                done_url: sanitize::sanitize(&challenge.done_url).into_owned(),
-            }
-            .into());
-        }
-        return Err(DistTagError::Unauthorized { action, body }.into());
-    }
-    if status == StatusCode::FORBIDDEN {
-        return Err(DistTagError::Forbidden { action, body }.into());
-    }
-    Err(DistTagError::RegistryWriteFailed { action, status: status.as_u16(), status_text, body }
-        .into())
+    Err(dist_tag_write_error(status, status_text, action, body, web_otp_challenge).into())
 }
 
 #[derive(Debug)]
@@ -200,12 +201,16 @@ fn map_dist_tags_fetch_error(error: DistTagsFetchError, package_name: &str) -> m
             limit: DIST_TAGS_BODY_LIMIT,
         }
         .into(),
-        DistTagsFetchError::NotFound => {
-            DistTagError::PackageNotFound { package_name: package_name.to_string() }.into()
+        DistTagsFetchError::NotFound => DistTagError::PackageNotFound {
+            package_name: package_name.to_string(),
         }
+        .into(),
         DistTagsFetchError::Status { status } => DistTagError::RegistryFetchFailed {
             status: status.as_u16(),
-            status_text: status.canonical_reason().unwrap_or_default().to_string(),
+            status_text: status
+                .canonical_reason()
+                .unwrap_or_default()
+                .to_string(),
         }
         .into(),
     }
@@ -276,7 +281,10 @@ fn dist_tags_url(package_name: &str, registry_url: &str) -> miette::Result<Strin
     let package_name = package_name_for_url(package_name)?;
     registry_endpoint_url(
         registry_url,
-        &format!("-/package/{}/dist-tags", escaped_package_name(&package_name)),
+        &format!(
+            "-/package/{}/dist-tags",
+            escaped_package_name(&package_name),
+        ),
     )
 }
 
@@ -293,9 +301,10 @@ fn dist_tag_url(package_name: &str, registry_url: &str, tag: &str) -> miette::Re
 }
 
 pub(super) fn package_name_for_url(package_name: &str) -> Result<String, DistTagError> {
-    parse_wanted_dependency(package_name)
-        .alias
-        .ok_or_else(|| DistTagError::InvalidPackageSpec { spec: package_name.to_string() })
+    parse_wanted_dependency(package_name).alias
+        .ok_or_else(|| DistTagError::InvalidPackageSpec {
+            spec: package_name.to_string(),
+        })
 }
 
 fn registry_endpoint_url(registry_url: &str, path: &str) -> miette::Result<String> {
@@ -306,12 +315,50 @@ fn registry_endpoint_url(registry_url: &str, path: &str) -> miette::Result<Strin
 }
 
 pub(super) fn normalize_registry_url(registry_url: &str) -> String {
-    if registry_url.ends_with('/') { registry_url.to_string() } else { format!("{registry_url}/") }
+    if registry_url.ends_with('/') {
+        registry_url.to_string()
+    } else {
+        format!("{registry_url}/")
+    }
 }
 
 fn escaped_package_name(package_name: &str) -> String {
     match package_name.strip_prefix('@') {
         Some(rest) => format!("@{}", encode_uri_component(rest).replace("%2F", "%2f")),
         None => encode_uri_component(package_name),
+    }
+}
+
+fn dist_tag_write_error(
+    status: StatusCode,
+    status_text: String,
+    action: String,
+    body: String,
+    web_otp_challenge: Option<WebOtpChallenge>,
+) -> DistTagError {
+    if status == StatusCode::UNAUTHORIZED {
+        if let Some(challenge) = web_otp_challenge {
+            return DistTagError::WebOtpRequired {
+                action,
+                auth_url: sanitize::sanitize(&challenge.auth_url).into_owned(),
+                done_url: sanitize::sanitize(&challenge.done_url).into_owned(),
+            };
+        }
+        return DistTagError::Unauthorized {
+            action,
+            body,
+        };
+    }
+    if status == StatusCode::FORBIDDEN {
+        return DistTagError::Forbidden {
+            action,
+            body,
+        };
+    }
+    DistTagError::RegistryWriteFailed {
+        action,
+        status: status.as_u16(),
+        status_text,
+        body,
     }
 }

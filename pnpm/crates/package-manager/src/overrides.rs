@@ -14,6 +14,15 @@
 //! happens through [`pnpm_package_manifest::PackageManifest::value_mut`]
 //! on the in-memory `Value` only.
 
+pub(crate) use selectors::parse_declared_range;
+use selectors::{matches_target, semver_satisfies, sort_by_specificity};
+mod selectors;
+
+mod manifest_dependencies;
+use manifest_dependencies::{
+    insert_peer_dependency, insert_regular_dependency, remove_peer_dependency,
+};
+
 mod local_targets;
 use local_targets::{LocalTarget, parse_local_target, resolve_local_override_spec};
 
@@ -160,8 +169,13 @@ impl VersionsOverrider {
     pub fn apply_to_value(&self, manifest: &mut Value, manifest_dir: Option<&Path>) {
         let applicable_parent_scoped = self.applicable_parent_scoped(manifest);
 
-        for group in
-            [DependencyGroup::Prod, DependencyGroup::Optional, DependencyGroup::Dev].iter().copied()
+        for group in [
+            DependencyGroup::Prod,
+            DependencyGroup::Optional,
+            DependencyGroup::Dev,
+        ]
+        .iter()
+        .copied()
         {
             self.override_group(manifest, group, &applicable_parent_scoped, manifest_dir);
         }
@@ -197,7 +211,9 @@ impl VersionsOverrider {
         self.parent_scoped
             .iter()
             .filter(|entry| {
-                let Some(parent) = entry.inner.parent_pkg.as_ref() else { return false };
+                let Some(parent) = entry.inner.parent_pkg.as_ref() else {
+                    return false;
+                };
                 let name_matches = manifest_name == Some(parent.name.as_str());
                 let range_matches = match (parent.bare_specifier.as_deref(), manifest_version) {
                     (None, _) => true,
@@ -229,14 +245,20 @@ impl VersionsOverrider {
         applicable_parent_scoped: &[&ResolvedOverride],
     ) -> bool {
         let key: &'static str = group.into();
-        let Some(map) = value.get(key).and_then(Value::as_object) else { return false };
+        let Some(map) = value.get(key).and_then(Value::as_object) else {
+            return false;
+        };
 
-        map.iter().any(|(name, spec)| {
-            spec.as_str().is_some_and(|spec| {
-                self.choose_override(applicable_parent_scoped, name, spec).is_some()
-                    || self.converge_applies(name, spec)
+        map
+            .iter()
+            .any(|(name, spec)| {
+                spec
+                    .as_str()
+                    .is_some_and(|spec| {
+                        self.choose_override(applicable_parent_scoped, name, spec).is_some()
+                            || self.converge_applies(name, spec)
+                    })
             })
-        })
     }
 
     /// Record the declared ranges of every converge-governed edge in
@@ -256,7 +278,9 @@ impl VersionsOverrider {
             DependencyGroup::Peer,
         ] {
             let key: &'static str = group.into();
-            let Some(map) = value.get(key).and_then(Value::as_object) else { continue };
+            let Some(map) = value.get(key).and_then(Value::as_object) else {
+                continue;
+            };
             for (name, spec) in map {
                 let Some(spec) = spec.as_str() else { continue };
                 if self.choose_override(&applicable_parent_scoped, name, spec).is_none() {
@@ -274,12 +298,16 @@ impl VersionsOverrider {
         manifest_dir: Option<&Path>,
     ) {
         let key: &'static str = group.into();
-        let Some(map) = value.get_mut(key).and_then(Value::as_object_mut) else { return };
+        let Some(map) = value.get_mut(key).and_then(Value::as_object_mut) else {
+            return;
+        };
 
         let entries: Vec<(String, String)> = map
             .iter()
             .filter_map(|(name, spec)| {
-                spec.as_str().map(|spec_str| (name.clone(), spec_str.to_string()))
+                spec
+                    .as_str()
+                    .map(|spec_str| (name.clone(), spec_str.to_string()))
             })
             .collect();
 
@@ -296,10 +324,12 @@ impl VersionsOverrider {
                 continue;
             }
 
-            let new_spec = chosen.local_target.as_ref().map_or_else(
-                || chosen.inner.new_bare_specifier.clone(),
-                |target| resolve_local_override_spec(target, manifest_dir),
-            );
+            let new_spec = chosen.local_target
+                .as_ref()
+                .map_or_else(
+                    || chosen.inner.new_bare_specifier.clone(),
+                    |target| resolve_local_override_spec(target, manifest_dir),
+                );
 
             map.insert(name, Value::String(new_spec));
         }
@@ -315,9 +345,12 @@ impl VersionsOverrider {
             .get("peerDependencies")
             .and_then(Value::as_object)
             .map(|map| {
-                map.iter()
+                map
+                    .iter()
                     .filter_map(|(name, spec)| {
-                        spec.as_str().map(|spec_str| (name.clone(), spec_str.to_string()))
+                        spec
+                            .as_str()
+                            .map(|spec_str| (name.clone(), spec_str.to_string()))
                     })
                     .collect()
             })
@@ -349,10 +382,12 @@ impl VersionsOverrider {
             remove_peer_dependency(value, &name);
             return;
         }
-        let new_spec = chosen.local_target.as_ref().map_or_else(
-            || chosen.inner.new_bare_specifier.clone(),
-            |target| resolve_local_override_spec(target, manifest_dir),
-        );
+        let new_spec = chosen.local_target
+            .as_ref()
+            .map_or_else(
+                || chosen.inner.new_bare_specifier.clone(),
+                |target| resolve_local_override_spec(target, manifest_dir),
+            );
         if is_valid_peer_range(&new_spec) {
             insert_peer_dependency(value, name, new_spec);
             return;
@@ -382,12 +417,17 @@ impl VersionsOverrider {
             if chosen.inner.new_bare_specifier == "-" {
                 return Some("-".to_string());
             }
-            return Some(chosen.local_target.as_ref().map_or_else(
-                || chosen.inner.new_bare_specifier.clone(),
-                |target| resolve_local_override_spec(target, Some(pkg_dir)),
-            ));
+            return Some(
+                chosen.local_target
+                    .as_ref()
+                    .map_or_else(
+                        || chosen.inner.new_bare_specifier.clone(),
+                        |target| resolve_local_override_spec(target, Some(pkg_dir)),
+                    ),
+            );
         }
-        self.converge_applies(dep_name, dep_spec)
+        self
+            .converge_applies(dep_name, dep_spec)
             .then(|| self.converge[dep_name].new_bare_specifier.clone())
     }
 
@@ -431,8 +471,7 @@ impl VersionsOverrider {
         dep_name: &str,
         dep_spec: &str,
     ) -> Option<&ResolvedOverride> {
-        let mut matching: Vec<&ResolvedOverride> = self
-            .generic
+        let mut matching: Vec<&ResolvedOverride> = self.generic
             .iter()
             .filter(|entry| matches_target(&entry.inner.target_pkg, dep_name, dep_spec))
             .collect();
@@ -448,18 +487,24 @@ impl VersionsOverrider {
         let range = self.try_record_converge_range(dep_name, dep_spec)?;
         let entry = &self.converge[dep_name];
         let version = entry.version.as_ref()?;
-        range.satisfies(version).then(|| entry.new_bare_specifier.clone())
+        range
+            .satisfies(version)
+            .then(|| entry.new_bare_specifier.clone())
     }
 
     /// Rewrite-only variant of [`Self::converge_dep`] for
     /// [`Self::has_applicable_override`]'s clone gate: same verdict,
     /// no collector side effect.
     fn converge_applies(&self, dep_name: &str, dep_spec: &str) -> bool {
-        self.converge.get(dep_name).is_some_and(|entry| {
-            entry.version.as_ref().is_some_and(|version| {
-                parse_declared_range(dep_spec).is_some_and(|range| range.satisfies(version))
+        self.converge
+            .get(dep_name)
+            .is_some_and(|entry| {
+                entry.version
+                    .as_ref()
+                    .is_some_and(|version| {
+                        parse_declared_range(dep_spec).is_some_and(|range| range.satisfies(version))
+                    })
             })
-        })
     }
 
     /// When `dep_name` is converge-governed and `dep_spec` is a plain
@@ -478,98 +523,5 @@ impl VersionsOverrider {
     }
 }
 
-/// Parse a dependency edge's declared spec for the convergence
-/// consult. Only plain semver ranges participate — `workspace:`,
-/// `catalog:`, `npm:`, git/URL, and dist-tag specifiers have no
-/// defined "satisfies" relation and yield `None`. An empty declared
-/// spec counts as `*`.
-pub(crate) fn parse_declared_range(spec: &str) -> Option<Range> {
-    if spec.is_empty() {
-        return Some(Range::any());
-    }
-    Range::parse(spec).ok()
-}
-
-/// A target matches when its name equals `dep_name` and its range
-/// intersects `dep_spec`.
-fn matches_target(target: &PackageSelector, dep_name: &str, dep_spec: &str) -> bool {
-    target.name == dep_name && is_intersecting_range(target.bare_specifier.as_deref(), dep_spec)
-}
-
-/// Sort overrides so the "most specific" one — the one whose target
-/// range is contained inside the others — sorts first.
-/// The intuition is `b ⊃ a ⇒ a sorts before b`, so a narrower target
-/// like `foo@1.2.3` wins over the broader `foo@^1`.
-fn sort_by_specificity(matching: &mut [&ResolvedOverride]) {
-    matching.sort_by(|lhs, rhs| {
-        let lhs_spec = lhs.inner.target_pkg.bare_specifier.as_deref().unwrap_or("");
-        let rhs_spec = rhs.inner.target_pkg.bare_specifier.as_deref().unwrap_or("");
-        // Rust's `sort_by` requires a total order, so the comparison
-        // widens to a 3-way result: `lhs` is
-        // strictly more specific when `rhs ⊇ lhs` but not vice versa,
-        // strictly less specific in the mirror case, and equal when
-        // both ranges cover each other (e.g. identical strings, or
-        // mutually-intersecting unions). The `Equal` arm is what keeps
-        // `sort_by`'s preconditions satisfied.
-        let rhs_covers_lhs = is_intersecting_range(Some(rhs_spec), lhs_spec);
-        let lhs_covers_rhs = is_intersecting_range(Some(lhs_spec), rhs_spec);
-        match (rhs_covers_lhs, lhs_covers_rhs) {
-            (true, false) => std::cmp::Ordering::Less,
-            (false, true) => std::cmp::Ordering::Greater,
-            _ => std::cmp::Ordering::Equal,
-        }
-    });
-}
-
-/// An absent `range1` (or empty target spec) matches everything. An
-/// exact-equal range pair matches without parsing. Otherwise both
-/// sides must parse as semver and have a non-empty intersection.
-fn is_intersecting_range(range1: Option<&str>, range2: &str) -> bool {
-    let Some(range1_str) = range1 else { return true };
-    if range1_str.is_empty() || range2 == range1_str {
-        return true;
-    }
-    let Ok(parsed1) = range1_str.parse::<Range>() else { return false };
-    let Ok(parsed2) = range2.parse::<Range>() else { return false };
-    parsed1.allows_any(&parsed2)
-}
-
-/// True when `version` (parsed as a concrete semver) satisfies
-/// `range`, the guard in the parent-scoped filter.
-/// A non-parseable version OR range fails the match conservatively —
-/// the parent constraint is treated as not applying.
-fn semver_satisfies(version: &str, range: &str) -> bool {
-    let Ok(parsed_version) = version.parse::<Version>() else { return false };
-    let Ok(parsed_range) = range.parse::<Range>() else { return false };
-    parsed_range.satisfies(&parsed_version)
-}
-
 #[cfg(test)]
 mod tests;
-
-/// Rewrite a peer's range, as long as the manifest still declares a
-/// `peerDependencies` object.
-fn insert_peer_dependency(value: &mut Value, name: String, spec: String) {
-    if let Some(peers) = value.get_mut("peerDependencies").and_then(Value::as_object_mut) {
-        peers.insert(name, Value::String(spec));
-    }
-}
-
-fn remove_peer_dependency(value: &mut Value, name: &str) {
-    if let Some(peers) = value.get_mut("peerDependencies").and_then(Value::as_object_mut) {
-        peers.remove(name);
-    }
-}
-
-/// An override value that is not a valid peer range moves the edge into
-/// `dependencies`, creating that object when the manifest declares none.
-fn insert_regular_dependency(value: &mut Value, name: String, spec: String) {
-    if !value.get("dependencies").is_some_and(Value::is_object)
-        && let Some(root) = value.as_object_mut()
-    {
-        root.insert("dependencies".to_string(), Value::Object(serde_json::Map::new()));
-    }
-    if let Some(deps) = value.get_mut("dependencies").and_then(Value::as_object_mut) {
-        deps.insert(name, Value::String(spec));
-    }
-}

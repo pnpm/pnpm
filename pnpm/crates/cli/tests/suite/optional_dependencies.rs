@@ -30,9 +30,9 @@ fn read_wanted_lockfile(workspace: &Path) -> Lockfile {
 }
 
 fn read_skipped(workspace: &Path) -> Vec<String> {
-    pnpm_modules_yaml::read_modules_layout::<pnpm_modules_yaml::Host>(
-        &workspace.join("node_modules"),
-    )
+    pnpm_modules_yaml::read_modules_layout::<pnpm_modules_yaml::Host>(&workspace.join(
+        "node_modules",
+    ))
     .expect("read .modules.yaml")
     .expect(".modules.yaml exists")
     .skipped
@@ -48,10 +48,18 @@ fn write_manifest(workspace: &Path, manifest: &serde_json::Value) {
 /// that has dependencies of its own).
 #[test]
 fn install_optional_dependency_with_subdependencies() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
 
-    pacquet.with_args(["add", "--save-optional", "@pnpm.e2e/pkg-with-optional"]).assert().success();
+    pacquet
+        .with_args(["add", "--save-optional", "@pnpm.e2e/pkg-with-optional"])
+        .assert()
+        .success();
 
     assert!(
         workspace.join("node_modules/@pnpm.e2e/pkg-with-optional/package.json").exists(),
@@ -66,12 +74,20 @@ fn install_optional_dependency_with_subdependencies() {
 /// succeed and link the parent.
 #[test]
 fn skip_failing_optional_dependencies() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     append_workspace_yaml_key(&workspace, "dangerouslyAllowAllBuilds", "true");
 
     pacquet
-        .with_args(["add", "@pnpm.e2e/pkg-with-failing-optional-dependency@1.0.0"])
+        .with_args([
+            "add",
+            "@pnpm.e2e/pkg-with-failing-optional-dependency@1.0.0",
+        ])
         .assert()
         .success();
 
@@ -91,8 +107,13 @@ fn skip_failing_optional_dependencies() {
 /// of the dependent with an `optional: true` snapshot.
 #[test]
 fn skip_failing_optional_peer_dependencies() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     append_workspace_yaml_key(&workspace, "dangerouslyAllowAllBuilds", "true");
 
     pacquet
@@ -119,7 +140,10 @@ fn skip_failing_optional_peer_dependencies() {
         .find(|(key, _)| key.to_string() == "@pnpm.e2e/pkg-with-failing-postinstall@1.0.0")
         .expect("failing postinstall package has a snapshot")
         .1;
-    assert!(failing_postinstall.optional, "the failing optional peer's snapshot must be optional");
+    assert!(
+        failing_postinstall.optional,
+        "the failing optional peer's snapshot must be optional",
+    );
 
     drop((root, npmrc_info)); // cleanup
 }
@@ -129,8 +153,13 @@ fn skip_failing_optional_peer_dependencies() {
 /// install; the other dependencies install normally.
 #[test]
 fn skip_non_existing_optional_dependency() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     write_manifest(
         &workspace,
         &serde_json::json!({
@@ -139,20 +168,21 @@ fn skip_non_existing_optional_dependency() {
         }),
     );
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     assert!(
         workspace.join("node_modules/is-positive/package.json").exists(),
         "the resolvable dependency must be installed",
     );
     let lockfile = read_wanted_lockfile(&workspace);
-    let root_importer = lockfile
-        .importers
+    let root_importer = lockfile.importers
         .get(Lockfile::ROOT_IMPORTER_KEY)
         .expect("lockfile has the root importer");
     let is_positive_name: PkgName = "is-positive".parse().expect("parse the package name");
-    let is_positive = root_importer
-        .dependencies
+    let is_positive = root_importer.dependencies
         .as_ref()
         .expect("root importer has dependencies")
         .get(&is_positive_name)
@@ -167,8 +197,13 @@ fn skip_non_existing_optional_dependency() {
 /// make an optional dependency uninstallable.
 #[test]
 fn do_not_skip_optional_dependency_that_does_not_support_the_current_pnpm_version() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     write_manifest(
         &workspace,
         &serde_json::json!({
@@ -176,7 +211,10 @@ fn do_not_skip_optional_dependency_that_does_not_support_the_current_pnpm_versio
         }),
     );
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     assert!(
         workspace.join("node_modules/@pnpm.e2e/for-legacy-pnpm/package.json").exists(),
@@ -191,8 +229,13 @@ fn do_not_skip_optional_dependency_that_does_not_support_the_current_pnpm_versio
 /// (`optionalDependencies.ts:610`).
 #[test]
 fn only_optional_dependencies_are_skipped_in_a_mixed_graph() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     write_manifest(
         &workspace,
         &serde_json::json!({
@@ -205,7 +248,10 @@ fn only_optional_dependencies_are_skipped_in_a_mixed_graph() {
         }),
     );
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let virtual_store = workspace.join("node_modules/.pnpm");
     assert!(!virtual_store.join("@pnpm.e2e+optional-graph-skipped-root@1.0.0").exists());
@@ -219,8 +265,13 @@ fn only_optional_dependencies_are_skipped_in_a_mixed_graph() {
 /// places of the dependency graph` (`optionalDependencies.ts:914`).
 #[test]
 fn repeated_optional_dependencies_across_a_complex_graph_are_classified_per_edge() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     write_arch_workspace_yaml(&workspace, "darwin", "x64", "");
     write_manifest(
         &workspace,
@@ -232,7 +283,10 @@ fn repeated_optional_dependencies_across_a_complex_graph_are_classified_per_edge
         }),
     );
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let virtual_store = workspace.join("node_modules/.pnpm");
     for version in ["1.0.0", "2.0.0"] {
@@ -249,7 +303,10 @@ fn repeated_optional_dependencies_across_a_complex_graph_are_classified_per_edge
 }
 
 fn sorted_keys<Key: ToString, Value>(map: &std::collections::HashMap<Key, Value>) -> Vec<String> {
-    let mut keys: Vec<String> = map.keys().map(ToString::to_string).collect();
+    let mut keys: Vec<String> = map
+        .keys()
+        .map(ToString::to_string)
+        .collect();
     keys.sort();
     keys
 }
@@ -259,15 +316,27 @@ fn sorted_keys<Key: ToString, Value>(map: &std::collections::HashMap<Key, Value>
 /// [`forced_frozen_install_materializes_incompatible_optionals`]).
 #[test]
 fn optional_subdependency_is_skipped() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
 
     pacquet
-        .with_args(["add", "@pnpm.e2e/pkg-with-optional", "@pnpm.e2e/dep-of-optional-pkg"])
+        .with_args([
+            "add",
+            "@pnpm.e2e/pkg-with-optional",
+            "@pnpm.e2e/dep-of-optional-pkg",
+        ])
         .assert()
         .success();
 
-    assert_eq!(read_skipped(&workspace), ["@pnpm.e2e/not-compatible-with-any-os@1.0.0"]);
+    assert_eq!(
+        read_skipped(&workspace),
+        ["@pnpm.e2e/not-compatible-with-any-os@1.0.0"],
+    );
     assert!(workspace.join("node_modules/.pnpm/@pnpm.e2e+pkg-with-optional@1.0.0").exists());
     assert!(
         !workspace.join("node_modules/.pnpm/@pnpm.e2e+not-compatible-with-any-os@1.0.0").exists(),
@@ -276,13 +345,18 @@ fn optional_subdependency_is_skipped() {
 
     // Recreate the lockfile: the skipped optional must be resolved back in.
     fs::remove_file(workspace.join(Lockfile::FILE_NAME)).expect("remove pnpm-lock.yaml");
-    pacquet_in(&workspace).with_arg("install").assert().success();
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let lockfile = read_wanted_lockfile(&workspace);
     let packages = lockfile.packages.as_ref().expect("lockfile has packages");
     assert_eq!(packages.len(), 3, "packages: {:?}", sorted_keys(packages));
     assert!(
-        packages.keys().any(|key| key.to_string() == "@pnpm.e2e/not-compatible-with-any-os@1.0.0"),
+        packages
+            .keys()
+            .any(|key| key.to_string() == "@pnpm.e2e/not-compatible-with-any-os@1.0.0"),
         "the recreated lockfile must resolve the skipped optional",
     );
 
@@ -295,8 +369,13 @@ fn optional_subdependency_is_skipped() {
 /// installed, and nothing lands in the skip set.
 #[test]
 fn only_optional_only_and_not_installable_package_is_skipped() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
 
     pacquet
         .with_args([
@@ -323,7 +402,10 @@ fn only_optional_only_and_not_installable_package_is_skipped() {
     );
 
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
-    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     assert_eq!(read_skipped(&workspace), Vec::<String>::new());
 
@@ -337,8 +419,13 @@ fn only_optional_only_and_not_installable_package_is_skipped() {
 /// install.
 #[test]
 fn headless_install_without_optional_deps() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     write_manifest(
         &workspace,
         &serde_json::json!({
@@ -347,7 +434,10 @@ fn headless_install_without_optional_deps() {
         }),
     );
 
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
     pacquet_in(&workspace)
         .with_args(["install", "--frozen-lockfile", "--no-optional"])
         .assert()
@@ -376,8 +466,13 @@ fn headless_install_without_optional_deps() {
 /// include filter: it drops the optional group along with the production one.
 #[test]
 fn headless_install_include_filtering_excludes_production_group() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     write_manifest(
         &workspace,
         &serde_json::json!({
@@ -387,8 +482,14 @@ fn headless_install_include_filtering_excludes_production_group() {
         }),
     );
 
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
-    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile", "--dev"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--dev"])
+        .assert()
+        .success();
 
     assert!(
         is_absent(&workspace.join("node_modules/@pnpm.e2e/foo")),
@@ -414,8 +515,13 @@ fn headless_install_include_filtering_excludes_production_group() {
 /// fails verification.
 #[test]
 fn headless_install_skips_unfetchable_optional_dependency() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     // Upstream runs with `retry: { retries: 0 }`; without it the failed
     // fetch retries with backoff and dominates the test's runtime.
     append_workspace_yaml_key(&workspace, "fetchRetries", "0");
@@ -427,7 +533,10 @@ fn headless_install_skips_unfetchable_optional_dependency() {
         }),
     );
 
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
 
     // Corrupt the optional's integrity: the tarball then fails
     // verification on fetch. The store and cache must be cold, or the
@@ -441,13 +550,19 @@ fn headless_install_skips_unfetchable_optional_dependency() {
     let integrity_end =
         integrity_at + lockfile_text[integrity_at..].find('}').expect("integrity value ends");
     let mut corrupted = lockfile_text.clone();
-    corrupted.replace_range(integrity_at..integrity_end, &format!("sha512-{}==", "A".repeat(86)));
+    corrupted.replace_range(
+        integrity_at..integrity_end,
+        &format!("sha512-{}==", "A".repeat(86)),
+    );
     assert_ne!(corrupted, lockfile_text);
     fs::write(&lockfile_path, corrupted).expect("write the corrupted lockfile");
     fs::remove_dir_all(&npmrc_info.store_dir).expect("clear the store");
     fs::remove_dir_all(&npmrc_info.cache_dir).expect("clear the cache");
 
-    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     assert!(
         workspace.join("node_modules/is-positive/package.json").exists(),
@@ -479,8 +594,13 @@ fn headless_install_skips_unfetchable_optional_dependency() {
 fn optional_dependency_is_hardlinked_to_the_store_if_it_does_not_require_a_build() {
     use std::os::unix::fs::MetadataExt;
 
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     append_workspace_yaml_key(&workspace, "packageImportMethod", "hardlink");
     write_manifest(
         &workspace,
@@ -490,8 +610,9 @@ fn optional_dependency_is_hardlinked_to_the_store_if_it_does_not_require_a_build
     );
 
     let assert_hardlinked = || {
-        let file = workspace
-            .join("node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive/package.json");
+        let file = workspace.join(
+            "node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive/package.json",
+        );
         let metadata = fs::metadata(&file).expect("materialized optional dependency file exists");
         assert!(
             metadata.nlink() > 1,
@@ -500,11 +621,17 @@ fn optional_dependency_is_hardlinked_to_the_store_if_it_does_not_require_a_build
         );
     };
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     assert_hardlinked();
 
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
-    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
     assert_hardlinked();
 
     drop((root, npmrc_info)); // cleanup
@@ -514,14 +641,25 @@ fn optional_dependency_is_hardlinked_to_the_store_if_it_does_not_require_a_build
 /// skipped` (`optionalDependencies.ts:344`, pnpm/pnpm issue 2663).
 #[test]
 fn optional_subdependency_of_newly_added_optional_dependency_is_skipped() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
 
-    pacquet.with_args(["add", "--save-optional", "@pnpm.e2e/pkg-with-optional"]).assert().success();
+    pacquet
+        .with_args(["add", "--save-optional", "@pnpm.e2e/pkg-with-optional"])
+        .assert()
+        .success();
 
     assert_eq!(
         read_skipped(&workspace),
-        ["@pnpm.e2e/dep-of-optional-pkg@1.0.0", "@pnpm.e2e/not-compatible-with-any-os@1.0.0"],
+        [
+            "@pnpm.e2e/dep-of-optional-pkg@1.0.0",
+            "@pnpm.e2e/not-compatible-with-any-os@1.0.0"
+        ],
     );
     let lockfile = read_wanted_lockfile(&workspace);
     let packages = lockfile.packages.as_ref().expect("lockfile has packages");
@@ -536,8 +674,13 @@ fn optional_subdependency_of_newly_added_optional_dependency_is_skipped() {
 /// its transitive optional is dropped too.
 #[test]
 fn not_installing_optional_dependencies_when_optional_is_false() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     write_manifest(
         &workspace,
         &serde_json::json!({
@@ -546,12 +689,16 @@ fn not_installing_optional_dependencies_when_optional_is_false() {
         }),
     );
 
-    pacquet.with_args(["install", "--no-optional"]).assert().success();
+    pacquet
+        .with_args(["install", "--no-optional"])
+        .assert()
+        .success();
 
     assert!(!workspace.join("node_modules/is-positive").exists());
     assert!(workspace.join("node_modules/@pnpm.e2e/pkg-with-good-optional/package.json").exists());
-    let good_optional_modules = workspace
-        .join("node_modules/.pnpm/@pnpm.e2e+pkg-with-good-optional@1.0.0/node_modules/@pnpm.e2e");
+    let good_optional_modules = workspace.join(
+        "node_modules/.pnpm/@pnpm.e2e+pkg-with-good-optional@1.0.0/node_modules/@pnpm.e2e",
+    );
     assert!(
         good_optional_modules.join("dep-of-pkg-with-1-dep/package.json").exists(),
         "the regular subdependency must be installed",
@@ -570,8 +717,13 @@ fn not_installing_optional_dependencies_when_optional_is_false() {
 
 #[test]
 fn optional_setting_excludes_optional_dependencies() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     write_manifest(
         &workspace,
         &serde_json::json!({
@@ -581,10 +733,15 @@ fn optional_setting_excludes_optional_dependencies() {
     );
     append_workspace_yaml_key(&workspace, "optional", "false");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     assert!(workspace.join("node_modules/is-positive/package.json").exists());
-    assert!(is_absent(&workspace.join("node_modules/@pnpm.e2e/pkg-with-optional")));
+    assert!(is_absent(&workspace.join(
+        "node_modules/@pnpm.e2e/pkg-with-optional"
+    )));
 
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
@@ -602,8 +759,13 @@ fn optional_setting_excludes_optional_dependencies() {
 /// `optionalDependencies` resolves to the optional entry's version.
 #[test]
 fn optional_dependency_has_bigger_priority_than_regular_dependency() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     write_manifest(
         &workspace,
         &serde_json::json!({
@@ -612,7 +774,10 @@ fn optional_dependency_has_bigger_priority_than_regular_dependency() {
         }),
     );
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let manifest: serde_json::Value = serde_json::from_str(
         &fs::read_to_string(workspace.join("node_modules/is-positive/package.json"))
@@ -631,8 +796,13 @@ fn optional_dependency_has_bigger_priority_than_regular_dependency() {
 /// is a direct regular dependency *and* another dependency's optional.
 #[test]
 fn both_optional_and_non_optional_dependency_is_installed_when_optionals_are_skipped() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     write_manifest(
         &workspace,
         &serde_json::json!({
@@ -643,7 +813,10 @@ fn both_optional_and_non_optional_dependency_is_installed_when_optionals_are_ski
         }),
     );
 
-    pacquet.with_args(["install", "--no-optional"]).assert().success();
+    pacquet
+        .with_args(["install", "--no-optional"])
+        .assert()
+        .success();
 
     assert!(
         workspace.join("node_modules/.pnpm/is-positive@1.0.0").exists(),
@@ -659,12 +832,21 @@ fn both_optional_and_non_optional_dependency_is_installed_when_optionals_are_ski
 /// (`optionalDependencies.ts:563`).
 #[test]
 fn do_not_fail_on_optional_dependency_with_failing_non_optional_postinstall() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     append_workspace_yaml_key(&workspace, "dangerouslyAllowAllBuilds", "true");
 
     pacquet
-        .with_args(["add", "--save-optional", "@pnpm.e2e/has-failing-postinstall-dep@1.0.0"])
+        .with_args([
+            "add",
+            "--save-optional",
+            "@pnpm.e2e/has-failing-postinstall-dep@1.0.0",
+        ])
         .assert()
         .success();
 
@@ -675,8 +857,13 @@ fn do_not_fail_on_optional_dependency_with_failing_non_optional_postinstall() {
 /// an optional and non-optional dependency` (`optionalDependencies.ts:574`).
 #[test]
 fn fail_on_failing_postinstall_when_package_is_both_optional_and_non_optional() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     append_workspace_yaml_key(&workspace, "dangerouslyAllowAllBuilds", "true");
     write_manifest(
         &workspace,
@@ -686,7 +873,10 @@ fn fail_on_failing_postinstall_when_package_is_both_optional_and_non_optional() 
         }),
     );
 
-    pacquet.with_arg("install").assert().failure();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .failure();
 
     drop((root, npmrc_info)); // cleanup
 }
@@ -708,8 +898,13 @@ fn write_arch_workspace_yaml(workspace: &Path, os: &str, cpu: &str, extra: &str)
 /// needs (`modulesCacheMaxAge: 0` makes the sweep run every install).
 #[test]
 fn remove_optional_dependencies_that_are_not_used() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     write_arch_workspace_yaml(
         &workspace,
         "darwin, linux, win32",
@@ -717,21 +912,31 @@ fn remove_optional_dependencies_that_are_not_used() {
         "modulesCacheMaxAge: 0\n",
     );
 
-    pacquet.with_args(["add", "@pnpm.e2e/has-many-optional-deps@1.0.0"]).assert().success();
+    pacquet
+        .with_args(["add", "@pnpm.e2e/has-many-optional-deps@1.0.0"])
+        .assert()
+        .success();
     let virtual_store = workspace.join("node_modules/.pnpm");
     for name in ["darwin-arm64", "darwin-x64", "linux-x64", "windows-x64"] {
         assert!(
-            virtual_store.join(format!("@pnpm.e2e+{name}@1.0.0")).exists(),
+            virtual_store
+                .join(format!("@pnpm.e2e+{name}@1.0.0"))
+                .exists(),
             "{name} must be materialized under the broad architecture set",
         );
     }
 
     write_arch_workspace_yaml(&workspace, "darwin", "x64", "modulesCacheMaxAge: 0\n");
-    pacquet_in(&workspace).with_arg("install").assert().success();
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     assert!(virtual_store.join("@pnpm.e2e+darwin-x64@1.0.0").exists());
     for name in ["darwin-arm64", "linux-x64", "windows-x64"] {
         assert!(
-            !virtual_store.join(format!("@pnpm.e2e+{name}@1.0.0")).exists(),
+            !virtual_store
+                .join(format!("@pnpm.e2e+{name}@1.0.0"))
+                .exists(),
             "{name} must be pruned once the architecture set no longer needs it",
         );
     }
@@ -743,8 +948,13 @@ fn remove_optional_dependencies_that_are_not_used() {
 /// linker is used` (`optionalDependencies.ts:633`).
 #[test]
 fn remove_optional_dependencies_that_are_not_used_with_hoisted_linker() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     write_arch_workspace_yaml(
         &workspace,
         "darwin, linux, win32",
@@ -752,14 +962,26 @@ fn remove_optional_dependencies_that_are_not_used_with_hoisted_linker() {
         "nodeLinker: hoisted\n",
     );
 
-    pacquet.with_args(["add", "@pnpm.e2e/has-many-optional-deps@1.0.0"]).assert().success();
+    pacquet
+        .with_args(["add", "@pnpm.e2e/has-many-optional-deps@1.0.0"])
+        .assert()
+        .success();
 
     write_arch_workspace_yaml(&workspace, "darwin", "x64", "nodeLinker: hoisted\n");
-    pacquet_in(&workspace).with_arg("install").assert().success();
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let mut entries: Vec<String> = fs::read_dir(workspace.join("node_modules/@pnpm.e2e"))
         .expect("read node_modules/@pnpm.e2e")
-        .map(|entry| entry.expect("read dir entry").file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            entry
+                .expect("read dir entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .collect();
     entries.sort();
     assert_eq!(entries, ["darwin-x64", "has-many-optional-deps"]);
@@ -774,10 +996,18 @@ fn remove_optional_dependencies_that_are_not_used_with_hoisted_linker() {
 /// lockfile.
 #[test]
 fn optional_subdependency_stays_in_current_lockfile_when_new_dependency_added() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     append_workspace_yaml_key(&workspace, "packages", "['project-1', 'project-2']");
-    write_manifest(&workspace, &serde_json::json!({ "name": "root", "private": true }));
+    write_manifest(
+        &workspace,
+        &serde_json::json!({ "name": "root", "private": true }),
+    );
     for (name, manifest) in [
         (
             "project-1",
@@ -787,25 +1017,39 @@ fn optional_subdependency_stays_in_current_lockfile_when_new_dependency_added() 
                 "dependencies": { "@pnpm.e2e/pkg-with-optional": "1.0.0" },
             }),
         ),
-        ("project-2", serde_json::json!({ "name": "project-2", "version": "1.0.0" })),
+        (
+            "project-2",
+            serde_json::json!({ "name": "project-2", "version": "1.0.0" }),
+        ),
     ] {
         fs::create_dir_all(workspace.join(name)).expect("create project dir");
-        fs::write(workspace.join(name).join("package.json"), manifest.to_string())
-            .expect("write project manifest");
+        fs::write(
+            workspace.join(name).join("package.json"),
+            manifest.to_string(),
+        )
+        .expect("write project manifest");
     }
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     assert_eq!(
         read_skipped(&workspace),
-        ["@pnpm.e2e/dep-of-optional-pkg@1.0.0", "@pnpm.e2e/not-compatible-with-any-os@1.0.0"],
+        [
+            "@pnpm.e2e/dep-of-optional-pkg@1.0.0",
+            "@pnpm.e2e/not-compatible-with-any-os@1.0.0"
+        ],
     );
     let current_has_not_compatible = |current: &Lockfile| {
-        current.packages.as_ref().is_some_and(|packages| {
-            packages
-                .keys()
-                .any(|key| key.to_string() == "@pnpm.e2e/not-compatible-with-any-os@1.0.0")
-        })
+        current.packages
+            .as_ref()
+            .is_some_and(|packages| {
+                packages
+                    .keys()
+                    .any(|key| key.to_string() == "@pnpm.e2e/not-compatible-with-any-os@1.0.0")
+            })
     };
     assert!(
         current_has_not_compatible(&read_current_lockfile(&workspace)),
@@ -869,7 +1113,10 @@ fn check_fresh_resolution_ignores_optional_dependencies(patterns: &str) {
             .assert()
             .success();
         let text = fs::read_to_string(workspace.join(Lockfile::FILE_NAME)).unwrap();
-        assert!(!text.contains("is-positive@"), "ignored package after {args:?}:\n{text}");
+        assert!(
+            !text.contains("is-positive@"),
+            "ignored package after {args:?}:\n{text}",
+        );
         let lockfile = read_wanted_lockfile(&workspace);
         assert_eq!(
             lockfile.ignored_optional_dependencies,
@@ -878,12 +1125,13 @@ fn check_fresh_resolution_ignores_optional_dependencies(patterns: &str) {
         let importer = &lockfile.importers["."];
         let ignored: PkgName = "is-positive".parse().unwrap();
         assert!(
-            importer.dependencies.as_ref().is_none_or(|deps| !deps.contains_key(&ignored)),
+            importer.dependencies
+                .as_ref()
+                .is_none_or(|deps| !deps.contains_key(&ignored)),
             "ignored duplicate regular dependency: {importer:?}",
         );
         assert!(
-            importer
-                .optional_dependencies
+            importer.optional_dependencies
                 .as_ref()
                 .is_some_and(|deps| !deps.contains_key(&ignored)
                     && deps.contains_key(&"is-negative".parse().unwrap())),
@@ -894,10 +1142,9 @@ fn check_fresh_resolution_ignores_optional_dependencies(patterns: &str) {
             "ignored direct dependency was linked after {args:?}",
         );
         assert!(
-            is_absent(
-                &workspace
-                    .join("node_modules/@pnpm.e2e/pkg-with-good-optional/node_modules/is-positive")
-            ),
+            is_absent(&workspace.join(
+                "node_modules/@pnpm.e2e/pkg-with-good-optional/node_modules/is-positive"
+            )),
             "ignored transitive dependency was linked after {args:?}",
         );
     }
@@ -909,8 +1156,13 @@ fn check_fresh_resolution_ignores_optional_dependencies(patterns: &str) {
 /// drops optional declarations, not the package.
 #[test]
 fn ignored_optional_dependencies_preserve_required_occurrences() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     append_workspace_yaml_key(&workspace, "ignoredOptionalDependencies", "[is-positive]");
     write_manifest(
         &workspace,
@@ -921,7 +1173,10 @@ fn ignored_optional_dependencies_preserve_required_occurrences() {
             }
         }),
     );
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     let lockfile = read_wanted_lockfile(&workspace);
     let name: PkgName = "is-positive".parse().unwrap();
     assert_eq!(
@@ -931,7 +1186,9 @@ fn ignored_optional_dependencies_preserve_required_occurrences() {
     let parent = &lockfile.snapshots.as_ref().unwrap()
         [&"@pnpm.e2e/pkg-with-good-optional@1.0.0".parse().unwrap()];
     assert!(
-        parent.optional_dependencies.as_ref().is_none_or(|deps| !deps.contains_key(&name)),
+        parent.optional_dependencies
+            .as_ref()
+            .is_none_or(|deps| !deps.contains_key(&name)),
         "ignored optional edge: {parent:?}",
     );
     assert!(
@@ -947,9 +1204,18 @@ fn ignored_optional_dependencies_preserve_required_occurrences() {
 /// publishes.
 #[test]
 fn ignored_optional_dependencies_apply_after_manifest_hooks() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
-    append_workspace_yaml_key(&workspace, "ignoredOptionalDependencies", "[is-negative, is-odd]");
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    append_workspace_yaml_key(
+        &workspace,
+        "ignoredOptionalDependencies",
+        "[is-negative, is-odd]",
+    );
     append_workspace_yaml_key(
         &workspace,
         "packageExtensions",
@@ -976,11 +1242,20 @@ export const hooks = {
         }),
     );
 
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
 
     let text = fs::read_to_string(workspace.join(Lockfile::FILE_NAME)).unwrap();
-    assert!(!text.contains("is-negative@"), "packageExtensions optional was kept:\n{text}");
-    assert!(!text.contains("is-odd@"), "readPackage optional was kept:\n{text}");
+    assert!(
+        !text.contains("is-negative@"),
+        "packageExtensions optional was kept:\n{text}",
+    );
+    assert!(
+        !text.contains("is-odd@"),
+        "readPackage optional was kept:\n{text}",
+    );
     assert!(
         text.contains("is-positive@"),
         "an optional dependency no pattern matches must survive:\n{text}",

@@ -43,7 +43,11 @@ fn walk_reqwest_chain(error: &reqwest::Error) -> String {
 /// error message ends up in terminal scrollback and CI logs. Network
 /// errors also remove the request URL from the reqwest source chain.
 #[derive(Debug, Display, Error, Diagnostic)]
-#[display("Failed to fetch {}: {}", redact_url_for_display(url), walk_reqwest_chain(error))]
+#[display(
+    "Failed to fetch {}: {}",
+    redact_url_for_display(url),
+    walk_reqwest_chain(error)
+)]
 pub struct NetworkError {
     pub url: String,
     /// Marked `#[error(source)]` so miette can also walk the chain on
@@ -56,19 +60,28 @@ pub struct NetworkError {
 
 impl NetworkError {
     pub(crate) fn new(url: &str, error: reqwest::Error) -> Self {
-        Self { url: redact_url_for_display(url), error: error.without_url() }
+        Self {
+            url: redact_url_for_display(url),
+            error: error.without_url(),
+        }
     }
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]
-#[display("Tarball server returned HTTP {status} for {}", redact_url_for_display(url))]
+#[display(
+    "Tarball server returned HTTP {status} for {}",
+    redact_url_for_display(url)
+)]
 pub struct HttpStatusError {
     pub url: String,
     pub status: u16,
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]
-#[display("Failed to verify the integrity of {}: {error}", redact_url_for_display(url))]
+#[display(
+    "Failed to verify the integrity of {}: {error}",
+    redact_url_for_display(url)
+)]
 pub struct VerifyChecksumError {
     pub url: String,
     #[error(source)]
@@ -196,7 +209,11 @@ pub enum TarballError {
         redact_url_for_display(url)
     )]
     #[diagnostic(code(ERR_PNPM_PATH_TRAVERSAL))]
-    PathTraversal { url: String, entry_path: String, reason: &'static str },
+    PathTraversal {
+        url: String,
+        entry_path: String,
+        reason: &'static str,
+    },
 
     /// Zip-archive parse / read error. Wraps the underlying `zip`
     /// crate error verbatim; pacquet does not interpret the failure
@@ -277,7 +294,9 @@ impl TarballError {
     pub fn fetch_error_details(&self) -> FetchErrorDetails {
         let mut details = FetchErrorDetails {
             message: self.to_string(),
-            code: self.code().map(|code| code.to_string()),
+            code: self
+                .code()
+                .map(|code| code.to_string()),
             status: None,
         };
         let network = match self {
@@ -341,5 +360,38 @@ fn io_error_code(error: &io::Error) -> Option<&'static str> {
         io::ErrorKind::TimedOut => Some("ETIMEDOUT"),
         io::ErrorKind::BrokenPipe => Some("EPIPE"),
         _ => None,
+    }
+}
+
+impl TarballError {
+    pub(crate) fn request_retry_code(&self) -> Option<&'static str> {
+        Some(match self {
+            Self::HttpStatus(_) => return None,
+            Self::FetchTarball(_) => "ERR_PNPM_FETCH",
+            Self::OffAllowlist { .. } => "ERR_PNPM_REGISTRY_OFF_ALLOWLIST",
+            Self::Checksum(_) => "ERR_PNPM_TARBALL_INTEGRITY",
+            Self::DecodeGzip(_) => "ERR_PNPM_TARBALL_GZIP",
+            Self::ReadTarballEntries(_) => "ERR_PNPM_TARBALL_TAR",
+            Self::ParseBundledManifest { .. } => "ERR_PNPM_TARBALL_EXTRACT",
+            Self::ReadLocalTarball { .. } => "ERR_PNPM_TARBALL_FILE",
+            Self::WriteCasFile(_) | Self::WriteStoreIndex(_) => "ERR_PNPM_TARBALL_STORE",
+            Self::TaskJoin(_) => "ERR_PNPM_TASK_JOIN",
+            Self::TarballTooLarge { .. } => "ERR_PNPM_TARBALL_TOO_LARGE",
+            Self::SiblingFetchFailed { .. } => "ERR_PNPM_SIBLING_FETCH",
+            Self::PathTraversal { .. } => "ERR_PNPM_PATH_TRAVERSAL",
+            Self::ReadZipArchive { .. } | Self::ReadZipEntries { .. } => "ERR_PNPM_ZIP",
+            // The retry classifier sees this only if the offline gate
+            // were ever placed inside the retry loop (it isn't —
+            // `NoOfflineTarball` short-circuits before
+            // `fetch_and_extract_with_retry`). The arm exists for
+            // exhaustiveness; the `code` field is set so a future
+            // surface that does run this error through the retry
+            // logger renders the right code.
+            Self::NoOfflineTarball { .. } => "ERR_PNPM_NO_OFFLINE_TARBALL",
+            // Same "for exhaustiveness" stance as the arm above: the
+            // store read this comes from happens before the retry loop,
+            // and re-reading the same row would only reproduce it.
+            Self::UnexpectedPkgContentInStore { .. } => "ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE",
+        })
     }
 }

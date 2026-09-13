@@ -16,13 +16,23 @@ pub(super) async fn time_cutoff<Chain>(
 where
     Chain: Resolver + ?Sized,
 {
-    let maximum_published_by =
-        sorted.opts.first().and_then(|opts| opts.base_opts.policy.published_by);
+    let maximum_published_by = sorted.opts
+        .first()
+        .and_then(|opts| opts.base_opts.policy.published_by);
     if !settings.version.time_based {
-        return TimeBasedCutoff { published_by: maximum_published_by, time: BTreeMap::new() };
+        return TimeBasedCutoff {
+            published_by: maximum_published_by,
+            time: BTreeMap::new(),
+        };
     }
-    compute_time_based_cutoff(resolver, sorted, dependency_groups, settings, maximum_published_by)
-        .await
+    compute_time_based_cutoff(
+        resolver,
+        sorted,
+        dependency_groups,
+        settings,
+        maximum_published_by,
+    )
+    .await
 }
 
 /// What a `time-based` pre-pass learned about the direct dependencies.
@@ -71,15 +81,20 @@ where
         .await;
     }
 
-    let newest =
-        time.values().filter_map(|published_at| parse_packument_timestamp(published_at)).max();
+    let newest = time
+        .values()
+        .filter_map(|published_at| parse_packument_timestamp(published_at))
+        .max();
     let candidate = newest.and_then(|date| date.checked_add_signed(Duration::hours(1)));
     let published_by = match (candidate, maximum_published_by) {
         (Some(candidate), Some(maximum)) => Some(candidate.min(maximum)),
         (Some(candidate), None) => Some(candidate),
         (None, maximum) => maximum,
     };
-    TimeBasedCutoff { published_by, time }
+    TimeBasedCutoff {
+        published_by,
+        time,
+    }
 }
 
 /// Resolve one importer's direct deps and record each one's publish
@@ -105,16 +120,20 @@ pub(super) async fn record_direct_publish_dates<Chain>(
     let mut direct_opts = opts.base_opts.clone();
     direct_opts.version.pick_lowest_version = settings.version.pick_lowest_direct;
     for spec in specs {
-        let Ok(Some(result)) = resolver
-            .resolve(&crate::resolve_dependency_tree::wanted_from_spec(spec), &direct_opts)
-            .await
+        let Ok(Some(result)) = resolver.resolve(
+            &crate::resolve_dependency_tree::wanted_from_spec(spec),
+            &direct_opts,
+        )
+        .await
         else {
             continue;
         };
-        let published_at = result
-            .package
-            .published_at
-            .or_else(|| settings.recorded_time.as_ref()?.get(result.id.as_str()).cloned());
+        let published_at = result.package.published_at.or_else(|| {
+            settings.recorded_time
+                .as_ref()?
+                .get(result.id.as_str())
+                .cloned()
+        });
         if let Some(published_at) = published_at {
             time.insert(result.id.into_inner(), published_at);
         }

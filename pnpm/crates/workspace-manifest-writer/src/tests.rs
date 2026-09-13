@@ -18,7 +18,10 @@ fn catalogs(entries: &[(&str, &[(&str, &str)])]) -> Catalogs {
     entries
         .iter()
         .map(|(name, deps)| {
-            let map = deps.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+            let map = deps
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect();
             (name.to_string(), map)
         })
         .collect()
@@ -29,7 +32,10 @@ fn catalogs(entries: &[(&str, &[(&str, &str)])]) -> Catalogs {
 fn run(original: Option<&str>, updated: &Catalogs) -> Option<String> {
     run_with(
         original,
-        &UpdateWorkspaceManifestOptions { updated_catalogs: Some(updated), ..Default::default() },
+        &UpdateWorkspaceManifestOptions {
+            updated_catalogs: Some(updated),
+            ..Default::default()
+        },
     )
 }
 
@@ -103,7 +109,10 @@ fn run_scaffold_allow_builds(original: Option<&str>, names: &[&str]) -> Option<S
 }
 
 fn patched_deps(entries: &[(&str, &str)]) -> IndexMap<String, String> {
-    entries.iter().map(|(key, value)| ((*key).to_string(), (*value).to_string())).collect()
+    entries
+        .iter()
+        .map(|(key, value)| ((*key).to_string(), (*value).to_string()))
+        .collect()
 }
 
 /// Run `set_patched_dependencies` against `original` (when `Some`) and return
@@ -129,7 +138,10 @@ fn run_patched_deps_path(original: Option<&str>, entries: &[(&str, &str)]) -> (T
 }
 
 fn overrides(entries: &[(&str, &str)]) -> IndexMap<String, String> {
-    entries.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+    entries
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect()
 }
 
 /// Run `set_overrides` against `original` (when `Some`) and return the
@@ -142,7 +154,9 @@ fn run_overrides(original: Option<&str>, entries: &IndexMap<String, String>) -> 
     }
     crate::set_overrides(
         dir.path(),
-        entries.iter().map(|(key, value)| (key.as_str(), value.as_str())),
+        entries
+            .iter()
+            .map(|(key, value)| (key.as_str(), value.as_str())),
     )
     .expect("set_overrides succeeds");
     fs::read_to_string(&path).ok()
@@ -156,7 +170,10 @@ fn run_ignore_ghsas(original: Option<&str>, ghsas: &[&str]) -> Option<String> {
     if let Some(text) = original {
         fs::write(&path, text).expect("seed manifest");
     }
-    let owned: Vec<String> = ghsas.iter().map(ToString::to_string).collect();
+    let owned: Vec<String> = ghsas
+        .iter()
+        .map(ToString::to_string)
+        .collect();
     crate::set_audit_ignore_ghsas(dir.path(), &owned).expect("set_audit_ignore_ghsas succeeds");
     fs::read_to_string(&path).ok()
 }
@@ -169,7 +186,11 @@ fn run_remove_overrides(original: Option<&str>, selectors: &[&str]) -> Option<St
     if let Some(text) = original {
         fs::write(&path, text).expect("seed manifest");
     }
-    let selectors: Vec<String> = selectors.iter().copied().map(ToString::to_string).collect();
+    let selectors: Vec<String> = selectors
+        .iter()
+        .copied()
+        .map(ToString::to_string)
+        .collect();
     crate::remove_overrides(dir.path(), &selectors).expect("remove succeeds");
     fs::read_to_string(&path).ok()
 }
@@ -196,7 +217,10 @@ fn run_age_excludes(original: Option<&str>, excludes: &[&str]) -> Option<String>
     if let Some(text) = original {
         fs::write(&path, text).expect("seed manifest");
     }
-    let owned: Vec<String> = excludes.iter().map(ToString::to_string).collect();
+    let owned: Vec<String> = excludes
+        .iter()
+        .map(ToString::to_string)
+        .collect();
     crate::set_minimum_release_age_excludes(dir.path(), &owned)
         .expect("set_minimum_release_age_excludes succeeds");
     fs::read_to_string(&path).ok()
@@ -238,7 +262,11 @@ mod remove_unused_catalogs {
         let consumer = project(serde_json::json!({
             "dependencies": { "foo": "^0.1.2", "bar": "catalog:" },
         }));
-        let out = run_cleanup(Some("catalog:\n  bar: 3.2.1\n  foo: ^0.1.2\n"), None, &[&consumer]);
+        let out = run_cleanup(
+            Some("catalog:\n  bar: 3.2.1\n  foo: ^0.1.2\n"),
+            None,
+            &[&consumer],
+        );
         assert_eq!(out.as_deref(), Some("catalog:\n  bar: 3.2.1\n"));
     }
 
@@ -253,7 +281,10 @@ mod remove_unused_catalogs {
             None,
             &[&consumer],
         );
-        assert_eq!(out.as_deref(), Some("catalogs:\n  default:\n    bar: 3.2.1\n"));
+        assert_eq!(
+            out.as_deref(),
+            Some("catalogs:\n  default:\n    bar: 3.2.1\n"),
+        );
     }
 
     /// TS: `remove the unused named catalog`.
@@ -394,7 +425,13 @@ mod minimum_release_age_exclude_prune {
         entries
             .iter()
             .map(|(name, versions)| {
-                (name.to_string(), versions.iter().map(ToString::to_string).collect())
+                (
+                    name.to_string(),
+                    versions
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect(),
+                )
             })
             .collect()
     }
@@ -431,14 +468,24 @@ mod minimum_release_age_exclude_prune {
     fn rewrites_a_narrowed_version_union_canonically() {
         let original = "minimumReleaseAgeExclude:\n  - foo@1.0.0 || 2.0.0\n";
         let out = run_age_cleanup(Some(original), Some(&resolved(&[("foo", &["2.0.0"])])));
-        assert_eq!(out.as_deref(), Some("minimumReleaseAgeExclude:\n  - foo@2.0.0\n"));
+        assert_eq!(
+            out.as_deref(),
+            Some("minimumReleaseAgeExclude:\n  - foo@2.0.0\n"),
+        );
     }
 
     #[test]
     fn keeps_a_union_entry_verbatim_when_every_version_is_resolved() {
         let original = "minimumReleaseAgeExclude:\n  - foo@2.0.0 || 1.0.0\n";
-        let out = run_age_cleanup(Some(original), Some(&resolved(&[("foo", &["1.0.0", "2.0.0"])])));
-        assert_eq!(out.as_deref(), Some(original), "no version was dropped, so no rewrite");
+        let out = run_age_cleanup(
+            Some(original),
+            Some(&resolved(&[("foo", &["1.0.0", "2.0.0"])])),
+        );
+        assert_eq!(
+            out.as_deref(),
+            Some(original),
+            "no version was dropped, so no rewrite",
+        );
     }
 
     #[test]
@@ -463,7 +510,10 @@ mod minimum_release_age_exclude_prune {
     fn drops_a_bare_name_when_the_package_is_absent() {
         let original = "minimumReleaseAgeExclude:\n  - foo\n  - bar@1.0.0\n";
         let out = run_age_cleanup(Some(original), Some(&resolved(&[("bar", &["1.0.0"])])));
-        assert_eq!(out.as_deref(), Some("minimumReleaseAgeExclude:\n  - bar@1.0.0\n"));
+        assert_eq!(
+            out.as_deref(),
+            Some("minimumReleaseAgeExclude:\n  - bar@1.0.0\n"),
+        );
     }
 
     #[test]
@@ -515,7 +565,13 @@ mod trust_policy_exclude_prune {
         entries
             .iter()
             .map(|(name, versions)| {
-                (name.to_string(), versions.iter().map(ToString::to_string).collect())
+                (
+                    name.to_string(),
+                    versions
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect(),
+                )
             })
             .collect()
     }
@@ -558,9 +614,15 @@ mod trust_policy_exclude_prune {
     #[test]
     fn keeps_a_union_entry_verbatim_when_every_version_is_resolved() {
         let original = "trustPolicyExclude:\n  - foo@2.0.0 || 1.0.0\n";
-        let out =
-            run_trust_cleanup(Some(original), Some(&resolved(&[("foo", &["1.0.0", "2.0.0"])])));
-        assert_eq!(out.as_deref(), Some(original), "no version was dropped, so no rewrite");
+        let out = run_trust_cleanup(
+            Some(original),
+            Some(&resolved(&[("foo", &["1.0.0", "2.0.0"])])),
+        );
+        assert_eq!(
+            out.as_deref(),
+            Some(original),
+            "no version was dropped, so no rewrite",
+        );
     }
 
     #[test]
@@ -611,7 +673,10 @@ mod trust_policy_exclude_prune {
                 ..Default::default()
             },
         );
-        assert_eq!(out.as_deref(), Some("minimumReleaseAgeExclude:\n  - foo@1.0.0\n"));
+        assert_eq!(
+            out.as_deref(),
+            Some("minimumReleaseAgeExclude:\n  - foo@1.0.0\n"),
+        );
     }
 
     /// An empty list has nothing to prune; removing the block would diverge
@@ -627,7 +692,10 @@ mod trust_policy_exclude_prune {
     fn keeps_a_surviving_entry_trailing_comment_when_another_entry_is_pruned() {
         let original = "trustPolicyExclude:\n  - foo@1.0.0 # trusted fork\n  - bar@2.0.0\n";
         let out = run_trust_cleanup(Some(original), Some(&resolved(&[("foo", &["1.0.0"])])));
-        assert_eq!(out.as_deref(), Some("trustPolicyExclude:\n  - foo@1.0.0 # trusted fork\n"));
+        assert_eq!(
+            out.as_deref(),
+            Some("trustPolicyExclude:\n  - foo@1.0.0 # trusted fork\n"),
+        );
     }
 
     /// A narrowed entry loses its own comment, matching the TypeScript
@@ -684,14 +752,20 @@ mod trust_policy_exclude_prune {
     fn keeps_a_block_scalar_entry_value_when_another_entry_is_pruned() {
         let original = "trustPolicyExclude:\n  - >-\n    *\n    # note\n  - bar@2.0.0\n";
         let out = run_trust_cleanup(Some(original), Some(&resolved(&[])));
-        assert_eq!(out.as_deref(), Some("trustPolicyExclude:\n  - '* # note'\n"));
+        assert_eq!(
+            out.as_deref(),
+            Some("trustPolicyExclude:\n  - '* # note'\n"),
+        );
     }
 
     #[test]
     fn keeps_a_blank_line_between_entries_when_the_entry_above_is_pruned() {
         let original = "trustPolicyExclude:\n  - foo@1.0.0\n\n  - bar@2.0.0\n";
         let out = run_trust_cleanup(Some(original), Some(&resolved(&[("bar", &["2.0.0"])])));
-        assert_eq!(out.as_deref(), Some("trustPolicyExclude:\n\n  - bar@2.0.0\n"));
+        assert_eq!(
+            out.as_deref(),
+            Some("trustPolicyExclude:\n\n  - bar@2.0.0\n"),
+        );
     }
 }
 
@@ -714,7 +788,9 @@ fn run_prune_allow_builds(original: Option<&str>, resolved: &[&str]) -> Option<S
         },
     )
     .expect("update succeeds");
-    path.exists().then(|| std::fs::read_to_string(&path).expect("read manifest"))
+    path
+        .exists()
+        .then(|| std::fs::read_to_string(&path).expect("read manifest"))
 }
 
 /// Every writer edits a hand-written single-line flow collection in place,
@@ -733,7 +809,10 @@ mod flow_style {
             Some("catalog: { foo: ^1.0.0 }\n"),
             &catalogs(&[("default", &[("bar", "^2.0.0")])]),
         );
-        assert_eq!(out.as_deref(), Some("catalog: { bar: ^2.0.0, foo: ^1.0.0 }\n"));
+        assert_eq!(
+            out.as_deref(),
+            Some("catalog: { bar: ^2.0.0, foo: ^1.0.0 }\n"),
+        );
     }
 
     #[test]
@@ -751,7 +830,10 @@ mod flow_style {
             Some("catalogs: { myCatalog: { foo: ^1.0.0 } }\n"),
             &catalogs(&[("myCatalog", &[("bar", "^2.0.0")])]),
         );
-        assert_eq!(out.as_deref(), Some("catalogs: { myCatalog: { bar: ^2.0.0, foo: ^1.0.0 } }\n"));
+        assert_eq!(
+            out.as_deref(),
+            Some("catalogs: { myCatalog: { bar: ^2.0.0, foo: ^1.0.0 } }\n"),
+        );
     }
 
     #[test]
@@ -775,7 +857,10 @@ mod flow_style {
     #[test]
     fn allow_build_is_added_to_a_flow_mapping() {
         let out = run_allow_builds(Some("allowBuilds: { foo: true }\n"), &[("bar", false)]);
-        assert_eq!(out.as_deref(), Some("allowBuilds: { bar: false, foo: true }\n"));
+        assert_eq!(
+            out.as_deref(),
+            Some("allowBuilds: { bar: false, foo: true }\n"),
+        );
     }
 
     #[test]
@@ -827,7 +912,10 @@ mod flow_style {
             Some("minimumReleaseAgeExclude: [foo@1.0.0]\n"),
             &["foo@1.0.0", "bar@2.0.0"],
         );
-        assert_eq!(out.as_deref(), Some("minimumReleaseAgeExclude: [ foo@1.0.0, bar@2.0.0 ]\n"));
+        assert_eq!(
+            out.as_deref(),
+            Some("minimumReleaseAgeExclude: [ foo@1.0.0, bar@2.0.0 ]\n"),
+        );
     }
 
     #[test]
@@ -836,13 +924,19 @@ mod flow_style {
             Some("auditConfig:\n  ignoreGhsas: [GHSA-aaaa-bbbb-cccc, GHSA-dddd-eeee-ffff]\n"),
             &["GHSA-gggg-hhhh-iiii"],
         );
-        assert_eq!(out.as_deref(), Some("auditConfig:\n  ignoreGhsas: [ GHSA-gggg-hhhh-iiii ]\n"));
+        assert_eq!(
+            out.as_deref(),
+            Some("auditConfig:\n  ignoreGhsas: [ GHSA-gggg-hhhh-iiii ]\n"),
+        );
     }
 
     #[test]
     fn ignore_ghsas_are_added_to_a_flow_audit_config() {
         let out = run_ignore_ghsas(Some("auditConfig: {}\n"), &["GHSA-aaaa-bbbb-cccc"]);
-        assert_eq!(out.as_deref(), Some("auditConfig: { ignoreGhsas: [ GHSA-aaaa-bbbb-cccc ] }\n"));
+        assert_eq!(
+            out.as_deref(),
+            Some("auditConfig: { ignoreGhsas: [ GHSA-aaaa-bbbb-cccc ] }\n"),
+        );
     }
 
     #[test]
@@ -855,7 +949,10 @@ mod flow_style {
         let err = crate::set_allow_builds(dir.path(), [("bar", true)])
             .expect_err("must refuse a multi-line inline allowBuilds block");
 
-        assert!(matches!(err, crate::UpdateWorkspaceManifestError::UnsupportedInlineBlock { .. }));
+        assert!(matches!(
+            err,
+            crate::UpdateWorkspaceManifestError::UnsupportedInlineBlock { .. }
+        ));
         assert_eq!(fs::read_to_string(&path).expect("read manifest"), original);
     }
 
@@ -869,7 +966,10 @@ mod flow_style {
         let err = crate::set_minimum_release_age_excludes(dir.path(), &["baz@3.0.0".to_string()])
             .expect_err("must refuse a multi-line inline sequence");
 
-        assert!(matches!(err, crate::UpdateWorkspaceManifestError::UnsupportedInlineBlock { .. }));
+        assert!(matches!(
+            err,
+            crate::UpdateWorkspaceManifestError::UnsupportedInlineBlock { .. }
+        ));
         assert_eq!(fs::read_to_string(&path).expect("read manifest"), original);
     }
 
@@ -884,13 +984,19 @@ mod flow_style {
     fn a_multiline_flow_block_is_deleted_whole_by_config_delete() {
         let dir = TempDir::new().expect("temp dir");
         let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
-        fs::write(&path, "overrides: {\n  foo: 1.0.0, # pinned\n}\npackages:\n  - '*'\n")
-            .expect("seed manifest");
+        fs::write(
+            &path,
+            "overrides: {\n  foo: 1.0.0, # pinned\n}\npackages:\n  - '*'\n",
+        )
+        .expect("seed manifest");
 
         crate::update_manifest_field(&path, "overrides", &serde_json::Value::Null)
             .expect("update_manifest_field succeeds");
 
-        assert_eq!(fs::read_to_string(&path).expect("read manifest"), "packages:\n  - '*'\n");
+        assert_eq!(
+            fs::read_to_string(&path).expect("read manifest"),
+            "packages:\n  - '*'\n",
+        );
     }
 
     /// A block whose value has the wrong shape for its setting never reaches
@@ -905,7 +1011,10 @@ mod flow_style {
         let err = crate::set_allow_builds(dir.path(), [("bar", true)])
             .expect_err("must refuse a sequence where allowBuilds expects a mapping");
 
-        assert!(matches!(err, crate::UpdateWorkspaceManifestError::Parse { .. }));
+        assert!(matches!(
+            err,
+            crate::UpdateWorkspaceManifestError::Parse { .. }
+        ));
         assert_eq!(fs::read_to_string(&path).expect("read manifest"), original);
     }
 
@@ -922,7 +1031,10 @@ mod flow_style {
         let err = crate::set_overrides(dir.path(), [("bar", "2.0.0")])
             .expect_err("must refuse a whole-document flow mapping");
 
-        assert!(matches!(err, crate::UpdateWorkspaceManifestError::UnsupportedInlineBlock { .. }));
+        assert!(matches!(
+            err,
+            crate::UpdateWorkspaceManifestError::UnsupportedInlineBlock { .. }
+        ));
         assert_eq!(fs::read_to_string(&path).expect("read manifest"), original);
     }
 
@@ -942,7 +1054,10 @@ mod flow_style {
         )
         .expect_err("must refuse an aliased catalog block");
 
-        assert!(matches!(err, crate::UpdateWorkspaceManifestError::UnsupportedInlineBlock { .. }));
+        assert!(matches!(
+            err,
+            crate::UpdateWorkspaceManifestError::UnsupportedInlineBlock { .. }
+        ));
         assert_eq!(fs::read_to_string(&path).expect("read manifest"), original);
     }
 }

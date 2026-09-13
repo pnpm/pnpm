@@ -49,13 +49,27 @@ pub struct S3Settings {
 /// credential must never reach a log line, span, or diagnostic dump.
 impl fmt::Debug for S3Settings {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("S3Settings")
+        f
+            .debug_struct("S3Settings")
             .field("bucket", &self.bucket)
             .field("region", &self.region)
-            .field("endpoint", &self.endpoint.as_deref().map(redact_url_credentials))
+            .field(
+                "endpoint",
+                &self.endpoint.as_deref().map(redact_url_credentials),
+            )
             .field("prefix", &self.prefix)
-            .field("access_key_id", &self.access_key_id.as_ref().map(|_| "<redacted>"))
-            .field("secret_access_key", &self.secret_access_key.as_ref().map(|_| "<redacted>"))
+            .field(
+                "access_key_id",
+                &self.access_key_id
+                    .as_ref()
+                    .map(|_| "<redacted>"),
+            )
+            .field(
+                "secret_access_key",
+                &self.secret_access_key
+                    .as_ref()
+                    .map(|_| "<redacted>"),
+            )
             .field("force_path_style", &self.force_path_style)
             .field("allow_http", &self.allow_http)
             .finish()
@@ -76,9 +90,11 @@ impl S3Settings {
 /// work out of the box, then the explicit YAML values override.
 /// Failures here are config errors surfaced at startup, not over HTTP.
 pub fn build_s3_store(settings: &S3Settings) -> pnpr_error::Result<Arc<dyn ObjectStore>> {
-    let store = s3_builder(settings).build().map_err(|err| {
-        pnpr_error::RegistryError::InvalidConfig { reason: format!("invalid s3 config: {err}") }
-    })?;
+    let store = s3_builder(settings)
+        .build()
+        .map_err(|err| pnpr_error::RegistryError::InvalidConfig {
+            reason: format!("invalid s3 config: {err}"),
+        })?;
     Ok(Arc::new(store))
 }
 
@@ -118,11 +134,18 @@ pub(super) fn s3_builder(settings: &S3Settings) -> AmazonS3Builder {
 /// goes through this — a raw `packages` would otherwise key `packagesfoo/…`.
 #[must_use]
 pub fn normalize_key_prefix(prefix: Option<&str>) -> String {
-    match prefix.map(str::trim).filter(|text| !text.is_empty()) {
+    match prefix
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+    {
         None => String::new(),
         Some(prefix) => {
             let trimmed = prefix.trim_matches('/');
-            if trimmed.is_empty() { String::new() } else { format!("{trimmed}/") }
+            if trimmed.is_empty() {
+                String::new()
+            } else {
+                format!("{trimmed}/")
+            }
         }
     }
 }
@@ -141,5 +164,8 @@ pub enum HostedStoreConfig {
     /// it is how an embedder brings its own [`ObjectStore`]: a provider pnpr
     /// has no settings shape for, or an in-memory one under test. `prefix` is
     /// normalized on the way in, so a raw `packages` works.
-    ObjectStore { store: Arc<dyn ObjectStore>, prefix: String },
+    ObjectStore {
+        store: Arc<dyn ObjectStore>,
+        prefix: String,
+    },
 }

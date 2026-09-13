@@ -40,7 +40,10 @@ async fn importer_scoped_update_route_owns_shared_parent_children_in_either_orde
         ]);
         let importers = order
             .iter()
-            .map(|id| WorkspaceImporter { id: (*id).to_string(), manifest: manifests[id] })
+            .map(|id| WorkspaceImporter {
+                id: (*id).to_string(),
+                manifest: manifests[id],
+            })
             .collect::<Vec<_>>();
         let resolver = RecordingResolver {
             table: HashMap::from_iter([
@@ -81,12 +84,15 @@ async fn importer_scoped_update_route_owns_shared_parent_children_in_either_orde
             "selected".to_string(),
             crate::UpdateReuseScope::Except(std::iter::once(("pkg".to_string(), None)).collect()),
         )]);
-        let result =
-            resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
-                importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
-            })
-            .await
-            .expect("resolve shared parent update");
+        let result = resolve_workspace(
+            &resolver,
+            &importers,
+            &[DependencyGroup::Prod],
+            opts,
+            |importer| importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None),
+        )
+        .await
+        .expect("resolve shared parent update");
 
         for importer_id in ["selected", "unselected"] {
             assert_eq!(
@@ -101,7 +107,11 @@ async fn importer_scoped_update_route_owns_shared_parent_children_in_either_orde
         // Recording the winner's children is not enough on its own: the
         // occurrence that ran first realized the ones it resolved, and
         // only the handover makes it re-read them.
-        assert_eq!(graph_versions_of(&result, "pkg"), ["100.1.0"], "order {order:?}");
+        assert_eq!(
+            graph_versions_of(&result, "pkg"),
+            ["100.1.0"],
+            "order {order:?}",
+        );
     }
 }
 
@@ -115,8 +125,14 @@ async fn deprecation_attribution_does_not_depend_on_importer_listing_order() {
             fake_manifest(serde_json::json!({ "wrapper": "1.0.0" }));
         let (_direct_tmp, direct_manifest) = fake_manifest(serde_json::json!({ "old": "1.0.0" }));
         let mut importers = vec![
-            WorkspaceImporter { id: "a-transitive".to_string(), manifest: &transitive_manifest },
-            WorkspaceImporter { id: "b-direct".to_string(), manifest: &direct_manifest },
+            WorkspaceImporter {
+                id: "a-transitive".to_string(),
+                manifest: &transitive_manifest,
+            },
+            WorkspaceImporter {
+                id: "b-direct".to_string(),
+                manifest: &direct_manifest,
+            },
         ];
         if reversed {
             importers.reverse();
@@ -155,13 +171,21 @@ async fn deprecation_attribution_does_not_depend_on_importer_listing_order() {
         let notifications = std::sync::Arc::new(Mutex::new(Vec::new()));
         let sink = std::sync::Arc::clone(&notifications);
         let mut opts = workspace_opts(false, false);
-        opts.hooks.deprecation_log =
-            Some(std::sync::Arc::new(move |deprecation: crate::Deprecation| {
-                sink.lock().unwrap().push(deprecation);
-            }));
-        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
-            importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
-        })
+        opts.hooks.deprecation_log = Some(std::sync::Arc::new(
+            move |deprecation: crate::Deprecation| {
+                sink
+                    .lock()
+                    .unwrap()
+                    .push(deprecation);
+            },
+        ));
+        resolve_workspace(
+            &resolver,
+            &importers,
+            &[DependencyGroup::Prod],
+            opts,
+            |importer| importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None),
+        )
         .await
         .expect("resolve the workspace");
         let notifications = notifications.lock().unwrap();
@@ -173,5 +197,8 @@ async fn deprecation_attribution_does_not_depend_on_importer_listing_order() {
 
     let listed = deprecation_prefix_for(false).await;
     let reversed = deprecation_prefix_for(true).await;
-    assert_eq!(listed, reversed, "attribution must not depend on the listing order");
+    assert_eq!(
+        listed, reversed,
+        "attribution must not depend on the listing order",
+    );
 }

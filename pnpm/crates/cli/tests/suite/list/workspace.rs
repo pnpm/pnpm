@@ -31,7 +31,11 @@ fn recursive_list_depth_minus_one_json_lists_workspace_projects() {
     let names = recursive_project_names(pacquet, &[]);
     assert_eq!(
         names,
-        BTreeSet::from(["project-1".to_string(), "project-2".to_string(), "root".to_string()]),
+        BTreeSet::from([
+            "project-1".to_string(),
+            "project-2".to_string(),
+            "root".to_string()
+        ]),
     );
 
     drop(root);
@@ -46,7 +50,10 @@ fn fail_if_no_match_exits_non_zero_when_the_filter_matches_nothing() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(
         &workspace,
-        &[("project-1", json!({ "name": "project-1", "version": "1.0.0" }))],
+        &[(
+            "project-1",
+            json!({ "name": "project-1", "version": "1.0.0" }),
+        )],
     );
 
     let output = pacquet
@@ -63,7 +70,10 @@ fn fail_if_no_match_exits_non_zero_when_the_filter_matches_nothing() {
         String::from_utf8_lossy(&output.stderr),
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.starts_with("No projects matched the filters in"), "stdout:\n{stdout}");
+    assert!(
+        stdout.starts_with("No projects matched the filters in"),
+        "stdout:\n{stdout}",
+    );
 
     drop(root);
 }
@@ -74,8 +84,14 @@ fn list_is_recursive_by_default_inside_workspace() {
     write_workspace(
         &workspace,
         &[
-            ("project-1", json!({ "name": "project-1", "version": "1.0.0" })),
-            ("project-2", json!({ "name": "project-2", "version": "1.0.0" })),
+            (
+                "project-1",
+                json!({ "name": "project-1", "version": "1.0.0" }),
+            ),
+            (
+                "project-2",
+                json!({ "name": "project-2", "version": "1.0.0" }),
+            ),
         ],
     );
 
@@ -95,11 +111,20 @@ fn list_is_recursive_by_default_inside_workspace() {
     let packages: Vec<Value> = serde_json::from_slice(&output.stdout).expect("parse list JSON");
     let names: BTreeSet<String> = packages
         .iter()
-        .map(|pkg| pkg["name"].as_str().expect("package name").to_string())
+        .map(|pkg| {
+            pkg["name"]
+                .as_str()
+                .expect("package name")
+                .to_string()
+        })
         .collect();
     assert_eq!(
         names,
-        BTreeSet::from(["project-1".to_string(), "project-2".to_string(), "root".to_string()]),
+        BTreeSet::from([
+            "project-1".to_string(),
+            "project-2".to_string(),
+            "root".to_string()
+        ]),
     );
 
     drop(root);
@@ -111,15 +136,25 @@ fn recursive_list_depth_minus_one_json_keeps_project_only_output_with_package_pa
     write_workspace(
         &workspace,
         &[
-            ("project-1", json!({ "name": "project-1", "version": "1.0.0" })),
-            ("project-2", json!({ "name": "project-2", "version": "1.0.0" })),
+            (
+                "project-1",
+                json!({ "name": "project-1", "version": "1.0.0" }),
+            ),
+            (
+                "project-2",
+                json!({ "name": "project-2", "version": "1.0.0" }),
+            ),
         ],
     );
 
     let names = recursive_project_names(pacquet, &["does-not-exist"]);
     assert_eq!(
         names,
-        BTreeSet::from(["project-1".to_string(), "project-2".to_string(), "root".to_string()]),
+        BTreeSet::from([
+            "project-1".to_string(),
+            "project-2".to_string(),
+            "root".to_string()
+        ]),
     );
 
     drop(root);
@@ -150,14 +185,20 @@ fn changed_files_ignore_pattern_is_respected() {
         .expect("write package.json");
     }
     let write_workspace_yaml = |extra: &str| {
-        fs::write(workspace.join("pnpm-workspace.yaml"), format!("packages:\n  - '*'\n{extra}"))
-            .expect("write pnpm-workspace.yaml");
+        fs::write(
+            workspace.join("pnpm-workspace.yaml"),
+            format!("packages:\n  - '*'\n{extra}"),
+        )
+        .expect("write pnpm-workspace.yaml");
     };
     write_workspace_yaml("");
 
     let git = |args: &[&str]| {
-        let output =
-            Command::new("git").args(args).current_dir(&workspace).output().expect("spawn git");
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(&workspace)
+            .output()
+            .expect("spawn git");
         assert!(
             output.status.success(),
             "git {args:?} failed: {}",
@@ -175,12 +216,21 @@ fn changed_files_ignore_pattern_is_respected() {
     git(&["remote", "add", "origin", &remote.to_string_lossy()]);
     git(&["push", "-u", "origin", "main"]);
 
-    fs::write(workspace.join("project-2-change-is-never-ignored").join("index.js"), "")
-        .expect("write changed file");
-    fs::write(workspace.join("project-3-ignored-by-pattern").join("index.spec.js"), "")
-        .expect("write changed file");
-    fs::write(workspace.join("project-3-ignored-by-pattern").join("README.md"), "")
-        .expect("write changed file");
+    fs::write(
+        workspace.join("project-2-change-is-never-ignored").join("index.js"),
+        "",
+    )
+    .expect("write changed file");
+    fs::write(
+        workspace.join("project-3-ignored-by-pattern").join("index.spec.js"),
+        "",
+    )
+    .expect("write changed file");
+    fs::write(
+        workspace.join("project-3-ignored-by-pattern").join("README.md"),
+        "",
+    )
+    .expect("write changed file");
     let buildscript_dir = workspace.join("project-4-ignored-by-pattern").join("a/b/c");
     fs::create_dir_all(&buildscript_dir).expect("create nested dirs");
     fs::write(buildscript_dir.join("buildscript.js"), "").expect("write changed file");
@@ -199,7 +249,10 @@ fn changed_files_ignore_pattern_is_respected() {
     let changed_project_names = |extra_args: &[&str]| {
         let pacquet =
             Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(&workspace);
-        recursive_project_names(pacquet, &[&["--filter", "[origin/main]"], extra_args].concat())
+        recursive_project_names(
+            pacquet,
+            &[&["--filter", "[origin/main]"], extra_args].concat(),
+        )
     };
 
     assert_eq!(
@@ -247,7 +300,10 @@ fn recursive_list_renders_workspace_projects_in_one_pass() {
             "project-2",
             json!({ "name": "project-2", "version": "1.0.0", "dependencies": { HELLO: "1.0.0" } }),
         ),
-        ("project-3", json!({ "name": "project-3", "version": "1.0.0" })),
+        (
+            "project-3",
+            json!({ "name": "project-3", "version": "1.0.0" }),
+        ),
     ];
     for (name, manifest) in &manifests {
         let dir = workspace.join(name);
@@ -302,7 +358,10 @@ fn ls_filter_not_exist_json_prints_an_empty_array() {
     .expect("write foo package.json");
     run_ok(&workspace, &["install"]);
 
-    let output = run_ok(&workspace, &["ls", "--filter=project-that-does-not-exist", "--json"]);
+    let output = run_ok(
+        &workspace,
+        &["ls", "--filter=project-that-does-not-exist", "--json"],
+    );
     assert_eq!(output.trim_end(), "[]");
 }
 
@@ -345,8 +404,10 @@ fn list_only_projects_shows_only_projects() {
     }
     run_ok(&workspace, &["install"]);
 
-    let output =
-        run_ok(&workspace, &["--filter", ".", "list", "--depth", "999", "--only-projects"]);
+    let output = run_ok(
+        &workspace,
+        &["--filter", ".", "list", "--depth", "999", "--only-projects"],
+    );
     let dir = canonical(&workspace);
     assert_eq!(
         output,

@@ -31,15 +31,22 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
     }
     if !manifest_path.is_file() {
         let manifest_path = manifest_path.display();
-        return Err(miette::miette!("cannot add a crate because {manifest_path} does not exist"));
+        return Err(miette::miette!(
+            "cannot add a crate because {manifest_path} does not exist"
+        ));
     }
     let root = cargo_deps::workspace_root(&manifest_path).await?;
     let mut metadata = cargo_deps::metadata_paths(&root).to_vec();
     metadata.push(manifest_path.clone());
     let transaction_root = root.clone();
     let prepare = async move {
-        prepare_manifest(context.config, &manifest_path, options, Arc::clone(&context.http_client))
-            .await?;
+        prepare_manifest(
+            context.config,
+            &manifest_path,
+            options,
+            Arc::clone(&context.http_client),
+        )
+        .await?;
         cargo_deps::prepare::<Reporter>(
             context,
             vec![root],
@@ -56,7 +63,12 @@ async fn prepare_manifest(
     options: AddOptions,
     http_client: Arc<ThrottledClient>,
 ) -> Result<()> {
-    let AddOptions { packages, dependency_kind, save_exact, save_prefix } = options;
+    let AddOptions {
+        packages,
+        dependency_kind,
+        save_exact,
+        save_prefix,
+    } = options;
     let save_prefix = save_prefix.as_deref();
     let auth_headers = packages
         .iter()

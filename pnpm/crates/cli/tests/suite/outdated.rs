@@ -45,11 +45,24 @@ fn outdated_reports_newer_version() {
     pacquet(&workspace, ["install"]).assert().success();
 
     let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
-    assert_eq!(output.status.code(), Some(1), "outdated deps present should exit 1");
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "outdated deps present should exit 1",
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains(DEP), "report should mention the package: {stdout}");
-    assert!(stdout.contains("100.1.0"), "report should show the current version: {stdout}");
-    assert!(stdout.contains("101.0.0"), "report should show the latest version: {stdout}");
+    assert!(
+        stdout.contains(DEP),
+        "report should mention the package: {stdout}",
+    );
+    assert!(
+        stdout.contains("100.1.0"),
+        "report should show the current version: {stdout}",
+    );
+    assert!(
+        stdout.contains("101.0.0"),
+        "report should show the latest version: {stdout}",
+    );
 
     drop((root, anchor));
 }
@@ -57,8 +70,11 @@ fn outdated_reports_newer_version() {
 #[test]
 fn outdated_from_workspace_member_reads_member_importer() {
     let (root, workspace, anchor) = setup();
-    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
-        .expect("write workspace manifest");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\n",
+    )
+    .expect("write workspace manifest");
     write_manifest(&workspace, "{}");
     let member = workspace.join("packages/app");
     fs::create_dir_all(&member).expect("create workspace member");
@@ -73,9 +89,16 @@ fn outdated_from_workspace_member_reads_member_importer() {
 
     let output = pacquet(&member, ["outdated"]).output().expect("run member outdated");
 
-    assert_eq!(output.status.code(), Some(1), "member dependency should be outdated");
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "member dependency should be outdated",
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains(DEP), "report should use the member importer: {stdout}");
+    assert!(
+        stdout.contains(DEP),
+        "report should use the member importer: {stdout}",
+    );
     assert!(
         stdout.contains("100.1.0"),
         "report should show the member's current version: {stdout}",
@@ -96,7 +119,11 @@ fn outdated_compatible_ignores_out_of_range_releases() {
 
     // Default run is outdated (101.0.0 latest)...
     assert_eq!(
-        pacquet(&workspace, ["outdated"]).output().unwrap().status.code(),
+        pacquet(&workspace, ["outdated"])
+            .output()
+            .unwrap()
+            .status
+            .code(),
         Some(1),
         "default outdated should flag the out-of-range 101.0.0",
     );
@@ -105,9 +132,16 @@ fn outdated_compatible_ignores_out_of_range_releases() {
     // already the highest in `^100.0.0`, so nothing is outdated.
     let output =
         pacquet(&workspace, ["outdated", "--compatible"]).output().expect("run pacquet outdated");
-    assert_eq!(output.status.code(), Some(0), "compatible run should be up to date");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "compatible run should be up to date",
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(!stdout.contains(DEP), "compatible run should report nothing: {stdout}");
+    assert!(
+        !stdout.contains(DEP),
+        "compatible run should report nothing: {stdout}",
+    );
 
     drop((root, anchor));
 }
@@ -145,9 +179,16 @@ fn outdated_up_to_date_exits_zero() {
     pacquet(&workspace, ["install"]).assert().success();
 
     let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
-    assert_eq!(output.status.code(), Some(0), "up-to-date deps should exit 0");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "up-to-date deps should exit 0",
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(!stdout.contains(DEP), "no outdated dep should be reported: {stdout}");
+    assert!(
+        !stdout.contains(DEP),
+        "no outdated dep should be reported: {stdout}",
+    );
 
     drop((root, anchor));
 }
@@ -159,22 +200,45 @@ fn outdated_respects_minimum_release_age() {
     let (root, workspace, anchor) = setup();
 
     write_manifest(&workspace, &format!(r#"{{ "{BRAVO_DEP}": "1.0.0" }}"#));
-    set_minimum_release_age(&workspace, bravo_dep_mature_up_to_1_0_1_minimum_release_age());
+    set_minimum_release_age(
+        &workspace,
+        bravo_dep_mature_up_to_1_0_1_minimum_release_age(),
+    );
     pacquet(&workspace, ["install"]).assert().success();
 
     let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
-    assert_eq!(output.status.code(), Some(1), "the mature release should be offered");
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "the mature release should be offered",
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains(BRAVO_DEP), "report should include the package: {stdout}");
-    assert!(stdout.contains("1.0.1"), "report should offer the mature release: {stdout}");
-    assert!(!stdout.contains("1.1.0"), "report should omit the immature release: {stdout}");
+    assert!(
+        stdout.contains(BRAVO_DEP),
+        "report should include the package: {stdout}",
+    );
+    assert!(
+        stdout.contains("1.0.1"),
+        "report should offer the mature release: {stdout}",
+    );
+    assert!(
+        !stdout.contains("1.1.0"),
+        "report should omit the immature release: {stdout}",
+    );
 
     write_manifest(&workspace, &format!(r#"{{ "{BRAVO_DEP}": "1.0.1" }}"#));
     pacquet(&workspace, ["install"]).assert().success();
     let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
-    assert_eq!(output.status.code(), Some(0), "immature releases should not be offered");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "immature releases should not be offered",
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(!stdout.contains(BRAVO_DEP), "report should omit immature releases: {stdout}");
+    assert!(
+        !stdout.contains(BRAVO_DEP),
+        "report should omit immature releases: {stdout}",
+    );
 
     drop((root, anchor));
 }
@@ -184,14 +248,23 @@ fn outdated_respects_minimum_release_age() {
 fn outdated_pattern_filters_dependencies() {
     let (root, workspace, anchor) = setup();
 
-    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0", "{FOO}": "^1.0.0" }}"#));
+    write_manifest(
+        &workspace,
+        &format!(r#"{{ "{DEP}": "^100.0.0", "{FOO}": "^1.0.0" }}"#),
+    );
     pacquet(&workspace, ["install"]).assert().success();
 
     let output = pacquet(&workspace, ["outdated", FOO]).output().expect("run pacquet outdated");
     assert_eq!(output.status.code(), Some(1));
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains(FOO), "selected package should be reported: {stdout}");
-    assert!(!stdout.contains(DEP), "unselected package should be excluded: {stdout}");
+    assert!(
+        stdout.contains(FOO),
+        "selected package should be reported: {stdout}",
+    );
+    assert!(
+        !stdout.contains(DEP),
+        "unselected package should be excluded: {stdout}",
+    );
 
     drop((root, anchor));
 }
@@ -206,10 +279,20 @@ fn outdated_reports_deprecated_package() {
     pacquet(&workspace, ["install"]).assert().success();
 
     let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
-    assert_eq!(output.status.code(), Some(1), "deprecated dep should be flagged");
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "deprecated dep should be flagged",
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains(DEPRECATED), "deprecated package should be reported: {stdout}");
-    assert!(stdout.contains("Deprecated"), "should mark the version deprecated: {stdout}");
+    assert!(
+        stdout.contains(DEPRECATED),
+        "deprecated package should be reported: {stdout}",
+    );
+    assert!(
+        stdout.contains("Deprecated"),
+        "should mark the version deprecated: {stdout}",
+    );
 
     drop((root, anchor));
 }
@@ -223,9 +306,15 @@ fn outdated_without_lockfile_errors() {
     write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
 
     let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
-    assert!(!output.status.success(), "outdated without a lockfile should fail");
+    assert!(
+        !output.status.success(),
+        "outdated without a lockfile should fail",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("No lockfile in directory"), "stderr should explain why: {stderr}");
+    assert!(
+        stderr.contains("No lockfile in directory"),
+        "stderr should explain why: {stderr}",
+    );
 
     drop((root, anchor));
 }
@@ -233,8 +322,11 @@ fn outdated_without_lockfile_errors() {
 #[test]
 fn recursive_outdated_reports_the_shared_lockfile_directory() {
     let (root, workspace, anchor) = setup();
-    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
-        .expect("write workspace manifest");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\n",
+    )
+    .expect("write workspace manifest");
     write_manifest(&workspace, "{}");
     let project = workspace.join("packages/app");
     fs::create_dir_all(&project).expect("create workspace project");
@@ -267,8 +359,11 @@ fn recursive_outdated_reports_the_shared_lockfile_directory() {
 #[test]
 fn outdated_recursive_aggregates_workspace_dependents() {
     let (root, workspace, anchor) = setup();
-    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
-        .expect("write workspace manifest");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\n",
+    )
+    .expect("write workspace manifest");
     write_manifest(&workspace, "{}");
     for name in ["app-a", "app-b"] {
         let project = workspace.join("packages").join(name);
@@ -309,14 +404,26 @@ fn outdated_recursive_aggregates_workspace_dependents() {
         dependents[1]["location"],
     );
 
-    let filtered =
-        pacquet(&workspace, ["--filter", "app-a", "outdated", "--recursive", "--format", "json"])
-            .output()
-            .expect("run filtered recursive outdated");
+    let filtered = pacquet(
+        &workspace,
+        [
+            "--filter",
+            "app-a",
+            "outdated",
+            "--recursive",
+            "--format",
+            "json",
+        ],
+    )
+    .output()
+    .expect("run filtered recursive outdated");
     assert_eq!(filtered.status.code(), Some(1));
     let value: serde_json::Value = serde_json::from_slice(&filtered.stdout)
         .expect("filtered recursive outdated should emit valid JSON");
-    assert_eq!(value[DEP]["dependentPackages"].as_array().map(Vec::len), Some(1));
+    assert_eq!(
+        value[DEP]["dependentPackages"].as_array().map(Vec::len),
+        Some(1),
+    );
     assert_eq!(value[DEP]["dependentPackages"][0]["name"], "app-a");
 
     drop((root, anchor));
@@ -348,8 +455,14 @@ fn outdated_recursive_reads_dedicated_project_lockfiles() {
 
     assert_eq!(output.status.code(), Some(1));
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains(DEP), "report should mention the package: {stdout}");
-    assert!(stdout.contains("app"), "report should name the dependent: {stdout}");
+    assert!(
+        stdout.contains(DEP),
+        "report should mention the package: {stdout}",
+    );
+    assert!(
+        stdout.contains("app"),
+        "report should name the dependent: {stdout}",
+    );
 
     drop((root, anchor));
 }
@@ -362,12 +475,22 @@ fn outdated_recursive_reads_dedicated_project_lockfiles() {
 fn outdated_no_dependencies_no_lockfile_is_empty() {
     let (root, workspace, anchor) = setup();
 
-    fs::write(workspace.join("package.json"), r#"{ "name": "test-outdated", "version": "1.0.0" }"#)
-        .expect("write package.json");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "test-outdated", "version": "1.0.0" }"#,
+    )
+    .expect("write package.json");
 
     let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
-    assert_eq!(output.status.code(), Some(0), "no dependencies should exit 0");
-    assert!(String::from_utf8_lossy(&output.stdout).trim().is_empty(), "report should be empty");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "no dependencies should exit 0",
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stdout).trim().is_empty(),
+        "report should be empty",
+    );
 
     drop((root, anchor));
 }
@@ -403,9 +526,15 @@ fn outdated_list_format() {
         pacquet(&workspace, ["outdated", "--no-table"]).output().expect("run pacquet outdated");
     assert_eq!(output.status.code(), Some(1));
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains(DEP), "list should mention the package: {stdout}");
+    assert!(
+        stdout.contains(DEP),
+        "list should mention the package: {stdout}",
+    );
     assert!(stdout.contains("=>"), "list uses the `=>` arrow: {stdout}");
-    assert!(!stdout.contains('┌'), "list format must not draw a table: {stdout}");
+    assert!(
+        !stdout.contains('┌'),
+        "list format must not draw a table: {stdout}",
+    );
 
     drop((root, anchor));
 }
@@ -437,13 +566,19 @@ fn outdated_long_shows_deprecation_details() {
 fn outdated_npm_alias_reports_real_name() {
     let (root, workspace, anchor) = setup();
 
-    write_manifest(&workspace, &format!(r#"{{ "positive": "npm:{FOO}@^1.0.0" }}"#));
+    write_manifest(
+        &workspace,
+        &format!(r#"{{ "positive": "npm:{FOO}@^1.0.0" }}"#),
+    );
     pacquet(&workspace, ["install"]).assert().success();
 
     let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
     assert_eq!(output.status.code(), Some(1));
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains(FOO), "report should use the real package name: {stdout}");
+    assert!(
+        stdout.contains(FOO),
+        "report should use the real package name: {stdout}",
+    );
 
     drop((root, anchor));
 }
@@ -455,14 +590,21 @@ fn outdated_npm_alias_reports_real_name() {
 fn outdated_catalog_npm_alias_reports_real_name() {
     let (root, workspace, anchor) = setup();
 
-    append_workspace_yaml_key(&workspace, "catalog", format!("{{ positive: 'npm:{FOO}@^1.0.0' }}"));
+    append_workspace_yaml_key(
+        &workspace,
+        "catalog",
+        format!("{{ positive: 'npm:{FOO}@^1.0.0' }}"),
+    );
     write_manifest(&workspace, r#"{ "positive": "catalog:" }"#);
     pacquet(&workspace, ["install"]).assert().success();
 
     let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
     assert_eq!(output.status.code(), Some(1));
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains(FOO), "report should use the catalog entry's package name: {stdout}");
+    assert!(
+        stdout.contains(FOO),
+        "report should use the catalog entry's package name: {stdout}",
+    );
 
     drop((root, anchor));
 }
@@ -485,9 +627,16 @@ fn outdated_compatible_uses_the_catalog_range() {
 
     let output =
         pacquet(&workspace, ["outdated", "--compatible"]).output().expect("run pacquet outdated");
-    assert_eq!(output.status.code(), Some(1), "the in-range 100.1.0 should be reported");
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "the in-range 100.1.0 should be reported",
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("100.1.0"), "report should show the in-range version: {stdout}");
+    assert!(
+        stdout.contains("100.1.0"),
+        "report should show the in-range version: {stdout}",
+    );
 
     drop((root, anchor));
 }
@@ -505,13 +654,20 @@ fn outdated_catalog_entry_missing_is_a_catalog_error() {
 
     let workspace_yaml = workspace.join("pnpm-workspace.yaml");
     let yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
-    let without_catalog =
-        yaml.lines().filter(|line| !line.starts_with("catalog:")).collect::<Vec<_>>().join("\n");
+    let without_catalog = yaml
+        .lines()
+        .filter(|line| !line.starts_with("catalog:"))
+        .collect::<Vec<_>>()
+        .join("\n");
     fs::write(&workspace_yaml, without_catalog).expect("drop the catalog entry");
 
     let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert_eq!(output.status.code(), Some(1), "the run should fail: {stderr}");
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "the run should fail: {stderr}",
+    );
     assert!(
         stderr.contains("ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC"),
         "missing catalog entry should be reported as such: {stderr}",
@@ -537,13 +693,25 @@ fn outdated_prod_dev_filtering() {
 
     let prod = pacquet(&workspace, ["outdated", "--prod"]).output().expect("run pacquet outdated");
     let prod_out = String::from_utf8_lossy(&prod.stdout);
-    assert!(prod_out.contains(DEP), "--prod includes the prod dep: {prod_out}");
-    assert!(!prod_out.contains(FOO), "--prod excludes the dev dep: {prod_out}");
+    assert!(
+        prod_out.contains(DEP),
+        "--prod includes the prod dep: {prod_out}",
+    );
+    assert!(
+        !prod_out.contains(FOO),
+        "--prod excludes the dev dep: {prod_out}",
+    );
 
     let dev = pacquet(&workspace, ["outdated", "--dev"]).output().expect("run pacquet outdated");
     let dev_out = String::from_utf8_lossy(&dev.stdout);
-    assert!(dev_out.contains(FOO), "--dev includes the dev dep: {dev_out}");
-    assert!(!dev_out.contains(DEP), "--dev excludes the prod dep: {dev_out}");
+    assert!(
+        dev_out.contains(FOO),
+        "--dev includes the dev dep: {dev_out}",
+    );
+    assert!(
+        !dev_out.contains(DEP),
+        "--dev excludes the prod dep: {dev_out}",
+    );
 
     drop((root, anchor));
 }
@@ -554,16 +722,29 @@ fn outdated_prod_dev_filtering() {
 fn outdated_leaves_out_ignored_dependencies() {
     let (root, workspace, anchor) = setup();
 
-    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0", "{FOO}": "^1.0.0" }}"#));
+    write_manifest(
+        &workspace,
+        &format!(r#"{{ "{DEP}": "^100.0.0", "{FOO}": "^1.0.0" }}"#),
+    );
     pacquet(&workspace, ["install"]).assert().success();
     set_ignore_dependencies(&workspace, &[FOO]);
 
     let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
 
-    assert_eq!(output.status.code(), Some(1), "the unignored dependency is still outdated");
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "the unignored dependency is still outdated",
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains(DEP), "report should mention the unignored package: {stdout}");
-    assert!(!stdout.contains(FOO), "report should leave out the ignored package: {stdout}");
+    assert!(
+        stdout.contains(DEP),
+        "report should mention the unignored package: {stdout}",
+    );
+    assert!(
+        !stdout.contains(FOO),
+        "report should leave out the ignored package: {stdout}",
+    );
 
     drop((root, anchor));
 }

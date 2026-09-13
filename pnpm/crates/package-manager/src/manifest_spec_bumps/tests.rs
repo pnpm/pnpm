@@ -69,16 +69,34 @@ fn a_dist_tag_keeps_tracking_its_tag() {
 
 #[test]
 fn a_prerelease_pick_keeps_the_declared_range_operator() {
-    assert_eq!(bump("^1.0.0-beta.1", "1.0.0-beta.2").as_deref(), Some("^1.0.0-beta.2"));
-    assert_eq!(bump("~1.0.0-beta.1", "1.0.0-beta.2").as_deref(), Some("~1.0.0-beta.2"));
-    assert_eq!(bump("1.0.0-beta.1", "1.0.0-beta.2").as_deref(), Some("1.0.0-beta.2"));
-    assert_eq!(bump("=1.0.0-beta.1", "1.0.0-beta.2").as_deref(), Some("=1.0.0-beta.2"));
+    assert_eq!(
+        bump("^1.0.0-beta.1", "1.0.0-beta.2").as_deref(),
+        Some("^1.0.0-beta.2"),
+    );
+    assert_eq!(
+        bump("~1.0.0-beta.1", "1.0.0-beta.2").as_deref(),
+        Some("~1.0.0-beta.2"),
+    );
+    assert_eq!(
+        bump("1.0.0-beta.1", "1.0.0-beta.2").as_deref(),
+        Some("1.0.0-beta.2"),
+    );
+    assert_eq!(
+        bump("=1.0.0-beta.1", "1.0.0-beta.2").as_deref(),
+        Some("=1.0.0-beta.2"),
+    );
 }
 
 #[test]
 fn a_prerelease_pick_uses_an_exact_fallback_for_an_unsupported_range() {
-    assert_eq!(bump(">=1.0.0-beta.1", "2.0.0-beta.1").as_deref(), Some("2.0.0-beta.1"));
-    assert_eq!(bump("1 || 2", "2.1.0-beta.1").as_deref(), Some("2.1.0-beta.1"));
+    assert_eq!(
+        bump(">=1.0.0-beta.1", "2.0.0-beta.1").as_deref(),
+        Some("2.0.0-beta.1"),
+    );
+    assert_eq!(
+        bump("1 || 2", "2.1.0-beta.1").as_deref(),
+        Some("2.1.0-beta.1"),
+    );
 }
 
 #[test]
@@ -95,7 +113,10 @@ fn an_npm_alias_keeps_pointing_at_the_same_package() {
 
 #[test]
 fn a_jsr_range_moves_under_its_prefix() {
-    assert_eq!(bump("jsr:^1.0.0", "@jsr/scope__pkg@1.2.0").as_deref(), Some("jsr:^1.2.0"));
+    assert_eq!(
+        bump("jsr:^1.0.0", "@jsr/scope__pkg@1.2.0").as_deref(),
+        Some("jsr:^1.2.0"),
+    );
     assert_eq!(
         bump("jsr:@scope/pkg@~1.0.0", "@jsr/scope__pkg@1.0.4").as_deref(),
         Some("jsr:@scope/pkg@~1.0.4"),
@@ -121,7 +142,11 @@ fn declarations_of_other_protocols_are_left_alone() {
         "gh:^1.0.0",
         "https://example.com/foo.tgz",
     ] {
-        assert_eq!(bump(declared, "1.2.0"), None, "{declared} should be left alone");
+        assert_eq!(
+            bump(declared, "1.2.0"),
+            None,
+            "{declared} should be left alone",
+        );
     }
 }
 
@@ -133,7 +158,10 @@ fn a_version_with_no_semver_to_pin_is_left_alone() {
 
 #[test]
 fn a_peer_suffix_is_dropped_from_the_written_range() {
-    assert_eq!(bump("^17.0.0", "17.0.2(react@17.0.2)").as_deref(), Some("^17.0.2"));
+    assert_eq!(
+        bump("^17.0.0", "17.0.2(react@17.0.2)").as_deref(),
+        Some("^17.0.2"),
+    );
 }
 
 #[test]
@@ -145,11 +173,17 @@ fn registry_aliases_split_into_the_prefix_they_keep() {
     let some = |prefix: &str, range: &str| Some((prefix.to_string(), range.to_string()));
     assert_eq!(split("^1.0.0"), some("", "^1.0.0"));
     assert_eq!(split("npm:foo@^1.0.0"), some("npm:foo@", "^1.0.0"));
-    assert_eq!(split("npm:@scope/foo@^1.0.0"), some("npm:@scope/foo@", "^1.0.0"));
+    assert_eq!(
+        split("npm:@scope/foo@^1.0.0"),
+        some("npm:@scope/foo@", "^1.0.0"),
+    );
     assert_eq!(split("npm:^1.0.0"), some("npm:", "^1.0.0"));
     assert_eq!(split("npm:foo"), some("npm:foo@", ""));
     assert_eq!(split("jsr:^1.0.0"), some("jsr:", "^1.0.0"));
-    assert_eq!(split("jsr:@scope/foo@^1.0.0"), some("jsr:@scope/foo@", "^1.0.0"));
+    assert_eq!(
+        split("jsr:@scope/foo@^1.0.0"),
+        some("jsr:@scope/foo@", "^1.0.0"),
+    );
     assert_eq!(split("jsr:@scope/foo"), some("jsr:@scope/foo@", ""));
     assert_eq!(split("workspace:^1.0.0"), None);
     assert_eq!(split("gh:^1.0.0"), None);
@@ -180,8 +214,14 @@ importers:
     apply_manifest_spec_bumps(&mut lockfile, &bumps, None);
 
     let importer = &lockfile.importers["."];
-    assert_eq!(specifier_of(importer.dev_dependencies.as_ref(), "foo"), "^2.1.0");
-    assert_eq!(specifier_of(importer.dependencies.as_ref(), "foo"), "^1.0.0");
+    assert_eq!(
+        specifier_of(importer.dev_dependencies.as_ref(), "foo"),
+        "^2.1.0",
+    );
+    assert_eq!(
+        specifier_of(importer.dependencies.as_ref(), "foo"),
+        "^1.0.0",
+    );
     let applied = bumps.applied.into_inner().expect("never poisoned");
     let expected = (DependencyGroup::Dev, "^2.1.0".to_string());
     assert_eq!(applied.manifests["."]["foo"], expected);
@@ -207,8 +247,16 @@ importers:
     let bumps = bumps(&[("foo", DependencyGroup::Prod, "catalog:")]);
     apply_manifest_spec_bumps(&mut lockfile, &bumps, None);
 
-    assert_eq!(specifier_of(lockfile.importers["."].dependencies.as_ref(), "foo"), "^1.0.0");
-    assert!(bumps.applied.into_inner().expect("never poisoned").is_empty());
+    assert_eq!(
+        specifier_of(lockfile.importers["."].dependencies.as_ref(), "foo"),
+        "^1.0.0",
+    );
+    assert!(
+        bumps.applied
+            .into_inner()
+            .expect("never poisoned")
+            .is_empty(),
+    );
 }
 
 /// Mirrors `update moves a declaration a range-scoped override does not claim`
@@ -234,8 +282,10 @@ fn a_range_scoped_override_claims_only_the_declaration_it_matches() {
         }),
     );
     let importer_manifests = BTreeMap::from([(".".to_string(), &manifest)]);
-    let overridden =
-        OverriddenDeclarations { overrider: &overrider, importer_manifests: &importer_manifests };
+    let overridden = OverriddenDeclarations {
+        overrider: &overrider,
+        importer_manifests: &importer_manifests,
+    };
 
     let mut lockfile = lockfile(
         r"
@@ -255,10 +305,21 @@ importers:
 
     let unclaimed = bumps(&[("foo", DependencyGroup::Prod, "^100.0.0")]);
     apply_manifest_spec_bumps(&mut lockfile, &unclaimed, Some(&overridden));
-    assert_eq!(specifier_of(lockfile.importers["."].dependencies.as_ref(), "foo"), "^100.1.0");
+    assert_eq!(
+        specifier_of(lockfile.importers["."].dependencies.as_ref(), "foo"),
+        "^100.1.0",
+    );
 
     let claimed = bumps(&[("foo", DependencyGroup::Dev, "^1.0.0")]);
     apply_manifest_spec_bumps(&mut lockfile, &claimed, Some(&overridden));
-    assert_eq!(specifier_of(lockfile.importers["."].dev_dependencies.as_ref(), "foo"), "^1.0.0");
-    assert!(claimed.applied.into_inner().expect("never poisoned").is_empty());
+    assert_eq!(
+        specifier_of(lockfile.importers["."].dev_dependencies.as_ref(), "foo"),
+        "^1.0.0",
+    );
+    assert!(
+        claimed.applied
+            .into_inner()
+            .expect("never poisoned")
+            .is_empty(),
+    );
 }

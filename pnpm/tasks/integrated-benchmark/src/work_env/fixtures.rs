@@ -34,8 +34,10 @@ pub(super) fn create_package_json(
 }
 pub(super) fn peer_heavy_root_manifest() -> String {
     let mut dependencies = serde_json::Map::new();
-    dependencies
-        .insert(PEER_HEAVY_PROVIDER.to_string(), Value::String(PEER_HEAVY_VERSION.to_string()));
+    dependencies.insert(
+        PEER_HEAVY_PROVIDER.to_string(),
+        Value::String(PEER_HEAVY_VERSION.to_string()),
+    );
     for index in 0..PEER_HEAVY_WIDTH {
         dependencies.insert(
             peer_heavy_package_name(0, index),
@@ -51,7 +53,12 @@ pub(super) fn peer_heavy_root_manifest() -> String {
     .expect("serialize peer-heavy root manifest")
 }
 pub(crate) fn seed_peer_heavy_registry(storage_root: &Path) {
-    write_peer_heavy_packument(storage_root, PEER_HEAVY_PROVIDER, &serde_json::Map::new(), false);
+    write_peer_heavy_packument(
+        storage_root,
+        PEER_HEAVY_PROVIDER,
+        &serde_json::Map::new(),
+        false,
+    );
     for level in 0..PEER_HEAVY_DEPTH {
         let dependencies = if level + 1 == PEER_HEAVY_DEPTH {
             serde_json::Map::new()
@@ -84,9 +91,18 @@ pub(super) fn write_peer_heavy_packument(
     let manifest = peer_heavy_manifest(name, dependencies, has_peer);
     let versions = serde_json::Map::from_iter([(PEER_HEAVY_VERSION.to_string(), manifest)]);
     let time = serde_json::Map::from_iter([
-        ("created".to_string(), Value::String("2020-01-01T00:00:00.000Z".to_string())),
-        ("modified".to_string(), Value::String("2020-01-01T00:00:00.000Z".to_string())),
-        (PEER_HEAVY_VERSION.to_string(), Value::String("2020-01-01T00:00:00.000Z".to_string())),
+        (
+            "created".to_string(),
+            Value::String("2020-01-01T00:00:00.000Z".to_string()),
+        ),
+        (
+            "modified".to_string(),
+            Value::String("2020-01-01T00:00:00.000Z".to_string()),
+        ),
+        (
+            PEER_HEAVY_VERSION.to_string(),
+            Value::String("2020-01-01T00:00:00.000Z".to_string()),
+        ),
     ]);
     let packument = serde_json::json!({
         "name": name,
@@ -127,7 +143,10 @@ pub(super) fn peer_heavy_manifest(
         manifest
             .as_object_mut()
             .expect("package manifest is an object")
-            .insert("peerDependencies".to_string(), Value::Object(peer_dependencies));
+            .insert(
+                "peerDependencies".to_string(),
+                Value::Object(peer_dependencies),
+            );
     }
     manifest
 }
@@ -193,7 +212,11 @@ pub(super) fn create_pnpm_workspace(
     scenario: BenchmarkScenario,
 ) {
     let dst = dst_dir.join("pnpm-workspace.yaml");
-    let src_dir = if scenario.uses_peer_heavy_fixture() { None } else { src_dir };
+    let src_dir = if scenario.uses_peer_heavy_fixture() {
+        None
+    } else {
+        src_dir
+    };
     let mut manifest = fixture_workspace_manifest(src_dir, &dst)
         .unwrap_or_else(MinimalWorkspaceManifest::default_for_benchmark);
     if manifest.store_dir.is_none() {

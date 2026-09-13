@@ -23,7 +23,9 @@ pub struct CustomFetcherSelection<'a> {
 impl CustomFetcherPicker {
     #[must_use]
     pub fn new(fetchers: Vec<Arc<dyn CustomFetcher>>) -> Self {
-        Self { fetchers }
+        Self {
+            fetchers,
+        }
     }
 
     #[must_use]
@@ -46,7 +48,10 @@ impl CustomFetcherPicker {
         let Some(fetcher) = fetcher else {
             return Ok(None);
         };
-        fetcher.fetch(pkg_id, resolution, opts.clone()).await.map(Some)
+        fetcher
+            .fetch(pkg_id, resolution, opts.clone())
+            .await
+            .map(Some)
     }
 
     pub async fn pick_fetcher(
@@ -59,7 +64,11 @@ impl CustomFetcherPicker {
             .is_none_or(|kind| kind.is_null() || kind == "binary")
             .then(|| resolution.get("integrity"))
             .flatten()
-            .filter(|value| value.as_str().is_some_and(|value| !value.is_empty()))
+            .filter(|value| {
+                value
+                    .as_str()
+                    .is_some_and(|value| !value.is_empty())
+            })
             .cloned();
         let mut resolution = resolution.clone();
         for fetcher in &self.fetchers {
@@ -72,10 +81,16 @@ impl CustomFetcherPicker {
             resolution =
                 carried_resolution(effective_resolution, previous, locked_integrity.as_ref());
             if can_fetch {
-                return Ok(CustomFetcherSelection { fetcher: Some(fetcher.as_ref()), resolution });
+                return Ok(CustomFetcherSelection {
+                    fetcher: Some(fetcher.as_ref()),
+                    resolution,
+                });
             }
         }
-        Ok(CustomFetcherSelection { fetcher: None, resolution })
+        Ok(CustomFetcherSelection {
+            fetcher: None,
+            resolution,
+        })
     }
 }
 
@@ -90,7 +105,11 @@ fn carried_resolution(
     previous: Value,
     locked_integrity: Option<&Value>,
 ) -> Value {
-    let mut resolution = if effective.is_object() { effective } else { previous };
+    let mut resolution = if effective.is_object() {
+        effective
+    } else {
+        previous
+    };
     if let Some(integrity) = locked_integrity
         && let Some(object) = resolution.as_object_mut()
     {

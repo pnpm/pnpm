@@ -63,11 +63,13 @@ where
 
     // The success path parses the response body unguarded, so a malformed body
     // is a hard error rather than a silent "not public".
-    let visibility = response
-        .body
+    let visibility = response.body
         .pipe_as_ref(serde_json::from_str::<Value>)
         .map_err(|error| DetermineProvenanceError::VisibilityParse(error.to_string()))?;
-    let public = visibility.get("public").and_then(Value::as_bool).unwrap_or(false);
+    let public = visibility
+        .get("public")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
     Ok(public.then_some(true))
 }
 
@@ -96,7 +98,10 @@ fn is_public_ci_project<Sys: EnvVar>(payload: &Value) -> bool {
 }
 
 fn visibility_url(registry: &str, package_name: &str) -> Result<String, DetermineProvenanceError> {
-    let path = format!("/-/package/{}/visibility", escaped_package_name(package_name));
+    let path = format!(
+        "/-/package/{}/visibility",
+        escaped_package_name(package_name),
+    );
     Url::parse(registry)
         .and_then(|base| base.join(&path))
         .map_err(DetermineProvenanceError::InvalidUrl)
@@ -129,7 +134,12 @@ pub enum ProvenanceError {
         "Failed to fetch visibility for package {package_name} from registry {registry} due to {message} (status code {status})"
     )]
     #[diagnostic(code(ERR_PNPM_PROVENANCE_FAILED_TO_FETCH_VISIBILITY))]
-    FailedToFetchVisibility { message: String, status: u16, package_name: String, registry: String },
+    FailedToFetchVisibility {
+        message: String,
+        status: u16,
+        package_name: String,
+        registry: String,
+    },
 }
 
 impl ProvenanceError {
@@ -142,9 +152,22 @@ impl ProvenanceError {
         registry: &str,
     ) -> Self {
         let parsed = serde_json::from_str::<Value>(body).ok();
-        let code = parsed.as_ref().and_then(|json| json.get("code")?.as_str().map(str::to_owned));
-        let detail =
-            parsed.as_ref().and_then(|json| json.get("message")?.as_str().map(str::to_owned));
+        let code = parsed
+            .as_ref()
+            .and_then(|json| {
+                json
+                    .get("code")?
+                    .as_str()
+                    .map(str::to_owned)
+            });
+        let detail = parsed
+            .as_ref()
+            .and_then(|json| {
+                json
+                    .get("message")?
+                    .as_str()
+                    .map(str::to_owned)
+            });
         let message = match (code, detail) {
             (Some(code), Some(detail)) => format!("{code}: {detail}"),
             (Some(code), None) => code,

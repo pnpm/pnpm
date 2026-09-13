@@ -157,15 +157,19 @@ impl Manifest {
 
         if text.trim().is_empty() {
             return Ok(Manifest {
-                document: crate::model::ManifestDocument { text, ..Default::default() },
+                document: crate::model::ManifestDocument {
+                    text,
+                    ..Default::default()
+                },
                 ..Manifest::default()
             });
         }
 
         let top: Option<IndexMap<String, serde::de::IgnoredAny>> =
             serde_saphyr::from_str(&text).map_err(Box::new)?;
-        let top_level_keys: Vec<String> =
-            top.map(|map| map.into_keys().collect()).unwrap_or_default();
+        let top_level_keys: Vec<String> = top
+            .map(|map| map.into_keys().collect())
+            .unwrap_or_default();
         let blank_line_style = crate::edit::uses_blank_line_style(&text, &top_level_keys);
 
         let data: CatalogData = serde_saphyr::from_str(&text).map_err(Box::new)?;
@@ -182,7 +186,10 @@ impl Manifest {
                 keys: top_level_keys,
                 blank_lines: blank_line_style,
             },
-            catalogs: crate::model::CatalogEntries { default: data.catalog, named: data.catalogs },
+            catalogs: crate::model::CatalogEntries {
+                default: data.catalog,
+                named: data.catalogs,
+            },
             exceptions: crate::model::SecurityExceptions {
                 legacy_audit_ghsas: data.audit_config.and_then(|config| config.ignore_ghsas),
                 audit: data.audit.and_then(|audit| audit.ignore),

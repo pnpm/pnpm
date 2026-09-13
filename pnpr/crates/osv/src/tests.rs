@@ -34,9 +34,15 @@ fn loads_directory_and_matches_semver_ranges() {
     assert!(!index.is_vulnerable("acme", "0.9.0"));
     assert!(index.is_vulnerable("acme", "1.1.0"));
     assert!(!index.is_vulnerable("acme", "1.2.0"));
-    assert_eq!(index.vulnerability_ids("acme", "0.9.0"), Vec::<String>::new());
+    assert_eq!(
+        index.vulnerability_ids("acme", "0.9.0"),
+        Vec::<String>::new(),
+    );
     assert_eq!(index.vulnerability_ids("acme", "1.1.0"), vec!["GHSA-test"]);
-    assert_eq!(index.vulnerability_ids("acme", "1.2.0"), Vec::<String>::new());
+    assert_eq!(
+        index.vulnerability_ids("acme", "1.2.0"),
+        Vec::<String>::new(),
+    );
 }
 
 #[test]
@@ -56,7 +62,10 @@ fn explicit_versions_match_even_without_semver() {
 
     let index = OsvIndex::load_from_path(dir.path()).expect("load index");
 
-    assert_eq!(index.vulnerability_ids("odd", "2026.06.18-custom"), vec!["GHSA-exact"]);
+    assert_eq!(
+        index.vulnerability_ids("odd", "2026.06.18-custom"),
+        vec!["GHSA-exact"],
+    );
 }
 
 #[test]
@@ -76,8 +85,14 @@ fn package_name_lookup_is_case_insensitive() {
 
     let index = OsvIndex::load_from_path(dir.path()).expect("load index");
 
-    assert_eq!(index.vulnerability_ids("jsonstream", "1.0.0"), vec!["GHSA-case"]);
-    assert_eq!(index.vulnerability_ids("JSONStream", "1.0.0"), vec!["GHSA-case"]);
+    assert_eq!(
+        index.vulnerability_ids("jsonstream", "1.0.0"),
+        vec!["GHSA-case"],
+    );
+    assert_eq!(
+        index.vulnerability_ids("JSONStream", "1.0.0"),
+        vec!["GHSA-case"],
+    );
 }
 
 #[test]
@@ -121,9 +136,15 @@ fn introduced_zero_covers_prerelease_versions() {
 
     let index = OsvIndex::load_from_path(dir.path()).expect("load index");
 
-    assert_eq!(index.vulnerability_ids("zero", "0.0.0-alpha.1"), vec!["GHSA-zero"]);
+    assert_eq!(
+        index.vulnerability_ids("zero", "0.0.0-alpha.1"),
+        vec!["GHSA-zero"],
+    );
     assert_eq!(index.vulnerability_ids("zero", "1.0.0"), vec!["GHSA-zero"]);
-    assert_eq!(index.vulnerability_ids("zero", "2.0.0"), Vec::<String>::new());
+    assert_eq!(
+        index.vulnerability_ids("zero", "2.0.0"),
+        Vec::<String>::new(),
+    );
 }
 
 #[test]
@@ -148,10 +169,16 @@ fn out_of_order_range_events_are_normalized() {
 
     let index = OsvIndex::load_from_path(dir.path()).expect("load index");
 
-    assert_eq!(index.vulnerability_ids("ord", "0.9.0"), Vec::<String>::new());
+    assert_eq!(
+        index.vulnerability_ids("ord", "0.9.0"),
+        Vec::<String>::new(),
+    );
     assert_eq!(index.vulnerability_ids("ord", "1.1.0"), vec!["GHSA-order"]);
     // Above the fix: must be safe — this is the case that fails without sorting.
-    assert_eq!(index.vulnerability_ids("ord", "1.3.0"), Vec::<String>::new());
+    assert_eq!(
+        index.vulnerability_ids("ord", "1.3.0"),
+        Vec::<String>::new(),
+    );
 }
 
 #[test]
@@ -216,7 +243,9 @@ fn fingerprint_ignores_the_order_records_appear_in() {
             .compression_method(zip::CompressionMethod::Stored);
         for (name, body) in entries {
             writer.start_file(name, options).expect("start file");
-            writer.write_all(body.as_bytes()).expect("write entry");
+            writer
+                .write_all(body.as_bytes())
+                .expect("write entry");
         }
         writer.finish().expect("finish zip");
         zip_path
@@ -237,7 +266,11 @@ fn fingerprint_ignores_the_order_records_appear_in() {
 
     // Renaming an entry changes what the database *is*, so the fingerprint
     // must move with it and invalidate the cached verdict.
-    let renamed = zip_with(dir.path(), "renamed.zip", [("GHSA-c.json", record_a), entry_b]);
+    let renamed = zip_with(
+        dir.path(),
+        "renamed.zip",
+        [("GHSA-c.json", record_a), entry_b],
+    );
     let renamed = OsvIndex::load_from_path(&renamed).expect("load renamed");
     assert!(!forward.can_trust_policy(&renamed.policy()));
 }
@@ -252,7 +285,10 @@ fn non_regular_file_path_is_rejected() {
     let _listener = std::os::unix::net::UnixListener::bind(&socket_path).expect("bind socket");
 
     let err = OsvIndex::load_from_path(&socket_path).expect_err("a socket path must be rejected");
-    assert!(format!("{err}").contains("neither a directory nor a regular file"), "{err}");
+    assert!(
+        format!("{err}").contains("neither a directory nor a regular file"),
+        "{err}",
+    );
 }
 
 #[tokio::test]
@@ -272,7 +308,10 @@ async fn package_version_guard_rejects_vulnerable_versions() {
 
     let index = Arc::new(OsvIndex::load_from_path(dir.path()).expect("load index"));
 
-    assert_eq!(index.check("guarded", "1.1.0").await.unwrap(), PackageVersionGuardDecision::Allow);
+    assert_eq!(
+        index.check("guarded", "1.1.0").await.unwrap(),
+        PackageVersionGuardDecision::Allow,
+    );
     match index.check("guarded", "1.0.0").await.unwrap() {
         PackageVersionGuardDecision::Reject { reason } => {
             assert!(reason.contains("GHSA-guard"));
@@ -308,10 +347,14 @@ fn enabled_database_without_npm_advisories_is_rejected() {
 
 #[test]
 fn advisory_ids_are_capped_in_messages() {
-    let few: Vec<String> = (0..3).map(|i| format!("GHSA-{i}")).collect();
+    let few: Vec<String> = (0..3)
+        .map(|i| format!("GHSA-{i}"))
+        .collect();
     assert_eq!(super::format_advisory_ids(&few), "GHSA-0, GHSA-1, GHSA-2");
 
-    let many: Vec<String> = (0..25).map(|i| format!("GHSA-{i}")).collect();
+    let many: Vec<String> = (0..25)
+        .map(|i| format!("GHSA-{i}"))
+        .collect();
     let formatted = super::format_advisory_ids(&many);
     assert!(formatted.ends_with("and 5 more"), "{formatted}");
     assert_eq!(formatted.matches("GHSA-").count(), 20);
@@ -333,6 +376,13 @@ fn oversized_advisory_id_is_truncated() {
 
     let ids = index.vulnerability_ids("big", "1.0.0");
     assert_eq!(ids.len(), 1);
-    assert!(ids[0].len() < 300, "id not truncated: {} bytes", ids[0].len());
-    assert!(ids[0].ends_with('…'), "truncated id should end with ellipsis");
+    assert!(
+        ids[0].len() < 300,
+        "id not truncated: {} bytes",
+        ids[0].len(),
+    );
+    assert!(
+        ids[0].ends_with('…'),
+        "truncated id should end with ellipsis",
+    );
 }

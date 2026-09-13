@@ -23,10 +23,11 @@ pub(crate) fn check_importer_satisfies(
     ignored_optional_matcher: &pnpm_matcher::Matcher,
     parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
 ) -> Result<(), FreshnessCheckError> {
-    let importer = lockfile
-        .importers
+    let importer = lockfile.importers
         .get(importer_id)
-        .ok_or_else(|| FreshnessCheckError::NoImporter { importer_id: importer_id.to_string() })?;
+        .ok_or_else(|| FreshnessCheckError::NoImporter {
+            importer_id: importer_id.to_string(),
+        })?;
 
     // Apply `pnpm.overrides` to a *cloned* manifest before the
     // per-importer specifier check so the lockfile's specifiers —
@@ -88,7 +89,11 @@ pub(in super::super) fn manifest_has_effective_dependencies(
     manifest: &PackageManifest,
     ignored_optional_matcher: &pnpm_matcher::Matcher,
 ) -> bool {
-    if manifest.dependencies([pnpm_package_manifest::DependencyGroup::Dev]).next().is_some() {
+    if manifest
+        .dependencies([pnpm_package_manifest::DependencyGroup::Dev])
+        .next()
+        .is_some()
+    {
         return true;
     }
     let ignored = ignored_optional_dependency_names(manifest, ignored_optional_matcher);
@@ -103,14 +108,20 @@ pub(in super::super) fn exclude_linked_dependencies(manifest: &mut PackageManife
     let Some(manifest) = manifest.value_mut().as_object_mut() else {
         return;
     };
-    for group in [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional] {
+    for group in [
+        DependencyGroup::Dev,
+        DependencyGroup::Prod,
+        DependencyGroup::Optional,
+    ] {
         let group: &str = group.into();
         let Some(dependencies) = manifest.get_mut(group).and_then(serde_json::Value::as_object_mut)
         else {
             continue;
         };
         dependencies.retain(|_, specifier| {
-            specifier.as_str().is_none_or(|specifier| !specifier.starts_with("link:"))
+            specifier
+                .as_str()
+                .is_none_or(|specifier| !specifier.starts_with("link:"))
         });
     }
 }
@@ -124,7 +135,10 @@ pub(super) fn normalized_freshness_manifest<'a>(
     if parsed_overrides.is_none() && !config.exclude_links_from_lockfile {
         return std::borrow::Cow::Borrowed(manifest);
     }
-    let project_dir = manifest.path().parent().unwrap_or_else(|| Path::new("."));
+    let project_dir = manifest
+        .path()
+        .parent()
+        .unwrap_or_else(|| Path::new("."));
     let mut cloned = manifest.clone();
     if let Some(parsed) = parsed_overrides {
         crate::VersionsOverrider::new(parsed, lockfile_dir).apply(&mut cloned, Some(project_dir));

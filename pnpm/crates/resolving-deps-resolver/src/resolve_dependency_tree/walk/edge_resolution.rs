@@ -89,7 +89,17 @@ where
         return Ok(NodeSeed::Done(None));
     }
 
-    seed_pending(ctx, &wanted, result, &edge, ResolvedEdge { id, prior_key, current_is_optional })
+    seed_pending(
+        ctx,
+        &wanted,
+        result,
+        &edge,
+        ResolvedEdge {
+            id,
+            prior_key,
+            current_is_optional,
+        },
+    )
 }
 
 /// Memoise the per-wanted resolve. The first caller for a given
@@ -118,8 +128,15 @@ where
     let base = edge_opts(ctx, wanted, edge, prior_key);
     let opts = opts_relative_to_declaring_manifest(&base, wanted, edge.parent_dir);
     let cache_key = edge_cache_key(ctx, wanted, &opts, edge, prior_key);
-    match resolve_wanted_cached(ctx, resolver, wanted, &opts, edge.pick_overlay.as_ref(), cache_key)
-        .await
+    match resolve_wanted_cached(
+        ctx,
+        resolver,
+        wanted,
+        &opts,
+        edge.pick_overlay.as_ref(),
+        cache_key,
+    )
+    .await
     {
         Ok(result) => Ok(Some(result)),
         Err(err) => {
@@ -183,8 +200,7 @@ pub(super) fn edge_cache_key(
     prior_key: Option<&PkgNameVerPeer>,
 ) -> WantedKey {
     let project_scope = project_relative_cache_scope(wanted, opts);
-    let overlay_versions = edge
-        .pick_overlay
+    let overlay_versions = edge.pick_overlay
         .as_ref()
         .map(|overlay| overlay_version_view(overlay, wanted))
         .unwrap_or_default();
@@ -255,9 +271,6 @@ pub(super) fn seed_pending(
         emit_deprecation_if_needed(ctx, &result, &resolved.id, edge.depth);
     }
 
-    let next_ancestors: Vec<String> =
-        edge.ancestor_ids.iter().cloned().chain(std::iter::once(resolved.id.clone())).collect();
-
     Ok(NodeSeed::Pending(Box::new(PendingNode {
         result,
         is_link: identity.is_link,
@@ -265,12 +278,16 @@ pub(super) fn seed_pending(
         peer_shadowed,
         claim: None,
         prior_key: resolved.prior_key,
-        identity: super::PendingNodeIdentity { id: resolved.id, alias, node_id: identity.node_id },
         ancestry: super::PendingNodeAncestry {
             parent_ancestors: Arc::clone(edge.ancestor_ids),
-            next_ancestors: Arc::new(next_ancestors),
+            next_ancestors: super::super::child_ancestor_ids(edge.ancestor_ids, &resolved.id),
             depth: edge.depth,
             current_is_optional: resolved.current_is_optional,
+        },
+        identity: super::PendingNodeIdentity {
+            id: resolved.id,
+            alias,
+            node_id: identity.node_id,
         },
     })))
 }
@@ -318,7 +335,11 @@ impl NodeIdentity {
 /// node. Non-leaves get a fresh per-occurrence id so the peer resolver can
 /// attach different peer suffixes per call site.
 pub(in super::super) fn node_id_for(is_leaf: bool, id: &str) -> NodeId {
-    if is_leaf { NodeId::leaf(id) } else { NodeId::next() }
+    if is_leaf {
+        NodeId::leaf(id)
+    } else {
+        NodeId::next()
+    }
 }
 
 /// Cycle break: a direct self-edge and the second lap of a longer cycle are
@@ -396,13 +417,17 @@ pub(super) fn record_workspace_manifest_identity(
     if result.package.name_ver.is_some() {
         return;
     }
-    let names_a_workspace_project = wanted.bare_specifier.as_deref().is_some_and(|specifier| {
-        specifier.starts_with("workspace:") && !specifier.starts_with("workspace:.")
-    });
+    let names_a_workspace_project = wanted.bare_specifier
+        .as_deref()
+        .is_some_and(|specifier| {
+            specifier.starts_with("workspace:") && !specifier.starts_with("workspace:.")
+        });
     if !names_a_workspace_project {
         return;
     }
-    let Some(manifest) = result.package.manifest.as_deref() else { return };
+    let Some(manifest) = result.package.manifest.as_deref() else {
+        return;
+    };
     let (Some(name), Some(version)) = (
         manifest.get("name").and_then(Value::as_str),
         manifest.get("version").and_then(Value::as_str),
@@ -427,8 +452,7 @@ pub(super) fn reject_exotic_subdep(
         return Ok(());
     }
     Err(ResolveDependencyTreeError::ExoticSubdep {
-        specifier: wanted
-            .alias
+        specifier: wanted.alias
             .clone()
             .or_else(|| wanted.bare_specifier.clone())
             .unwrap_or_default(),
@@ -452,13 +476,18 @@ pub(super) fn drop_failed_optional_edge(
         return Err(err);
     }
     if wanted_lockfile_contains_satisfying_entry(ctx.workspace.reuse.lockfile.as_deref(), wanted) {
-        return Err(ResolveDependencyTreeError::LockedOptionalResolutionFailure(Box::new(err)));
+        return Err(ResolveDependencyTreeError::LockedOptionalResolutionFailure(
+            Box::new(err),
+        ));
     }
     if let Some(log) = ctx.workspace.hooks.skipped_optional_log.as_ref() {
         log(SkippedOptionalDependency {
             details: err.to_string(),
             name: wanted.alias.clone(),
-            version: wanted.alias.is_some().then(|| wanted.bare_specifier.clone()).flatten(),
+            version: wanted.alias
+                .is_some()
+                .then(|| wanted.bare_specifier.clone())
+                .flatten(),
             bare_specifier: wanted.bare_specifier.clone().unwrap_or_default(),
             parents: pkgs_info_from_ids(ctx, ancestor_ids),
             prefix: opts.project.project_dir.display().to_string(),

@@ -50,7 +50,10 @@ impl PingArgs {
             &ping_url,
             &http_client,
             auth_header.as_deref(),
-            RetryOpts { retries: 0, ..RetryOpts::default() },
+            RetryOpts {
+                retries: 0,
+                ..RetryOpts::default()
+            },
         )
         .await?;
 
@@ -88,7 +91,9 @@ async fn fetch_ping(
         }
     })
     .await
-    .map_err(|error| PingError::Unreachable { message: redact_and_sanitize(&error.to_string()) })?;
+    .map_err(|error| PingError::Unreachable {
+        message: redact_and_sanitize(&error.to_string()),
+    })?;
 
     if !response.status().is_success() {
         let status = response.status();
@@ -104,9 +109,12 @@ async fn fetch_ping(
         .into());
     }
 
-    let body = response.text().await.map_err(|error| PingError::Unreachable {
-        message: redact_and_sanitize(&error.to_string()),
-    })?;
+    let body = response
+        .text()
+        .await
+        .map_err(|error| PingError::Unreachable {
+            message: redact_and_sanitize(&error.to_string()),
+        })?;
     let time = start.elapsed().as_millis();
     drop(client);
     Ok((time, body))
@@ -125,7 +133,11 @@ fn format_details(body: &str) -> Option<String> {
         Value::Array(items) => !items.is_empty(),
         _ => false,
     };
-    if non_empty { serde_json::to_string_pretty(&value).ok() } else { None }
+    if non_empty {
+        serde_json::to_string_pretty(&value).ok()
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]

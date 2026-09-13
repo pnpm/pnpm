@@ -128,7 +128,10 @@ impl GitHostedTarballFetcher<'_> {
                     false,
                 );
             }
-            return Ok(GitFetchOutput { cas_paths: self.cas_paths, built: false });
+            return Ok(GitFetchOutput {
+                cas_paths: self.cas_paths,
+                built: false,
+            });
         }
         if fast_path_eligible && self.scripts.ignore {
             // `should_be_built && ignore_scripts`: prepare skipped the
@@ -137,13 +140,27 @@ impl GitHostedTarballFetcher<'_> {
             // Return the raw filesMap *without* writing a final-key
             // row, so subsequent installs re-check the build gate. This
             // keeps `--ignore-scripts` installs idempotent.
-            return Ok(GitFetchOutput { cas_paths: self.cas_paths, built: should_be_built });
+            return Ok(GitFetchOutput {
+                cas_paths: self.cas_paths,
+                built: should_be_built,
+            });
         }
 
+        self.import_prepared_files(&pkg_dir, &files, should_be_built)
+    }
+}
+
+impl<'a> GitHostedTarballFetcher<'a> {
+    fn import_prepared_files(
+        self,
+        pkg_dir: &std::path::Path,
+        files: &[String],
+        should_be_built: bool,
+    ) -> Result<GitFetchOutput, GitFetcherError> {
         // Step 5: Slow path — re-import the filtered file set back
         // into CAS and hand the resulting map to the install dispatcher.
         let ImportedFiles { cas_paths, files_index } =
-            import_into_cas(self.store.dir, &pkg_dir, &files)?;
+            import_into_cas(self.store.dir, pkg_dir, files)?;
 
         // Step 6: Queue a `PackageFilesIndex` row so a future install's
         // warm prefetch skips the materialize+prepare+packlist+re-import
@@ -157,11 +174,12 @@ impl GitHostedTarballFetcher<'_> {
             should_be_built,
         );
 
-        Ok(GitFetchOutput { cas_paths, built: should_be_built })
+        Ok(GitFetchOutput {
+            cas_paths,
+            built: should_be_built,
+        })
     }
-}
 
-impl<'a> GitHostedTarballFetcher<'a> {
     fn prepare_options(&self) -> PreparePackageOptions<'a> {
         let allow_build = self.allow_build;
         PreparePackageOptions {

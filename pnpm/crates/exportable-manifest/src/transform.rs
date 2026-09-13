@@ -43,7 +43,9 @@ pub fn transform(manifest: &mut Map<String, Value>) -> Result<(), TransformError
 fn transform_required_fields(manifest: &Map<String, Value>) -> Result<(), TransformError> {
     for field in ["name", "version"] {
         if !manifest.get(field).is_some_and(is_truthy) {
-            return Err(TransformError::MissingRequiredField { field });
+            return Err(TransformError::MissingRequiredField {
+                field,
+            });
         }
     }
     Ok(())
@@ -57,7 +59,10 @@ fn transform_bin(manifest: &mut Map<String, Value>) -> Result<(), TransformError
     };
     let bin = bin.clone();
     // `transformRequiredFields` already guaranteed a string `name`.
-    let pkg_name = manifest.get("name").and_then(Value::as_str).unwrap_or_default();
+    let pkg_name = manifest
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
     let command_name = normalize_bin_name(pkg_name)?;
     let mut bin_object = Map::new();
     bin_object.insert(command_name, Value::String(bin));
@@ -74,7 +79,9 @@ fn normalize_bin_name(name: &str) -> Result<String, TransformError> {
     }
     match name.find('/') {
         Some(slash_index) => Ok(name[slash_index + 1..].to_string()),
-        None => Err(TransformError::InvalidScopedPackageName { invalid_name: name.to_string() }),
+        None => Err(TransformError::InvalidScopedPackageName {
+            invalid_name: name.to_string(),
+        }),
     }
 }
 
@@ -96,7 +103,10 @@ fn transform_peer_dependencies_meta(manifest: &mut Map<String, Value>) {
                 continue;
             }
         };
-        let optional = entry.get("optional").and_then(Value::as_bool).unwrap_or(false);
+        let optional = entry
+            .get("optional")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
         entry.insert("optional".to_string(), Value::Bool(optional));
         out.insert(key.clone(), Value::Object(entry));
     }

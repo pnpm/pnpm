@@ -210,7 +210,11 @@ async fn apply<Reporter: self::Reporter + 'static>(
 
     commit_apply_state::<Reporter>(&inputs, &state, metadata)?;
 
-    let MaterializedState { selected_current_lockfile, current_lockfile, .. } = state;
+    let MaterializedState {
+        selected_current_lockfile,
+        current_lockfile,
+        ..
+    } = state;
     finish_apply::<Reporter>(inputs, selected_current_lockfile, current_lockfile)
 }
 

@@ -90,25 +90,34 @@ pub(crate) const DIRECT_GROUPS: [pnpm_package_manifest::DependencyGroup; 3] = [
 pub fn included_direct_groups(
     include_optional: bool,
 ) -> impl Iterator<Item = pnpm_package_manifest::DependencyGroup> {
-    DIRECT_GROUPS.into_iter().filter(move |group| {
-        include_optional || *group != pnpm_package_manifest::DependencyGroup::Optional
-    })
+    DIRECT_GROUPS
+        .into_iter()
+        .filter(move |group| {
+            include_optional || *group != pnpm_package_manifest::DependencyGroup::Optional
+        })
 }
 
 pub(crate) fn package_manifest_prefix(manifest: &pnpm_package_manifest::PackageManifest) -> String {
-    manifest.path().parent().unwrap_or_else(|| manifest.path()).to_string_lossy().into_owned()
+    manifest
+        .path()
+        .parent()
+        .unwrap_or_else(|| manifest.path())
+        .to_string_lossy()
+        .into_owned()
 }
 
 pub(crate) fn emit_initial_package_manifest<Reporter: pnpm_reporter::Reporter>(
     manifest: &pnpm_package_manifest::PackageManifest,
 ) {
-    Reporter::emit(&pnpm_reporter::LogEvent::PackageManifest(pnpm_reporter::PackageManifestLog {
-        level: pnpm_reporter::LogLevel::Debug,
-        message: pnpm_reporter::PackageManifestMessage::Initial {
-            prefix: package_manifest_prefix(manifest),
-            initial: manifest.value().clone(),
+    Reporter::emit(&pnpm_reporter::LogEvent::PackageManifest(
+        pnpm_reporter::PackageManifestLog {
+            level: pnpm_reporter::LogLevel::Debug,
+            message: pnpm_reporter::PackageManifestMessage::Initial {
+                prefix: package_manifest_prefix(manifest),
+                initial: manifest.value().clone(),
+            },
         },
-    }));
+    ));
 }
 
 #[cfg(test)]

@@ -63,16 +63,20 @@ impl MockInstanceOptions<'_> {
         let mut retries = max_retries;
 
         while !self.is_registry_ready().await {
-            retries = retries.checked_sub(1).unwrap_or_else(|| {
-                panic!("Failed to check for the registry for {max_retries} times")
-            });
+            retries = retries
+                .checked_sub(1)
+                .unwrap_or_else(|| {
+                    panic!("Failed to check for the registry for {max_retries} times")
+                });
 
             sleep(retry_delay).await;
         }
     }
 
     pub(crate) async fn spawn(self) -> MockInstance {
-        let MockInstanceOptions { port, public_url, stdout, stderr, .. } = self;
+        let MockInstanceOptions {
+            port, public_url, stdout, stderr, ..
+        } = self;
 
         let stdout = stdout.map_or_else(Stdio::null, |stdout| {
             File::create(stdout).expect("create file for stdout").into()
@@ -94,7 +98,9 @@ impl MockInstanceOptions<'_> {
 
         self.wait_for_registry().await;
 
-        MockInstance { process }
+        MockInstance {
+            process,
+        }
     }
 
     pub async fn spawn_if_necessary(self) -> Option<MockInstance> {

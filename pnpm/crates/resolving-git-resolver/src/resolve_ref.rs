@@ -99,11 +99,18 @@ pub async fn resolve_ref<Runner: GitCommandRunner + ?Sized>(
     // Pass `None` for the ref filter when either `range` is set or the
     // ref looks like a committish: there is no single canonical ref
     // name to filter on in those cases.
-    let filter = if range.is_some() || committish { None } else { Some(ref_) };
+    let filter = if range.is_some() || committish {
+        None
+    } else {
+        Some(ref_)
+    };
     let refs = get_repo_refs(runner, repo, filter).await.map_err(GitResolveRefError::Runner)?;
     let commit = resolve_ref_from_refs(&refs, repo, ref_, committish, range)?;
     if committish && !commit.starts_with(ref_) {
-        return Err(GitResolveRefError::AmbiguousRef { ref_: ref_.to_string(), commit });
+        return Err(GitResolveRefError::AmbiguousRef {
+            ref_: ref_.to_string(),
+            commit,
+        });
     }
     Ok(commit)
 }
@@ -123,7 +130,9 @@ fn is_committish(ref_: &str) -> bool {
     let bytes = ref_.as_bytes();
     bytes.len() >= 7
         && bytes.len() <= 40
-        && bytes.iter().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+        && bytes
+            .iter()
+            .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
 
 /// Parse the `git ls-remote` stdout into `{ ref_name -> commit_sha }`.
@@ -148,12 +157,11 @@ fn resolve_ref_from_refs(
     range: Option<&str>,
 ) -> Result<String, GitResolveRefError> {
     let Some(range) = range else {
-        return resolve_exact_ref(refs, ref_, committish).ok_or_else(|| {
-            GitResolveRefError::UnknownRef {
+        return resolve_exact_ref(refs, ref_, committish)
+            .ok_or_else(|| GitResolveRefError::UnknownRef {
                 ref_: ref_.to_string(),
                 repo: redact_and_sanitize(repo),
-            }
-        });
+            });
     };
     resolve_range(refs, repo, range)
 }
@@ -172,7 +180,10 @@ fn resolve_exact_ref(
         format!("refs/tags/{ref_}"),
         format!("refs/heads/{ref_}"),
     ];
-    if let Some(commit) = lookup_keys.iter().find_map(|key| refs.get(key)) {
+    if let Some(commit) = lookup_keys
+        .iter()
+        .find_map(|key| refs.get(key))
+    {
         return Some(commit.clone());
     }
     if !committish {
@@ -181,8 +192,10 @@ fn resolve_exact_ref(
     // Dedupe across multiple refs that point at the same commit
     // (`refs/heads/main` and `refs/tags/v1` may both point at the same SHA);
     // an ambiguous prefix resolves to nothing.
-    let mut matches: BTreeSet<&String> =
-        refs.values().filter(|value| value.starts_with(ref_)).collect();
+    let mut matches: BTreeSet<&String> = refs
+        .values()
+        .filter(|value| value.starts_with(ref_))
+        .collect();
     if matches.len() != 1 {
         return None;
     }
@@ -200,13 +213,18 @@ fn resolve_range(
     let unknown_range = || GitResolveRefError::UnknownRange {
         range: range.to_string(),
         repo: redact_and_sanitize(repo),
-        available: v_tags.iter().cloned().collect::<Vec<_>>().join(", "),
+        available: v_tags
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join(", "),
     };
 
     let parsed_range = Range::parse(range).map_err(|_| unknown_range())?;
     resolve_v_tags(&v_tags, &parsed_range)
         .and_then(|tag| {
-            refs.get(&format!("refs/tags/{tag}^{{}}"))
+            refs
+                .get(&format!("refs/tags/{tag}^{{}}"))
                 .or_else(|| refs.get(&format!("refs/tags/{tag}")))
                 .cloned()
         })
@@ -216,7 +234,8 @@ fn resolve_range(
 /// The tag refs shaped like `v?<n.n.n>(-...|+...)?`, deduped and stripped of
 /// their `refs/tags/` prefix and `^{}` suffix.
 fn version_tags(refs: &HashMap<String, String>) -> BTreeSet<String> {
-    refs.keys()
+    refs
+        .keys()
         .filter(|key| looks_like_version_tag(key))
         .filter_map(|key| key.strip_prefix("refs/tags/"))
         .map(|tag| tag.strip_suffix("^{}").unwrap_or(tag))
@@ -231,7 +250,9 @@ fn strip_v(tag: &str) -> &str {
 
 /// `true` when `key` is shaped like `refs/tags/v?<n.n.n>(...)?(^\{\})?`.
 fn looks_like_version_tag(key: &str) -> bool {
-    let Some(rest) = key.strip_prefix("refs/tags/") else { return false };
+    let Some(rest) = key.strip_prefix("refs/tags/") else {
+        return false;
+    };
     let rest = rest.strip_suffix("^{}").unwrap_or(rest);
     let rest = strip_v(rest);
     // Must start with `\d+\.\d+\.\d+`. The semver parser is lenient
@@ -263,7 +284,9 @@ fn looks_like_version_tag(key: &str) -> bool {
 fn resolve_v_tags(tags: &BTreeSet<String>, range: &Range) -> Option<String> {
     let mut best: Option<(Version, String)> = None;
     for tag in tags {
-        let parsed = Version::parse(tag).or_else(|_| Version::parse(strip_v(tag))).ok()?;
+        let parsed = Version::parse(tag)
+            .or_else(|_| Version::parse(strip_v(tag)))
+            .ok()?;
         if range.satisfies(&parsed) {
             match best {
                 Some((ref best_v, _)) if best_v >= &parsed => {}

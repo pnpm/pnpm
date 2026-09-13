@@ -63,7 +63,11 @@ fn test_satisfies_prerelease_matches_include_prerelease() {
         ("19.0.0-rc.1", "^16.8.4 || ^17.0.0 || ^18.0.0", false),
     ];
     for (version, range, expected) in cases {
-        assert_eq!(satisfies(version, range), expected, "{version} against {range}");
+        assert_eq!(
+            satisfies(version, range),
+            expected,
+            "{version} against {range}",
+        );
     }
 }
 
@@ -89,7 +93,11 @@ fn test_satisfies_partial_upper_bound_covers_the_omitted_component() {
         ("<=1.2.3", "1.2.4", false),
     ];
     for (range, version, expected) in cases {
-        assert_eq!(satisfies(version, range), expected, "{version} against {range}");
+        assert_eq!(
+            satisfies(version, range),
+            expected,
+            "{version} against {range}",
+        );
     }
 }
 
@@ -111,7 +119,10 @@ fn test_normalize_version_str() {
 #[test]
 fn test_intersect_multiple_ranges_basic() {
     let version_ranges = vec!["^1.2.3".to_string(), ">=1.0.0".to_string()];
-    assert_eq!(intersect_multiple_ranges(&version_ranges).as_deref(), Some(">=1.2.3 <2.0.0"));
+    assert_eq!(
+        intersect_multiple_ranges(&version_ranges).as_deref(),
+        Some(">=1.2.3 <2.0.0"),
+    );
 }
 
 #[test]
@@ -123,7 +134,10 @@ fn test_intersect_multiple_ranges_conflict() {
 #[test]
 fn test_intersect_multiple_ranges_exact() {
     let version_ranges = vec!["^16.0.0".to_string(), "16.1.0".to_string()];
-    assert_eq!(intersect_multiple_ranges(&version_ranges).as_deref(), Some("16.1.0"));
+    assert_eq!(
+        intersect_multiple_ranges(&version_ranges).as_deref(),
+        Some("16.1.0"),
+    );
 }
 
 /// A range that leaves `minor` or `patch` unpinned reaches the next
@@ -148,7 +162,10 @@ fn test_intersect_widens_partial_versions_like_npm() {
         (vec!["~1", "2.0.0"], None),
     ];
     for (ranges, expected) in cases {
-        let ranges: Vec<String> = ranges.into_iter().map(ToString::to_string).collect();
+        let ranges: Vec<String> = ranges
+            .into_iter()
+            .map(ToString::to_string)
+            .collect();
         let actual = intersect_multiple_ranges(&ranges);
         assert_eq!(actual.as_deref(), expected, "ranges: {ranges:?}");
     }
@@ -165,7 +182,10 @@ fn test_explicit_prerelease_upper_bound() {
     assert!(satisfies("1.9.9", "<2.0.0-0"));
 
     let ranges = ["<2.0.0-0".to_string(), ">=1.0.0".to_string()];
-    assert_eq!(intersect_multiple_ranges(&ranges).as_deref(), Some(">=1.0.0 <2.0.0"));
+    assert_eq!(
+        intersect_multiple_ranges(&ranges).as_deref(),
+        Some(">=1.0.0 <2.0.0"),
+    );
 }
 
 #[test]
@@ -180,12 +200,18 @@ fn test_have_common_version_single() {
 
 #[test]
 fn test_have_common_version_matching() {
-    assert!(have_common_version(&["^1.2.3".to_string(), ">=1.0.0".to_string(),]));
+    assert!(have_common_version(&[
+        "^1.2.3".to_string(),
+        ">=1.0.0".to_string(),
+    ]));
 }
 
 #[test]
 fn test_have_common_version_non_matching() {
-    assert!(!have_common_version(&["^1.0.0".to_string(), "^2.0.0".to_string(),]));
+    assert!(!have_common_version(&[
+        "^1.0.0".to_string(),
+        "^2.0.0".to_string(),
+    ]));
 }
 
 #[test]
@@ -201,7 +227,10 @@ fn test_merge_missing_peers_single() {
     missing.insert(
         "react".to_string(),
         vec![MissingPeerIssue {
-            parents: vec![ParentPkg { name: "foo".to_string(), version: "1.0.0".to_string() }],
+            parents: vec![ParentPkg {
+                name: "foo".to_string(),
+                version: "1.0.0".to_string(),
+            }],
             optional: false,
             wanted_range: "^18.0.0".to_string(),
         }],
@@ -219,12 +248,18 @@ fn test_merge_missing_peers_same_range() {
         "react".to_string(),
         vec![
             MissingPeerIssue {
-                parents: vec![ParentPkg { name: "foo".to_string(), version: "1.0.0".to_string() }],
+                parents: vec![ParentPkg {
+                    name: "foo".to_string(),
+                    version: "1.0.0".to_string(),
+                }],
                 optional: false,
                 wanted_range: "^18.0.0".to_string(),
             },
             MissingPeerIssue {
-                parents: vec![ParentPkg { name: "bar".to_string(), version: "2.0.0".to_string() }],
+                parents: vec![ParentPkg {
+                    name: "bar".to_string(),
+                    version: "2.0.0".to_string(),
+                }],
                 optional: false,
                 wanted_range: "^18.0.0".to_string(),
             },
@@ -242,12 +277,18 @@ fn test_merge_missing_peers_conflicting() {
         "react".to_string(),
         vec![
             MissingPeerIssue {
-                parents: vec![ParentPkg { name: "foo".to_string(), version: "1.0.0".to_string() }],
+                parents: vec![ParentPkg {
+                    name: "foo".to_string(),
+                    version: "1.0.0".to_string(),
+                }],
                 optional: false,
                 wanted_range: "^17.0.0".to_string(),
             },
             MissingPeerIssue {
-                parents: vec![ParentPkg { name: "bar".to_string(), version: "2.0.0".to_string() }],
+                parents: vec![ParentPkg {
+                    name: "bar".to_string(),
+                    version: "2.0.0".to_string(),
+                }],
                 optional: false,
                 wanted_range: "^18.0.0".to_string(),
             },
@@ -266,12 +307,18 @@ fn test_merge_missing_peers_all_optional_skipped() {
         "react".to_string(),
         vec![
             MissingPeerIssue {
-                parents: vec![ParentPkg { name: "foo".to_string(), version: "1.0.0".to_string() }],
+                parents: vec![ParentPkg {
+                    name: "foo".to_string(),
+                    version: "1.0.0".to_string(),
+                }],
                 optional: true,
                 wanted_range: "^18.0.0".to_string(),
             },
             MissingPeerIssue {
-                parents: vec![ParentPkg { name: "bar".to_string(), version: "2.0.0".to_string() }],
+                parents: vec![ParentPkg {
+                    name: "bar".to_string(),
+                    version: "2.0.0".to_string(),
+                }],
                 optional: true,
                 wanted_range: "^18.0.0".to_string(),
             },
@@ -306,7 +353,10 @@ fn test_parse_allowed_versions_by_parent() {
     let (match_all, by_parent) = parse_allowed_versions(&allowed);
     assert!(match_all.is_empty());
     assert_eq!(by_parent.len(), 1);
-    assert_eq!(by_parent["@foo/bar"][0].peer_rules["react"], vec!["^18.0.0"]);
+    assert_eq!(
+        by_parent["@foo/bar"][0].peer_rules["react"],
+        vec!["^18.0.0"],
+    );
 }
 
 #[test]
@@ -331,7 +381,10 @@ fn test_filter_peer_issues_no_rules() {
     peer.bad.insert(
         "react".to_string(),
         vec![BadPeerIssue {
-            parents: vec![ParentPkg { name: "foo".to_string(), version: "1.0.0".to_string() }],
+            parents: vec![ParentPkg {
+                name: "foo".to_string(),
+                version: "1.0.0".to_string(),
+            }],
             optional: false,
             wanted_range: "^18.0.0".to_string(),
             found_version: "17.0.0".to_string(),
@@ -341,7 +394,11 @@ fn test_filter_peer_issues_no_rules() {
     issues.insert("project".to_string(), peer);
     let filtered = filter_peer_issues(
         issues,
-        &PeerDependencyRules { ignore_missing: None, allow_any: None, allowed_versions: None },
+        &PeerDependencyRules {
+            ignore_missing: None,
+            allow_any: None,
+            allowed_versions: None,
+        },
     );
     assert_eq!(filtered["project"].bad.len(), 1);
     assert!(!filtered["project"].bad["react"].is_empty());
@@ -359,7 +416,10 @@ fn test_filter_peer_issues_allow_any() {
     peer.bad.insert(
         "react".to_string(),
         vec![BadPeerIssue {
-            parents: vec![ParentPkg { name: "foo".to_string(), version: "1.0.0".to_string() }],
+            parents: vec![ParentPkg {
+                name: "foo".to_string(),
+                version: "1.0.0".to_string(),
+            }],
             optional: false,
             wanted_range: "^18.0.0".to_string(),
             found_version: "17.0.0".to_string(),
@@ -390,7 +450,10 @@ fn test_filter_peer_issues_allowed_versions() {
     peer.bad.insert(
         "react".to_string(),
         vec![BadPeerIssue {
-            parents: vec![ParentPkg { name: "foo".to_string(), version: "1.0.0".to_string() }],
+            parents: vec![ParentPkg {
+                name: "foo".to_string(),
+                version: "1.0.0".to_string(),
+            }],
             optional: false,
             wanted_range: "^18.0.0".to_string(),
             found_version: "17.0.0".to_string(),
@@ -423,7 +486,10 @@ fn test_filter_peer_issues_allowed_versions_not_matching() {
     peer.bad.insert(
         "react".to_string(),
         vec![BadPeerIssue {
-            parents: vec![ParentPkg { name: "foo".to_string(), version: "1.0.0".to_string() }],
+            parents: vec![ParentPkg {
+                name: "foo".to_string(),
+                version: "1.0.0".to_string(),
+            }],
             optional: false,
             wanted_range: "^18.0.0".to_string(),
             found_version: "16.0.0".to_string(),
@@ -456,7 +522,10 @@ fn test_filter_peer_issues_ignore_missing() {
     peer.missing.insert(
         "react".to_string(),
         vec![MissingPeerIssue {
-            parents: vec![ParentPkg { name: "foo".to_string(), version: "1.0.0".to_string() }],
+            parents: vec![ParentPkg {
+                name: "foo".to_string(),
+                version: "1.0.0".to_string(),
+            }],
             optional: false,
             wanted_range: "^18.0.0".to_string(),
         }],
@@ -485,7 +554,10 @@ fn test_filter_peer_issues_ignore_missing_pattern() {
     peer.missing.insert(
         "@scope/pkg".to_string(),
         vec![MissingPeerIssue {
-            parents: vec![ParentPkg { name: "foo".to_string(), version: "1.0.0".to_string() }],
+            parents: vec![ParentPkg {
+                name: "foo".to_string(),
+                version: "1.0.0".to_string(),
+            }],
             optional: false,
             wanted_range: "^1.0.0".to_string(),
         }],
@@ -514,7 +586,10 @@ fn test_filter_peer_issues_allowed_versions_parent_scoped() {
     peer.bad.insert(
         "react".to_string(),
         vec![BadPeerIssue {
-            parents: vec![ParentPkg { name: "@foo/bar".to_string(), version: "1.2.3".to_string() }],
+            parents: vec![ParentPkg {
+                name: "@foo/bar".to_string(),
+                version: "1.2.3".to_string(),
+            }],
             optional: false,
             wanted_range: "^18.0.0".to_string(),
             found_version: "17.0.0".to_string(),

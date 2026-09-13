@@ -92,11 +92,10 @@ async fn start_pnpr_inner(
         config.routing.upstreams.insert(name, upstream);
     }
     for registry in public_registries {
-        config
-            .routing
-            .route_policy
-            .public
-            .push(pnpr::PublicRoute { registry: Some(registry), package: None });
+        config.routing.route_policy.public.push(pnpr::PublicRoute {
+            registry: Some(registry),
+            package: None,
+        });
     }
 
     tokio::spawn(async move {
@@ -157,7 +156,10 @@ async fn capture_one_request_with_response(listener: TcpListener, response: Stri
         // boundary is located in the raw bytes so the index stays aligned
         // with `buffer.len()` below: decoding first would rewrite any
         // non-UTF-8 byte as a longer replacement character and shift it.
-        let Some(headers_end) = buffer.windows(4).position(|window| window == b"\r\n\r\n") else {
+        let Some(headers_end) = buffer
+            .windows(4)
+            .position(|window| window == b"\r\n\r\n")
+        else {
             continue;
         };
         let headers = String::from_utf8_lossy(&buffer[..headers_end]);
@@ -165,9 +167,15 @@ async fn capture_one_request_with_response(listener: TcpListener, response: Stri
             .lines()
             .find_map(|line| {
                 let (name, value) = line.split_once(':')?;
-                name.trim()
+                name
+                    .trim()
                     .eq_ignore_ascii_case("content-length")
-                    .then(|| value.trim().parse::<usize>().ok())
+                    .then(|| {
+                        value
+                            .trim()
+                            .parse::<usize>()
+                            .ok()
+                    })
                     .flatten()
             })
             .unwrap_or(0);
@@ -190,7 +198,10 @@ async fn capture_one_request(listener: TcpListener) -> String {
 }
 
 fn deps<const COUNT: usize>(entries: [(&str, &str); COUNT]) -> BTreeMap<String, String> {
-    entries.into_iter().map(|(name, range)| (name.to_string(), range.to_string())).collect()
+    entries
+        .into_iter()
+        .map(|(name, range)| (name.to_string(), range.to_string()))
+        .collect()
 }
 
 /// Register a user with an npm-compatible registry and return its bearer
@@ -204,9 +215,16 @@ async fn register_token(registry_url: &str, username: &str) -> String {
         .send()
         .await
         .expect("adduser request");
-    assert!(response.status().is_success(), "adduser returned {}", response.status());
+    assert!(
+        response.status().is_success(),
+        "adduser returned {}",
+        response.status(),
+    );
     let json: serde_json::Value = response.json().await.expect("adduser response json");
-    json["token"].as_str().expect("token in adduser response").to_string()
+    json["token"]
+        .as_str()
+        .expect("token in adduser response")
+        .to_string()
 }
 
 fn options(
@@ -289,7 +307,10 @@ fn signed_artifact_fixture_for(
     let payload = ArtifactPayload {
         kind: "dependency-side-effects:v1".to_string(),
         subject: ArtifactSubject::dependency_side_effects(
-            PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
+            PackageIdentity {
+                name: "native-addon".to_string(),
+                version: "1.0.0".to_string(),
+            },
             "sha512-source",
         ),
         input_key: "dependency-side-effects:v1:deps=abc".to_string(),
@@ -300,7 +321,9 @@ fn signed_artifact_fixture_for(
             architecture_baseline: "x86-64-v2".to_string(),
             environment: BTreeMap::from([("CFLAGS".to_string(), "-O2".to_string())]),
         },
-        compatibility: CompatibilityConstraints::Tagged { tags: vec![tag.to_string()] },
+        compatibility: CompatibilityConstraints::Tagged {
+            tags: vec![tag.to_string()],
+        },
         manifest: ArtifactManifest {
             added: vec![ArtifactFile {
                 path: "build/addon.node".to_string(),
@@ -329,7 +352,10 @@ fn signed_artifact_fixture_for(
         PublishArtifactRequest {
             key: payload.input_key,
             envelope,
-            blobs: vec![ArtifactBlobUpload { integrity, data: BASE64.encode(&blob) }],
+            blobs: vec![ArtifactBlobUpload {
+                integrity,
+                data: BASE64.encode(&blob),
+            }],
         },
         public_key,
         blob,

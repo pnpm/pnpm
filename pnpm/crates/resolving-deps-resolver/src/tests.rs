@@ -41,7 +41,10 @@ impl Resolver for StubResolver {
             wanted.alias.clone().unwrap_or_default(),
             wanted.bare_specifier.clone().unwrap_or_default(),
         );
-        self.calls.lock().unwrap().push(key.clone());
+        self.calls
+            .lock()
+            .unwrap()
+            .push(key.clone());
         let result = self.table.get(&key).cloned();
         Box::pin(async move { Ok::<_, ResolveError>(result) })
     }
@@ -109,30 +112,28 @@ impl Resolver for OverlayPickResolver {
         let name = wanted.alias.clone().unwrap_or_default();
         let bare = wanted.bare_specifier.clone().unwrap_or_default();
         let range = node_semver::Range::from_str(&bare).expect("test range");
-        let preferred: Vec<&str> = opts
-            .version
-            .preferred_versions_overlay
+        let preferred: Vec<&str> = opts.version.preferred_versions_overlay
             .as_ref()
             .map(|overlay| overlay.versions_for(&name))
             .unwrap_or_default();
-        let satisfying: Vec<&ResolveResult> = self
-            .versions
+        let satisfying: Vec<&ResolveResult> = self.versions
             .get(&name)
             .map(Vec::as_slice)
             .unwrap_or_default()
             .iter()
             .filter(|result| {
-                result
-                    .package
-                    .name_ver
+                result.package.name_ver
                     .as_ref()
                     .is_some_and(|name_ver| range.satisfies(&name_ver.suffix))
             })
             .collect();
         let highest = |from: Vec<&ResolveResult>| {
-            from.into_iter()
+            from
+                .into_iter()
                 .max_by(|left, right| {
-                    version_of(left).partial_cmp(version_of(right)).expect("comparable versions")
+                    version_of(left)
+                        .partial_cmp(version_of(right))
+                        .expect("comparable versions")
                 })
                 .cloned()
         };
@@ -316,8 +317,15 @@ impl pnpm_hooks::PnpmfileHooks for RecordingHooks {
         pkg: serde_json::Value,
         ctx: pnpm_hooks::HookContext,
     ) -> Result<pnpm_hooks::ReadPackageResult, pnpm_hooks::HookError> {
-        let name = pkg.get("name").and_then(|name| name.as_str()).unwrap_or_default().to_string();
-        self.calls.lock().unwrap().push((name, ctx.dir));
+        let name = pkg
+            .get("name")
+            .and_then(|name| name.as_str())
+            .unwrap_or_default()
+            .to_string();
+        self.calls
+            .lock()
+            .unwrap()
+            .push((name, ctx.dir));
         Ok(std::sync::Arc::new(pkg))
     }
 

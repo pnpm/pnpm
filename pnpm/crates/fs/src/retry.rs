@@ -112,7 +112,10 @@ where
             Err(error) => error,
         };
         if error.kind() == io::ErrorKind::PermissionDenied
-            && !matches!(error.raw_os_error(), Some(ERROR_SHARING_VIOLATION | ERROR_LOCK_VIOLATION))
+            && !matches!(
+                error.raw_os_error(),
+                Some(ERROR_SHARING_VIOLATION | ERROR_LOCK_VIOLATION),
+            )
         {
             timing.budget = timing.budget.min(PERMISSION_DENIED_RETRY_BUDGET);
         }
@@ -155,8 +158,13 @@ where
 /// Always `false` on Unix.
 pub(crate) fn is_transient_file_lock_error(error: &io::Error) -> bool {
     cfg!(windows)
-        && (matches!(error.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::ResourceBusy)
-            || matches!(error.raw_os_error(), Some(ERROR_SHARING_VIOLATION | ERROR_LOCK_VIOLATION)))
+        && (matches!(
+            error.kind(),
+            io::ErrorKind::PermissionDenied | io::ErrorKind::ResourceBusy,
+        ) || matches!(
+            error.raw_os_error(),
+            Some(ERROR_SHARING_VIOLATION | ERROR_LOCK_VIOLATION),
+        ))
 }
 
 #[cfg(test)]

@@ -36,15 +36,20 @@ async fn should_throw_in_non_interactive_terminal_when_web_login_is_unsupported(
     let registry = server.url();
     let config_dir = Path::new("/mock/config");
 
-    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
-        .await
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
         .unwrap_err();
 
     login_mock.assert_async().await;
     assert!(matches!(err, LoginError::NonInteractive), "got {err:?}");
-    assert_eq!(err.to_string(), "The login command requires an interactive terminal");
     assert_eq!(
-        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
+        err.to_string(),
+        "The login command requires an interactive terminal",
+    );
+    assert_eq!(
+        err
+            .pipe_ref(miette::Diagnostic::code)
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_LOGIN_NON_INTERACTIVE"),
     );
 }

@@ -172,7 +172,9 @@ impl WorkEnv {
     /// Every bench dir the run will touch — every target plus, when
     /// requested, the system-pnpm sibling.
     fn benchmarked_ids(&self) -> impl Iterator<Item = BenchId<'_>> + '_ {
-        self.target_ids().chain(self.options.selection.with_pnpm.then_some(WorkEnv::SYSTEM_PNPM))
+        self
+            .target_ids()
+            .chain(self.options.selection.with_pnpm.then_some(WorkEnv::SYSTEM_PNPM))
     }
 
     fn repository(&self) -> &'_ Path {
@@ -183,11 +185,15 @@ impl WorkEnv {
     /// pacquet repo when the caller didn't override it — useful when
     /// the same monorepo checkout contains both code bases.
     fn pnpm_repository(&self) -> &'_ Path {
-        self.options.build.pnpm_repository.as_deref().unwrap_or_else(|| self.repository())
+        self.options.build.pnpm_repository
+            .as_deref()
+            .unwrap_or_else(|| self.repository())
     }
 
     fn bench_dir(&self, id: BenchId) -> PathBuf {
-        self.root().join(id.to_string())
+        self
+            .root()
+            .join(id.to_string())
     }
 
     fn script_path(&self, id: BenchId) -> PathBuf {
@@ -233,8 +239,11 @@ impl WorkEnv {
                 // whichever this revision's build produced at script
                 // runtime, the same way the pnpm branch below resolves
                 // its bundle path.
-                let candidates =
-                    ["./pacquet/target/release/pnpm", "./pacquet/target/release/pacquet"].join(" ");
+                let candidates = [
+                    "./pacquet/target/release/pnpm",
+                    "./pacquet/target/release/pacquet",
+                ]
+                .join(" ");
                 format!(
                     r#""$(for f in {candidates}; do if [ -f "$f" ]; then echo "$f"; break; fi; done)""#,
                 )
@@ -248,8 +257,9 @@ impl WorkEnv {
                 // so the existence check sees the bundle produced by
                 // `pnpm run compile-only`, not the empty tree visible
                 // during `init()`.
-                let candidates =
-                    PNPM_BUNDLE_PATHS.map(|path| format!("./pnpm-source/{path}")).join(" ");
+                let candidates = PNPM_BUNDLE_PATHS
+                    .map(|path| format!("./pnpm-source/{path}"))
+                    .join(" ");
                 format!(
                     r#"node "$(for f in {candidates}; do if [ -f "$f" ]; then echo "$f"; break; fi; done)""#,
                 )
@@ -279,18 +289,7 @@ impl WorkEnv {
             eprintln!("ID: {id}");
             let dir = self.bench_dir(id);
             let registry = self.registry_for(id, direct_registry, revision_mocks);
-            fs::create_dir_all(&dir).expect("create directory for the revision");
-            create_package_json(&dir, self.options.selection.fixture_dir.as_deref(), scenario);
-            create_pnpm_workspace(
-                &dir,
-                self.options.selection.fixture_dir.as_deref(),
-                registry,
-                scenario,
-            );
-            create_install_script(&dir, scenario, &WorkEnv::install_command(id), id);
-            create_npmrc(&dir, registry, scenario);
-            may_create_lockfile(&dir, scenario, self.options.selection.fixture_dir.as_deref());
-            save_pristine_copies(&dir);
+            self.initialize_bench_dir(&dir, registry, scenario, id);
         }
 
         if populate_proxy_cache {
@@ -298,6 +297,36 @@ impl WorkEnv {
             Command::new("bash")
                 .arg(self.script_path(WorkEnv::INIT_PROXY_CACHE))
                 .pipe_mut(executor("install.bash"));
+        }
+    }
+
+    fn initialize_bench_dir(
+        &self,
+        dir: &Path,
+        registry: &str,
+        scenario: crate::cli_args::BenchmarkScenario,
+        id: BenchId<'_>,
+    ) {
+        fs::create_dir_all(dir).expect("create directory for the revision");
+        create_package_json(dir, self.options.selection.fixture_dir.as_deref(), scenario);
+        create_pnpm_workspace(
+            dir,
+            self.options.selection.fixture_dir.as_deref(),
+            registry,
+            scenario,
+        );
+        create_install_script(dir, scenario, &WorkEnv::install_command(id), id);
+        create_npmrc(dir, registry, scenario);
+        may_create_lockfile(dir, scenario, self.options.selection.fixture_dir.as_deref());
+        save_pristine_copies(dir);
+    }
+
+    fn wipe_bench_dirs(&self) {
+        for dir in self
+            .benchmarked_ids()
+            .map(|id| self.bench_dir(id))
+        {
+            wipe_bench_dir(&dir);
         }
     }
 
@@ -329,9 +358,7 @@ impl WorkEnv {
         // long-running server even while the client is cold. `cold-mock-storage`
         // (only the cold-pnpr scenario) is wiped here too so the warmup run
         // starts cold even on a reused work-env, not just the timed iterations.
-        for dir in self.benchmarked_ids().map(|id| self.bench_dir(id)) {
-            wipe_bench_dir(&dir);
-        }
+        self.wipe_bench_dirs();
 
         // Spawn each revision's own tarball-serving mock (see
         // `plan_revision_mocks`). Done after `build()` produced the
@@ -387,12 +414,18 @@ impl WorkEnv {
         }
 
         let mut command = Command::new("hyperfine");
-        command.current_dir(self.root()).arg("--prepare").arg(&cleanup_command);
+        command
+            .current_dir(self.root())
+            .arg("--prepare")
+            .arg(&cleanup_command);
 
         self.options.hyperfine_options.append_to(&mut command);
 
         for id in self.benchmarked_ids() {
-            command.arg("--command-name").arg(id.to_string()).arg(self.bash_command(id));
+            command
+                .arg("--command-name")
+                .arg(id.to_string())
+                .arg(self.bash_command(id));
         }
 
         command
@@ -415,7 +448,9 @@ impl WorkEnv {
     fn prewarm_install_state(&self) {
         for id in self.benchmarked_ids() {
             eprintln!("Pre-warming the install state for {id}...");
-            Command::new("bash").arg(self.script_path(id)).pipe_mut(executor("install.bash"));
+            Command::new("bash")
+                .arg(self.script_path(id))
+                .pipe_mut(executor("install.bash"));
         }
     }
 
@@ -468,15 +503,19 @@ impl WorkEnv {
         // separate resolve-registry URL so server-side metadata access can
         // be measured independently.
         let registry_proxy = self.start_client_registry_proxy();
-        let client_registry = registry_proxy.as_ref().map_or_else(
-            || self.registry.client.clone(),
-            |proxy| format!("http://{}/", proxy.addr),
-        );
+        let client_registry = registry_proxy
+            .as_ref()
+            .map_or_else(
+                || self.registry.client.clone(),
+                |proxy| format!("http://{}/", proxy.addr),
+            );
         let pnpr_server_registry_proxy = self.start_pnpr_server_registry_proxy();
-        let pnpr_server_registry = pnpr_server_registry_proxy.as_ref().map_or_else(
-            || self.registry.cache_populator.clone(),
-            |proxy| format!("http://{}/", proxy.addr),
-        );
+        let pnpr_server_registry = pnpr_server_registry_proxy
+            .as_ref()
+            .map_or_else(
+                || self.registry.cache_populator.clone(),
+                |proxy| format!("http://{}/", proxy.addr),
+            );
 
         let revision_mocks = self.plan_revision_mocks();
         self.init(&client_registry, &revision_mocks);

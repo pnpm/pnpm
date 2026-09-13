@@ -83,7 +83,10 @@ fn errors_when_no_resolver_in_the_chain_claims_the_spec() {
     // No alias and no bare specifier: every resolver in the chain declines,
     // so the dispatcher raises `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` rather
     // than the old npm-only "not claimed" string.
-    let wanted = WantedDependencyInput { alias: None, bare_specifier: None };
+    let wanted = WantedDependencyInput {
+        alias: None,
+        bare_specifier: None,
+    };
     let Err(error) = run_resolve_blocking(wanted, &options_for(dir.path())) else {
         panic!("an unclaimed spec should error rather than resolve");
     };
@@ -129,10 +132,21 @@ fn full_metadata_keeps_registry_custom_version_fields() {
     let dir = tempfile::tempdir().expect("tempdir");
     let cache_dir = tempfile::tempdir().expect("cache tempdir");
     let options = ResolveDependencyOptions {
-        dir: dir.path().display().to_string(),
+        dir: dir
+            .path()
+            .display()
+            .to_string(),
         store_dir: None,
-        cache_dir: Some(cache_dir.path().display().to_string()),
-        registries: Some(HashMap::from([("default".to_string(), format!("{}/", server.url()))])),
+        cache_dir: Some(
+            cache_dir
+                .path()
+                .display()
+                .to_string(),
+        ),
+        registries: Some(HashMap::from([(
+            "default".to_string(),
+            format!("{}/", server.url()),
+        )])),
         full_metadata: Some(true),
         offline: None,
         prefer_offline: None,

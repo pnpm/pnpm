@@ -6,9 +6,8 @@ use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic, WrapErr};
 use owo_colors::{OwoColorize, Stream};
 use pnpm_config::Config;
-use pnpm_network::{RetryOpts, redact_and_sanitize, send_with_retry};
+use pnpm_network::{redact_and_sanitize, send_with_retry};
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
 
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
@@ -19,7 +18,11 @@ pub enum SearchError {
 
     #[display("Search failed with status {status}: {status_text}{detail}")]
     #[diagnostic(code(ERR_PNPM_SEARCH_FAILED))]
-    SearchFailed { status: u16, status_text: String, detail: String },
+    SearchFailed {
+        status: u16,
+        status_text: String,
+        detail: String,
+    },
 
     #[display("Network request failed: {message}")]
     #[diagnostic(code(ERR_PNPM_SEARCH_FAILED))]
@@ -103,12 +106,7 @@ impl SearchArgs {
         let auth_header = config.auth_headers.for_url(&normalized_registry_url);
         let http_client = build_registry_client(config)?;
 
-        let retry_opts = RetryOpts {
-            retries: config.fetch_retries,
-            factor: config.fetch_retry_factor,
-            min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-            max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-        };
+        let retry_opts = config.retry_opts();
 
         let (client, response) =
             send_with_retry(&http_client, search_url.as_str(), retry_opts, |client| {
@@ -143,10 +141,14 @@ impl SearchArgs {
         query_string: &str,
     ) -> miette::Result<url::Url> {
         let base_url = url::Url::parse(normalized_registry_url)
-            .map_err(|err| SearchError::NetworkError { message: err.to_string() })?;
+            .map_err(|err| SearchError::NetworkError {
+                message: err.to_string(),
+            })?;
         let mut search_url = base_url
             .join("./-/v1/search")
-            .map_err(|err| SearchError::NetworkError { message: err.to_string() })?;
+            .map_err(|err| SearchError::NetworkError {
+                message: err.to_string(),
+            })?;
         search_url
             .query_pairs_mut()
             .append_pair("text", query_string)
@@ -157,10 +159,14 @@ impl SearchArgs {
     /// The results as JSON or as one block per package.
     fn render(&self, data: RegistrySearchResponse) -> miette::Result<String> {
         if self.json {
-            let packages: Vec<&serde_json::Value> =
-                data.objects.iter().map(|obj| &obj.package).collect();
+            let packages: Vec<&serde_json::Value> = data.objects
+                .iter()
+                .map(|obj| &obj.package)
+                .collect();
             return Ok(serde_json::to_string_pretty(&packages)
-                .map_err(|err| SearchError::NetworkError { message: err.to_string() })?);
+                .map_err(|err| SearchError::NetworkError {
+                    message: err.to_string(),
+                })?);
         }
 
         if data.objects.is_empty() {
@@ -170,7 +176,9 @@ impl SearchArgs {
         let mut formatted_packages = Vec::new();
         for obj in data.objects {
             let pkg: SearchPackage = serde_json::from_value(obj.package)
-                .map_err(|err| SearchError::NetworkError { message: err.to_string() })?;
+                .map_err(|err| SearchError::NetworkError {
+                    message: err.to_string(),
+                })?;
             formatted_packages.push(format_package(&pkg));
         }
 
@@ -181,31 +189,38 @@ impl SearchArgs {
 /// Add a trailing slash before joining so a registry with a path prefix
 /// keeps it.
 fn with_trailing_slash(registry_url: &str) -> String {
-    if registry_url.ends_with('/') { registry_url.to_owned() } else { format!("{registry_url}/") }
+    if registry_url.ends_with('/') {
+        registry_url.to_owned()
+    } else {
+        format!("{registry_url}/")
+    }
 }
 
 /// The registry's own explanation of a rejected search, when it sent one.
 async fn search_request_failed(response: reqwest::Response) -> SearchError {
     let status = response.status();
-    let error_body = response.text().await.unwrap_or_default().trim().to_string();
-    let detail =
-        if error_body.is_empty() { String::new() } else { format!(". {}", sanitize(&error_body)) };
+    let error_body = response
+        .text()
+        .await
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    let detail = if error_body.is_empty() {
+        String::new()
+    } else {
+        format!(". {}", sanitize(&error_body))
+    };
     SearchError::SearchFailed {
         status: status.as_u16(),
-        status_text: status.canonical_reason().unwrap_or_default().to_string(),
+        status_text: status
+            .canonical_reason()
+            .unwrap_or_default()
+            .to_string(),
         detail,
     }
 }
 
 fn format_package(pkg: &SearchPackage) -> String {
-    let author = author_name(pkg);
-    let date = pkg
-        .date
-        .as_deref()
-        .and_then(|date_str| date_str.split('T').next())
-        .unwrap_or_default()
-        .to_owned();
-
     let mut lines = Vec::new();
     lines.push(bold(&pkg.name));
 
@@ -213,14 +228,7 @@ fn format_package(pkg: &SearchPackage) -> String {
         lines.push(sanitize(desc).into_owned());
     }
 
-    let mut version_line = vec![format!("Version {}", sanitize(&pkg.version))];
-    if !date.is_empty() {
-        version_line.push(format!("published {date}"));
-    }
-    if !author.is_empty() {
-        version_line.push(format!("by {}", sanitize(&author)));
-    }
-    lines.push(version_line.join(" "));
+    lines.push(format_version_line(pkg));
 
     if let Some(ref maintainers) = pkg.maintainers
         && !maintainers.is_empty()
@@ -235,12 +243,17 @@ fn format_package(pkg: &SearchPackage) -> String {
     if let Some(ref keywords) = pkg.keywords
         && !keywords.is_empty()
     {
-        let sanitized_keywords: Vec<String> =
-            keywords.iter().map(|keyword| sanitize(keyword).into_owned()).collect();
+        let sanitized_keywords: Vec<String> = keywords
+            .iter()
+            .map(|keyword| sanitize(keyword).into_owned())
+            .collect();
         lines.push(format!("Keywords: {}", sanitized_keywords.join(", ")));
     }
 
-    lines.push(bright_blue(&format!("https://npmx.dev/package/{}", pkg.name)));
+    lines.push(bright_blue(&format!(
+        "https://npmx.dev/package/{}",
+        pkg.name,
+    )));
 
     lines.join("\n")
 }
@@ -253,15 +266,42 @@ fn author_name(pkg: &SearchPackage) -> String {
             AuthorInfo::String(author_str) => author_str.clone(),
         };
     }
-    pkg.publisher.as_ref().map(|publisher| publisher.username.clone()).unwrap_or_default()
+    pkg.publisher
+        .as_ref()
+        .map(|publisher| publisher.username.clone())
+        .unwrap_or_default()
 }
 
 fn bold(text: &str) -> String {
     let cleaned = sanitize(text);
-    cleaned.as_ref().if_supports_color(Stream::Stdout, |t| t.bold()).to_string()
+    cleaned
+        .as_ref()
+        .if_supports_color(Stream::Stdout, |t| t.bold())
+        .to_string()
 }
 
 fn bright_blue(text: &str) -> String {
     let cleaned = sanitize(text);
-    cleaned.as_ref().if_supports_color(Stream::Stdout, |t| t.bright_blue()).to_string()
+    cleaned
+        .as_ref()
+        .if_supports_color(Stream::Stdout, |t| t.bright_blue())
+        .to_string()
+}
+
+fn format_version_line(pkg: &SearchPackage) -> String {
+    let author = author_name(pkg);
+    let date = pkg.date
+        .as_deref()
+        .and_then(|date_str| date_str.split('T').next())
+        .unwrap_or_default()
+        .to_owned();
+    let mut version_line = vec![format!("Version {}", sanitize(&pkg.version))];
+    if !date.is_empty() {
+        version_line.push(format!("published {date}"));
+    }
+    if !author.is_empty() {
+        version_line.push(format!("by {}", sanitize(&author)));
+    }
+
+    version_line.join(" ")
 }

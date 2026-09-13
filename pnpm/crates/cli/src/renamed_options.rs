@@ -26,8 +26,16 @@ struct RenamedOption {
 }
 
 const RENAMED_OPTIONS: &[RenamedOption] = &[
-    RenamedOption { alias: "prefix", canonical_long: "dir", canonical_short: Some('C') },
-    RenamedOption { alias: "store", canonical_long: "store-dir", canonical_short: None },
+    RenamedOption {
+        alias: "prefix",
+        canonical_long: "dir",
+        canonical_short: Some('C'),
+    },
+    RenamedOption {
+        alias: "store",
+        canonical_long: "store-dir",
+        canonical_short: None,
+    },
 ];
 
 /// Drop every alias token whose option is also spelled canonically. See
@@ -42,31 +50,7 @@ pub fn drop_shadowed_aliases(cmd: &Command, argv: Vec<OsString>) -> Vec<OsString
     arity.absorb_subcommands(cmd);
     let passthrough_from = parse_boundary::passthrough_from(&argv).unwrap_or(argv.len());
 
-    let mut scan = AliasScan::default();
-    let mut index = 1;
-    while index < passthrough_from.min(argv.len()) {
-        let Some(token) = argv[index].to_str() else {
-            index += 1;
-            continue;
-        };
-        if token == "--" {
-            break;
-        }
-        if let Some(rest) = token.strip_prefix("--") {
-            let (name, has_inline_value) =
-                rest.split_once('=').map_or((rest, false), |(name, _)| (name, true));
-            let width =
-                token_width(arity.long_consumes_value(name).unwrap_or(false), has_inline_value);
-            scan.note_long(name, index, width);
-            index += width;
-        } else if let Some(rest) = token.strip_prefix('-').filter(|rest| !rest.is_empty()) {
-            let consumes_next = scan_short_cluster(rest, &arity, &mut scan.canonical_seen);
-            index += token_width(consumes_next, false);
-        } else {
-            index += 1;
-        }
-    }
-
+    let scan = scan_aliases(&argv, &arity, passthrough_from);
     let shadowed = scan.shadowed();
     if shadowed.is_empty() {
         return argv;
@@ -141,3 +125,38 @@ fn scan_short_cluster(
 
 #[cfg(test)]
 mod tests;
+
+fn scan_aliases(argv: &[OsString], arity: &ArgTable, passthrough_from: usize) -> AliasScan {
+    let mut scan = AliasScan::default();
+    let mut index = 1;
+    while index < passthrough_from.min(argv.len()) {
+        let Some(token) = argv[index].to_str() else {
+            index += 1;
+            continue;
+        };
+        if token == "--" {
+            break;
+        }
+        if let Some(rest) = token.strip_prefix("--") {
+            let (name, has_inline_value) = rest
+                .split_once('=')
+                .map_or((rest, false), |(name, _)| (name, true));
+            let width = token_width(
+                arity.long_consumes_value(name).unwrap_or(false),
+                has_inline_value,
+            );
+            scan.note_long(name, index, width);
+            index += width;
+        } else if let Some(rest) = token
+            .strip_prefix('-')
+            .filter(|rest| !rest.is_empty())
+        {
+            let consumes_next = scan_short_cluster(rest, arity, &mut scan.canonical_seen);
+            index += token_width(consumes_next, false);
+        } else {
+            index += 1;
+        }
+    }
+
+    scan
+}

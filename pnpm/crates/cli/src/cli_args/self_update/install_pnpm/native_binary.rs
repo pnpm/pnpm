@@ -42,12 +42,20 @@ pub(in super::super) fn exe_platform_pkg_dir_name_next(
 /// as the `exe.<target>` platform packages are named after it.
 pub(in super::super) fn native_target_name(platform: &str, arch: &str, libc: &str) -> String {
     let arch = normalized_arch(platform, arch);
-    let libc_suffix = if platform == "linux" && libc == "musl" { "-musl" } else { "" };
+    let libc_suffix = if platform == "linux" && libc == "musl" {
+        "-musl"
+    } else {
+        ""
+    };
     format!("{platform}-{arch}{libc_suffix}")
 }
 
 fn normalized_arch<'a>(platform: &str, arch: &'a str) -> &'a str {
-    if platform == "win32" && arch == "ia32" { "x86" } else { arch }
+    if platform == "win32" && arch == "ia32" {
+        "x86"
+    } else {
+        arch
+    }
 }
 
 /// Link the host's native platform binary (`@pnpm/exe.<target>`) into the
@@ -65,17 +73,26 @@ pub(crate) fn link_exe_platform_binary(
     let wrapper_dir = package_dir(install_dir, wrapper_pkg_name);
     if !wrapper_dir.exists() {
         let wrapper_display = wrapper_dir.display();
-        return Err(miette::miette!("the installed pnpm wrapper is missing at {wrapper_display}"));
+        return Err(miette::miette!(
+            "the installed pnpm wrapper is missing at {wrapper_display}"
+        ));
     }
     let platform = host_platform();
-    let executable = if platform == "win32" { "pnpm.exe" } else { "pnpm" };
+    let executable = if platform == "win32" {
+        "pnpm.exe"
+    } else {
+        "pnpm"
+    };
 
     let (install_real_dir, wrapper_real_dir) = canonical_wrapper_dirs(install_dir, &wrapper_dir)?;
     let parent = wrapper_real_dir
         .parent()
         .ok_or_else(|| miette::miette!("the pnpm wrapper has no parent directory"))?;
-    let scope_dir =
-        if wrapper_pkg_name.starts_with('@') { parent.to_path_buf() } else { parent.join("@pnpm") };
+    let scope_dir = if wrapper_pkg_name.starts_with('@') {
+        parent.to_path_buf()
+    } else {
+        parent.join("@pnpm")
+    };
 
     let src = find_native_binary(&scope_dir, platform, executable)?;
     let native_source_root = native_source_trust_root(&install_real_dir, wrapper_pkg_name);
@@ -167,7 +184,10 @@ fn native_source_trust_root(install_real_dir: &Path, wrapper_pkg_name: &str) -> 
 // placeholder scope segment unscoped packages sit under).
 fn global_virtual_store_root_from_slot(slot_dir: &Path, package_name: &str) -> Option<PathBuf> {
     let hash = slot_dir.file_name()?.to_str()?;
-    let version = slot_dir.parent()?.file_name()?.to_str()?;
+    let version = slot_dir
+        .parent()?
+        .file_name()?
+        .to_str()?;
     node_semver::Version::parse(version).ok()?;
 
     let mut cursor = slot_dir;
@@ -186,7 +206,9 @@ fn validate_native_binary_source(src: &Path, source_root: &Path) -> miette::Resu
         .into_diagnostic()
         .wrap_err_with(|| format!("inspect the native pnpm binary at {src_display}"))?;
     if link_meta.file_type().is_symlink() {
-        return Err(miette::miette!("the native pnpm binary at {src_display} is a symlink"));
+        return Err(miette::miette!(
+            "the native pnpm binary at {src_display} is a symlink"
+        ));
     }
     let src_real = fs::canonicalize(src)
         .into_diagnostic()
@@ -224,9 +246,12 @@ fn rewrite_windows_bin_field(wrapper_dir: &Path) {
     let Some(bin) = pkg.get_mut("bin").and_then(Value::as_object_mut) else {
         return;
     };
-    for (name, target) in
-        [("pnpm", "pnpm.exe"), ("pn", "pn.exe"), ("pnpx", "pnpx.exe"), ("pnx", "pnx.exe")]
-    {
+    for (name, target) in [
+        ("pnpm", "pnpm.exe"),
+        ("pn", "pn.exe"),
+        ("pnpx", "pnpx.exe"),
+        ("pnx", "pnx.exe"),
+    ] {
         bin.insert(name.to_string(), Value::String(target.to_string()));
     }
     let Ok(serialized) = serde_json::to_string_pretty(&pkg) else {

@@ -42,9 +42,16 @@ pub fn write_pending_changelog(
     let path = pending_changelog_path(workspace_dir, pkg_name, version);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
-            .map_err(|source| VersioningError::Write { path: parent.to_path_buf(), source })?;
+            .map_err(|source| VersioningError::Write {
+                path: parent.to_path_buf(),
+                source,
+            })?;
     }
-    fs::write(&path, section).map_err(|source| VersioningError::Write { path, source })
+    fs::write(&path, section)
+        .map_err(|source| VersioningError::Write {
+            path,
+            source,
+        })
 }
 
 /// The `(package, version)` of every parked section. The release-driven
@@ -58,13 +65,24 @@ pub fn list_pending_changelogs(
     let entries = match fs::read_dir(&dir) {
         Ok(entries) => entries,
         Err(err) if err.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(source) => return Err(VersioningError::Read { path: dir, source }),
+        Err(source) => {
+            return Err(VersioningError::Read {
+                path: dir,
+                source,
+            });
+        }
     };
     let mut pending = Vec::new();
     for entry in entries {
-        let entry = entry.map_err(|source| VersioningError::Read { path: dir.clone(), source })?;
+        let entry = entry.map_err(|source| VersioningError::Read {
+            path: dir.clone(),
+            source,
+        })?;
         let file_name = entry.file_name();
-        let Some(key) = file_name.to_str().and_then(|name| name.strip_suffix(".md")) else {
+        let Some(key) = file_name
+            .to_str()
+            .and_then(|name| name.strip_suffix(".md"))
+        else {
             continue;
         };
         let Some(at) = key.rfind('@') else {
@@ -87,7 +105,10 @@ pub fn read_pending_changelog(
     match fs::read_to_string(&path) {
         Ok(content) => Ok(Some(content)),
         Err(err) if err.kind() == ErrorKind::NotFound => Ok(None),
-        Err(source) => Err(VersioningError::Read { path, source }),
+        Err(source) => Err(VersioningError::Read {
+            path,
+            source,
+        }),
     }
 }
 
@@ -102,6 +123,9 @@ pub fn remove_pending_changelog(
     match fs::remove_file(&path) {
         Ok(()) => Ok(()),
         Err(err) if err.kind() == ErrorKind::NotFound => Ok(()),
-        Err(source) => Err(VersioningError::Remove { path, source }),
+        Err(source) => Err(VersioningError::Remove {
+            path,
+            source,
+        }),
     }
 }

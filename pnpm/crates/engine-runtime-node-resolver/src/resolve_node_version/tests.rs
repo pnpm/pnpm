@@ -9,11 +9,26 @@ use super::{
 
 fn make_versions() -> Vec<NodeVersion> {
     vec![
-        NodeVersion { version: "22.0.0".to_string(), lts: None },
-        NodeVersion { version: "20.10.0".to_string(), lts: Some("Iron".to_string()) },
-        NodeVersion { version: "20.5.0".to_string(), lts: None },
-        NodeVersion { version: "18.18.0".to_string(), lts: Some("Hydrogen".to_string()) },
-        NodeVersion { version: "16.20.0".to_string(), lts: Some("Gallium".to_string()) },
+        NodeVersion {
+            version: "22.0.0".to_string(),
+            lts: None,
+        },
+        NodeVersion {
+            version: "20.10.0".to_string(),
+            lts: Some("Iron".to_string()),
+        },
+        NodeVersion {
+            version: "20.5.0".to_string(),
+            lts: None,
+        },
+        NodeVersion {
+            version: "18.18.0".to_string(),
+            lts: Some("Hydrogen".to_string()),
+        },
+        NodeVersion {
+            version: "16.20.0".to_string(),
+            lts: Some("Gallium".to_string()),
+        },
     ]
 }
 

@@ -190,7 +190,11 @@ struct ClientPair {
 
 impl ClientPair {
     fn select(&self, follow_redirects: bool) -> &Client {
-        if follow_redirects { &self.follow_redirects } else { &self.no_redirects }
+        if follow_redirects {
+            &self.follow_redirects
+        } else {
+            &self.no_redirects
+        }
     }
 }
 
@@ -219,7 +223,9 @@ impl HostSocketLimit {
         let semaphore = {
             let mut map = self.per_origin.lock().expect("host-socket-limit mutex poisoned");
             Arc::clone(
-                map.entry(origin).or_insert_with(|| Arc::new(Semaphore::new(self.max.get()))),
+                map
+                    .entry(origin)
+                    .or_insert_with(|| Arc::new(Semaphore::new(self.max.get()))),
             )
         };
         Some(semaphore.acquire_owned().await.expect("host-socket semaphore is never closed"))
@@ -409,7 +415,10 @@ impl ThrottledClient {
     pub fn with_max_sockets_per_host(mut self, max_sockets: Option<usize>) -> Self {
         self.host_socket_limit = max_sockets
             .and_then(NonZeroUsize::new)
-            .map(|max| HostSocketLimit { max, per_origin: Mutex::new(HashMap::new()) });
+            .map(|max| HostSocketLimit {
+                max,
+                per_origin: Mutex::new(HashMap::new()),
+            });
         self
     }
 
@@ -473,7 +482,10 @@ fn ignore_warning(_: &str) {}
 
 impl<Inner> CappedDnsResolver<Inner> {
     fn new(inner: Inner, concurrency: NonZeroUsize) -> Self {
-        Self { inner: Arc::new(inner), permits: Arc::new(Semaphore::new(concurrency.get())) }
+        Self {
+            inner: Arc::new(inner),
+            permits: Arc::new(Semaphore::new(concurrency.get())),
+        }
     }
 }
 

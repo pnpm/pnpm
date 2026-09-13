@@ -89,17 +89,27 @@ pub(super) async fn serve_revision_ref(
     reference: RevisionRef<'_>,
     scan: &mut RevisionScan,
 ) -> Option<Response> {
-    let RevisionRef { registry, source, storage, original, digest, integrity } = reference;
+    let RevisionRef {
+        registry,
+        source,
+        storage,
+        original,
+        digest,
+        integrity,
+    } = reference;
     let package =
         match CanonicalPackageName::parse(&original.package, pnpr_package_name::Ecosystem::Npm) {
             Ok(package) => package,
             Err(err) => return Some(private_no_cache(err.into_response())),
         };
-    let filename = package.tarball_name_for_version(&original.version);
-    if let Err(err) = package.canonicalize_tarball_name(&filename) {
+    if let Err(err) = validate_tarball_filename(&package, &original.version) {
         return Some(private_no_cache(err.into_response()));
     }
-    if !readable_here(state, identity, Routed { registry, source }, &package) {
+    let routed = Routed {
+        registry,
+        source,
+    };
+    if !readable_here(state, identity, routed, &package) {
         return None;
     }
     match hosted_original_is_current(storage, &package, &original.version, digest).await {
@@ -111,7 +121,7 @@ pub(super) async fn serve_revision_ref(
         scan.policy_error.get_or_insert(err);
         return None;
     }
-    if !readable_here(state, &Identity::Anonymous, Routed { registry, source }, &package) {
+    if !readable_here(state, &Identity::Anonymous, routed, &package) {
         scan.private_refs.push((storage.clone(), package, original.version));
         return None;
     }
@@ -164,4 +174,12 @@ pub(super) async fn hosted_revision_refs(
         .into_iter()
         .map(|bytes| serde_json::from_slice(&bytes).map_err(RegistryError::Json))
         .collect()
+}
+
+fn validate_tarball_filename(
+    package: &CanonicalPackageName,
+    version: &str,
+) -> Result<(), RegistryError> {
+    package.canonicalize_tarball_name(&package.tarball_name_for_version(version))?;
+    Ok(())
 }

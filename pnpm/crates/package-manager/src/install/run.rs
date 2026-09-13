@@ -56,9 +56,7 @@ where
             && !self.execution.dry_run;
         let branch_lockfiles_to_clean = merge_will_be_saved
             .then(|| {
-                let manifest_dir = self
-                    .context
-                    .manifest
+                let manifest_dir = self.context.manifest
                     .path()
                     .parent()
                     .expect("manifest path always has a parent dir");
@@ -129,10 +127,9 @@ where
         options: InstallRunOptions<'a, '_>,
     ) -> Result<InstallRunOutcome, InstallError> {
         let (install, mut owned) = self.split();
-        install
-            .context
-            .http_client
-            .set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
+        install.context.http_client.set_warning_handler(
+            pnpm_reporter::emit_global_warning::<Reporter>,
+        );
         owned.http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let mode = RunMode::settle(install, &owned, &options)?;
         let mut workspace = InstallWorkspace::discover::<Reporter>(install, &mut owned, &options)?;
@@ -271,10 +268,9 @@ impl RunMode {
             // neither may write `.modules.yaml`, the current lockfile, or workspace state.
             // The frozen path returns below; the fresh path returns in `complete_resolve_only`.
             resolve_only: lockfile_only || install.execution.dry_run,
-            prefer_frozen_lockfile: install
-                .lockfile_policy
-                .prefer_frozen
-                .unwrap_or(install.context.config.prefer_frozen_lockfile),
+            prefer_frozen_lockfile: install.lockfile_policy.prefer_frozen.unwrap_or(
+                install.context.config.prefer_frozen_lockfile,
+            ),
             // The same set the dependency-graph walker observes, written to
             // `.modules.yaml` as `included`.
             included: super::included_dependencies(&owned.projects.dependency_groups),
@@ -339,7 +335,11 @@ impl Verification {
         let resolution_verifiers = install_resolution_verifiers(
             install.context.config,
             install.lockfile_policy.trust,
-            (&owned.http_client_arc, &meta_cache, owned.resolution.auth_override.as_ref()),
+            (
+                &owned.http_client_arc,
+                &meta_cache,
+                owned.resolution.auth_override.as_ref(),
+            ),
             &planned_canonical_fetches,
         )?;
         Ok(Self {

@@ -21,7 +21,9 @@ fn bundle_dependencies_subtree_is_included() {
     assert!(out.contains(&"node_modules/dep/package.json".to_string()));
     assert!(out.contains(&"node_modules/dep/lib.js".to_string()));
     assert!(
-        !out.iter().any(|p| p.starts_with("node_modules/other")),
+        !out
+            .iter()
+            .any(|p| p.starts_with("node_modules/other")),
         "non-bundled `other` must not ship: {out:?}",
     );
 }
@@ -39,9 +41,17 @@ fn bundle_dependencies_optional_deps_of_bundled_dep_are_included() {
         r#"{"name":"top","version":"1.0.0","optionalDependencies":{"opt":"1.0.0"},"devDependencies":{"dev":"1.0.0"}}"#,
     );
     touch(root, "node_modules/top/index.js");
-    write(root, "node_modules/opt/package.json", r#"{"name":"opt","version":"1.0.0"}"#);
+    write(
+        root,
+        "node_modules/opt/package.json",
+        r#"{"name":"opt","version":"1.0.0"}"#,
+    );
     touch(root, "node_modules/opt/index.js");
-    write(root, "node_modules/dev/package.json", r#"{"name":"dev","version":"1.0.0"}"#);
+    write(
+        root,
+        "node_modules/dev/package.json",
+        r#"{"name":"dev","version":"1.0.0"}"#,
+    );
     touch(root, "node_modules/dev/index.js");
 
     let manifest = json!({
@@ -56,7 +66,9 @@ fn bundle_dependencies_optional_deps_of_bundled_dep_are_included() {
         "optionalDependencies of a bundled dep must ship: {out:?}",
     );
     assert!(
-        !out.iter().any(|p| p.starts_with("node_modules/dev")),
+        !out
+            .iter()
+            .any(|p| p.starts_with("node_modules/dev")),
         "devDependencies of a bundled dep must not ship: {out:?}",
     );
 }
@@ -144,7 +156,9 @@ fn bundle_dependencies_self_cycle_is_caught() {
     // No deeper paths via the cycle — the visited-set refused the
     // re-entry.
     assert!(
-        !out.iter().any(|p| p.starts_with("node_modules/self/node_modules/")),
+        !out
+            .iter()
+            .any(|p| p.starts_with("node_modules/self/node_modules/")),
         "cycle through node_modules/self/node_modules/self/... must be cut: {out:?}",
     );
 }
@@ -186,7 +200,11 @@ fn bundle_dependencies_closure_stops_past_max_depth() {
                 "version": "1.0.0",
             })
         };
-        write(root, &format!("node_modules/p{n}/package.json"), &manifest.to_string());
+        write(
+            root,
+            &format!("node_modules/p{n}/package.json"),
+            &manifest.to_string(),
+        );
         touch(root, &format!("node_modules/p{n}/index.js"));
     }
 
@@ -206,7 +224,9 @@ fn bundle_dependencies_closure_stops_past_max_depth() {
     // so it and everything past it are dropped even though they exist
     // on disk.
     assert!(
-        !out.iter().any(|p| p.starts_with(&format!("node_modules/p{FIRST_REFUSED}/"))),
+        !out
+            .iter()
+            .any(|p| p.starts_with(&format!("node_modules/p{FIRST_REFUSED}/"))),
         "packages past MAX_BUNDLE_DEPTH must be refused: {out:?}",
     );
 }

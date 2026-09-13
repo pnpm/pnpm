@@ -58,7 +58,9 @@ pub(super) fn build_extra_env(
 pub(super) async fn await_lockfile_gate(
     gate: &mut Option<crate::install::LockfileVerificationGate>,
 ) -> Result<(), InstallWithFreshLockfileError> {
-    let Some(gate) = gate.take() else { return Ok(()) };
+    let Some(gate) = gate.take() else {
+        return Ok(());
+    };
     gate.wait().await.map_err(InstallWithFreshLockfileError::LockfileVerification)
 }
 /// What the on-disk phases read once the lockfile is built and the
@@ -247,25 +249,28 @@ impl<'a> OnDiskInputs<'a> {
         let top_level_bin_root = self.symlink_root();
         let engine_name =
             settle_engine_name(self.runtime.deferred_engine_name, self.runtime.engine_name).await;
-        let extra_env =
-            build_extra_env(self.ctx.config, self.ctx.linker.kind, self.ctx.workspace_root);
+        let extra_env = build_extra_env(
+            self.ctx.config,
+            self.ctx.linker.kind,
+            self.ctx.workspace_root,
+        );
         publish_deps_requiring_build(
             self.deps_requiring_build_sink.as_ref(),
             &materialized.requires_build_by_snapshot,
         );
         let built = crate::install_frozen_lockfile::run_build_phase::<Reporter>(
             &crate::install_frozen_lockfile::BuildPhaseInputs {
-                cache: materialized
-                    .build_cache(engine_name.as_deref(), &self.store.store_index_writer),
+                cache: materialized.build_cache(
+                    engine_name.as_deref(),
+                    &self.store.store_index_writer,
+                ),
                 directories: build_directories(self.ctx, linked, top_level_bin_root),
-                graph: pnpm_deps_restorer::BuildPhaseGraph {
-                    snapshots: self.projects.materialization_lockfile.snapshots.as_ref(),
-                    packages: self.projects.materialization_lockfile.packages.as_ref(),
-                    importers: &self.projects.materialization_lockfile.importers,
-                    dependency_groups: self.install.projects.dependency_groups,
-                    materialized_snapshots: linked
-                        .build_snapshots(&materialized.materialized_snapshots),
-                },
+                graph: build_graph(
+                    self.projects.materialization_lockfile,
+                    self.install.projects.dependency_groups,
+                    linked,
+                    materialized,
+                ),
                 policy: pnpm_deps_restorer::BuildPhasePolicy {
                     config: self.ctx.config,
                     patch_groups: self.patched_dependencies,
@@ -307,8 +312,11 @@ pub(super) async fn run_on_disk_phases<Reporter: self::Reporter + 'static>(
     fold_fetch_failures(skipped, std::mem::take(&mut materialized.fetch_failed));
 
     let linked = inputs.link::<Reporter>(&mut materialized, skipped)?;
-    let crate::BuildModulesOutput { ignored_builds, deferred_builds, mutated_slots: _ } =
-        inputs.build::<Reporter>(&materialized, &linked, skipped).await?;
+    let crate::BuildModulesOutput {
+        ignored_builds,
+        deferred_builds,
+        mutated_slots: _,
+    } = inputs.build::<Reporter>(&materialized, &linked, skipped).await?;
 
     let injected_deps = crate::collect_injected_deps(
         ctx.linker.layout,
@@ -335,17 +343,15 @@ pub(super) async fn finish_early_materialization<Reporter: self::Reporter + 'sta
     skipped: &SkippedSnapshots,
     logged_methods: &AtomicU8,
 ) {
-    let Some(materializer) = materializer else { return };
+    let Some(materializer) = materializer else {
+        return;
+    };
     let phase_start = std::time::Instant::now();
-    let materialized = materializer
-        .finish(
-            |key| {
-                wanted.is_some_and(|snapshots| snapshots.contains_key(key))
-                    && !skipped.contains(key)
-            },
-            logged_methods,
-        )
-        .await;
+    let materialized = materializer.finish(
+        |key| wanted.is_some_and(|snapshots| snapshots.contains_key(key)) && !skipped.contains(key),
+        logged_methods,
+    )
+    .await;
     tracing::info!(
         target: "pacquet::install::phase",
         phase = "early_materialization",
@@ -444,5 +450,20 @@ fn build_directories<'a>(
         publicly_hoisted_for_post_build: &linked.publicly_hoisted_for_post_build,
         logged_methods: ctx.logged_methods,
         link_options: ctx.linker.bin_options,
+    }
+}
+
+fn build_graph<'a>(
+    lockfile: &'a pnpm_lockfile::Lockfile,
+    dependency_groups: &'a [pnpm_package_manifest::DependencyGroup],
+    linked: &'a pnpm_deps_restorer::linking::LinkPhaseOutput,
+    materialized: &'a CreateVirtualStoreOutput,
+) -> pnpm_deps_restorer::BuildPhaseGraph<'a> {
+    pnpm_deps_restorer::BuildPhaseGraph {
+        snapshots: lockfile.snapshots.as_ref(),
+        packages: lockfile.packages.as_ref(),
+        importers: &lockfile.importers,
+        dependency_groups,
+        materialized_snapshots: linked.build_snapshots(&materialized.materialized_snapshots),
     }
 }

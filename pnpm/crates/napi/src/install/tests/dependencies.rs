@@ -15,10 +15,18 @@ fn peer_issues_options_preserve_shared_engine_options() {
         store_dir: Some("/store".to_string()),
         cache_dir: Some("/cache".to_string()),
         registries: Some(
-            [("default".to_string(), "https://registry.example.com".to_string())].into(),
+            [(
+                "default".to_string(),
+                "https://registry.example.com".to_string(),
+            )]
+            .into(),
         ),
         auth_header_by_uri: Some(
-            [("//registry.example.com/".to_string(), "Bearer token".to_string())].into(),
+            [(
+                "//registry.example.com/".to_string(),
+                "Bearer token".to_string(),
+            )]
+            .into(),
         ),
         proxy_config: Some(ProxyConfigInput {
             http_proxy: Some("http://proxy.example.com".to_string()),
@@ -57,7 +65,10 @@ fn peer_issues_options_preserve_shared_engine_options() {
 
     let overlay = build_overlay(&install_options, false).expect("overlay");
     assert_eq!(overlay.network_concurrency, Some(12));
-    assert_eq!(overlay.proxy.unwrap().no_proxy, Some(NoProxySetting::Bypass));
+    assert_eq!(
+        overlay.proxy.unwrap().no_proxy,
+        Some(NoProxySetting::Bypass),
+    );
     let tls = overlay.tls.expect("tls");
     assert_eq!(tls.ca, vec!["certificate".to_string()]);
     assert_eq!(tls.strict_ssl, Some(false));
@@ -66,8 +77,7 @@ fn peer_issues_options_preserve_shared_engine_options() {
 #[test]
 fn peer_issues_options_disable_auto_install_peers_by_default() {
     assert_eq!(
-        peer_issues_install_options(peer_issues_options())
-            .expect("valid peer issues options")
+        peer_issues_install_options(peer_issues_options()).expect("valid peer issues options")
             .auto_install_peers,
         Some(false),
     );
@@ -75,7 +85,13 @@ fn peer_issues_options_disable_auto_install_peers_by_default() {
 
 #[test]
 fn peer_issues_options_reject_invalid_u32_values() {
-    for value in [-1.0, 1.5, f64::from(u32::MAX) + 1.0, f64::INFINITY, f64::NAN] {
+    for value in [
+        -1.0,
+        1.5,
+        f64::from(u32::MAX) + 1.0,
+        f64::INFINITY,
+        f64::NAN,
+    ] {
         let mut options = peer_issues_options();
         options.peers_suffix_max_length = Some(value);
         assert!(
@@ -137,7 +153,10 @@ fn peer_issues_to_json_derives_conflicts_and_intersections() {
     issues.missing.insert("react".to_string(), vec![missing_entry("^16.8.0", false)]);
     issues.missing.insert(
         "conflicted".to_string(),
-        vec![missing_entry("^1.0.0", false), missing_entry("^2.0.0", false)],
+        vec![
+            missing_entry("^1.0.0", false),
+            missing_entry("^2.0.0", false),
+        ],
     );
     issues.missing.insert("optional-only".to_string(), vec![missing_entry("*", true)]);
     issues.bad.insert(

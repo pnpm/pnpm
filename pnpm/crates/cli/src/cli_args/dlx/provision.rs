@@ -41,7 +41,10 @@ pub(super) fn provisioned_tool<'a>(
             });
         }
         if let Some((name, version_spec)) = parse_runtime_spec(bin_command) {
-            return Some(ProvisionedTool::Runtime { name, version_spec });
+            return Some(ProvisionedTool::Runtime {
+                name,
+                version_spec,
+            });
         }
     }
 
@@ -50,12 +53,15 @@ pub(super) fn provisioned_tool<'a>(
     // says which of its bins to run: `pnx --package npm@11 npx`.
     let [spec] = package else { return None };
     let (pm, version_spec) = parse_package_manager_spec(spec)?;
-    pm.bins().contains(&bin_command).then_some(ProvisionedTool::PackageManager {
-        pm,
-        version_spec,
-        spec,
-        bin: Some(bin_command),
-    })
+    pm
+        .bins()
+        .contains(&bin_command)
+        .then_some(ProvisionedTool::PackageManager {
+            pm,
+            version_spec,
+            spec,
+            bin: Some(bin_command),
+        })
 }
 
 /// Split a dlx command word into the package manager it names and the
@@ -101,11 +107,26 @@ pub(super) async fn run_runtime(
     args: &[String],
     spawn: &DlxSpawn<'_>,
 ) -> miette::Result<()> {
-    let executable =
-        Box::pin(materialize_runtime(state_dir, name.to_string(), version_spec.to_string()))
-            .await?;
-    let bin_dirs: Vec<PathBuf> = executable.parent().map(Path::to_path_buf).into_iter().collect();
-    run_bin(DlxProgram::Provisioned { command, executable: &executable }, args, bin_dirs, spawn)
+    let executable = Box::pin(materialize_runtime(
+        state_dir,
+        name.to_string(),
+        version_spec.to_string(),
+    ))
+    .await?;
+    let bin_dirs: Vec<PathBuf> = executable
+        .parent()
+        .map(Path::to_path_buf)
+        .into_iter()
+        .collect();
+    run_bin(
+        DlxProgram::Provisioned {
+            command,
+            executable: &executable,
+        },
+        args,
+        bin_dirs,
+        spawn,
+    )
 }
 
 /// Provision `pm` and run `bin` — or the engine's own command, when the
@@ -126,7 +147,10 @@ pub(super) async fn run_package_manager<Reporter: self::Reporter + 'static>(
         None => engine.program.clone(),
     };
     run_bin(
-        DlxProgram::Provisioned { command, executable: &executable },
+        DlxProgram::Provisioned {
+            command,
+            executable: &executable,
+        },
         args,
         engine.bin_dirs,
         spawn,

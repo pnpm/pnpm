@@ -18,11 +18,17 @@ fn emits_resolved_with_supplied_identifiers() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
     emit_progress_resolved::<RecordingReporter>("react@18.0.0", "/proj");
 
     let captured = EVENTS.lock().unwrap();
@@ -42,26 +48,34 @@ fn emits_resolved_with_supplied_identifiers() {
 fn registry_resolution_uses_scoped_registry_tarball_base() {
     let mut config = Config::new();
     config.registry = "https://default.example/npm/".to_string();
-    config
-        .registries_by_scope
-        .insert("@private".to_string(), "https://private.example/npm/".to_string());
+    config.registries_by_scope.insert(
+        "@private".to_string(),
+        "https://private.example/npm/".to_string(),
+    );
 
     let integrity = DUMMY_SHA512.parse().expect("parse integrity");
-    let resolution = LockfileResolution::Registry(RegistryResolution { integrity, revision: None });
+    let resolution = LockfileResolution::Registry(RegistryResolution {
+        integrity,
+        revision: None,
+    });
     let package_key: PackageKey = "@private/foo@1.0.0".parse().expect("parse package key");
 
     let (tarball_url, _) = tarball_url_and_integrity(&resolution, &package_key, &config)
         .expect("a registry resolution is always fetchable");
 
-    assert_eq!(tarball_url.as_ref(), "https://private.example/npm/@private/foo/-/foo-1.0.0.tgz");
+    assert_eq!(
+        tarball_url.as_ref(),
+        "https://private.example/npm/@private/foo/-/foo-1.0.0.tgz",
+    );
 }
 #[test]
 fn registry_revision_uses_the_scoped_registry_digest_route() {
     let mut config = Config::new();
     config.registry = "https://default.example/npm/".to_string();
-    config
-        .registries_by_scope
-        .insert("@private".to_string(), "https://private.example/npm/".to_string());
+    config.registries_by_scope.insert(
+        "@private".to_string(),
+        "https://private.example/npm/".to_string(),
+    );
     let resolution = LockfileResolution::Registry(RegistryResolution {
         integrity: DUMMY_SHA512.parse().expect("parse integrity"),
         revision: Some(TarballRevision::try_from(2).unwrap()),
@@ -73,7 +87,10 @@ fn registry_revision_uses_the_scoped_registry_digest_route() {
 
     assert_eq!(
         tarball_url.as_ref(),
-        format!("https://private.example/npm/-/tarballs/sha512/{}", "A".repeat(86)),
+        format!(
+            "https://private.example/npm/-/tarballs/sha512/{}",
+            "A".repeat(86)
+        ),
     );
 }
 /// A custom fetcher may delegate to a directory resolution, in which

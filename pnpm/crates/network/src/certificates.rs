@@ -116,8 +116,12 @@ pub(super) fn merge_tls(top: &TlsConfig, override_: &RegistryTls) -> TlsConfig {
             Some(pem) => vec![pem.clone()],
             None => top.ca.clone(),
         },
-        cert: override_.cert.clone().or_else(|| top.cert.clone()),
-        key: override_.key.clone().or_else(|| top.key.clone()),
+        cert: override_.cert
+            .clone()
+            .or_else(|| top.cert.clone()),
+        key: override_.key
+            .clone()
+            .or_else(|| top.key.clone()),
         strict_ssl: top.strict_ssl,
         local_address: top.local_address,
     }
@@ -166,7 +170,9 @@ pub(super) fn apply_tls(
         // need to handle it either.
         let combined = format!("{cert}\n{key}");
         let identity = Identity::from_pem(combined.as_bytes())
-            .map_err(|source| TlsError::InvalidClientIdentity { reason: source.to_string() })?;
+            .map_err(|source| TlsError::InvalidClientIdentity {
+                reason: source.to_string(),
+            })?;
         builder = builder.identity(identity);
     }
     // The `strict-ssl` default is `true`, applied here at client-build

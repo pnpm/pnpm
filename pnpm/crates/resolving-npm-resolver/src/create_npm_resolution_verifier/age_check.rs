@@ -21,7 +21,10 @@ impl NpmResolutionVerifier {
         }
         Some(ResolutionVerification::Err {
             code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
-            reason: uncheckable("minimumReleaseAge", "version not present in registry manifest"),
+            reason: uncheckable(
+                "minimumReleaseAge",
+                "version not present in registry manifest",
+            ),
         })
     }
 
@@ -40,11 +43,12 @@ impl NpmResolutionVerifier {
         // evidence cell is consulted before the probe so installs that
         // never fill it (no materialization, or a resolver alongside)
         // send no extra request.
-        let planned_key =
-            (name.to_string(), version.to_string(), registry_name.map(str::to_string));
-        if self
-            .artifacts
-            .canonical_fetches
+        let planned_key = (
+            name.to_string(),
+            version.to_string(),
+            registry_name.map(str::to_string),
+        );
+        if self.artifacts.canonical_fetches
             .as_ref()
             .and_then(|cell| cell.get())
             .is_some_and(|planned| planned.contains(&planned_key))
@@ -57,27 +61,16 @@ impl NpmResolutionVerifier {
             // A transport failure propagates the registry's own fetch error so
             // the install aborts with it; a successful fetch that merely lacks a
             // timestamp is handled below.
-            Err(message) => return Some(ResolutionVerification::FetchFailed { message }),
+            Err(message) => {
+                return Some(ResolutionVerification::FetchFailed {
+                    message,
+                });
+            }
         };
         let Some(published) = published else {
             return self.missing_publish_time_verdict(registry, name).await;
         };
-        let Some(parsed) = parse_packument_timestamp(&published) else {
-            return Some(ResolutionVerification::Err {
-                code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
-                reason: "publish timestamp is not a valid date".to_string(),
-            });
-        };
-        if parsed > cutoff {
-            return Some(ResolutionVerification::Err {
-                code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
-                reason: format!(
-                    "was published at {published}, within the minimumReleaseAge cutoff ({cutoff})",
-                    cutoff = cutoff.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
-                ),
-            });
-        }
-        None
+        publish_time_verdict(&published, cutoff)
     }
 
     /// Whether the package-level `Last-Modified` a packument `HEAD`
@@ -105,33 +98,13 @@ impl NpmResolutionVerifier {
         let key = package_key(registry, &name.to_string());
         let cell = {
             let mut cache = self.lookup_context.head_modified.lock().await;
-            Arc::clone(cache.entry(key).or_insert_with(|| Arc::new(OnceCell::new())))
+            Arc::clone(
+                cache
+                    .entry(key)
+                    .or_insert_with(|| Arc::new(OnceCell::new())),
+            )
         };
-        let modified = cell
-            .get_or_init(|| async {
-                let url = to_registry_url(registry, &name.to_string());
-                let guard = self
-                    .metadata
-                    .http_client
-                    .acquire_for_url_with_priority(&url, pnpm_network::BACKGROUND)
-                    .await;
-                let mut request = guard.head(&url);
-                if let Some(value) =
-                    self.metadata.auth_headers.for_url_with_package(&url, Some(&name.to_string()))
-                {
-                    request = request.header("authorization", value);
-                }
-                let response = match request.send().await {
-                    Ok(response) if response.status().is_success() => response,
-                    _ => return None,
-                };
-                response
-                    .headers()
-                    .get("last-modified")
-                    .and_then(|value| value.to_str().ok())
-                    .map(str::to_string)
-            })
-            .await;
+        let modified = cell.get_or_init(|| self.fetch_head_modified(registry, name)).await;
         modified
             .as_deref()
             .and_then(|value| httpdate::parse_http_date(value).ok())
@@ -149,9 +122,14 @@ impl NpmResolutionVerifier {
         let key = version_key(registry, &name.to_string(), version);
         let cell = {
             let mut cache = self.lookup_context.published_at.lock().await;
-            Arc::clone(cache.entry(key).or_insert_with(|| Arc::new(OnceCell::new())))
+            Arc::clone(
+                cache
+                    .entry(key)
+                    .or_insert_with(|| Arc::new(OnceCell::new())),
+            )
         };
-        cell.get_or_init(|| async { self.resolve_published_at(registry, name, version).await })
+        cell
+            .get_or_init(|| async { self.resolve_published_at(registry, name, version).await })
             .await
             .clone()
     }
@@ -232,7 +210,10 @@ impl NpmResolutionVerifier {
         if parsed >= cutoff {
             return None;
         }
-        if !meta.version_artifacts.as_ref().is_some_and(|map| map.contains_key(version)) {
+        if !meta.version_artifacts
+            .as_ref()
+            .is_some_and(|map| map.contains_key(version))
+        {
             return None;
         }
         Some(modified)
@@ -251,6 +232,52 @@ impl NpmResolutionVerifier {
         version: &str,
     ) -> Option<String> {
         let meta = self.fetch_abbreviated_meta(registry, name).await.ok()?;
-        meta.version_time.as_ref()?.get(version).cloned()
+        meta.version_time
+            .as_ref()?
+            .get(version)
+            .cloned()
+    }
+}
+
+fn publish_time_verdict(published: &str, cutoff: DateTime<Utc>) -> Option<ResolutionVerification> {
+    let Some(parsed) = parse_packument_timestamp(published) else {
+        return Some(ResolutionVerification::Err {
+            code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+            reason: "publish timestamp is not a valid date".to_string(),
+        });
+    };
+    if parsed > cutoff {
+        return Some(ResolutionVerification::Err {
+            code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+            reason: format!(
+                "was published at {published}, within the minimumReleaseAge cutoff ({cutoff})",
+                cutoff = cutoff.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+            ),
+        });
+    }
+    None
+}
+
+impl NpmResolutionVerifier {
+    async fn fetch_head_modified(&self, registry: &str, name: &PkgName) -> Option<String> {
+        let url = to_registry_url(registry, &name.to_string());
+        let guard =
+            self.metadata.http_client.acquire_for_url_with_priority(&url, pnpm_network::BACKGROUND)
+                .await;
+        let mut request = guard.head(&url);
+        if let Some(value) =
+            self.metadata.auth_headers.for_url_with_package(&url, Some(&name.to_string()))
+        {
+            request = request.header("authorization", value);
+        }
+        let response = match request.send().await {
+            Ok(response) if response.status().is_success() => response,
+            _ => return None,
+        };
+        response
+            .headers()
+            .get("last-modified")
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_string)
     }
 }

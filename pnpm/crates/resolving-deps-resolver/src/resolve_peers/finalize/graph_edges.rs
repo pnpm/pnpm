@@ -22,15 +22,17 @@ pub(super) fn insert_graph_node(
         }
         std::collections::hash_map::Entry::Occupied(mut entry) => {
             let existing = entry.get();
-            let existing_order = graph_order.get(&dep_path).copied().unwrap_or(order);
+            let existing_order = graph_order
+                .get(&dep_path)
+                .copied()
+                .unwrap_or(order);
             let replace = candidate.depth < existing.depth
                 || (candidate.depth == existing.depth && order < existing_order);
             if !replace {
                 let existing = entry.get_mut();
-                existing
-                    .edges
-                    .transitive_peer_dependencies
-                    .extend(candidate.edges.transitive_peer_dependencies);
+                existing.edges.transitive_peer_dependencies.extend(
+                    candidate.edges.transitive_peer_dependencies,
+                );
                 existing.edges.optional_children.extend(candidate.edges.optional_children);
                 merge_preferred_child_edges(
                     existing,
@@ -39,16 +41,7 @@ pub(super) fn insert_graph_node(
                 );
                 return;
             }
-            let edges = &mut candidate.edges;
-            edges
-                .transitive_peer_dependencies
-                .extend(existing.edges.transitive_peer_dependencies.iter().cloned());
-            edges.optional_children.extend(existing.edges.optional_children.iter().cloned());
-            merge_preferred_child_edges(
-                &mut candidate,
-                existing.edges.children.clone(),
-                transitive_by_dep_path,
-            );
+            merge_replaced_graph_edges(&mut candidate, existing, transitive_by_dep_path);
             graph_order.insert(dep_path, order);
             entry.insert(candidate);
         }
@@ -101,8 +94,10 @@ pub(super) fn available_peer_names_for_dep_path(
     dep_path: &DepPath,
     resolve_result: &ResolveResult,
 ) -> HashSet<String> {
-    let mut names: HashSet<String> =
-        peer_segment_names(dep_path).unwrap_or_default().into_iter().collect();
+    let mut names: HashSet<String> = peer_segment_names(dep_path)
+        .unwrap_or_default()
+        .into_iter()
+        .collect();
     names.insert(pkg_name_version(resolve_result).0);
     names
 }
@@ -146,7 +141,12 @@ pub(super) fn available_peer_segment_count(
     available_peer_names: &HashSet<String>,
 ) -> Option<usize> {
     let names = peer_segment_names(dep_path)?;
-    Some(names.into_iter().filter(|name| available_peer_names.contains(name)).count())
+    Some(
+        names
+            .into_iter()
+            .filter(|name| available_peer_names.contains(name))
+            .count(),
+    )
 }
 
 pub(super) fn unavailable_non_transitive_peer_segment_names(
@@ -161,8 +161,9 @@ pub(super) fn unavailable_non_transitive_peer_segment_names(
             .into_iter()
             .filter(|name| {
                 !available_peer_names.contains(name)
-                    && transitive_peer_dependencies
-                        .is_none_or(|transitive| !transitive.contains(name))
+                    && transitive_peer_dependencies.is_none_or(|transitive| {
+                        !transitive.contains(name)
+                    })
             })
             .collect(),
     )
@@ -190,7 +191,9 @@ impl<'a> PeerNameTarjan<'a> {
     }
 
     pub(super) fn visit_neighbors(&mut self, name: &'a str) {
-        let Some(neighbors) = self.graph.get(name) else { return };
+        let Some(neighbors) = self.graph.get(name) else {
+            return;
+        };
         for child in neighbors {
             if !self.index_of.contains_key(child) {
                 self.strongconnect(child);
@@ -220,11 +223,32 @@ impl<'a> PeerNameTarjan<'a> {
                 break;
             }
         }
-        let self_loop = component.first().is_some_and(|member| {
-            self.graph.get(*member).is_some_and(|edges| edges.contains(member))
-        });
+        let self_loop = component
+            .first()
+            .is_some_and(|member| {
+                self.graph
+                    .get(*member)
+                    .is_some_and(|edges| edges.contains(member))
+            });
         if component.len() > 1 || self_loop {
             self.cyclic.extend(component.into_iter().map(str::to_owned));
         }
     }
+}
+
+fn merge_replaced_graph_edges(
+    candidate: &mut DependenciesGraphNode,
+    existing: &DependenciesGraphNode,
+    transitive_by_dep_path: &HashMap<DepPath, HashSet<String>>,
+) {
+    let edges = &mut candidate.edges;
+    edges.transitive_peer_dependencies.extend(
+        existing.edges.transitive_peer_dependencies.iter().cloned(),
+    );
+    edges.optional_children.extend(existing.edges.optional_children.iter().cloned());
+    merge_preferred_child_edges(
+        candidate,
+        existing.edges.children.clone(),
+        transitive_by_dep_path,
+    );
 }

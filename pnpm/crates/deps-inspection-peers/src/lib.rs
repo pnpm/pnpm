@@ -17,6 +17,7 @@
 
 pub use filter::filter_peer_issues;
 pub use render::{BadPeerIssue, MissingPeerIssue, render_peer_issues};
+use snapshot::walk_snapshot;
 
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -102,7 +103,11 @@ impl PeerIssuesReport {
         );
         let hints = hints.join("\n");
         let rendered = self.render();
-        let body = if rendered.is_empty() { hints } else { format!("{rendered}\n{hints}") };
+        let body = if rendered.is_empty() {
+            hints
+        } else {
+            format!("{rendered}\n{hints}")
+        };
         format!("[ERR_PNPM_PEER_DEP_ISSUES] Unmet peer dependencies\n\n{body}\n")
     }
 }
@@ -122,12 +127,25 @@ pub fn peer_issues_for_lockfile(
         check_peer_dependencies_of_importers(lockfile, lockfile_dir, importer_ids, catalogs)?,
         rules,
     );
-    let has_missing_peer = issues.values().any(|project_issues| {
-        project_issues.missing.values().any(|entries| entries.iter().any(|entry| !entry.optional))
-    });
-    let has_issues =
-        has_missing_peer || issues.values().any(|project_issues| !project_issues.bad.is_empty());
-    Ok(has_issues.then_some(PeerIssuesReport { issues, has_missing_peer }))
+    let has_missing_peer = issues
+        .values()
+        .any(|project_issues| {
+            project_issues.missing
+                .values()
+                .any(|entries| {
+                    entries
+                        .iter()
+                        .any(|entry| !entry.optional)
+                })
+        });
+    let has_issues = has_missing_peer
+        || issues
+            .values()
+            .any(|project_issues| !project_issues.bad.is_empty());
+    Ok(has_issues.then_some(PeerIssuesReport {
+        issues,
+        has_missing_peer,
+    }))
 }
 
 /// The issues reachable from the given project directories, for the
@@ -161,7 +179,11 @@ pub fn check_peer_dependencies_of_importers(
     let empty_snapshots = HashMap::new();
     let packages = lockfile.packages.as_ref().unwrap_or(&empty_packages);
     let snapshots = lockfile.snapshots.as_ref().unwrap_or(&empty_snapshots);
-    let context = PeerWalkContext { lockfile, lockfile_dir, catalogs };
+    let context = PeerWalkContext {
+        lockfile,
+        lockfile_dir,
+        catalogs,
+    };
 
     let mut result: IssuesByProjects = BTreeMap::new();
     // Shared across importers so each package is evaluated once, matching
@@ -215,7 +237,11 @@ struct InitialKeyWalk<'a> {
 
 impl<'a> InitialKeyWalk<'a> {
     fn new(context: &'a PeerWalkContext<'a>) -> Self {
-        InitialKeyWalk { context, keys: Vec::new(), visited_importers: HashSet::new() }
+        InitialKeyWalk {
+            context,
+            keys: Vec::new(),
+            visited_importers: HashSet::new(),
+        }
     }
 
     fn collect(
@@ -232,9 +258,16 @@ impl<'a> InitialKeyWalk<'a> {
         };
         let importer_dir = self.context.lockfile_dir.join(importer_id);
 
-        let groups =
-            [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies];
-        for (alias, spec) in groups.into_iter().flatten().flatten() {
+        let groups = [
+            &importer.dependencies,
+            &importer.dev_dependencies,
+            &importer.optional_dependencies,
+        ];
+        for (alias, spec) in groups
+            .into_iter()
+            .flatten()
+            .flatten()
+        {
             if let Some(key) = spec.version.resolved_key(alias) {
                 self.keys.push((key, parents.to_owned()));
             } else if let Some(link_target) = spec.version.as_link_target() {
@@ -260,7 +293,14 @@ impl<'a> InitialKeyWalk<'a> {
     /// Check the linked package's own peer dependencies against what the two
     /// importers provide, then walk into it.
     fn follow_link(&mut self, inputs: FollowLink<'_>) -> Result<(), CatalogResolutionError> {
-        let FollowLink { importer, importer_dir, alias, linked, parents, issues } = inputs;
+        let FollowLink {
+            importer,
+            importer_dir,
+            alias,
+            linked,
+            parents,
+            issues,
+        } = inputs;
         if let Some(manifest) = &linked.manifest {
             check_linked_package_peers(LinkedPackagePeers {
                 manifest,
@@ -279,7 +319,10 @@ impl<'a> InitialKeyWalk<'a> {
             })?;
         }
         let mut next_parents = parents.to_owned();
-        next_parents.push(ParentPkg { name: alias.to_string(), version: linked.version.clone() });
+        next_parents.push(ParentPkg {
+            name: alias.to_string(),
+            version: linked.version.clone(),
+        });
         self.collect(&linked.importer_id, &next_parents, issues)
     }
 }
@@ -306,138 +349,23 @@ impl LinkedDependency {
     /// version, the peer check, and the recursion all need the same answers,
     /// and this walk now runs on the install path.
     fn resolve(importer_dir: &Path, lockfile_dir: &Path, link_target: &str) -> Option<Self> {
-        let CanonicalPathWithin { path: dir, base: canonical_lockfile_dir } =
-            canonical_path_within(&importer_dir.join(link_target), lockfile_dir)?;
+        let CanonicalPathWithin {
+            path: dir,
+            base: canonical_lockfile_dir,
+        } = canonical_path_within(&importer_dir.join(link_target), lockfile_dir)?;
         let manifest = PackageManifest::from_path(dir.join("package.json")).ok();
         let version = manifest
             .as_ref()
             .and_then(package_manifest_version)
             .unwrap_or_else(|| "0.0.0".to_string());
         let importer_id = pnpm_workspace::importer_id_from_root_dir(&canonical_lockfile_dir, &dir);
-        Some(LinkedDependency { dir, importer_id, manifest, version })
-    }
-}
-
-fn walk_snapshot(
-    initial_keys: Vec<(PkgNameVerPeer, Vec<ParentPkg>)>,
-    snapshots: &HashMap<PkgNameVerPeer, SnapshotEntry>,
-    packages: &HashMap<PkgNameVerPeer, PackageMetadata>,
-    lockfile_dir: &Path,
-    visited: &mut HashSet<PkgNameVerPeer>,
-    issues: &mut PeerIssues,
-) {
-    let mut stack = initial_keys;
-
-    while let Some((key, parents)) = stack.pop() {
-        if !visited.insert(key.clone()) {
-            continue;
-        }
-        let mut current_parents = parents;
-        current_parents.push(ParentPkg {
-            name: key.name.to_string(),
-            version: get_pkg_version(&key, packages),
-        });
-
-        let snapshot = snapshots.get(&key);
-        check_snapshot_peers(SnapshotPeers {
-            key: &key,
-            snapshot,
-            packages,
-            lockfile_dir,
-            parents: &current_parents,
-            issues,
-        });
-
-        stack.extend(child_keys(snapshot).map(|child| (child, current_parents.clone())));
-    }
-}
-
-/// One walked package: its own snapshot, and the parent chain that reached
-/// it.
-struct SnapshotPeers<'a> {
-    key: &'a PkgNameVerPeer,
-    snapshot: Option<&'a SnapshotEntry>,
-    packages: &'a HashMap<PkgNameVerPeer, PackageMetadata>,
-    lockfile_dir: &'a Path,
-    parents: &'a [ParentPkg],
-    issues: &'a mut PeerIssues,
-}
-
-/// Record every peer dependency the package declares that its snapshot
-/// leaves unsatisfied.
-fn check_snapshot_peers(inputs: SnapshotPeers<'_>) {
-    let issues = inputs.issues;
-    let Some(meta) = inputs.packages.get(&inputs.key.without_peer()) else { return };
-    let Some(peers) = &meta.peer_dependencies else { return };
-
-    for (peer_name, peer_range) in peers {
-        let peer_range = get_peer_version_range(peer_range);
-        let optional = meta
-            .peer_dependencies_meta
-            .as_ref()
-            .and_then(|meta_map| meta_map.get(peer_name))
-            .is_some_and(|peer_meta| peer_meta.optional);
-
-        let Ok(peer_pkg_name) = peer_name.parse::<PkgName>() else { continue };
-        let dep_ref = inputs.snapshot.and_then(|entry| snapshot_dependency(entry, &peer_pkg_name));
-        let Some(dep_ref) = dep_ref else {
-            record_missing_peer(issues, peer_name, inputs.parents, optional, &peer_range);
-            continue;
-        };
-
-        let Some(found_version) = resolved_snapshot_version(dep_ref, inputs.lockfile_dir) else {
-            continue;
-        };
-        record_bad_peer(issues, peer_name, inputs.parents, optional, &peer_range, found_version);
-    }
-}
-
-fn snapshot_dependency<'a>(
-    snapshot: &'a SnapshotEntry,
-    name: &PkgName,
-) -> Option<&'a SnapshotDepRef> {
-    snapshot
-        .dependencies
-        .as_ref()
-        .and_then(|deps| deps.get(name))
-        .or_else(|| snapshot.optional_dependencies.as_ref().and_then(|deps| deps.get(name)))
-}
-
-/// The version a snapshot dependency reference resolves to. A reference that
-/// is neither a registry version nor a link has no version to check against.
-fn resolved_snapshot_version(dep_ref: &SnapshotDepRef, lockfile_dir: &Path) -> Option<String> {
-    if let Some(ver_peer) = dep_ref.ver_peer() {
-        return Some(ver_peer.version().to_string());
-    }
-    let link_target = dep_ref.as_link_target()?;
-    Some(
-        resolve_link_version(lockfile_dir, lockfile_dir, link_target)
-            .unwrap_or_else(|| format!("link:{link_target}")),
-    )
-}
-
-fn child_keys(snapshot: Option<&SnapshotEntry>) -> impl Iterator<Item = PkgNameVerPeer> + '_ {
-    snapshot
-        .into_iter()
-        .flat_map(|snapshot| {
-            snapshot
-                .dependencies
-                .iter()
-                .flat_map(|deps| deps.iter())
-                .chain(snapshot.optional_dependencies.iter().flat_map(|deps| deps.iter()))
+        Some(LinkedDependency {
+            dir,
+            importer_id,
+            manifest,
+            version,
         })
-        .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))
-}
-
-fn get_pkg_version(
-    key: &PkgNameVerPeer,
-    packages: &HashMap<PkgNameVerPeer, PackageMetadata>,
-) -> String {
-    let base_key = key.without_peer();
-    packages
-        .get(&base_key)
-        .and_then(|meta| meta.version.clone())
-        .unwrap_or_else(|| key.suffix.version().to_string())
+    }
 }
 
 fn satisfies(version: &str, range: &str) -> bool {
@@ -462,9 +390,12 @@ fn satisfies(version: &str, range: &str) -> bool {
     // port applies that rule unconditionally. What is left is the plain
     // bound check, and ordering still holds: `18.3.0-canary` satisfies
     // `^18.0.0`, while `2.0.0-beta.1` stays below `>=2.0.0`.
-    parse_range_to_intervals(&preprocess_hyphen_ranges(range)).is_some_and(|intervals| {
-        intervals.iter().any(|interval| interval.contains(&parsed_version))
-    })
+    parse_range_to_intervals(&preprocess_hyphen_ranges(range))
+        .is_some_and(|intervals| {
+            intervals
+                .iter()
+                .any(|interval| interval.contains(&parsed_version))
+        })
 }
 
 #[cfg(test)]
@@ -484,3 +415,5 @@ use linked::{
     CanonicalPathWithin, LinkedPackagePeers, canonical_path_within, check_linked_package_peers,
     package_manifest_version, record_bad_peer, record_missing_peer, resolve_link_version,
 };
+
+mod snapshot;

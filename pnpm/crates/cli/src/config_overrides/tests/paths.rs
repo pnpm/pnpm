@@ -68,9 +68,15 @@ fn extract_leaves_invalid_shamefully_hoist_values_for_clap() {
 
 #[test]
 fn extract_rewrites_the_dotted_state_dir_for_clap() {
-    let (_, remaining) =
-        ConfigOverrides::extract(argv(["pacquet", "--config.state-dir=/custom/state", "install"]));
-    assert_eq!(remaining, argv(["pacquet", "--state-dir=/custom/state", "install"]));
+    let (_, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "--config.state-dir=/custom/state",
+        "install",
+    ]));
+    assert_eq!(
+        remaining,
+        argv(["pacquet", "--state-dir=/custom/state", "install"]),
+    );
 }
 
 #[test]
@@ -123,9 +129,15 @@ fn extract_applies_inject_workspace_packages_and_node_linker_overrides() {
 #[test]
 fn node_linker_override_rederives_prefer_symlinked_executables() {
     // Overriding away from hoisted drops the derived `true`.
-    let (overrides, _) =
-        ConfigOverrides::extract(argv(["pacquet", "--config.node-linker=isolated", "install"]));
-    let mut config = Config { node_linker: NodeLinker::Hoisted, ..Config::default() };
+    let (overrides, _) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "--config.node-linker=isolated",
+        "install",
+    ]));
+    let mut config = Config {
+        node_linker: NodeLinker::Hoisted,
+        ..Config::default()
+    };
     config.apply_prefer_symlinked_executables_derivation();
     assert_eq!(config.prefer_symlinked_executables, Some(true));
     overrides.apply(&mut config, Path::new("/workspace"));
@@ -144,10 +156,14 @@ fn node_linker_override_rederives_prefer_symlinked_executables() {
     // config layer that set it — outranks the hoisted default.
     let (overrides, _) =
         ConfigOverrides::extract(argv(["pacquet", "--config.node-linker=hoisted", "install"]));
-    let mut config = Config { prefer_symlinked_executables: Some(false), ..Config::default() };
-    config
-        .explicit_settings
-        .insert("preferSymlinkedExecutables".to_string(), serde_json::Value::Bool(false));
+    let mut config = Config {
+        prefer_symlinked_executables: Some(false),
+        ..Config::default()
+    };
+    config.explicit_settings.insert(
+        "preferSymlinkedExecutables".to_string(),
+        serde_json::Value::Bool(false),
+    );
     overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(config.node_linker, NodeLinker::Hoisted);
     assert_eq!(config.prefer_symlinked_executables, Some(false));
@@ -155,9 +171,15 @@ fn node_linker_override_rederives_prefer_symlinked_executables() {
 
 #[test]
 fn dotted_store_dir_is_rewritten_for_the_global_parser() {
-    let (_, remaining) =
-        ConfigOverrides::extract(argv(["pacquet", "install", "--config.store-dir=dotted-store"]));
-    assert_eq!(remaining, argv(["pacquet", "install", "--store-dir=dotted-store"]));
+    let (_, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "install",
+        "--config.store-dir=dotted-store",
+    ]));
+    assert_eq!(
+        remaining,
+        argv(["pacquet", "install", "--store-dir=dotted-store"]),
+    );
 }
 
 #[test]
@@ -191,7 +213,10 @@ fn store_dir_override_resolves_from_workspace_root() {
     let temp_dir = std::env::temp_dir();
     let workspace_dir = temp_dir.join("pacquet-store-dir-workspace");
     let package_dir = workspace_dir.join("packages/app");
-    let mut config = Config { workspace_dir: Some(workspace_dir.clone()), ..Config::default() };
+    let mut config = Config {
+        workspace_dir: Some(workspace_dir.clone()),
+        ..Config::default()
+    };
 
     apply_store_dir_override::<FakeHome>(
         &mut config,
@@ -200,7 +225,10 @@ fn store_dir_override_resolves_from_workspace_root() {
     )
     .expect("resolve relative store directory");
 
-    assert_eq!(config.store_dir.root(), workspace_dir.join("relative-store").join(STORE_VERSION));
+    assert_eq!(
+        config.store_dir.root(),
+        workspace_dir.join("relative-store").join(STORE_VERSION),
+    );
 }
 
 #[test]
@@ -278,7 +306,10 @@ fn empty_store_dir_override_uses_the_injected_default_provider() {
     }
 
     let workspace_dir = std::env::temp_dir();
-    let mut config = Config { workspace_dir: Some(workspace_dir.clone()), ..Config::default() };
+    let mut config = Config {
+        workspace_dir: Some(workspace_dir.clone()),
+        ..Config::default()
+    };
 
     apply_store_dir_override::<FakeDefault>(&mut config, std::path::Path::new(""), &workspace_dir)
         .expect("restore the default store directory");
@@ -341,11 +372,17 @@ fn no_virtual_store_only_restores_the_hoist_patterns() {
         "--hoist-pattern=foo",
         "--no-virtual-store-only",
     ]));
-    let mut config = Config { virtual_store_only: true, ..Config::default() };
+    let mut config = Config {
+        virtual_store_only: true,
+        ..Config::default()
+    };
     config.apply_virtual_store_only_derivation();
     overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(config.hoist_pattern, Some(vec!["foo".to_string()]));
-    assert_eq!(config.public_hoist_pattern, Config::default().public_hoist_pattern);
+    assert_eq!(
+        config.public_hoist_pattern,
+        Config::default().public_hoist_pattern,
+    );
 
     // Turning the mode on from the command line keeps the patterns
     // empty whatever else the command line says about them.
@@ -402,7 +439,10 @@ fn the_modules_and_virtual_store_dirs_are_anchored_at_the_workspace_root() {
     assert_eq!(remaining, argv(["pacquet", "install"]));
 
     let workspace_dir = PathBuf::from("/workspace");
-    let mut config = Config { workspace_dir: Some(workspace_dir.clone()), ..Config::default() };
+    let mut config = Config {
+        workspace_dir: Some(workspace_dir.clone()),
+        ..Config::default()
+    };
     overrides.apply(&mut config, Path::new("/workspace/pkg"));
     assert_eq!(config.modules_dir, workspace_dir.join("custom_modules"));
     assert_eq!(config.virtual_store_dir, workspace_dir.join("custom_store"));
@@ -414,20 +454,34 @@ fn the_modules_dir_alone_re_anchors_the_default_virtual_store() {
         ConfigOverrides::extract(argv(["pacquet", "install", "--modules-dir=custom_modules"]));
 
     let workspace_dir = PathBuf::from("/workspace");
-    let mut config = Config { workspace_dir: Some(workspace_dir.clone()), ..Config::default() };
+    let mut config = Config {
+        workspace_dir: Some(workspace_dir.clone()),
+        ..Config::default()
+    };
     overrides.apply(&mut config, Path::new("/workspace"));
-    assert_eq!(config.virtual_store_dir, workspace_dir.join("custom_modules/.pnpm"));
+    assert_eq!(
+        config.virtual_store_dir,
+        workspace_dir.join("custom_modules/.pnpm"),
+    );
 }
 
 #[test]
 fn the_global_dir_override_re_derives_the_global_package_dir() {
-    let (overrides, remaining) =
-        ConfigOverrides::extract(argv(["pacquet", "add", "-g", "--global-dir", "/custom/global"]));
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "add",
+        "-g",
+        "--global-dir",
+        "/custom/global",
+    ]));
     assert_eq!(remaining, argv(["pacquet", "add", "-g"]));
 
     let mut config = Config::default();
     overrides.apply(&mut config, Path::new("/workspace"));
-    assert_eq!(config.global_dir.as_deref(), Some(Path::new("/custom/global")));
+    assert_eq!(
+        config.global_dir.as_deref(),
+        Some(Path::new("/custom/global")),
+    );
     assert_eq!(
         config.global_pkg_dir,
         Some(Path::new("/custom/global").join(pnpm_config::GLOBAL_LAYOUT_VERSION)),

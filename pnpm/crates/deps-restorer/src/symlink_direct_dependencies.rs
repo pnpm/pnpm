@@ -151,10 +151,7 @@ impl ImporterPass<'_> {
         // of leaving the symlink stage stuck on `node_modules` while
         // other stages (`.modules.yaml` writing, bin linking) use
         // `config.modules_dir`.
-        let modules_dir_name: &OsStr = self
-            .context
-            .config
-            .modules_dir
+        let modules_dir_name: &OsStr = self.context.config.modules_dir
             .file_name()
             .unwrap_or_else(|| OsStr::new("node_modules"));
 
@@ -163,7 +160,10 @@ impl ImporterPass<'_> {
         // event order is not pinned — the per-importer work runs on
         // rayon, matching pnpm's `Promise.all` over importers — so
         // consumers key events off their `prefix`, never their order.
-        let mut keys: Vec<&str> = self.graph.importers.keys().map(String::as_str).collect();
+        let mut keys: Vec<&str> = self.graph.importers
+            .keys()
+            .map(String::as_str)
+            .collect();
         keys.sort_unstable();
         let root_targets = self.root_dedupe_targets(&keys);
         self.validate_importer_ids(&keys)?;
@@ -175,11 +175,19 @@ impl ImporterPass<'_> {
         // a serial walk would insert a fork-join barrier per importer
         // between the filesystem batches.
         let task_groups = importer_task_groups(self.context.workspace_root, keys);
-        task_groups.par_iter().try_for_each(|group| {
-            group.iter().try_for_each(|importer_id| {
-                self.link_importer::<Reporter>(importer_id, modules_dir_name, root_targets.as_ref())
+        task_groups
+            .par_iter()
+            .try_for_each(|group| {
+                group
+                    .iter()
+                    .try_for_each(|importer_id| {
+                        self.link_importer::<Reporter>(
+                            importer_id,
+                            modules_dir_name,
+                            root_targets.as_ref(),
+                        )
+                    })
             })
-        })
     }
 
     /// `dedupeDirectDeps` short-circuits when there is no root importer
@@ -212,11 +220,9 @@ impl ImporterPass<'_> {
     /// a rejected lockfile writes nothing.
     fn validate_importer_ids(&self, keys: &[&str]) -> Result<(), SymlinkDirectDependenciesError> {
         for importer_id in keys {
-            if !self
-                .policy
-                .trusted_importer_ids
-                .is_some_and(|trusted| trusted.contains(*importer_id))
-            {
+            if !self.policy.trusted_importer_ids.is_some_and(|trusted| {
+                trusted.contains(*importer_id)
+            }) {
                 validate_importer_id(importer_id)?;
             }
         }
@@ -285,7 +291,9 @@ fn root_dedupe_targets(
         link_only,
     );
     for (alias, target) in public_hoist_targets.into_iter().flatten() {
-        targets.entry(alias.clone()).or_insert_with(|| target.clone());
+        targets
+            .entry(alias.clone())
+            .or_insert_with(|| target.clone());
     }
     targets
 }
@@ -317,7 +325,10 @@ fn importer_task_groups<'a>(workspace_root: &Path, keys: Vec<&'a str>) -> Vec<Ve
     for importer_id in keys {
         let project_dir = importer_root_dir(workspace_root, importer_id);
         match std::fs::canonicalize(&project_dir) {
-            Ok(canonical) => task_groups.entry(canonical).or_default().push(importer_id),
+            Ok(canonical) => task_groups
+                .entry(canonical)
+                .or_default()
+                .push(importer_id),
             Err(_) => unresolved.push(importer_id),
         }
     }
@@ -417,19 +428,28 @@ where
     dependency_groups
         .into_iter()
         .filter(|group| !matches!(group, DependencyGroup::Peer))
-        .flat_map(|group| snapshot.get_map_by_group(group).into_iter().flatten())
-        .filter(|(name, _)| seen.insert(*name))
-        .filter(|(name, spec)| match spec.version.resolved_key(name) {
-            Some(resolved) => !skipped.contains(&resolved),
-            // `link:` deps have no virtual-store slot and so cannot be
-            // in `skipped` — keep them.
-            None => true,
+        .flat_map(|group| {
+            snapshot
+                .get_map_by_group(group)
+                .into_iter()
+                .flatten()
         })
-        .filter(
-            |(_, spec)| {
-                if link_only { matches!(spec.version, ImporterDepVersion::Link(_)) } else { true }
-            },
-        )
+        .filter(|(name, _)| seen.insert(*name))
+        .filter(|(name, spec)| {
+            match spec.version.resolved_key(name) {
+                Some(resolved) => !skipped.contains(&resolved),
+                // `link:` deps have no virtual-store slot and so cannot be
+                // in `skipped` — keep them.
+                None => true,
+            }
+        })
+        .filter(|(_, spec)| {
+            if link_only {
+                matches!(spec.version, ImporterDepVersion::Link(_))
+            } else {
+                true
+            }
+        })
         .map(|(name, _)| name.to_string())
         .collect()
 }
@@ -468,13 +488,12 @@ fn link_resolved_entry<Reporter: self::Reporter>(
     let ResolvedEntry { name_str, target, .. } = entry;
 
     if symlink {
-        let outcome = symlink_package(target, &modules_dir.join(name_str)).map_err(|source| {
-            SymlinkDirectDependenciesError::SymlinkPackage {
+        let outcome = symlink_package(target, &modules_dir.join(name_str))
+            .map_err(|source| SymlinkDirectDependenciesError::SymlinkPackage {
                 importer_id: importer_id.to_string(),
                 name: name_str.clone(),
                 source,
-            }
-        })?;
+            })?;
 
         if outcome.reused {
             return Ok(());
@@ -543,10 +562,34 @@ fn link_one_importer<Reporter: self::Reporter>(
     // `try_for_each` short-circuits on the first error and returns it
     // to the caller. The full result collection forces every task to
     // settle before we surface a single error.
-    entries.par_iter().try_for_each(|entry| -> Result<(), SymlinkDirectDependenciesError> {
-        link_resolved_entry::<Reporter>(entry, importer_id, modules_dir, symlink, packages, &prefix)
-    })?;
+    entries
+        .par_iter()
+        .try_for_each(|entry| -> Result<(), SymlinkDirectDependenciesError> {
+            link_resolved_entry::<Reporter>(
+                entry,
+                importer_id,
+                modules_dir,
+                symlink,
+                packages,
+                &prefix,
+            )
+        })?;
 
+    link_importer_bins(&entries, modules_dir, symlink, bin_lookup, link_options)?;
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests;
+
+fn link_importer_bins(
+    entries: &[ResolvedEntry<'_>],
+    modules_dir: &Path,
+    symlink: bool,
+    bin_lookup: &crate::PrefetchedBinLookup<'_>,
+    link_options: &LinkBinsOptions,
+) -> Result<(), SymlinkDirectDependenciesError> {
     // After the symlinks exist, walk them to discover each
     // direct dep's `package.json` and link declared bins into
     // `<modules_dir>/.bin`. Each entry's `target` is the symlink's
@@ -563,13 +606,12 @@ fn link_one_importer<Reporter: self::Reporter>(
         crate::link_direct_dep_bins_prefetched(modules_dir, &deps, bin_lookup, link_options)
             .map_err(SymlinkDirectDependenciesError::LinkBins)?;
     } else {
-        let locations: Vec<PathBuf> = entries.iter().map(|entry| entry.target.clone()).collect();
+        let locations: Vec<PathBuf> = entries
+            .iter()
+            .map(|entry| entry.target.clone())
+            .collect();
         crate::link_direct_dep_bins_from_locations(modules_dir, &locations, link_options)
             .map_err(SymlinkDirectDependenciesError::LinkBins)?;
     }
-
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;

@@ -24,7 +24,11 @@ fn duplicate_registration_does_not_remove_the_original_observer() {
     let (sender, receiver) = std::sync::mpsc::channel();
     with_retry_observer(
         &path,
-        move |_| sender.send(()).unwrap(),
+        move |_| {
+            sender
+                .send(())
+                .unwrap()
+        },
         || {
             let result = catch_unwind(|| with_retry_observer(&path, |_| {}, || {}));
             assert!(result.is_err(), "duplicate registration must be rejected");

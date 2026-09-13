@@ -38,7 +38,11 @@ fn auto_respects_cached_copy_state() {
         fs::metadata(&dst).unwrap().ino(),
         "state=COPY must not hardlink",
     );
-    assert_eq!(state.load(Ordering::Relaxed), LINK_STATE_COPY, "state must not drift");
+    assert_eq!(
+        state.load(Ordering::Relaxed),
+        LINK_STATE_COPY,
+        "state must not drift",
+    );
 }
 /// State=HARDLINK means Auto skips the reflink attempt and jumps
 /// straight to `fs::hard_link`. Observable: shared inode on unix.
@@ -60,7 +64,11 @@ fn auto_respects_cached_hardlink_state() {
         fs::metadata(&dst).unwrap().ino(),
         "state=HARDLINK must hardlink, not copy",
     );
-    assert_eq!(state.load(Ordering::Relaxed), LINK_STATE_HARDLINK, "state must not drift");
+    assert_eq!(
+        state.load(Ordering::Relaxed),
+        LINK_STATE_HARDLINK,
+        "state must not drift",
+    );
 }
 /// Pre-seed `CloneOrCopy` state to `COPY` and verify it uses
 /// `fs::copy` — mirrors [`auto_respects_cached_copy_state`]. Also
@@ -84,5 +92,9 @@ fn clone_or_copy_respects_cached_copy_state() {
         fs::metadata(&dst).unwrap().ino(),
         "state=COPY must not hardlink",
     );
-    assert_eq!(state.load(Ordering::Relaxed), LINK_STATE_COPY, "state must not drift");
+    assert_eq!(
+        state.load(Ordering::Relaxed),
+        LINK_STATE_COPY,
+        "state must not drift",
+    );
 }

@@ -33,13 +33,19 @@ pub fn check_deps_status_before_run_at(
     let Ok(workspace_dir_opt) = configured_or_discovered_workspace_dir(config, dir) else {
         return cannot_check_deps();
     };
-    let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| dir.to_path_buf());
+    let workspace_root = workspace_dir_opt
+        .clone()
+        .unwrap_or_else(|| dir.to_path_buf());
     // One shared lockfile is written at the workspace root, whose
     // manifest heads the importer list the install recorded. Dedicated
     // per-project lockfiles give every project its own lockfile, state
     // and single-importer list, so the gate reads the manifest of the
     // project the command runs in.
-    let manifest_dir = if config.shares_one_lockfile() { workspace_root.as_path() } else { dir };
+    let manifest_dir = if config.shares_one_lockfile() {
+        workspace_root.as_path()
+    } else {
+        dir
+    };
     let manifest = match read_gate_manifest(
         manifest_dir,
         workspace_dir_opt.is_some(),
@@ -49,12 +55,9 @@ pub fn check_deps_status_before_run_at(
         GateManifest::NoManifest => return None,
         GateManifest::Unreadable => return cannot_check_deps(),
     };
-    let Ok(workspace_manifest) =
-        workspace_dir_opt.as_deref().map(pnpm_workspace::read_workspace_manifest).transpose()
-    else {
+    let Ok(workspace_manifest) = load_workspace_manifest(workspace_dir_opt.as_deref()) else {
         return cannot_check_deps();
     };
-    let workspace_manifest = workspace_manifest.flatten();
     // A pinned `lockfileDir` is where the install left the state and the
     // lockfile; otherwise it follows the manifest read above, just as it
     // does during install.
@@ -161,4 +164,13 @@ pub(super) fn configured_catalogs(
         Some(catalogs) => Some(catalogs),
         None => get_catalogs_from_workspace_manifest(workspace_manifest).ok(),
     }
+}
+
+fn load_workspace_manifest(
+    workspace_dir: Option<&Path>,
+) -> Result<Option<pnpm_workspace::WorkspaceManifest>, pnpm_workspace::ReadWorkspaceManifestError> {
+    workspace_dir
+        .map(pnpm_workspace::read_workspace_manifest)
+        .transpose()
+        .map(Option::flatten)
 }

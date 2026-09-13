@@ -55,7 +55,12 @@ impl Resolve for RecordingResolver {
 }
 
 fn list(entries: &[&str]) -> NoProxySetting {
-    NoProxySetting::List(entries.iter().map(|s| (*s).to_string()).collect())
+    NoProxySetting::List(
+        entries
+            .iter()
+            .map(|s| (*s).to_string())
+            .collect(),
+    )
 }
 
 // --- TLS / local-address tests ---
@@ -99,7 +104,10 @@ const TEST_CLIENT_PKCS1_CERT: &str = include_str!("../tests/fixtures/test-client
 const TEST_CLIENT_PKCS1_KEY: &str = include_str!("../tests/fixtures/test-client-pkcs1.key");
 
 fn client_with_fetch_timeout(fetch_timeout: Duration) -> ThrottledClient {
-    let settings = NetworkSettings { fetch_timeout, ..NetworkSettings::default() };
+    let settings = NetworkSettings {
+        fetch_timeout,
+        ..NetworkSettings::default()
+    };
     ThrottledClient::for_installs(
         &ProxyConfig::default(),
         &TlsConfig::default(),

@@ -34,16 +34,20 @@ struct IndexFile {
 
 impl IndexFile {
     fn metadata_digests(&self) -> Option<BTreeMap<String, String>> {
-        [&self.core_metadata, &self.dist_info_metadata].into_iter().find_map(|value| match value {
-            serde_json::Value::Bool(true) => Some(BTreeMap::new()),
-            serde_json::Value::Object(digests) => Some(
-                digests
-                    .iter()
-                    .filter_map(|(name, digest)| Some((name.clone(), digest.as_str()?.to_string())))
-                    .collect(),
-            ),
-            _ => None,
-        })
+        [&self.core_metadata, &self.dist_info_metadata]
+            .into_iter()
+            .find_map(|value| match value {
+                serde_json::Value::Bool(true) => Some(BTreeMap::new()),
+                serde_json::Value::Object(digests) => Some(
+                    digests
+                        .iter()
+                        .filter_map(|(name, digest)| {
+                            Some((name.clone(), digest.as_str()?.to_string()))
+                        })
+                        .collect(),
+                ),
+                _ => None,
+            })
     }
 }
 
@@ -73,13 +77,19 @@ pub fn candidates_from_page(
         else {
             continue;
         };
-        if candidates.get(&version).is_none_or(|(previous, existing)| {
-            (rank, &candidate.wheel.name) < (*previous, &existing.wheel.name)
-        }) {
+        if candidates
+            .get(&version)
+            .is_none_or(|(previous, existing)| {
+                (rank, &candidate.wheel.name) < (*previous, &existing.wheel.name)
+            })
+        {
             candidates.insert(version, (rank, candidate));
         }
     }
-    Ok(candidates.into_iter().map(|(version, (_, candidate))| (version, candidate)).collect())
+    Ok(candidates
+        .into_iter()
+        .map(|(version, (_, candidate))| (version, candidate))
+        .collect())
 }
 
 /// The candidate one index file offers, with the version and tag rank it
@@ -92,7 +102,10 @@ fn installable_candidate(
     name: &PackageName,
     target: &Target,
 ) -> Result<Option<(Version, usize, Candidate)>> {
-    if !matches!(file.yanked, serde_json::Value::Null | serde_json::Value::Bool(false)) {
+    if !matches!(
+        file.yanked,
+        serde_json::Value::Null | serde_json::Value::Bool(false),
+    ) {
         return Ok(None);
     }
     let Some((wheel_name, version, rank)) = wheel_identity(&file.filename, &target.tags)? else {
@@ -110,9 +123,20 @@ fn installable_candidate(
     let url = page_url.join(&file.url).into_diagnostic()?;
     validate_url(&url)?;
     let core_metadata = file.metadata_digests();
-    let wheel = LockedWheel { name: file.filename, url: url.to_string(), hashes: file.hashes };
+    let wheel = LockedWheel {
+        name: file.filename,
+        url: url.to_string(),
+        hashes: file.hashes,
+    };
     wheel.integrity()?;
-    Ok(Some((version, rank, Candidate { wheel, core_metadata })))
+    Ok(Some((
+        version,
+        rank,
+        Candidate {
+            wheel,
+            core_metadata,
+        },
+    )))
 }
 
 /// The distribution, version, and tag rank a wheel filename names, or
@@ -122,23 +146,37 @@ pub fn wheel_identity(
     filename: &str,
     tags: &[String],
 ) -> Result<Option<(PackageName, Version, usize)>> {
-    let Some(stem) = filename.strip_suffix(".whl") else { return Ok(None) };
+    let Some(stem) = filename.strip_suffix(".whl") else {
+        return Ok(None);
+    };
     let parts = stem.split('-').collect::<Vec<_>>();
     if !(parts.len() == 5 || parts.len() == 6) || filename.contains(['/', '\\']) {
         bail!("invalid Python wheel filename: {filename}");
     }
     let wheel_tags = &parts[parts.len() - 3..];
-    let rank = tags.iter().position(|tag| {
-        let actual = tag.split('-').collect::<Vec<_>>();
-        actual.len() == 3
-            && wheel_tags.iter().zip(actual).all(|(supported, actual)| {
-                supported.split('.').any(|supported| supported == actual)
-            })
-    });
-    rank.map(|rank| {
-        Ok((parts[0].parse().into_diagnostic()?, parts[1].parse().into_diagnostic()?, rank))
-    })
-    .transpose()
+    let rank = tags
+        .iter()
+        .position(|tag| {
+            let actual = tag.split('-').collect::<Vec<_>>();
+            actual.len() == 3
+                && wheel_tags
+                    .iter()
+                    .zip(actual)
+                    .all(|(supported, actual)| {
+                        supported
+                            .split('.')
+                            .any(|supported| supported == actual)
+                    })
+        });
+    rank
+        .map(|rank| {
+            Ok((
+                parts[0].parse().into_diagnostic()?,
+                parts[1].parse().into_diagnostic()?,
+                rank,
+            ))
+        })
+        .transpose()
 }
 
 /// Refuse a URL a Python artifact must not be fetched from: a scheme

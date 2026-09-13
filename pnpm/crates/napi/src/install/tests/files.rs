@@ -14,7 +14,10 @@ fn pnpm_home_dir_places_the_default_store_under_that_home() {
     options.pnpm_home_dir = Some(home_dir.to_string_lossy().into_owned());
     let overlay = build_overlay(&options, false).expect("overlay");
     let config = resolve_config(&project_dir, &overlay).expect("config");
-    assert_eq!(config.store_dir.root(), home_dir.join("store").join(STORE_VERSION));
+    assert_eq!(
+        config.store_dir.root(),
+        home_dir.join("store").join(STORE_VERSION),
+    );
 
     let store_dir = temp_dir.path().join("explicit-store");
     options.store_dir = Some(store_dir.to_string_lossy().into_owned());

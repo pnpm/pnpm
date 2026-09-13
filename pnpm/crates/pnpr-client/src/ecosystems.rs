@@ -163,7 +163,9 @@ impl PnprClient {
         request: &serde_json::Value,
         authorization: Option<&str>,
     ) -> Result<Vec<u8>, PnprClientError> {
-        let mut post = self.http.post(format!("{}-/pnpr/v0/resolve", self.base_url)).json(request);
+        let mut post = self.http
+            .post(format!("{}-/pnpr/v0/resolve", self.base_url))
+            .json(request);
         if let Some(authorization) = authorization {
             post = post.header("authorization", authorization);
         }
@@ -177,7 +179,9 @@ impl PnprClient {
             )));
         }
         let body = response_body_bounded(response, MAX_TERMINAL_RESPONSE_SIZE).await?;
-        let mut frames = body.split(|&byte| byte == b'\n').filter(|line| !line.is_empty());
+        let mut frames = body
+            .split(|&byte| byte == b'\n')
+            .filter(|line| !line.is_empty());
         let Some(frame) = frames.next() else {
             return Err(PnprClientError::Protocol(
                 "/-/pnpr/v0/resolve returned no terminal frame".to_string(),
@@ -200,8 +204,9 @@ impl PnprClient {
     ) -> Result<(), PnprClientError> {
         let request = serde_json::to_value(&opts).expect("verification request serializes to JSON");
 
-        let mut post =
-            self.http.post(format!("{}-/pnpr/v0/verify-lockfile", self.base_url)).json(&request);
+        let mut post = self.http
+            .post(format!("{}-/pnpr/v0/verify-lockfile", self.base_url))
+            .json(&request);
         if let Some(authorization) = opts.routing.authorization.as_deref() {
             post = post.header("authorization", authorization);
         }
@@ -217,9 +222,9 @@ impl PnprClient {
         let done = read_ndjson_frames(response, |line| match parse_verify_frame(line)? {
             VerifyFrame::Done => Ok(Some(())),
             VerifyFrame::Error { message } => Err(PnprClientError::Server(message)),
-            VerifyFrame::Violations { violations } => {
-                Err(PnprClientError::Verification(build_verify_error(violations)))
-            }
+            VerifyFrame::Violations { violations } => Err(PnprClientError::Verification(
+                build_verify_error(violations),
+            )),
         })
         .await?;
         done.ok_or_else(|| {

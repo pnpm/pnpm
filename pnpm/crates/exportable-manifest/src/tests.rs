@@ -32,7 +32,11 @@ fn workspace_fixture() -> (TempDir, std::path::PathBuf) {
     write_dep(&modules.join("bar"), "@foo/bar", "3.2.1");
     write_dep(&modules.join("baz"), "baz", "1.2.3");
     write_dep(&modules.join("foo"), "foo", "4.5.6");
-    write_dep(&modules.join("qux"), "qux", "1.0.0-alpha-a.b-c-something+build.1-aef.1-its-okay");
+    write_dep(
+        &modules.join("qux"),
+        "qux",
+        "1.0.0-alpha-a.b-c-something+build.1-aef.1-its-okay",
+    );
     write_dep(&modules.join("quux"), "quux", "7.8.9");
     write_dep(&modules.join("waldo"), "waldo", "1.9.0");
 
@@ -45,7 +49,11 @@ fn workspace_fixture() -> (TempDir, std::path::PathBuf) {
 fn write_dep(dir: &Path, name: &str, version: &str) {
     fs::create_dir_all(dir).unwrap();
     let manifest = serde_json::json!({ "name": name, "version": version });
-    fs::write(dir.join("package.json"), serde_json::to_string(&manifest).unwrap()).unwrap();
+    fs::write(
+        dir.join("package.json"),
+        serde_json::to_string(&manifest).unwrap(),
+    )
+    .unwrap();
 }
 
 fn rewrite(dep_name: &str, dep_spec: &str, dir: &Path) -> String {
@@ -69,7 +77,10 @@ fn workspace_dep_rewrites_match_upstream() {
     let (_fixture, project) = workspace_fixture();
     let dir = project.as_path();
 
-    assert_eq!(rewrite("bar", "workspace:@foo/bar@*", dir), "npm:@foo/bar@3.2.1");
+    assert_eq!(
+        rewrite("bar", "workspace:@foo/bar@*", dir),
+        "npm:@foo/bar@3.2.1",
+    );
     assert_eq!(rewrite("baz", "workspace:baz@^", dir), "^1.2.3");
     assert_eq!(rewrite("foo", "workspace:*", dir), "4.5.6");
     assert_eq!(
@@ -79,10 +90,16 @@ fn workspace_dep_rewrites_match_upstream() {
     assert_eq!(rewrite("quux", "workspace:", dir), "7.8.9");
     assert_eq!(rewrite("waldo", "workspace:^", dir), "^1.9.0");
     assert_eq!(rewrite("xerox", "workspace:../xerox", dir), "4.5.6");
-    assert_eq!(rewrite("xeroxAlias", "workspace:../xerox", dir), "npm:xerox@4.5.6");
+    assert_eq!(
+        rewrite("xeroxAlias", "workspace:../xerox", dir),
+        "npm:xerox@4.5.6",
+    );
     assert_eq!(rewrite("corge", "workspace:1.0.0", dir), "1.0.0");
     assert_eq!(rewrite("grault", "workspace:^1.0.0", dir), "^1.0.0");
-    assert_eq!(rewrite("garply", "workspace:plugh@2.0.0", dir), "npm:plugh@2.0.0");
+    assert_eq!(
+        rewrite("garply", "workspace:plugh@2.0.0", dir),
+        "npm:plugh@2.0.0",
+    );
 }
 
 #[test]
@@ -90,8 +107,14 @@ fn peer_workspace_dep_rewrites_match_upstream() {
     let (_fixture, project) = workspace_fixture();
     let dir = project.as_path();
 
-    assert_eq!(rewrite_peer("foo", "workspace:>= || ^3.9.0", dir), ">=4.5.6 || ^3.9.0");
-    assert_eq!(rewrite_peer("baz", "^1.0.0 || workspace:>", dir), "^1.0.0 || >1.2.3");
+    assert_eq!(
+        rewrite_peer("foo", "workspace:>= || ^3.9.0", dir),
+        ">=4.5.6 || ^3.9.0",
+    );
+    assert_eq!(
+        rewrite_peer("baz", "^1.0.0 || workspace:>", dir),
+        "^1.0.0 || >1.2.3",
+    );
     assert_eq!(rewrite_peer("bar", "workspace:^3.0.0", dir), "^3.0.0");
     assert_eq!(
         rewrite_peer("qux", "workspace:^", dir),
@@ -154,7 +177,10 @@ fn dep_name_mismatch_routes_to_npm_alias() {
     let modules = dir.join("node_modules");
     write_dep(&modules.join("local-name"), "actual-name", "1.2.3");
 
-    assert_eq!(rewrite("local-name", "workspace:*", dir), "npm:actual-name@1.2.3");
+    assert_eq!(
+        rewrite("local-name", "workspace:*", dir),
+        "npm:actual-name@1.2.3",
+    );
 }
 
 /// The packed manifest is the input to the tarball hash, so a
@@ -187,8 +213,10 @@ fn published_dependencies_keep_declaration_order() {
     )
     .expect("manifest is exportable");
 
-    let dependencies =
-        published.get("dependencies").and_then(Value::as_object).expect("dependencies survive");
+    let dependencies = published
+        .get("dependencies")
+        .and_then(Value::as_object)
+        .expect("dependencies survive");
     assert_eq!(
         dependencies.iter().collect::<Vec<_>>(),
         vec![

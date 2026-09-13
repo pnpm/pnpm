@@ -30,12 +30,18 @@ use tempfile::tempdir;
 #[test]
 fn ignored_scripts_event_carries_returned_names() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().expect("lock").clear();
+    EVENTS
+        .lock()
+        .expect("lock")
+        .clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS
+                .lock()
+                .expect("lock")
+                .push(event.clone());
         }
     }
 
@@ -46,7 +52,10 @@ fn ignored_scripts_event_carries_returned_names() {
         strict_dep_builds: false,
     }));
 
-    let captured = EVENTS.lock().expect("lock").clone();
+    let captured = EVENTS
+        .lock()
+        .expect("lock")
+        .clone();
     dbg!(&captured);
     assert!(
         matches!(
@@ -245,7 +254,10 @@ new file mode 100644
     writer_task.await.expect("await writer").expect("writer succeeds");
 
     let index = StoreIndex::open_readonly_in(&store_dir).expect("open index for read");
-    let row = index.get(&files_index_file).expect("get row").expect("row present");
+    let row = index
+        .get(&files_index_file)
+        .expect("get row")
+        .expect("row present");
     let side_effects = row.side_effects.expect("side_effects populated");
     assert!(
         side_effects.contains_key(&expected_cache_key_with_patch),
@@ -286,8 +298,11 @@ async fn patch_only_snapshot_gets_patched_via_build_modules() {
     // build trigger fires solely because of the patch entry.
     let pkg_dir = virtual_store_dir.path().join("is-positive@1.0.0/node_modules/is-positive");
     fs::create_dir_all(&pkg_dir).expect("create pkg dir");
-    fs::write(pkg_dir.join("package.json"), r#"{"name":"is-positive","version":"1.0.0"}"#)
-        .expect("write manifest");
+    fs::write(
+        pkg_dir.join("package.json"),
+        r#"{"name":"is-positive","version":"1.0.0"}"#,
+    )
+    .expect("write manifest");
 
     // Patch that creates a brand-new file. Pure Create operation;
     // diffy parses and applies it cleanly.
@@ -371,7 +386,11 @@ new file mode 100644
     writer_task.await.expect("await writer").expect("writer succeeds");
 
     let patched = pkg_dir.join("patched.txt");
-    assert!(patched.exists(), "patch must have created {}", patched.display());
+    assert!(
+        patched.exists(),
+        "patch must have created {}",
+        patched.display(),
+    );
     assert_eq!(fs::read_to_string(&patched).unwrap(), "applied\n");
 }
 /// When the resolved patch entry carries a hash but no
@@ -398,8 +417,11 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
 
     let pkg_dir = virtual_store_dir.path().join("is-positive@1.0.0/node_modules/is-positive");
     fs::create_dir_all(&pkg_dir).expect("create pkg dir");
-    fs::write(pkg_dir.join("package.json"), r#"{"name":"is-positive","version":"1.0.0"}"#)
-        .expect("write manifest");
+    fs::write(
+        pkg_dir.join("package.json"),
+        r#"{"name":"is-positive","version":"1.0.0"}"#,
+    )
+    .expect("write manifest");
 
     // `patch_file_path: None` — the lockfile-only shape where a hash
     // is known but no live config provides a file. Must surface as
@@ -469,7 +491,10 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
     let _ = writer_task.await;
 
     assert!(
-        matches!(err, super::super::BuildModulesError::PatchFilePathMissing { .. }),
+        matches!(
+            err,
+            super::super::BuildModulesError::PatchFilePathMissing { .. }
+        ),
         "got: {err:?}",
     );
 }
@@ -477,7 +502,10 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
 fn allow_build_key_strips_version_for_registry_packages() {
     // Registry depPaths reduce to the bare package name — the
     // `allowBuilds` key a user would approve them under.
-    assert_eq!(allow_build_key_from_ignored_build("esbuild@0.17.0"), "esbuild");
+    assert_eq!(
+        allow_build_key_from_ignored_build("esbuild@0.17.0"),
+        "esbuild",
+    );
     assert_eq!(
         allow_build_key_from_ignored_build("@pnpm.e2e/install-script-example@1.0.0"),
         "@pnpm.e2e/install-script-example",
@@ -487,7 +515,10 @@ fn allow_build_key_strips_version_for_registry_packages() {
 fn allow_build_key_ignores_patch_hash_when_deriving_name() {
     // A `(patch_hash=...)` segment is dropped before the version is checked,
     // so a patched registry package still reduces to its name.
-    assert_eq!(allow_build_key_from_ignored_build("esbuild@0.17.0(patch_hash=abcdef)"), "esbuild");
+    assert_eq!(
+        allow_build_key_from_ignored_build("esbuild@0.17.0(patch_hash=abcdef)"),
+        "esbuild",
+    );
 }
 #[test]
 fn allow_build_key_keeps_full_id_for_non_semver_artifacts() {

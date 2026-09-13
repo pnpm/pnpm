@@ -10,12 +10,22 @@ use super::{
 async fn tag_order_does_not_open_a_second_slot() {
     let storage = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
-    let tags = ["pnpm:v1:linux-x64-node22-glibc2.17", "pnpm:v1:linux-arm64-node22-glibc2.17"];
-    assert!(store.publish("acme", publication_tagged("ci/first", &tags)).await.unwrap());
+    let tags = [
+        "pnpm:v1:linux-x64-node22-glibc2.17",
+        "pnpm:v1:linux-arm64-node22-glibc2.17",
+    ];
+    assert!(
+        store
+            .publish("acme", publication_tagged("ci/first", &tags))
+            .await
+            .unwrap(),
+    );
 
     let reversed = [tags[1], tags[0]];
-    let error =
-        store.publish("acme", publication_tagged("ci/second", &reversed)).await.unwrap_err();
+    let error = store
+        .publish("acme", publication_tagged("ci/second", &reversed))
+        .await
+        .unwrap_err();
 
     assert!(
         matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
@@ -30,10 +40,18 @@ async fn tag_order_does_not_open_a_second_slot() {
 async fn a_tagged_artifact_cannot_supersede_a_universal_one() {
     let storage = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
-    assert!(store.publish("acme", publication("ci/first")).await.unwrap());
+    assert!(
+        store
+            .publish("acme", publication("ci/first"))
+            .await
+            .unwrap(),
+    );
 
     let tags = ["pnpm:v1:linux-x64-node22-glibc2.17"];
-    let error = store.publish("acme", publication_tagged("ci/second", &tags)).await.unwrap_err();
+    let error = store
+        .publish("acme", publication_tagged("ci/second", &tags))
+        .await
+        .unwrap_err();
 
     assert!(
         matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
@@ -46,9 +64,17 @@ async fn a_universal_artifact_cannot_supersede_a_tagged_one() {
     let storage = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
     let tags = ["pnpm:v1:linux-x64-node22-glibc2.17"];
-    assert!(store.publish("acme", publication_tagged("ci/first", &tags)).await.unwrap());
+    assert!(
+        store
+            .publish("acme", publication_tagged("ci/first", &tags))
+            .await
+            .unwrap(),
+    );
 
-    let error = store.publish("acme", publication("ci/second")).await.unwrap_err();
+    let error = store
+        .publish("acme", publication("ci/second"))
+        .await
+        .unwrap_err();
 
     assert!(
         matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
@@ -63,10 +89,18 @@ async fn a_second_floor_for_one_platform_cannot_open_a_second_slot() {
     let storage = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
     let floor = ["pnpm:v1:linux-x64-node22-glibc2.17"];
-    assert!(store.publish("acme", publication_tagged("ci/first", &floor)).await.unwrap());
+    assert!(
+        store
+            .publish("acme", publication_tagged("ci/first", &floor))
+            .await
+            .unwrap(),
+    );
 
     let raised = ["pnpm:v1:linux-x64-node22-glibc2.31"];
-    let error = store.publish("acme", publication_tagged("ci/second", &raised)).await.unwrap_err();
+    let error = store
+        .publish("acme", publication_tagged("ci/second", &raised))
+        .await
+        .unwrap_err();
 
     assert!(
         matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
@@ -109,7 +143,10 @@ async fn a_scope_another_artifact_holds_refuses_publication() {
     );
     assert_eq!(
         store
-            .read_object_bounded(&format!("{owner}/entries/{entry}/scopes/linux-x64-node22"), 128)
+            .read_object_bounded(
+                &format!("{owner}/entries/{entry}/scopes/linux-x64-node22"),
+                128
+            )
             .await
             .unwrap()
             .as_deref(),
@@ -139,13 +176,19 @@ async fn a_publication_that_fails_gives_back_the_scopes_it_claimed() {
         },
     });
     let store = SharedArtifactStore::new(
-        &HostedStoreConfig::ObjectStore { store: failing, prefix: String::new() },
+        &HostedStoreConfig::ObjectStore {
+            store: failing,
+            prefix: String::new(),
+        },
         TempDir::new().unwrap().path(),
     )
     .unwrap();
     let tags = ["pnpm:v1:linux-x64-node22-glibc2.17"];
 
-    store.publish("acme", publication_tagged("ci/first", &tags)).await.unwrap_err();
+    store
+        .publish("acme", publication_tagged("ci/first", &tags))
+        .await
+        .unwrap_err();
 
     let (payload, _) = publication_tagged("ci/first", &tags).envelope.decode_payload().unwrap();
     let owner = super::super::owner_key("acme", &payload.owner).unwrap();
@@ -153,7 +196,10 @@ async fn a_publication_that_fails_gives_back_the_scopes_it_claimed() {
         super::super::entry_digest(&publication_tagged("ci/first", &tags).key, &payload.subject);
     assert!(
         store
-            .read_object_bounded(&format!("{owner}/entries/{entry}/scopes/linux-x64-node22"), 128)
+            .read_object_bounded(
+                &format!("{owner}/entries/{entry}/scopes/linux-x64-node22"),
+                128
+            )
             .await
             .unwrap()
             .is_none(),
@@ -195,16 +241,26 @@ async fn a_scope_a_failed_publication_left_behind_is_reclaimed() {
     let entry = super::super::entry_digest(&ours.key, &payload.subject);
     let marker = format!("{owner}/entries/{entry}/scopes/linux-x64-node22");
     // What a publication that claimed the scope and then failed leaves.
-    store.create_object(&marker, b"an artifact nobody stored".to_vec()).await.unwrap();
+    store
+        .create_object(&marker, b"an artifact nobody stored".to_vec())
+        .await
+        .unwrap();
 
     store.reclaim_unreferenced_blobs().await.unwrap();
 
     assert!(
-        store.read_object_bounded(&marker, 128).await.unwrap().is_none(),
+        store
+            .read_object_bounded(&marker, 128)
+            .await
+            .unwrap()
+            .is_none(),
         "a scope no stored artifact holds goes back",
     );
     assert!(
-        store.publish("acme", publication_tagged("ci/later", &tags)).await.unwrap(),
+        store
+            .publish("acme", publication_tagged("ci/later", &tags))
+            .await
+            .unwrap(),
         "and the artifact that should hold it can be published",
     );
 }
@@ -215,12 +271,20 @@ async fn reclamation_keeps_the_scopes_a_stored_artifact_reaches() {
     let storage = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
     let tags = ["pnpm:v1:linux-x64-node22-glibc2.17"];
-    assert!(store.publish("acme", publication_tagged("ci/stored", &tags)).await.unwrap());
+    assert!(
+        store
+            .publish("acme", publication_tagged("ci/stored", &tags))
+            .await
+            .unwrap(),
+    );
 
     store.reclaim_unreferenced_blobs().await.unwrap();
 
     let raised = ["pnpm:v1:linux-x64-node22-glibc2.31"];
-    let error = store.publish("acme", publication_tagged("ci/raised", &raised)).await.unwrap_err();
+    let error = store
+        .publish("acme", publication_tagged("ci/raised", &raised))
+        .await
+        .unwrap_err();
     assert!(
         matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
         "the stored artifact still reaches its machines, got {error:?}",
@@ -255,9 +319,15 @@ async fn a_retry_into_a_crowded_entry_is_refused_once_its_scopes_are_known() {
             .unwrap();
     }
     // Gives the entry the markers its artifacts reach, and is itself refused.
-    store.publish("acme", publication("ci/third")).await.unwrap_err();
+    store
+        .publish("acme", publication("ci/third"))
+        .await
+        .unwrap_err();
 
-    for republished in [publication("ci/universal"), publication_tagged("ci/tagged", &tags)] {
+    for republished in [
+        publication("ci/universal"),
+        publication_tagged("ci/tagged", &tags),
+    ] {
         let error = store.publish("acme", republished).await.unwrap_err();
         assert!(
             matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
@@ -302,12 +372,24 @@ async fn a_publication_written_off_while_running_takes_its_scopes_back() {
         .unwrap();
 
     assert_eq!(
-        store.read_object_bounded(&marker, 128).await.unwrap().as_deref(),
-        Some(ours.envelope.digest().unwrap().as_bytes()),
+        store
+            .read_object_bounded(&marker, 128)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(
+            ours.envelope
+                .digest()
+                .unwrap()
+                .as_bytes()
+        ),
         "the stored artifact reaches its machines again",
     );
     let raised = ["pnpm:v1:linux-x64-node22-glibc2.31"];
-    let error = store.publish("acme", publication_tagged("ci/raised", &raised)).await.unwrap_err();
+    let error = store
+        .publish("acme", publication_tagged("ci/raised", &raised))
+        .await
+        .unwrap_err();
     assert!(
         matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
         "and one reaching the same machines is refused again, got {error:?}",
@@ -328,7 +410,10 @@ async fn a_publication_whose_scope_went_elsewhere_takes_its_artifact_back_out() 
     let entry = super::super::entry_digest(&ours.key, &payload.subject);
     let slot = super::super::compatibility_slot(&payload.compatibility);
     let variant = format!("{owner}/entries/{entry}/{slot}.json");
-    store.create_object(&variant, serde_json::to_vec(&ours.envelope).unwrap()).await.unwrap();
+    store
+        .create_object(&variant, serde_json::to_vec(&ours.envelope).unwrap())
+        .await
+        .unwrap();
     // Published while this one was written off, and holding the scope now.
     store
         .create_object(
@@ -339,7 +424,13 @@ async fn a_publication_whose_scope_went_elsewhere_takes_its_artifact_back_out() 
         .unwrap();
 
     let error = store
-        .recover_after_expiry(&owner, &entry, &variant, &payload, &ours.envelope.digest().unwrap())
+        .recover_after_expiry(
+            &owner,
+            &entry,
+            &variant,
+            &payload,
+            &ours.envelope.digest().unwrap(),
+        )
         .await
         .unwrap_err();
 
@@ -348,7 +439,11 @@ async fn a_publication_whose_scope_went_elsewhere_takes_its_artifact_back_out() 
         "the publication is told it lost, got {error:?}",
     );
     assert!(
-        store.read_object_bounded(&variant, 4096).await.unwrap().is_none(),
+        store
+            .read_object_bounded(&variant, 4096)
+            .await
+            .unwrap()
+            .is_none(),
         "and its artifact does not stay beside the one that holds the scope",
     );
 }
@@ -357,7 +452,10 @@ async fn a_publication_whose_scope_went_elsewhere_takes_its_artifact_back_out() 
 /// between the two never leaves it resolvable while holding nothing.
 #[tokio::test]
 async fn a_recovery_that_cannot_remove_its_artifact_keeps_the_scopes_it_retook() {
-    let tags = ["pnpm:v1:linux-arm64-node22-glibc2.17", "pnpm:v1:linux-x64-node22-glibc2.17"];
+    let tags = [
+        "pnpm:v1:linux-arm64-node22-glibc2.17",
+        "pnpm:v1:linux-x64-node22-glibc2.17",
+    ];
     let ours = publication_tagged("ci/ours", &tags);
     let (payload, _) = ours.envelope.decode_payload().unwrap();
     let owner = super::super::owner_key("acme", &payload.owner).unwrap();
@@ -380,11 +478,16 @@ async fn a_recovery_that_cannot_remove_its_artifact_keeps_the_scopes_it_retook()
             usage_writes: None,
         },
     });
-    let config =
-        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
+    let config = HostedStoreConfig::ObjectStore {
+        store: Arc::clone(&backend),
+        prefix: String::new(),
+    };
     let scratch = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
-    store.create_object(&variant, serde_json::to_vec(&ours.envelope).unwrap()).await.unwrap();
+    store
+        .create_object(&variant, serde_json::to_vec(&ours.envelope).unwrap())
+        .await
+        .unwrap();
     // Taken while this publication was written off, so the recovery loses — but
     // only after retaking the scope that sorts before it.
     store
@@ -396,18 +499,32 @@ async fn a_recovery_that_cannot_remove_its_artifact_keeps_the_scopes_it_retook()
         .unwrap();
 
     let error = store
-        .recover_after_expiry(&owner, &entry, &variant, &payload, &ours.envelope.digest().unwrap())
+        .recover_after_expiry(
+            &owner,
+            &entry,
+            &variant,
+            &payload,
+            &ours.envelope.digest().unwrap(),
+        )
         .await
         .unwrap_err();
 
     assert!(matches!(error, RegistryError::ObjectStore(_)), "{error:?}");
     assert_eq!(
         store
-            .read_object_bounded(&format!("{owner}/entries/{entry}/scopes/linux-arm64-node22"), 128)
+            .read_object_bounded(
+                &format!("{owner}/entries/{entry}/scopes/linux-arm64-node22"),
+                128
+            )
             .await
             .unwrap()
             .as_deref(),
-        Some(ours.envelope.digest().unwrap().as_bytes()),
+        Some(
+            ours.envelope
+                .digest()
+                .unwrap()
+                .as_bytes()
+        ),
         "the artifact that is still there still holds the scope it retook",
     );
 }
@@ -426,7 +543,10 @@ async fn recovery_sees_a_scope_taken_through_the_other_form() {
     let entry = super::super::entry_digest(&ours.key, &payload.subject);
     let slot = super::super::compatibility_slot(&payload.compatibility);
     let variant = format!("{owner}/entries/{entry}/{slot}.json");
-    store.create_object(&variant, serde_json::to_vec(&ours.envelope).unwrap()).await.unwrap();
+    store
+        .create_object(&variant, serde_json::to_vec(&ours.envelope).unwrap())
+        .await
+        .unwrap();
     // Reaches every machine, including the ones this artifact reaches, and it
     // took its key while this publication was written off.
     store
@@ -438,7 +558,13 @@ async fn recovery_sees_a_scope_taken_through_the_other_form() {
         .unwrap();
 
     let error = store
-        .recover_after_expiry(&owner, &entry, &variant, &payload, &ours.envelope.digest().unwrap())
+        .recover_after_expiry(
+            &owner,
+            &entry,
+            &variant,
+            &payload,
+            &ours.envelope.digest().unwrap(),
+        )
         .await
         .unwrap_err();
 
@@ -447,7 +573,11 @@ async fn recovery_sees_a_scope_taken_through_the_other_form() {
         "the publication is told it lost, got {error:?}",
     );
     assert!(
-        store.read_object_bounded(&variant, 4096).await.unwrap().is_none(),
+        store
+            .read_object_bounded(&variant, 4096)
+            .await
+            .unwrap()
+            .is_none(),
         "and its artifact does not stay beside the one reaching the same machines",
     );
 }

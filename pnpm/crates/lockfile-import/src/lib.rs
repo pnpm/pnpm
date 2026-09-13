@@ -95,12 +95,17 @@ pub fn read_foreign_lockfile_versions(
 
     let yarn_lockfile_path = dir.join(YARN_LOCKFILE_NAME);
     if let Some(contents) = read_if_exists(&yarn_lockfile_path)? {
-        if contents.lines().any(|line| line.starts_with("<<<<<<<")) {
+        if contents
+            .lines()
+            .any(|line| line.starts_with("<<<<<<<"))
+        {
             return Err(ImportLockfileError::YarnLockfileConflict);
         }
-        collect_yarn_lockfile_versions(&contents, &mut versions).map_err(|source| {
-            ImportLockfileError::YarnParse { path: yarn_lockfile_path, source }
-        })?;
+        collect_yarn_lockfile_versions(&contents, &mut versions)
+            .map_err(|source| ImportLockfileError::YarnParse {
+                path: yarn_lockfile_path,
+                source,
+            })?;
         return Ok(versions);
     }
 
@@ -108,7 +113,10 @@ pub fn read_foreign_lockfile_versions(
         let path = dir.join(lockfile_name);
         if let Some(contents) = read_if_exists(&path)? {
             let lockfile = serde_json::from_str(&contents)
-                .map_err(|source| ImportLockfileError::Parse { path, source })?;
+                .map_err(|source| ImportLockfileError::Parse {
+                    path,
+                    source,
+                })?;
             collect_npm_lockfile_versions(&lockfile, &mut versions);
             return Ok(versions);
         }
@@ -131,7 +139,10 @@ pub fn to_preferred_versions(versions: &VersionsByPackageName) -> PreferredVersi
             let selectors = versions
                 .iter()
                 .map(|version| {
-                    (version.clone(), VersionSelectorEntry::Plain(VersionSelectorType::Version))
+                    (
+                        version.clone(),
+                        VersionSelectorEntry::Plain(VersionSelectorType::Version),
+                    )
                 })
                 .collect();
             (name.clone(), selectors)
@@ -143,7 +154,10 @@ fn read_if_exists(path: &Path) -> Result<Option<String>, ImportLockfileError> {
     match std::fs::read_to_string(path) {
         Ok(contents) => Ok(Some(contents)),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(source) => Err(ImportLockfileError::Read { path: path.to_path_buf(), source }),
+        Err(source) => Err(ImportLockfileError::Read {
+            path: path.to_path_buf(),
+            source,
+        }),
     }
 }
 
@@ -151,7 +165,10 @@ fn add_version(versions: &mut VersionsByPackageName, name: &str, version: &str) 
     if name.is_empty() || version.is_empty() {
         return;
     }
-    versions.entry(name.to_string()).or_default().insert(version.to_string());
+    versions
+        .entry(name.to_string())
+        .or_default()
+        .insert(version.to_string());
 }
 
 #[cfg(test)]

@@ -48,3 +48,14 @@ pub(super) fn rename_error_allows_destination_removal(error: &io::Error) -> bool
             | io::ErrorKind::PermissionDenied,
     ) || is_transient_file_lock_error(error)
 }
+
+pub(super) fn remove_stale_link(link: &Path) -> io::Result<()> {
+    // Stale link — unlink and retry. Ignore `NotFound` in case a parallel
+    // installer beat us to the unlink.
+    match super::remove_symlink_dir(link) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+    Ok(())
+}

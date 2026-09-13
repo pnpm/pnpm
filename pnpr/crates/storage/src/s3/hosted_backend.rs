@@ -26,12 +26,11 @@ impl HostedBackend for S3Store {
         &self,
         name: &CanonicalPackageName,
     ) -> Result<Option<HostedDocumentForUpdate>> {
-        Ok(S3Store::read_document_for_update(self, name).await?.map(|document| {
-            HostedDocumentForUpdate {
+        Ok(S3Store::read_document_for_update(self, name).await?
+            .map(|document| HostedDocumentForUpdate {
                 bytes: document.bytes,
                 version: HostedDocumentVersion::ObjectVersion(document.version),
-            }
-        }))
+            }))
     }
 
     async fn write_document_if_current(
@@ -73,10 +72,14 @@ impl HostedBackend for S3Store {
         };
         let size = meta.size;
         let Ok(range) = requested.as_range(size) else {
-            return Ok(Some(crate::RangedBlob::Unsatisfiable { size }));
+            return Ok(Some(crate::RangedBlob::Unsatisfiable {
+                size,
+            }));
         };
         if range.is_empty() {
-            return Ok(Some(crate::RangedBlob::Unsatisfiable { size }));
+            return Ok(Some(crate::RangedBlob::Unsatisfiable {
+                size,
+            }));
         }
         let options = object_store::GetOptions {
             range: Some(object_store::GetRange::Bounded(range.clone())),
@@ -89,7 +92,11 @@ impl HostedBackend for S3Store {
             Err(err) => return Err(err.into()),
         };
         let body = Body::from_stream(result.into_stream());
-        Ok(Some(crate::RangedBlob::Read { body, range, size }))
+        Ok(Some(crate::RangedBlob::Read {
+            body,
+            range,
+            size,
+        }))
     }
 
     async fn reserve_blob_tmp(
@@ -136,7 +143,10 @@ impl HostedBackend for S3Store {
                     Err(error) => return Some(Err(error.into())),
                 };
                 let path = meta.location.as_ref().strip_prefix(&self.prefix)?;
-                if path.split('/').any(|part| part.starts_with('.')) {
+                if path
+                    .split('/')
+                    .any(|part| part.starts_with('.'))
+                {
                     return None;
                 }
                 Some(Ok(crate::HostedBlobFile {

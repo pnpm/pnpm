@@ -14,7 +14,10 @@ fn registry_package(channel: Channel) -> &'static str {
 #[test]
 fn parses_only_the_provisionable_package_managers() {
     for name in ["bun", "npm", "pnpm", "yarn"] {
-        assert_eq!(PackageManager::parse(name).map(PackageManager::name), Some(name));
+        assert_eq!(
+            PackageManager::parse(name).map(PackageManager::name),
+            Some(name),
+        );
     }
     assert_eq!(PackageManager::parse("yarnpkg"), None);
     assert_eq!(PackageManager::parse("cnpm"), None);
@@ -24,7 +27,11 @@ fn parses_only_the_provisionable_package_managers() {
 #[test]
 fn yarn_classic_specifiers_resolve_against_the_yarn_package() {
     for version_spec in ["1.22.22", "^1.22.0", "1", "~1.22", ">=1 <2", "0.27.5"] {
-        assert_eq!(registry_package(yarn_channel_of(version_spec)), "yarn", "{version_spec}");
+        assert_eq!(
+            registry_package(yarn_channel_of(version_spec)),
+            "yarn",
+            "{version_spec}",
+        );
     }
 }
 
@@ -65,15 +72,31 @@ fn uncommitted_yarn_specifiers_fall_to_the_current_line() {
 
 #[test]
 fn npm_and_pnpm_have_one_channel_each() {
-    assert_eq!(PackageManager::Npm.channel("latest"), Channel::Registry { package: "npm" });
-    assert_eq!(PackageManager::Pnpm.channel("11.0.0"), Channel::Registry { package: "pnpm" });
-    assert_eq!(PackageManager::Bun.channel("1.2.0"), Channel::Binary(BinaryChannel::Bun));
+    assert_eq!(
+        PackageManager::Npm.channel("latest"),
+        Channel::Registry {
+            package: "npm"
+        },
+    );
+    assert_eq!(
+        PackageManager::Pnpm.channel("11.0.0"),
+        Channel::Registry {
+            package: "pnpm"
+        },
+    );
+    assert_eq!(
+        PackageManager::Bun.channel("1.2.0"),
+        Channel::Binary(BinaryChannel::Bun),
+    );
 }
 
 #[test]
 fn registry_engines_pin_their_own_package() {
     let npm = PackageManager::Npm.engine_packages("11.0.0").unwrap();
-    assert_eq!((npm.wrapper, npm.pinned, npm.links_native_binary), ("npm", &["npm"][..], false));
+    assert_eq!(
+        (npm.wrapper, npm.pinned, npm.links_native_binary),
+        ("npm", &["npm"][..], false),
+    );
 
     let classic = PackageManager::Yarn.engine_packages("1.22.22").unwrap();
     assert_eq!(classic.wrapper, "yarn");

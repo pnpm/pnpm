@@ -6,7 +6,10 @@ use super::{
 fn no_trailing_paren_means_no_suffix() {
     assert_eq!(
         index_of_dep_path_suffix("foo@1.0.0"),
-        DepPathSuffixIndex { peers_index: None, patch_hash_index: None },
+        DepPathSuffixIndex {
+            peers_index: None,
+            patch_hash_index: None
+        },
     );
 }
 
@@ -27,7 +30,10 @@ fn locates_a_patch_hash_suffix_without_peers() {
     assert_eq!(got.patch_hash_index, Some("foo@1.0.0".len()));
     assert_eq!(got.peers_index, None);
     assert_eq!(remove_suffix(dep_path), "foo@1.0.0");
-    assert_eq!(get_pkg_id_with_patch_hash(dep_path), "foo@1.0.0(patch_hash=abc)");
+    assert_eq!(
+        get_pkg_id_with_patch_hash(dep_path),
+        "foo@1.0.0(patch_hash=abc)",
+    );
 }
 
 #[test]
@@ -37,7 +43,10 @@ fn locates_both_patch_hash_and_peers() {
     assert_eq!(got.patch_hash_index, Some("foo@1.0.0".len()));
     assert_eq!(got.peers_index, Some("foo@1.0.0(patch_hash=abc)".len()));
     assert_eq!(remove_suffix(dep_path), "foo@1.0.0");
-    assert_eq!(get_pkg_id_with_patch_hash(dep_path), "foo@1.0.0(patch_hash=abc)");
+    assert_eq!(
+        get_pkg_id_with_patch_hash(dep_path),
+        "foo@1.0.0(patch_hash=abc)",
+    );
 }
 
 #[test]
@@ -54,7 +63,13 @@ fn handles_nested_parens_in_peer_segment() {
 fn runtime_dep_path_has_no_suffix() {
     let dep_path = "node@runtime:24.11.1";
     let got = index_of_dep_path_suffix(dep_path);
-    assert_eq!(got, DepPathSuffixIndex { peers_index: None, patch_hash_index: None });
+    assert_eq!(
+        got,
+        DepPathSuffixIndex {
+            peers_index: None,
+            patch_hash_index: None
+        },
+    );
     assert_eq!(remove_suffix(dep_path), "node@runtime:24.11.1");
     assert_eq!(get_pkg_id_with_patch_hash(dep_path), "node@runtime:24.11.1");
 }
@@ -72,7 +87,10 @@ fn scoped_name_without_suffix_round_trips() {
 fn scoped_name_with_patch_hash_keeps_patch_hash() {
     let dep_path = "@foo/bar@1.0.0(patch_hash=yyyy)";
     assert_eq!(remove_suffix(dep_path), "@foo/bar@1.0.0");
-    assert_eq!(get_pkg_id_with_patch_hash(dep_path), "@foo/bar@1.0.0(patch_hash=yyyy)");
+    assert_eq!(
+        get_pkg_id_with_patch_hash(dep_path),
+        "@foo/bar@1.0.0(patch_hash=yyyy)",
+    );
 }
 
 /// A scoped name with a peer suffix strips down to the bare pkgId.
@@ -89,7 +107,10 @@ fn scoped_name_with_peer_strips_to_bare() {
 fn scoped_name_with_patch_hash_and_peer_keeps_only_patch_hash() {
     let dep_path = "@foo/bar@1.0.0(patch_hash=zzzz)(@types/node@18.0.0)";
     assert_eq!(remove_suffix(dep_path), "@foo/bar@1.0.0");
-    assert_eq!(get_pkg_id_with_patch_hash(dep_path), "@foo/bar@1.0.0(patch_hash=zzzz)");
+    assert_eq!(
+        get_pkg_id_with_patch_hash(dep_path),
+        "@foo/bar@1.0.0(patch_hash=zzzz)",
+    );
 }
 
 /// `PkgNameVerPeer` rejects the leading-slash shape, but the

@@ -15,5 +15,9 @@ pub fn kill_process_by_pid(pid: Pid, signal: Signal) -> bool {
     system
         .processes()
         .get(&pid)
-        .is_some_and(|process| process.kill_with(signal).unwrap_or_else(|| process.kill()))
+        .is_some_and(|process| {
+            process
+                .kill_with(signal)
+                .unwrap_or_else(|| process.kill())
+        })
 }

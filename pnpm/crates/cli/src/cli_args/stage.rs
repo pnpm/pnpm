@@ -6,6 +6,7 @@
 //! subcommands — `list`, `view`, `approve`, `reject`, `download` — talk to
 //! the registry's `-/stage` API directly.
 
+pub use errors::StageError;
 pub use registry::StageRegistryError;
 
 mod approve;
@@ -42,7 +43,7 @@ use render::{
 };
 use serde::Deserialize;
 use serde_json::Value;
-use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
+use std::{collections::HashMap, path::Path, sync::Arc};
 use summarize_tarball::{create_tarball_filename, summarize_tarball};
 
 /// The staged-list page size; matches pnpm's paginated `-/stage` reads.
@@ -69,92 +70,6 @@ pub struct StageArgs {
 
     #[clap(flatten)]
     pub flags: PublishFlags,
-}
-
-#[derive(Debug, Display, Error, Diagnostic)]
-#[non_exhaustive]
-pub enum StageError {
-    #[display("Stage subcommand is required")]
-    #[diagnostic(code(ERR_PNPM_STAGE_SUBCOMMAND_REQUIRED), help("Use one of: {STAGE_SUBCOMMANDS}"))]
-    SubcommandRequired,
-
-    #[display(r#"Unknown stage subcommand "{subcommand}""#)]
-    #[diagnostic(code(ERR_PNPM_STAGE_UNKNOWN_SUBCOMMAND), help("Use one of: {STAGE_SUBCOMMANDS}"))]
-    UnknownSubcommand {
-        #[error(not(source))]
-        subcommand: String,
-    },
-
-    #[display(r#"Missing required <stage-id> for "pnpm stage {subcommand}""#)]
-    #[diagnostic(code(ERR_PNPM_STAGE_ID_REQUIRED))]
-    StageIdRequired {
-        #[error(not(source))]
-        subcommand: &'static str,
-    },
-
-    #[display("stage-id must be a valid UUID")]
-    #[diagnostic(code(ERR_PNPM_INVALID_STAGE_ID))]
-    InvalidStageId,
-
-    #[display("Invalid package spec: {spec}")]
-    #[diagnostic(code(ERR_PNPM_INVALID_PACKAGE_SPEC))]
-    InvalidPackageSpec {
-        #[error(not(source))]
-        spec: String,
-    },
-
-    #[display("Version specifiers are not supported for listing staged packages")]
-    #[diagnostic(code(ERR_PNPM_STAGE_VERSION_SPECIFIER_UNSUPPORTED))]
-    VersionSpecifierUnsupported,
-
-    #[display("Failed to {operation}: {reason}")]
-    #[diagnostic(code(ERR_PNPM_STAGE_REGISTRY_ERROR))]
-    RequestFailed {
-        #[error(not(source))]
-        operation: String,
-        #[error(not(source))]
-        reason: String,
-    },
-
-    #[display("Could not read package.json from tarball")]
-    #[diagnostic(code(ERR_PNPM_STAGE_TARBALL_MANIFEST_NOT_FOUND))]
-    TarballManifestNotFound,
-
-    #[display(
-        "Cannot approve stages {first_stage_id} and {second_stage_id} together because both publish {package_name}@{version}"
-    )]
-    #[diagnostic(code(ERR_PNPM_STAGE_DUPLICATE_PACKAGE))]
-    DuplicateStagePackage {
-        #[error(not(source))]
-        first_stage_id: String,
-        #[error(not(source))]
-        second_stage_id: String,
-        #[error(not(source))]
-        package_name: String,
-        #[error(not(source))]
-        version: String,
-    },
-
-    #[display(r#"Invalid package name "{name}"."#)]
-    #[diagnostic(code(ERR_PNPM_INVALID_PACKAGE_NAME))]
-    InvalidPackageName {
-        #[error(not(source))]
-        name: String,
-    },
-
-    #[display(r#"Invalid package version "{version}"."#)]
-    #[diagnostic(code(ERR_PNPM_INVALID_PACKAGE_VERSION))]
-    InvalidPackageVersion {
-        #[error(not(source))]
-        version: String,
-    },
-
-    #[display(r#"Invalid tarball filename "{filename}"."#)]
-    #[diagnostic(code(ERR_PNPM_INVALID_TARBALL_FILENAME))]
-    InvalidTarballFilename {
-        #[error(not(source))]
-        filename: String,
-    },
 }
 
 /// One page of the registry's `-/stage` listing.
@@ -184,9 +99,10 @@ impl StageArgs {
             Some("reject") => self.stage_reject::<Reporter>(config).await,
             Some("download") => self.stage_download(dir, config).await,
             None => Err(StageError::SubcommandRequired.into()),
-            Some(other) => {
-                Err(StageError::UnknownSubcommand { subcommand: other.to_owned() }.into())
+            Some(other) => Err(StageError::UnknownSubcommand {
+                subcommand: other.to_owned(),
             }
+            .into()),
         }
     }
 
@@ -203,16 +119,18 @@ impl StageArgs {
         let StageArgs { params, flags, .. } = self;
         let json = flags.output.json;
         let dry_run = flags.dry_run;
-        let publish = PublishArgs { package: params.get(1).cloned(), flags };
-        let published = publish
-            .publish_packages::<Reporter>(
-                dir,
-                config,
-                recursive,
-                /* stage */ true,
-                before_packing_hooks,
-            )
-            .await?;
+        let publish = PublishArgs {
+            package: params.get(1).cloned(),
+            flags,
+        };
+        let published = publish.publish_packages::<Reporter>(
+            dir,
+            config,
+            recursive,
+            /* stage */ true,
+            before_packing_hooks,
+        )
+        .await?;
         let summaries = published.summaries();
         if json {
             let keyed = key_by_package_name(summaries);
@@ -243,7 +161,10 @@ impl StageArgs {
                 None => "No staged packages found.".to_owned(),
             }));
         }
-        let rendered: Vec<String> = items.iter().map(render_stage_item).collect();
+        let rendered: Vec<String> = items
+            .iter()
+            .map(render_stage_item)
+            .collect();
         Ok(Some(rendered.join("\n\n")))
     }
 
@@ -252,9 +173,12 @@ impl StageArgs {
         let stage_id = require_stage_id(&self.params, "view")?;
         let context = self.stage_context(config, None)?;
         let url = stage_endpoint_url(&context.registry, &format!("-/stage/{stage_id}"))?;
-        let item: Value =
-            stage_json_request(&context, url.as_str(), &format!("view staged package {stage_id}"))
-                .await?;
+        let item: Value = stage_json_request(
+            &context,
+            url.as_str(),
+            &format!("view staged package {stage_id}"),
+        )
+        .await?;
         if self.flags.output.json {
             return Ok(Some(json_pretty(&item)?));
         }
@@ -280,7 +204,9 @@ impl StageArgs {
             &format!("reject staged package {stage_id}"),
         )
         .await?;
-        Ok(Some(format!("Staged package {stage_id} has been rejected.")))
+        Ok(Some(format!(
+            "Staged package {stage_id} has been rejected.",
+        )))
     }
 
     /// `stage download <stage-id>` — fetch the staged tarball into `dir` and
@@ -296,11 +222,16 @@ impl StageArgs {
         let output_path = dir.join(&filename);
         // `create_tarball_filename` already rejects separators; this guards
         // the write against any bare-basename assumption it might not cover.
-        if output_path.file_name().map(|name| name.to_string_lossy().into_owned())
+        if output_path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
             != Some(filename.clone())
             || output_path.parent() != Some(dir)
         {
-            return Err(StageError::InvalidTarballFilename { filename }.into());
+            return Err(StageError::InvalidTarballFilename {
+                filename,
+            }
+            .into());
         }
         std::fs::write(&output_path, &tarball_data)
             .into_diagnostic()
@@ -314,7 +245,10 @@ impl StageArgs {
             );
             return Ok(Some(json_pretty(&Value::Object(keyed))?));
         }
-        Ok(Some(format!("{}\n{filename}", render_tarball_summary(&summary))))
+        Ok(Some(format!(
+            "{}\n{filename}",
+            render_tarball_summary(&summary),
+        )))
     }
 
     /// Shared per-subcommand request context: the resolved registry, its auth
@@ -325,27 +259,31 @@ impl StageArgs {
         config: &Config,
         package_name: Option<&str>,
     ) -> miette::Result<StageContext> {
-        let mut registries: HashMap<String, String> =
-            config.resolved_registries().into_iter().collect();
+        let mut registries: HashMap<String, String> = config
+            .resolved_registries()
+            .into_iter()
+            .collect();
         if let Some(registry) = &self.registry {
             registries.insert("default".to_owned(), registry.clone());
         }
         let registry = match package_name {
             Some(package) => pick_registry_for_package(&registries, package, None),
-            None => registries.get("default").cloned().unwrap_or_default(),
+            None => registries
+                .get("default")
+                .cloned()
+                .unwrap_or_default(),
         };
-        let registry = if registry.ends_with('/') { registry } else { format!("{registry}/") };
+        let registry = if registry.ends_with('/') {
+            registry
+        } else {
+            format!("{registry}/")
+        };
         let auth_header = config.auth_headers.for_url_with_package(&registry, package_name);
         Ok(StageContext {
             registry,
             auth_header,
             http_client: build_registry_client(config)?,
-            retry_opts: RetryOpts {
-                retries: config.fetch_retries,
-                factor: config.fetch_retry_factor,
-                min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-                max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-            },
+            retry_opts: config.retry_opts(),
             otp: resolve_otp_from_env::<Host>(self.flags.registry.otp.clone()),
             web_auth_fetch_options: WebAuthFetchOptions {
                 timeout: Some(config.fetch_timeout),
@@ -367,9 +305,14 @@ fn require_stage_id<'params>(
     params: &'params [String],
     subcommand: &'static str,
 ) -> Result<&'params str, StageError> {
-    let stage_id = params.get(1).map(String::as_str).unwrap_or_default();
+    let stage_id = params
+        .get(1)
+        .map(String::as_str)
+        .unwrap_or_default();
     if stage_id.is_empty() {
-        return Err(StageError::StageIdRequired { subcommand });
+        return Err(StageError::StageIdRequired {
+            subcommand,
+        });
     }
     if !is_uuid(stage_id) {
         return Err(StageError::InvalidStageId);
@@ -380,10 +323,12 @@ fn require_stage_id<'params>(
 /// Whether `value` is a hyphenated UUID (`8-4-4-4-12` hex digits).
 fn is_uuid(value: &str) -> bool {
     value.len() == 36
-        && value.char_indices().all(|(index, char)| match index {
-            8 | 13 | 18 | 23 => char == '-',
-            _ => char.is_ascii_hexdigit(),
-        })
+        && value
+            .char_indices()
+            .all(|(index, char)| match index {
+                8 | 13 | 18 | 23 => char == '-',
+                _ => char.is_ascii_hexdigit(),
+            })
 }
 
 /// The `list` package filter: a bare package name; a version specifier other
@@ -394,7 +339,9 @@ fn parse_package_filter(raw_spec: Option<&String>) -> Result<Option<String>, Sta
     };
     let parsed = parse_wanted_dependency(raw_spec);
     let Some(name) = parsed.alias else {
-        return Err(StageError::InvalidPackageSpec { spec: raw_spec.clone() });
+        return Err(StageError::InvalidPackageSpec {
+            spec: raw_spec.clone(),
+        });
     };
     match parsed.bare_specifier.as_deref() {
         None | Some("" | "*") => Ok(Some(name)),
@@ -407,11 +354,18 @@ fn parse_package_filter(raw_spec: Option<&String>) -> Result<Option<String>, Sta
 fn key_by_package_name(summaries: &[PublishSummary]) -> serde_json::Map<String, Value> {
     let mut keyed = serde_json::Map::new();
     for summary in summaries {
-        let key = if summary.name.is_empty() { summary.id.clone() } else { summary.name.clone() };
+        let key = if summary.name.is_empty() {
+            summary.id.clone()
+        } else {
+            summary.name.clone()
+        };
         if key.is_empty() {
             continue;
         }
-        keyed.insert(key, serde_json::to_value(summary).expect("a publish summary serializes"));
+        keyed.insert(
+            key,
+            serde_json::to_value(summary).expect("a publish summary serializes"),
+        );
     }
     keyed
 }
@@ -436,3 +390,5 @@ mod tests;
 mod registry;
 
 mod render;
+
+mod errors;

@@ -51,7 +51,10 @@ fn removes_a_directory_link_without_touching_its_target() {
     remove_dirent(&link).expect("remove the link");
 
     assert_gone(&link, "the link itself");
-    assert!(target.join("file.txt").exists(), "the target must be untouched");
+    assert!(
+        target.join("file.txt").exists(),
+        "the target must be untouched",
+    );
 }
 
 /// The shape `pnpm clean` hits after removing `node_modules/.pnpm`
@@ -100,7 +103,10 @@ fn windows_removes_a_junction_without_touching_its_target() {
     remove_dirent(&link).expect("remove the junction");
 
     assert_gone(&link, "the junction itself");
-    assert!(target.join("file.txt").exists(), "the target must be untouched");
+    assert!(
+        target.join("file.txt").exists(),
+        "the target must be untouched",
+    );
 }
 
 #[cfg(windows)]

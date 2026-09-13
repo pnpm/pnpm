@@ -37,8 +37,7 @@ async fn should_use_web_login_when_registry_supports_it() {
     let registry = server.url();
     let config_dir = Path::new("/custom/config");
 
-    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
-        .await
+    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
         .expect("web login succeeds");
 
     login_mock.assert_async().await;
@@ -53,14 +52,28 @@ async fn should_use_web_login_when_registry_supports_it() {
     );
 
     let messages = infos();
-    assert_eq!(messages.len(), 2, "expected the auth-URL and Press-ENTER lines: {messages:?}");
-    assert!(messages[0].contains("https://example.com/auth/login"), "got {messages:?}");
+    assert_eq!(
+        messages.len(),
+        2,
+        "expected the auth-URL and Press-ENTER lines: {messages:?}",
+    );
+    assert!(
+        messages[0].contains("https://example.com/auth/login"),
+        "got {messages:?}",
+    );
     assert_eq!(messages[1], "Press ENTER to open the URL in your browser.");
 }
 
 #[tokio::test]
 async fn should_complete_web_login_without_an_interactive_terminal() {
-    web_auth_fake!(FakeHost, RecordingReporter, set_stdin_tty, set_stdout_tty, set_fetch, infos);
+    web_auth_fake!(
+        FakeHost,
+        RecordingReporter,
+        set_stdin_tty,
+        set_stdout_tty,
+        set_fetch,
+        infos
+    );
     login_fake!(FakeHost, login_writes);
     reset();
     reset_login();
@@ -78,8 +91,7 @@ async fn should_complete_web_login_without_an_interactive_terminal() {
     let registry = server.url();
     let config_dir = Path::new("/mock/config");
 
-    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
-        .await
+    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
         .expect("web login succeeds without a TTY");
 
     login_mock.assert_async().await;
@@ -92,7 +104,10 @@ async fn should_complete_web_login_without_an_interactive_terminal() {
     );
 
     // No QR code (stdout is not a terminal) and no "Press ENTER" prompt.
-    assert_eq!(infos(), ["Authenticate your account at:\nhttps://example.com/auth/login"]);
+    assert_eq!(
+        infos(),
+        ["Authenticate your account at:\nhttps://example.com/auth/login"],
+    );
 }
 
 #[tokio::test]
@@ -113,8 +128,7 @@ async fn should_log_in_to_a_registry_under_a_subpath_without_a_trailing_slash() 
     let registry = format!("{}/npm/registry", server.url());
     let config_dir = Path::new("/mock/config");
 
-    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
-        .await
+    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
         .expect("web login succeeds on a subpath registry");
 
     login_mock.assert_async().await;
@@ -134,7 +148,9 @@ async fn should_succeed_when_config_file_does_not_exist() {
     reset();
     reset_login();
     set_fetch(Box::new(|| Ok(ok_token("new-token"))));
-    set_ini_read(Box::new(|_| Err(io::Error::new(io::ErrorKind::NotFound, "ENOENT"))));
+    set_ini_read(Box::new(|_| {
+        Err(io::Error::new(io::ErrorKind::NotFound, "ENOENT"))
+    }));
 
     let mut server = mockito::Server::new_async().await;
     server
@@ -146,8 +162,7 @@ async fn should_succeed_when_config_file_does_not_exist() {
     let registry = server.url();
     let config_dir = Path::new("/nonexistent/config");
 
-    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
-        .await
+    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
         .expect("login succeeds despite a missing config.yaml");
 
     assert_eq!(result, format!("Logged in on {registry}/"));
@@ -157,7 +172,9 @@ async fn should_succeed_when_config_file_does_not_exist() {
         Some("new-token".to_owned()),
     );
     assert!(
-        infos().iter().any(|message| message.contains("https://example.org/auth/login")),
+        infos()
+            .iter()
+            .any(|message| message.contains("https://example.org/auth/login")),
         "got {:?}",
         infos(),
     );

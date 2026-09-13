@@ -31,10 +31,16 @@ impl Checkout {
         let mut directories_by_crate: BTreeMap<String, Vec<PathBuf>> = BTreeMap::new();
         for (dir, manifest) in &manifests {
             if let Some(name) = package_name(&manifest.document) {
-                directories_by_crate.entry(name.to_string()).or_default().push(dir.clone());
+                directories_by_crate
+                    .entry(name.to_string())
+                    .or_default()
+                    .push(dir.clone());
             }
         }
-        Ok(Self { manifests, directories_by_crate })
+        Ok(Self {
+            manifests,
+            directories_by_crate,
+        })
     }
 
     /// The directory holding `name` at `version`, if the checkout has one.
@@ -47,7 +53,11 @@ impl Checkout {
         // lockfile asks for has to be readable, so a candidate that is
         // not it takes its error out of the way.
         let mut unreadable = None;
-        for dir in self.directories_by_crate.get(name).map(Vec::as_slice).unwrap_or_default() {
+        for dir in self.directories_by_crate
+            .get(name)
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+        {
             let manifest = &self.manifests[dir];
             let workspace = workspace_manifest(dir, &manifest.document, &self.manifests);
             let package = match vendored_package(manifest, workspace)
@@ -62,19 +72,29 @@ impl Checkout {
             if package.version != version {
                 continue;
             }
-            return Ok(Some(CheckoutPackage { dir: dir.clone(), manifest: package.manifest }));
+            return Ok(Some(CheckoutPackage {
+                dir: dir.clone(),
+                manifest: package.manifest,
+            }));
         }
         unreadable.map_or(Ok(None), Err)
     }
 
     /// Every directory in the checkout that `cargo` reads a package from.
     pub(super) fn package_dirs(&self) -> BTreeSet<&Path> {
-        self.directories_by_crate.values().flatten().map(PathBuf::as_path).collect()
+        self.directories_by_crate
+            .values()
+            .flatten()
+            .map(PathBuf::as_path)
+            .collect()
     }
 }
 
 fn package_name(document: &toml::Table) -> Option<&str> {
-    document.get("package")?.get("name")?.as_str()
+    document
+        .get("package")?
+        .get("name")?
+        .as_str()
 }
 
 /// Read the `Cargo.toml` of every directory under `dir`.
@@ -88,7 +108,13 @@ fn collect_manifests(dir: &Path, manifests: &mut BTreeMap<PathBuf, Manifest>) ->
     match fs::read_to_string(&manifest_path) {
         Ok(text) => {
             if let Ok(document) = toml::from_str(&text) {
-                manifests.insert(dir.to_path_buf(), Manifest { text, document });
+                manifests.insert(
+                    dir.to_path_buf(),
+                    Manifest {
+                        text,
+                        document,
+                    },
+                );
             }
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
@@ -102,7 +128,12 @@ fn collect_manifests(dir: &Path, manifests: &mut BTreeMap<PathBuf, Manifest>) ->
         // Symlinked directories are left alone: one can leave the checkout,
         // and a loop through one would not terminate.
         if entry_file_type(&entry)?.is_dir()
-            && !EXCLUDED_DIRECTORIES.contains(&entry.file_name().to_string_lossy().as_ref())
+            && !EXCLUDED_DIRECTORIES.contains(
+                &entry
+                    .file_name()
+                    .to_string_lossy()
+                    .as_ref(),
+            )
         {
             collect_manifests(&entry.path(), manifests)?;
         }
@@ -135,16 +166,22 @@ fn workspace_manifest<'a>(
     if document.contains_key("workspace") {
         return Some(document);
     }
-    if let Some(path) = document.get("package").and_then(|package| package.get("workspace")) {
+    if let Some(path) = document
+        .get("package")
+        .and_then(|package| package.get("workspace"))
+    {
         // `Path::join` keeps `..` verbatim, and the checkout was walked
         // into paths that carry none.
         let root = pnpm_fs::lexical_normalize(&dir.join(path.as_str()?));
         return Some(&manifests.get(&root)?.document);
     }
-    dir.ancestors().skip(1).find_map(|ancestor| {
-        let document = &manifests.get(ancestor)?.document;
-        document.contains_key("workspace").then_some(document)
-    })
+    dir
+        .ancestors()
+        .skip(1)
+        .find_map(|ancestor| {
+            let document = &manifests.get(ancestor)?.document;
+            document.contains_key("workspace").then_some(document)
+        })
 }
 
 /// A manifest resolved against its workspace, and the version `cargo`
@@ -167,25 +204,12 @@ pub(super) fn vendored_package(
 ) -> Result<VendoredPackage> {
     let workspace = workspace.and_then(|manifest| manifest.get("workspace")?.as_table());
     let mut vendored = manifest.document.clone();
-    let mut inherited = false;
-    if let Some(package) = vendored.get_mut("package").and_then(toml::Value::as_table_mut) {
-        let workspace_package =
-            workspace.and_then(|workspace| workspace.get("package")?.as_table());
-        for (field, value) in package.iter_mut() {
-            if !inherits_from_workspace(value) {
-                continue;
-            }
-            *value = workspace_package
-                .and_then(|package| package.get(field))
-                .ok_or_else(|| {
-                    miette::miette!("the workspace declares no `package.{field}` to inherit")
-                })?
-                .clone();
-            inherited = true;
-        }
-    }
+    let mut inherited = inherit_package_fields(&mut vendored, workspace)?;
     inherited |= inherit_dependencies(&mut vendored, workspace)?;
-    if let Some(lints) = vendored.get_mut("lints").filter(|lints| inherits_from_workspace(lints)) {
+    if let Some(lints) = vendored
+        .get_mut("lints")
+        .filter(|lints| inherits_from_workspace(lints))
+    {
         *lints = workspace
             .and_then(|workspace| workspace.get("lints"))
             .ok_or_else(|| miette::miette!("the workspace declares no `lints` to inherit"))?
@@ -206,7 +230,10 @@ pub(super) fn vendored_package(
     } else {
         manifest.text.clone()
     };
-    Ok(VendoredPackage { version, manifest: text })
+    Ok(VendoredPackage {
+        version,
+        manifest: text,
+    })
 }
 
 /// Resolve the inheritance markers in every dependency table the manifest
@@ -219,7 +246,9 @@ fn inherit_dependencies(
     let mut inherited = inherit_dependency_kinds(document, workspace)?;
     if let Some(targets) = document.get_mut("target").and_then(toml::Value::as_table_mut) {
         for (_, target) in targets.iter_mut() {
-            let Some(target) = target.as_table_mut() else { continue };
+            let Some(target) = target.as_table_mut() else {
+                continue;
+            };
             inherited |= inherit_dependency_kinds(target, workspace)?;
         }
     }
@@ -253,10 +282,11 @@ fn inherit_dependency_table(
         if !inherits_from_workspace(declaration) {
             continue;
         }
-        let declared =
-            workspace.and_then(|workspace| workspace.get("dependencies")?.get(name)).ok_or_else(
-                || miette::miette!("the workspace declares no dependency {name} to inherit"),
-            )?;
+        let declared = workspace
+            .and_then(|workspace| workspace.get("dependencies")?.get(name))
+            .ok_or_else(|| {
+                miette::miette!("the workspace declares no dependency {name} to inherit")
+            })?;
         *declaration = merge_workspace_declaration(name, declared, declaration)?.into();
         inherited = true;
     }
@@ -304,5 +334,33 @@ fn merge_workspace_declaration(
 
 /// Whether a manifest entry defers to the workspace (`x.workspace = true`).
 fn inherits_from_workspace(value: &toml::Value) -> bool {
-    value.get("workspace").and_then(toml::Value::as_bool).unwrap_or(false)
+    value
+        .get("workspace")
+        .and_then(toml::Value::as_bool)
+        .unwrap_or(false)
+}
+
+fn inherit_package_fields(
+    vendored: &mut toml::Table,
+    workspace: Option<&toml::Table>,
+) -> Result<bool> {
+    let mut inherited = false;
+    if let Some(package) = vendored.get_mut("package").and_then(toml::Value::as_table_mut) {
+        let workspace_package =
+            workspace.and_then(|workspace| workspace.get("package")?.as_table());
+        for (field, value) in package.iter_mut() {
+            if !inherits_from_workspace(value) {
+                continue;
+            }
+            *value = workspace_package
+                .and_then(|package| package.get(field))
+                .ok_or_else(|| {
+                    miette::miette!("the workspace declares no `package.{field}` to inherit")
+                })?
+                .clone();
+            inherited = true;
+        }
+    }
+
+    Ok(inherited)
 }

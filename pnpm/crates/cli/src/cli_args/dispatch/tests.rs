@@ -15,7 +15,9 @@ struct SensitiveCause;
 
 #[test]
 fn json_error_message_omits_nested_causes() {
-    let error = miette::Report::new(CanonicalError { source: SensitiveCause });
+    let error = miette::Report::new(CanonicalError {
+        source: SensitiveCause,
+    });
     let message = json_error_message(&error);
 
     assert_eq!(message, "canonical publish failure");
@@ -24,8 +26,10 @@ fn json_error_message_omits_nested_causes() {
 
 #[test]
 fn json_error_message_unwraps_pack_context() {
-    let error =
-        miette::Report::new(CanonicalError { source: SensitiveCause }).wrap_err(PACK_ERROR_CONTEXT);
+    let error = miette::Report::new(CanonicalError {
+        source: SensitiveCause,
+    })
+    .wrap_err(PACK_ERROR_CONTEXT);
 
     assert_eq!(json_error_message(&error), "canonical publish failure");
 }

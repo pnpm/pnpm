@@ -38,8 +38,10 @@ use std::{
 /// including the per-project loop dedicated lockfiles take. An embedder
 /// driving several installs at once in one process is the one case
 /// where a diff can pick up a sibling's hashing.
-static VERIFIED_FILE_INTEGRITY: VerifiedFileIntegrityTally =
-    VerifiedFileIntegrityTally { files: AtomicU64::new(0), nanos: AtomicU64::new(0) };
+static VERIFIED_FILE_INTEGRITY: VerifiedFileIntegrityTally = VerifiedFileIntegrityTally {
+    files: AtomicU64::new(0),
+    nanos: AtomicU64::new(0),
+};
 
 struct VerifiedFileIntegrityTally {
     files: AtomicU64,
@@ -60,8 +62,12 @@ impl VerifiedFileIntegrityTally {
     /// a small number and silence the report. 2^64 ns is ~584 years, so
     /// this never fires in practice.
     fn record(&self, elapsed: Duration) {
-        self.nanos
-            .fetch_add(elapsed.as_nanos().min(u128::from(u64::MAX)) as u64, Ordering::Relaxed);
+        self.nanos.fetch_add(
+            elapsed
+                .as_nanos()
+                .min(u128::from(u64::MAX)) as u64,
+            Ordering::Relaxed,
+        );
         self.files.fetch_add(1, Ordering::Relaxed);
     }
 
@@ -196,7 +202,13 @@ pub fn defer_pkg_files_integrity(
     store_dir: &StoreDir,
     entry: PackageFilesIndex,
 ) -> (VerifyResult, PendingFilesCheck) {
-    let PackageFilesIndex { files, algo, side_effects, remote_side_effects_quarantine, .. } = entry;
+    let PackageFilesIndex {
+        files,
+        algo,
+        side_effects,
+        remote_side_effects_quarantine,
+        ..
+    } = entry;
     let mut files_map = HashMap::with_capacity(files.len());
     let mut passed = true;
     for (filename, info) in &files {
@@ -224,7 +236,13 @@ pub fn defer_pkg_files_integrity(
         side_effects,
         remote_side_effects_quarantine,
     };
-    (result, PendingFilesCheck { files, algo })
+    (
+        result,
+        PendingFilesCheck {
+            files,
+            algo,
+        },
+    )
 }
 
 /// The on-disk check of one store-index row's files, split off its
@@ -306,13 +324,19 @@ fn overlay_for(
     let SideEffectsDiff { added, deleted, .. } = diff;
     let mut overlay: FilesMap = HashMap::with_capacity(base_files.len());
     for (filename, info) in added.iter().flatten() {
-        overlay.insert(filename.clone(), overlay_path(store_dir, cache_key, filename, info)?);
+        overlay.insert(
+            filename.clone(),
+            overlay_path(store_dir, cache_key, filename, info)?,
+        );
     }
     // Promote `deleted` to a `HashSet` once per cache key so
     // the `base_files` walk stays linear in `|base|` instead of
     // `O(|base| * |deleted|)`.
-    let deleted_set: std::collections::HashSet<String> =
-        deleted.iter().flatten().cloned().collect();
+    let deleted_set: std::collections::HashSet<String> = deleted
+        .iter()
+        .flatten()
+        .cloned()
+        .collect();
     for (filename, path) in base_files {
         if !deleted_set.contains(filename) && !overlay.contains_key(filename) {
             overlay.insert(filename.clone(), path.clone());
@@ -372,7 +396,9 @@ fn is_safe_overlay_path(filename: &str) -> bool {
         return false;
     }
     let path = Path::new(filename);
-    path.components().all(|component| matches!(component, Component::Normal(_) | Component::CurDir))
+    path
+        .components()
+        .all(|component| matches!(component, Component::Normal(_) | Component::CurDir))
 }
 
 /// `true` when the on-disk file is either unmodified since the last
@@ -585,10 +611,12 @@ fn check_file(path: &Path, checked_at: Option<u64>) -> Option<(bool, u64)> {
 /// a missing, unreadable, or re-hashed file all read as mutated.
 #[must_use]
 pub fn package_dir_matches_index(dir: &Path, index: &PackageFilesIndex) -> bool {
-    index.files.iter().all(|(path, file)| {
-        join_inside(dir, path)
-            .is_some_and(|path| verify_file_integrity(&path, &file.digest, &index.algo))
-    })
+    index.files
+        .iter()
+        .all(|(path, file)| {
+            join_inside(dir, path)
+                .is_some_and(|path| verify_file_integrity(&path, &file.digest, &index.algo))
+        })
 }
 
 /// `dir` joined with a recorded in-package path, or `None` if that path is

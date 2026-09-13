@@ -64,8 +64,12 @@ fn setup_installed() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
     (root, workspace, npmrc_info)
 }
 
-fn setup_installed_workspace_project()
--> (TempDir, std::path::PathBuf, std::path::PathBuf, AddMockedRegistry) {
+fn setup_installed_workspace_project() -> (
+    TempDir,
+    std::path::PathBuf,
+    std::path::PathBuf,
+    AddMockedRegistry,
+) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
@@ -129,16 +133,22 @@ fn setup_configured_patch_with_yaml(
     )
     .expect("write package.json");
     fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
-    fs::write(workspace.join("patches").join(patch_file_name), IS_POSITIVE_PATCH)
-        .expect("write patch file");
+    fs::write(
+        workspace.join("patches").join(patch_file_name),
+        IS_POSITIVE_PATCH,
+    )
+    .expect("write patch file");
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut workspace_yaml =
         fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
     if !workspace_yaml.ends_with('\n') {
         workspace_yaml.push('\n');
     }
-    writeln!(&mut workspace_yaml, "patchedDependencies:\n  {patch_key}: patches/{patch_file_name}")
-        .expect("append patchedDependencies");
+    writeln!(
+        &mut workspace_yaml,
+        "patchedDependencies:\n  {patch_key}: patches/{patch_file_name}",
+    )
+    .expect("append patchedDependencies");
     workspace_yaml.push_str(extra_yaml);
     fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
     (root, workspace, npmrc_info)
@@ -167,8 +177,9 @@ fn setup_patch_remove_project(
     }
     workspace_yaml.push_str("patchedDependencies:\n");
     for (key, patch_file) in entries {
-        writeln!(&mut workspace_yaml, "  {key}: {patch_file}")
-            .expect("append patchedDependencies entry");
+        writeln!(&mut workspace_yaml, "  {key}: {patch_file}").expect(
+            "append patchedDependencies entry",
+        );
     }
     fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
     (root, workspace, npmrc_info)
@@ -224,8 +235,7 @@ fn read_wanted_lockfile(workspace: &Path) -> pnpm_lockfile::Lockfile {
 }
 
 fn snapshot_keys(lockfile: &pnpm_lockfile::Lockfile) -> Vec<String> {
-    let mut keys: Vec<String> = lockfile
-        .snapshots
+    let mut keys: Vec<String> = lockfile.snapshots
         .as_ref()
         .expect("the lockfile records snapshots")
         .keys()
@@ -246,7 +256,10 @@ fn is_positive_store_row(store_dir: &Path) -> pnpm_store_dir::PackageFilesIndex 
         .into_iter()
         .find(|key| key.ends_with("\tis-positive@1.0.0"))
         .expect("a store index row for is-positive@1.0.0");
-    index.get(&row_key).expect("read the store index row").expect("the row is present")
+    index
+        .get(&row_key)
+        .expect("read the store index row")
+        .expect("the row is present")
 }
 
 /// Assert the store kept the patched `index.js` as a side-effects overlay
@@ -270,8 +283,7 @@ fn assert_patched_side_effects_cached(store_dir: &Path, patch_hash: &str) {
             )
         });
 
-    let cached = diff
-        .added
+    let cached = diff.added
         .as_ref()
         .expect("the patched files land in `added`")
         .get("index.js")
@@ -348,12 +360,20 @@ fn assert_patch_install_scenario(patch_key: &str, patch_file_name: &str, extra_y
     );
     let patched_snapshot = format!("is-positive@1.0.0(patch_hash={patch_hash})");
     let snapshots = snapshot_keys(&lockfile);
-    assert!(snapshots.contains(&patched_snapshot), "snapshots: {snapshots:?}");
+    assert!(
+        snapshots.contains(&patched_snapshot),
+        "snapshots: {snapshots:?}",
+    );
 
     assert_patched_side_effects_cached(&store_dir, &patch_hash);
 
     remove_dir_if_exists(&workspace.join("node_modules"));
-    pacquet(&workspace, ["install", "--frozen-lockfile", "--reporter=silent"]).assert().success();
+    pacquet(
+        &workspace,
+        ["install", "--frozen-lockfile", "--reporter=silent"],
+    )
+    .assert()
+    .success();
     let replayed = read_installed_index(&workspace);
     assert!(replayed.contains("// patched"), "replayed: {replayed}");
     assert!(
@@ -363,13 +383,24 @@ fn assert_patch_install_scenario(patch_key: &str, patch_file_name: &str, extra_y
 
     remove_dir_if_exists(&workspace.join("node_modules"));
     append_workspace_yaml_key(&workspace, "nodeLinker", "hoisted");
-    pacquet(&workspace, ["install", "--frozen-lockfile", "--reporter=silent"]).assert().success();
+    pacquet(
+        &workspace,
+        ["install", "--frozen-lockfile", "--reporter=silent"],
+    )
+    .assert()
+    .success();
     let hoisted = read_installed_index(&workspace);
     assert!(hoisted.contains("// patched"), "hoisted: {hoisted}");
-    assert!(!installed_is_a_symlink(&workspace), "the hoisted linker places a real directory");
+    assert!(
+        !installed_is_a_symlink(&workspace),
+        "the hoisted linker places a real directory",
+    );
 
     let unpatched = install_unpatched_sibling(root.path(), &settings);
-    assert!(!unpatched.contains("// patched"), "unpatched sibling: {unpatched}");
+    assert!(
+        !unpatched.contains("// patched"),
+        "unpatched sibling: {unpatched}",
+    );
 
     drop((root, mock_instance));
 }
@@ -382,9 +413,15 @@ fn patch_errors_when_package_is_missing() {
 
     let output = pacquet(&workspace, ["patch", "--reporter=silent"]).output().expect("run patch");
 
-    assert!(!output.status.success(), "patch without package should fail");
+    assert!(
+        !output.status.success(),
+        "patch without package should fail",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("requires the package name"), "stderr: {stderr}");
+    assert!(
+        stderr.contains("requires the package name"),
+        "stderr: {stderr}",
+    );
 
     drop((root, mock_instance));
 }
@@ -400,14 +437,25 @@ fn patch_missing_package_name_takes_precedence_over_edit_dir_checks() {
 
     let output = pacquet(
         &workspace,
-        ["patch", "--edit-dir", edit_dir.to_str().expect("utf8 edit dir"), "--reporter=silent"],
+        [
+            "patch",
+            "--edit-dir",
+            edit_dir.to_str().expect("utf8 edit dir"),
+            "--reporter=silent",
+        ],
     )
     .output()
     .expect("run patch");
 
-    assert!(!output.status.success(), "patch without package should fail");
+    assert!(
+        !output.status.success(),
+        "patch without package should fail",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("requires the package name"), "stderr: {stderr}");
+    assert!(
+        stderr.contains("requires the package name"),
+        "stderr: {stderr}",
+    );
     assert!(!stderr.contains("already exists"), "stderr: {stderr}");
 
     drop((root, mock_instance));
@@ -418,13 +466,22 @@ fn patch_errors_when_requested_version_is_not_installed() {
     let (root, workspace, npmrc_info) = setup_installed();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    let output = pacquet(&workspace, ["patch", "is-positive@2.0.0", "--reporter=silent"])
-        .output()
-        .expect("run patch");
+    let output = pacquet(
+        &workspace,
+        ["patch", "is-positive@2.0.0", "--reporter=silent"],
+    )
+    .output()
+    .expect("run patch");
 
-    assert!(!output.status.success(), "missing installed version should fail");
+    assert!(
+        !output.status.success(),
+        "missing installed version should fail",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_PATCH_VERSION_NOT_FOUND"), "stderr: {stderr}");
+    assert!(
+        stderr.contains("ERR_PNPM_PATCH_VERSION_NOT_FOUND"),
+        "stderr: {stderr}",
+    );
     assert!(stderr.contains("1.0.0"), "stderr: {stderr}");
 
     drop((root, mock_instance));
@@ -448,8 +505,11 @@ fn assert_patch_apply_failure(patch_key: &str) {
     )
     .expect("write package.json");
     fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
-    fs::write(workspace.join("patches/is-positive.patch"), IS_POSITIVE_PATCH)
-        .expect("write patch file");
+    fs::write(
+        workspace.join("patches/is-positive.patch"),
+        IS_POSITIVE_PATCH,
+    )
+    .expect("write patch file");
     append_workspace_yaml_key(
         &workspace,
         "patchedDependencies",
@@ -458,7 +518,10 @@ fn assert_patch_apply_failure(patch_key: &str) {
 
     let output = pacquet(&workspace, ["install"]).output().expect("run install");
 
-    assert!(!output.status.success(), "an unappliable patch should fail the install");
+    assert!(
+        !output.status.success(),
+        "an unappliable patch should fail the install",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("ERR_PNPM_PATCH_FAILED"), "stderr: {stderr}");
     assert!(stderr.contains("Could not apply patch"), "stderr: {stderr}");
@@ -489,8 +552,10 @@ fn patch_workflow_runs_with_default_ndjson_and_silent_reporters() {
         let edit_dir = workspace.join("node_modules/.pnpm_patches/is-positive@1.0.0");
         write_patch_edit(&edit_dir, marker);
 
-        let mut patch_commit_cmd =
-            pacquet(&workspace, ["patch-commit", edit_dir.to_str().expect("utf8 edit dir")]);
+        let mut patch_commit_cmd = pacquet(
+            &workspace,
+            ["patch-commit", edit_dir.to_str().expect("utf8 edit dir")],
+        );
         if let Some(reporter) = reporter {
             patch_commit_cmd.arg(reporter);
         }
@@ -524,18 +589,32 @@ fn patch_reuses_existing_exact_patch_file_by_default() {
     let (root, workspace, npmrc_info) = setup_installed();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"]).assert().success();
+    pacquet(
+        &workspace,
+        ["patch", "is-positive@1.0.0", "--reporter=silent"],
+    )
+    .assert()
+    .success();
     let edit_dir = workspace.join("node_modules/.pnpm_patches/is-positive@1.0.0");
     write_patch_edit(&edit_dir, "reused patch");
     pacquet(
         &workspace,
-        ["patch-commit", edit_dir.to_str().expect("utf8 edit dir"), "--reporter=silent"],
+        [
+            "patch-commit",
+            edit_dir.to_str().expect("utf8 edit dir"),
+            "--reporter=silent",
+        ],
     )
     .assert()
     .success();
     fs::remove_dir_all(&edit_dir).expect("remove edit dir");
 
-    pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"]).assert().success();
+    pacquet(
+        &workspace,
+        ["patch", "is-positive@1.0.0", "--reporter=silent"],
+    )
+    .assert()
+    .success();
 
     let edited = fs::read_to_string(edit_dir.join("index.js")).expect("edit dir index");
     assert!(edited.contains("reused patch"), "edited: {edited}");
@@ -548,20 +627,37 @@ fn patch_ignore_existing_skips_existing_patch_file() {
     let (root, workspace, npmrc_info) = setup_installed();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"]).assert().success();
+    pacquet(
+        &workspace,
+        ["patch", "is-positive@1.0.0", "--reporter=silent"],
+    )
+    .assert()
+    .success();
     let edit_dir = workspace.join("node_modules/.pnpm_patches/is-positive@1.0.0");
     write_patch_edit(&edit_dir, "ignored patch");
     pacquet(
         &workspace,
-        ["patch-commit", edit_dir.to_str().expect("utf8 edit dir"), "--reporter=silent"],
+        [
+            "patch-commit",
+            edit_dir.to_str().expect("utf8 edit dir"),
+            "--reporter=silent",
+        ],
     )
     .assert()
     .success();
     fs::remove_dir_all(&edit_dir).expect("remove edit dir");
 
-    pacquet(&workspace, ["patch", "--ignore-existing", "is-positive@1.0.0", "--reporter=silent"])
-        .assert()
-        .success();
+    pacquet(
+        &workspace,
+        [
+            "patch",
+            "--ignore-existing",
+            "is-positive@1.0.0",
+            "--reporter=silent",
+        ],
+    )
+    .assert()
+    .success();
 
     let edited = fs::read_to_string(edit_dir.join("index.js")).expect("edit dir index");
     assert!(!edited.contains("ignored patch"), "edited: {edited}");
@@ -582,14 +678,23 @@ fn patch_errors_when_existing_patch_file_is_missing() {
     workspace_yaml.push_str("patchedDependencies:\n  is-positive@1.0.0: patches/not-found.patch\n");
     fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
 
-    let output = pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"])
-        .output()
-        .expect("run patch");
+    let output = pacquet(
+        &workspace,
+        ["patch", "is-positive@1.0.0", "--reporter=silent"],
+    )
+    .output()
+    .expect("run patch");
 
     assert!(!output.status.success(), "missing patch file should fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_PATCH_FILE_NOT_FOUND"), "stderr: {stderr}");
-    assert!(stderr.contains("Unable to find patch file"), "stderr: {stderr}");
+    assert!(
+        stderr.contains("ERR_PNPM_PATCH_FILE_NOT_FOUND"),
+        "stderr: {stderr}",
+    );
+    assert!(
+        stderr.contains("Unable to find patch file"),
+        "stderr: {stderr}",
+    );
 
     drop((root, mock_instance));
 }
@@ -598,7 +703,10 @@ fn patch_errors_when_existing_patch_file_is_missing() {
 fn patch_rejects_existing_patch_file_outside_patches_dir() {
     let (root, workspace, npmrc_info) = setup_installed();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    let outside_patch = workspace.parent().expect("workspace parent").join("outside.patch");
+    let outside_patch = workspace
+        .parent()
+        .expect("workspace parent")
+        .join("outside.patch");
     fs::write(&outside_patch, IS_POSITIVE_PATCH).expect("write outside patch");
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut workspace_yaml =
@@ -609,13 +717,19 @@ fn patch_rejects_existing_patch_file_outside_patches_dir() {
     workspace_yaml.push_str("patchedDependencies:\n  is-positive@1.0.0: ../outside.patch\n");
     fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
 
-    let output = pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"])
-        .output()
-        .expect("run patch");
+    let output = pacquet(
+        &workspace,
+        ["patch", "is-positive@1.0.0", "--reporter=silent"],
+    )
+    .output()
+    .expect("run patch");
 
     assert!(!output.status.success(), "outside patch file should fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_PATCH_FILE_OUTSIDE_PATCHES_DIR"), "stderr: {stderr}");
+    assert!(
+        stderr.contains("ERR_PNPM_PATCH_FILE_OUTSIDE_PATCHES_DIR"),
+        "stderr: {stderr}",
+    );
 
     drop((root, mock_instance));
 }
@@ -625,13 +739,27 @@ fn patch_exact_version_creates_edit_dir_and_state() {
     let (root, workspace, npmrc_info) = setup_installed();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"]).assert().success();
+    pacquet(
+        &workspace,
+        ["patch", "is-positive@1.0.0", "--reporter=silent"],
+    )
+    .assert()
+    .success();
 
     let edit_dir = workspace.join("node_modules/.pnpm_patches/is-positive@1.0.0");
-    assert!(edit_dir.join("package.json").is_file(), "edit dir package.json exists");
-    assert!(edit_dir.join("index.js").is_file(), "edit dir package files exist");
+    assert!(
+        edit_dir.join("package.json").is_file(),
+        "edit dir package.json exists",
+    );
+    assert!(
+        edit_dir.join("index.js").is_file(),
+        "edit dir package files exist",
+    );
 
-    let key = dunce::canonicalize(&edit_dir).expect("canonical edit dir").display().to_string();
+    let key = dunce::canonicalize(&edit_dir)
+        .expect("canonical edit dir")
+        .display()
+        .to_string();
     let state = patch_state(&workspace);
     assert_eq!(state[&key]["patchedPkg"], "is-positive@1.0.0");
     assert_eq!(state[&key]["applyToAll"], false);
@@ -650,11 +778,17 @@ fn patch_rejects_symlinked_default_edit_root() {
     std::os::unix::fs::symlink(&outside_dir, workspace.join("node_modules/.pnpm_patches"))
         .expect("symlink default patch edit root");
 
-    let output = pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"])
-        .output()
-        .expect("run patch");
+    let output = pacquet(
+        &workspace,
+        ["patch", "is-positive@1.0.0", "--reporter=silent"],
+    )
+    .output()
+    .expect("run patch");
 
-    assert!(!output.status.success(), "symlinked default edit root should fail");
+    assert!(
+        !output.status.success(),
+        "symlinked default edit root should fail",
+    );
     assert!(
         !outside_dir.join("is-positive@1.0.0").exists(),
         "package files must not be extracted outside node_modules",
@@ -671,7 +805,10 @@ fn patch_bare_name_single_version_sets_apply_to_all() {
     pacquet(&workspace, ["patch", "is-positive", "--reporter=silent"]).assert().success();
 
     let edit_dir = workspace.join("node_modules/.pnpm_patches/is-positive@1.0.0");
-    let key = dunce::canonicalize(&edit_dir).expect("canonical edit dir").display().to_string();
+    let key = dunce::canonicalize(&edit_dir)
+        .expect("canonical edit dir")
+        .display()
+        .to_string();
     let state = patch_state(&workspace);
     assert_eq!(state[&key]["patchedPkg"], "is-positive");
     assert_eq!(state[&key]["applyToAll"], true);
@@ -703,7 +840,10 @@ fn patch_rejects_non_empty_edit_dir() {
 
     assert!(!output.status.success(), "non-empty edit dir should fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("target directory already exists"), "stderr: {stderr}");
+    assert!(
+        stderr.contains("target directory already exists"),
+        "stderr: {stderr}",
+    );
 
     drop((root, mock_instance));
 }
@@ -728,10 +868,19 @@ fn patch_accepts_empty_custom_edit_dir() {
     .assert()
     .success();
 
-    assert!(edit_dir.join("package.json").is_file(), "custom edit dir package.json exists");
-    assert!(edit_dir.join("index.js").is_file(), "custom edit dir package file exists");
+    assert!(
+        edit_dir.join("package.json").is_file(),
+        "custom edit dir package.json exists",
+    );
+    assert!(
+        edit_dir.join("index.js").is_file(),
+        "custom edit dir package file exists",
+    );
 
-    let key = dunce::canonicalize(&edit_dir).expect("canonical edit dir").display().to_string();
+    let key = dunce::canonicalize(&edit_dir)
+        .expect("canonical edit dir")
+        .display()
+        .to_string();
     let state = patch_state(&workspace);
     assert_eq!(state[&key]["patchedPkg"], "is-positive@1.0.0");
     assert_eq!(state[&key]["packageKey"], "is-positive@1.0.0");
@@ -768,8 +917,9 @@ fn setup_configured_patch_with_allow_unused(
     }
     workspace_yaml.push_str("patchedDependencies:\n");
     for (key, file_name) in entries {
-        writeln!(&mut workspace_yaml, "  {key}: patches/{file_name}")
-            .expect("append patchedDependencies entry");
+        writeln!(&mut workspace_yaml, "  {key}: patches/{file_name}").expect(
+            "append patchedDependencies entry",
+        );
     }
     if allow_unused {
         workspace_yaml.push_str("allowUnusedPatches: true\n");
@@ -781,8 +931,11 @@ fn setup_configured_patch_with_allow_unused(
 fn setup_filtered_patch_workspace() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    fs::write(workspace.join("package.json"), serde_json::json!({}).to_string())
-        .expect("write root package.json");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({}).to_string(),
+    )
+    .expect("write root package.json");
     let project = workspace.join("packages").join("pkg-a");
     fs::create_dir_all(&project).expect("create pkg-a dir");
     fs::write(
@@ -797,8 +950,11 @@ fn setup_filtered_patch_workspace() -> (TempDir, std::path::PathBuf, AddMockedRe
     )
     .expect("write pkg-a package.json");
     fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
-    fs::write(workspace.join("patches").join("is-positive@1.0.0.patch"), IS_POSITIVE_PATCH)
-        .expect("write patch file");
+    fs::write(
+        workspace.join("patches").join("is-positive@1.0.0.patch"),
+        IS_POSITIVE_PATCH,
+    )
+    .expect("write patch file");
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut workspace_yaml =
         fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
@@ -836,7 +992,10 @@ fn installing_with_no_modules_directory_and_a_patched_dependency() {
     append_workspace_yaml_key(&workspace, "enableModulesDir", "false");
     pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
 
-    assert!(workspace.join("pnpm-lock.yaml").exists(), "the lockfile must still be written");
+    assert!(
+        workspace.join("pnpm-lock.yaml").exists(),
+        "the lockfile must still be written",
+    );
     assert!(
         !workspace.join("node_modules").exists(),
         "`enableModulesDir: false` must not create a node_modules directory",

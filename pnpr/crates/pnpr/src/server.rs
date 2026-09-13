@@ -284,8 +284,10 @@ async fn sweep_abandoned_uploads(config: &Config) -> pnpr_error::Result<()> {
     )?;
     // Shared sessions live in their hosted namespace. Local scratch can be
     // shared by those namespaces and is safe to sweep more than once.
-    let mut namespaces: Vec<&str> =
-        config.routing.hosted.values().map(|hosted| hosted.org.as_str()).collect();
+    let mut namespaces: Vec<&str> = config.routing.hosted
+        .values()
+        .map(|hosted| hosted.org.as_str())
+        .collect();
     namespaces.push("");
     namespaces.sort_unstable();
     namespaces.dedup();
@@ -354,9 +356,12 @@ pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
     let app = router_with_auth_and_osv(config, auth, osv_index)?;
     let listener = NodelayTcpListener(tokio::net::TcpListener::bind(listen).await?);
     tracing::info!(%listen, "pnpr listening");
-    axum::serve(listener, app.into_make_service_with_connect_info::<PeerAddr>())
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<PeerAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await?;
     Ok(())
 }
 
@@ -421,7 +426,9 @@ async fn shutdown_signal() {
 /// registry prefix" rather than as an empty name — every caller then treats
 /// it the way it treats `foo`.
 pub(super) fn tilde_registry(segment: &str) -> Option<&str> {
-    segment.strip_prefix('~').filter(|registry| !registry.is_empty())
+    segment
+        .strip_prefix('~')
+        .filter(|registry| !registry.is_empty())
 }
 
 /// The registry a request addressed through a leading `/~<name>/`, or `None`
@@ -446,24 +453,28 @@ impl<RouterState: Send + Sync> FromRequestParts<RouterState> for TargetRegistry 
         // `RawPathParams` reports only what the matched route captured, so an
         // absent `prefix` means this is the bare registration rather than a
         // prefixed request that happened to omit the segment.
-        let params = RawPathParams::from_request_parts(parts, &()).await.map_err(|err| {
-            match err {
-                // The client sent a segment that percent-decodes to invalid
-                // UTF-8. It cannot be a registry name, so answer it the same
-                // 404 every other malformed prefix gets rather than a 500 — a
-                // bad URL is not a server fault, and rendering it as one would
-                // also let a client fill the error log.
-                RawPathParamsRejection::InvalidUtf8InPathParam(_) => RegistryError::NotFound,
-                // The matched route registered no path parameters at all, which
-                // means the route table and this extractor disagree. Fail closed
-                // rather than serve the request as if it named no registry.
-                rejection => RegistryError::Internal {
-                    reason: format!("path params unavailable: {rejection}"),
-                },
-            }
-            .into_response()
-        })?;
-        let Some((_, registry)) = params.iter().find(|(name, _)| *name == "registry") else {
+        let params = RawPathParams::from_request_parts(parts, &()).await
+            .map_err(|err| {
+                match err {
+                    // The client sent a segment that percent-decodes to invalid
+                    // UTF-8. It cannot be a registry name, so answer it the same
+                    // 404 every other malformed prefix gets rather than a 500 — a
+                    // bad URL is not a server fault, and rendering it as one would
+                    // also let a client fill the error log.
+                    RawPathParamsRejection::InvalidUtf8InPathParam(_) => RegistryError::NotFound,
+                    // The matched route registered no path parameters at all, which
+                    // means the route table and this extractor disagree. Fail closed
+                    // rather than serve the request as if it named no registry.
+                    rejection => RegistryError::Internal {
+                        reason: format!("path params unavailable: {rejection}"),
+                    },
+                }
+                .into_response()
+            })?;
+        let Some((_, registry)) = params
+            .iter()
+            .find(|(name, _)| *name == "registry")
+        else {
             return Ok(Self(None));
         };
         if !pnpr_package_name::is_safe_path_segment(registry) {
@@ -514,7 +525,10 @@ fn json_response(status: StatusCode, body: &Value) -> Response {
 fn private_no_cache(mut response: Response) -> Response {
     use axum::http::HeaderValue;
     let headers = response.headers_mut();
-    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("private, no-store"));
+    headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-store"),
+    );
     headers.insert(header::VARY, HeaderValue::from_static("Authorization"));
     response
 }
@@ -556,8 +570,13 @@ fn resolve_write_target_for(
     name: &CanonicalPackageName,
 ) -> Result<WriteTarget, RegistryError> {
     match resolve_publish_target_for(state, identity, registry, ecosystem, name.as_str()) {
-        PublishTarget::Hosted { source, org } => Ok(WriteTarget { source, org }),
-        PublishTarget::Reject(reason) => Err(RegistryError::BadRequest { reason }),
+        PublishTarget::Hosted { source, org } => Ok(WriteTarget {
+            source,
+            org,
+        }),
+        PublishTarget::Reject(reason) => Err(RegistryError::BadRequest {
+            reason,
+        }),
         PublishTarget::Denied(response) => Err(response),
         PublishTarget::NotFound => Err(RegistryError::NotFound),
     }

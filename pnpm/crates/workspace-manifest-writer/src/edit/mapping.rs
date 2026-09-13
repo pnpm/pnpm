@@ -37,9 +37,7 @@ pub(super) fn upsert(
     let existing_target = if is_default {
         if manifest.catalogs.default.is_some() {
             Some(Target::Shorthand)
-        } else if manifest
-            .catalogs
-            .named
+        } else if manifest.catalogs.named
             .as_ref()
             .is_some_and(|c| c.contains_key(DEFAULT_CATALOG_NAME))
         {
@@ -47,7 +45,10 @@ pub(super) fn upsert(
         } else {
             None
         }
-    } else if manifest.catalogs.named.as_ref().is_some_and(|c| c.contains_key(catalog_name)) {
+    } else if manifest.catalogs.named
+        .as_ref()
+        .is_some_and(|c| c.contains_key(catalog_name))
+    {
         Some(Target::Named(catalog_name.to_string()))
     } else {
         None
@@ -55,7 +56,13 @@ pub(super) fn upsert(
 
     match existing_target {
         Some(target) => upsert_existing(manifest, &target, dep, specifier),
-        None => Ok(create_target(manifest, is_default, catalog_name, dep, specifier)),
+        None => Ok(create_target(
+            manifest,
+            is_default,
+            catalog_name,
+            dep,
+            specifier,
+        )),
     }
 }
 
@@ -110,10 +117,13 @@ fn create_target(
         // `catalogs:` exists but lacks this name — add a named sub-block.
         let new_text = write_named_subblock(manifest, catalog_name, dep, &value);
         manifest.document.set_text(new_text);
-        manifest.catalogs.named.as_mut().expect("catalogs present").insert(
-            catalog_name.to_string(),
-            IndexMap::from([(dep.to_string(), specifier.to_string())]),
-        );
+        manifest.catalogs.named
+            .as_mut()
+            .expect("catalogs present")
+            .insert(
+                catalog_name.to_string(),
+                IndexMap::from([(dep.to_string(), specifier.to_string())]),
+            );
     } else {
         let block = format!(
             "catalogs:\n  {}:\n    {dep_key}: {value}\n",
@@ -134,8 +144,7 @@ fn create_target(
 fn target_map<'a>(catalogs: &'a CatalogEntries, target: &Target) -> &'a IndexMap<String, String> {
     match target {
         Target::Shorthand => catalogs.default.as_ref().expect("catalog shorthand present"),
-        Target::Named(name) => catalogs
-            .named
+        Target::Named(name) => catalogs.named
             .as_ref()
             .expect("catalogs present")
             .get(name)
@@ -149,8 +158,7 @@ fn target_map_mut<'a>(
 ) -> &'a mut IndexMap<String, String> {
     match target {
         Target::Shorthand => catalogs.default.as_mut().expect("catalog shorthand present"),
-        Target::Named(name) => catalogs
-            .named
+        Target::Named(name) => catalogs.named
             .as_mut()
             .expect("catalogs present")
             .get_mut(name)
@@ -205,7 +213,10 @@ fn replace_scalar_at(
         .chain(std::iter::once(dep))
         .map(|key| Component::Key(key.into()))
         .collect();
-    let patch = Patch { route: Route::from(components), operation: Op::Replace(value) };
+    let patch = Patch {
+        route: Route::from(components),
+        operation: Op::Replace(value),
+    };
     let patched = yamlpatch::apply_yaml_patches(&document, &[patch]).map_err(Box::new)?;
     Ok(patched.source().to_string())
 }
@@ -240,9 +251,15 @@ pub(super) fn write_rendered_entry_at(
         return flow::upsert(text, &collection, dep, value_text);
     }
     let mapping = locate(text, path).expect("mapping exists");
-    let existing: Vec<String> = mapping.entries.iter().map(|entry| entry.key.clone()).collect();
+    let existing: Vec<String> = mapping.entries
+        .iter()
+        .map(|entry| entry.key.clone())
+        .collect();
     let order = render::target_order(&existing, &[dep.to_string()]);
-    let position = order.iter().position(|key| key == dep).expect("dep is in the merged order");
+    let position = order
+        .iter()
+        .position(|key| key == dep)
+        .expect("dep is in the merged order");
 
     let line = format!(
         "{}{}: {}\n",
@@ -254,8 +271,7 @@ pub(super) fn write_rendered_entry_at(
         mapping.body_start
     } else {
         let predecessor = &order[position - 1];
-        mapping
-            .entries
+        mapping.entries
             .iter()
             .find(|entry| &entry.key == predecessor)
             .expect("predecessor entry exists")
@@ -273,9 +289,15 @@ fn write_named_subblock(manifest: &Manifest, name: &str, dep: &str, value: &str)
         return flow::upsert(text, &collection, name, &entry);
     }
     let catalogs = locate(text, &["catalogs"]).expect("catalogs block exists");
-    let existing: Vec<String> = catalogs.entries.iter().map(|entry| entry.key.clone()).collect();
+    let existing: Vec<String> = catalogs.entries
+        .iter()
+        .map(|entry| entry.key.clone())
+        .collect();
     let order = render::target_order(&existing, &[name.to_string()]);
-    let position = order.iter().position(|key| key == name).expect("name is in the merged order");
+    let position = order
+        .iter()
+        .position(|key| key == name)
+        .expect("name is in the merged order");
 
     let indent = " ".repeat(catalogs.entry_indent);
     let block = format!(
@@ -287,8 +309,7 @@ fn write_named_subblock(manifest: &Manifest, name: &str, dep: &str, value: &str)
         catalogs.body_start
     } else {
         let predecessor = &order[position - 1];
-        catalogs
-            .entries
+        catalogs.entries
             .iter()
             .find(|entry| &entry.key == predecessor)
             .expect("predecessor named catalog exists")
@@ -303,7 +324,10 @@ fn write_named_subblock(manifest: &Manifest, name: &str, dep: &str, value: &str)
 /// containing `:` (an artifact pkgId such as `foo@https://example.com/foo.tgz`).
 pub(super) fn replace_bool_value_at(text: &str, path: &[&str], key: &str, value: bool) -> String {
     let mapping = locate(text, path).expect("mapping exists");
-    let entry = mapping.entries.iter().find(|entry| entry.key == key).expect("entry exists");
+    let entry = mapping.entries
+        .iter()
+        .find(|entry| entry.key == key)
+        .expect("entry exists");
     let line = &text[entry.line_start..entry.line_end];
     let content = line.strip_suffix('\n').unwrap_or(line);
     let indent_len = content.len() - content.trim_start().len();

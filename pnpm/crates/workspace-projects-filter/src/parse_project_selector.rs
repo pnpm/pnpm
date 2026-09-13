@@ -51,8 +51,13 @@ struct SelectorModifiers<'a> {
 }
 
 pub fn parse_project_selector(raw_selector: &str, prefix: &Path) -> ProjectSelector {
-    let SelectorModifiers { raw, exclude, exclude_self, include_dependencies, include_dependents } =
-        strip_selector_modifiers(raw_selector);
+    let SelectorModifiers {
+        raw,
+        exclude,
+        exclude_self,
+        include_dependencies,
+        include_dependents,
+    } = strip_selector_modifiers(raw_selector);
 
     match match_selector_pattern(raw) {
         Some(SelectorParts { name, brace_inner, bracket_inner }) => ProjectSelector {
@@ -68,22 +73,7 @@ pub fn parse_project_selector(raw_selector: &str, prefix: &Path) -> ProjectSelec
                 include_dependents,
             },
         },
-        None => {
-            if is_selector_by_location(raw) {
-                // Location fallback keeps `exclude` and sets `parent_dir`.
-                ProjectSelector {
-                    exclude,
-                    parent_dir: Some(lexical_join(prefix, raw)),
-                    ..ProjectSelector::default()
-                }
-            } else {
-                // Name fallback drops `exclude` and sets `name_pattern`.
-                ProjectSelector {
-                    name_pattern: Some(raw.to_string()),
-                    ..ProjectSelector::default()
-                }
-            }
-        }
+        None => fallback_selector(raw, prefix, exclude),
     }
 }
 
@@ -112,7 +102,13 @@ fn strip_selector_modifiers(raw_selector: &str) -> SelectorModifiers<'_> {
             raw = rest;
         }
     }
-    SelectorModifiers { raw, exclude, exclude_self, include_dependencies, include_dependents }
+    SelectorModifiers {
+        raw,
+        exclude,
+        exclude_self,
+        include_dependencies,
+        include_dependents,
+    }
 }
 
 /// The three optional capture groups of the selector regex
@@ -183,7 +179,9 @@ fn name_candidate_lengths(input: &str) -> Vec<usize> {
 fn match_groups(rest: &str) -> Option<(Option<&str>, Option<&str>)> {
     let (brace_inner, rest) = match_delimited(rest, '{', '}')?;
     let (bracket_inner, rest) = match_delimited(rest, '[', ']')?;
-    rest.is_empty().then_some((brace_inner, bracket_inner))
+    rest
+        .is_empty()
+        .then_some((brace_inner, bracket_inner))
 }
 
 /// Match an optional `<open><inner><close>` group at the start of
@@ -199,7 +197,10 @@ fn match_delimited(input: &str, open: char, close: char) -> Option<(Option<&str>
     if close_at == 0 {
         return None;
     }
-    Some((Some(&after_open[..close_at]), &after_open[close_at + close.len_utf8()..]))
+    Some((
+        Some(&after_open[..close_at]),
+        &after_open[close_at + close.len_utf8()..],
+    ))
 }
 
 /// Whether `raw` is a relative-path selector (`.`, `./x`, `..`, `../x`,
@@ -222,3 +223,20 @@ fn is_selector_by_location(raw: &str) -> bool {
 
 #[cfg(test)]
 mod tests;
+
+fn fallback_selector(raw: &str, prefix: &Path, exclude: bool) -> ProjectSelector {
+    if is_selector_by_location(raw) {
+        // Location fallback keeps `exclude` and sets `parent_dir`.
+        ProjectSelector {
+            exclude,
+            parent_dir: Some(lexical_join(prefix, raw)),
+            ..ProjectSelector::default()
+        }
+    } else {
+        // Name fallback drops `exclude` and sets `name_pattern`.
+        ProjectSelector {
+            name_pattern: Some(raw.to_string()),
+            ..ProjectSelector::default()
+        }
+    }
+}

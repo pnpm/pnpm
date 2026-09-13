@@ -50,7 +50,13 @@ fn ignore_package_manifest_populates_the_virtual_store_without_linking() {
         }),
         dependency_manifest: None,
     }];
-    options.store_dir = Some(temp_dir.path().join("store").to_string_lossy().into_owned());
+    options.store_dir = Some(
+        temp_dir
+            .path()
+            .join("store")
+            .to_string_lossy()
+            .into_owned(),
+    );
     options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
 
     // Seed the lockfile with an ordinary install, then throw the linked
@@ -58,7 +64,10 @@ fn ignore_package_manifest_populates_the_virtual_store_without_linking() {
     // alone.
     options.lockfile_only = Some(true);
     run_install_inner(&options, None, EngineMode::Install(None)).expect("seed the lockfile");
-    assert!(project_dir.join("pnpm-lock.yaml").exists(), "the seed run must write a lockfile");
+    assert!(
+        project_dir.join("pnpm-lock.yaml").exists(),
+        "the seed run must write a lockfile",
+    );
     options.lockfile_only = None;
 
     // An empty manifest proves the run reads the lockfile, not the manifest.
@@ -70,17 +79,30 @@ fn ignore_package_manifest_populates_the_virtual_store_without_linking() {
     let virtual_store = modules_dir.join(".pnpm");
     let fetched: Vec<String> = std::fs::read_dir(&virtual_store)
         .expect("read the virtual store")
-        .map(|entry| entry.expect("virtual store entry").file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            entry
+                .expect("virtual store entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .filter(|name| name.starts_with("@pnpm.e2e+hello-world-js-bin"))
         .collect();
     dbg!(&fetched);
-    assert_eq!(fetched.len(), 1, "the recorded dependency must be imported into the virtual store");
+    assert_eq!(
+        fetched.len(),
+        1,
+        "the recorded dependency must be imported into the virtual store",
+    );
 
     assert!(
         !modules_dir.join("@pnpm.e2e/hello-world-js-bin").exists(),
         "a fetch-shaped install links no importer symlinks",
     );
-    assert!(!modules_dir.join(".bin").exists(), "a fetch-shaped install links no top-level bins");
+    assert!(
+        !modules_dir.join(".bin").exists(),
+        "a fetch-shaped install links no top-level bins",
+    );
 }
 
 /// A fetch-shaped install reads the lockfile by definition, so an ambient
@@ -104,7 +126,13 @@ fn ignore_package_manifest_survives_an_ambient_lockfile_false() {
         }),
         dependency_manifest: None,
     }];
-    options.store_dir = Some(temp_dir.path().join("store").to_string_lossy().into_owned());
+    options.store_dir = Some(
+        temp_dir
+            .path()
+            .join("store")
+            .to_string_lossy()
+            .into_owned(),
+    );
     options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
 
     options.lockfile_only = Some(true);
@@ -120,11 +148,21 @@ fn ignore_package_manifest_survives_an_ambient_lockfile_false() {
 
     let fetched: Vec<String> = std::fs::read_dir(project_dir.join("node_modules/.pnpm"))
         .expect("read the virtual store")
-        .map(|entry| entry.expect("virtual store entry").file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            entry
+                .expect("virtual store entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .filter(|name| name.starts_with("@pnpm.e2e+hello-world-js-bin"))
         .collect();
     dbg!(&fetched);
-    assert_eq!(fetched.len(), 1, "the recorded dependency must still be imported");
+    assert_eq!(
+        fetched.len(),
+        1,
+        "the recorded dependency must still be imported",
+    );
 }
 
 /// The fetch shape covers every importer the lockfile records, not just the
@@ -140,8 +178,11 @@ fn ignore_package_manifest_fetches_importers_the_caller_did_not_pass() {
     std::fs::create_dir_all(&member_dir).expect("create member dir");
     std::fs::write(root_dir.join("package.json"), "{}\n").expect("write root package.json");
     std::fs::write(member_dir.join("package.json"), "{}\n").expect("write member package.json");
-    std::fs::write(root_dir.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
-        .expect("write workspace yaml");
+    std::fs::write(
+        root_dir.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\n",
+    )
+    .expect("write workspace yaml");
 
     let root_dir_string = root_dir.to_string_lossy().into_owned();
     let member_dir_string = member_dir.to_string_lossy().into_owned();
@@ -162,7 +203,13 @@ fn ignore_package_manifest_fetches_importers_the_caller_did_not_pass() {
             dependency_manifest: None,
         },
     ];
-    options.store_dir = Some(temp_dir.path().join("store").to_string_lossy().into_owned());
+    options.store_dir = Some(
+        temp_dir
+            .path()
+            .join("store")
+            .to_string_lossy()
+            .into_owned(),
+    );
     options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
 
     options.lockfile_only = Some(true);
@@ -177,11 +224,21 @@ fn ignore_package_manifest_fetches_importers_the_caller_did_not_pass() {
 
     let fetched: Vec<String> = std::fs::read_dir(root_dir.join("node_modules/.pnpm"))
         .expect("read the virtual store")
-        .map(|entry| entry.expect("virtual store entry").file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            entry
+                .expect("virtual store entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .filter(|name| name.starts_with("@pnpm.e2e+hello-world-js-bin"))
         .collect();
     dbg!(&fetched);
-    assert_eq!(fetched.len(), 1, "the unnamed importer's dependency must still be fetched");
+    assert_eq!(
+        fetched.len(),
+        1,
+        "the unnamed importer's dependency must still be fetched",
+    );
     assert!(
         !member_dir.join("node_modules/@pnpm.e2e/hello-world-js-bin").exists(),
         "a fetch-shaped install links no importer symlinks",
@@ -208,7 +265,13 @@ fn repeat_install_uses_changed_in_memory_manifest() {
         }),
         dependency_manifest: None,
     }];
-    options.store_dir = Some(temp_dir.path().join("store").to_string_lossy().into_owned());
+    options.store_dir = Some(
+        temp_dir
+            .path()
+            .join("store")
+            .to_string_lossy()
+            .into_owned(),
+    );
     options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
 
     run_install_inner(&options, None, EngineMode::Install(None)).expect("first install");

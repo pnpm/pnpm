@@ -42,10 +42,15 @@ pub fn find_global_install_dirs(
     params: &[String],
 ) -> std::io::Result<Vec<PathBuf>> {
     let packages = scan_global_packages(global_dir)?;
-    let patterns: Vec<_> = params.iter().map(|pattern| WildcardMatcher::new(pattern)).collect();
+    let patterns: Vec<_> = params
+        .iter()
+        .map(|pattern| WildcardMatcher::new(pattern))
+        .collect();
     let mut install_dirs: Vec<PathBuf> = Vec::new();
     for pkg in packages {
-        let matched = pkg.dependencies.iter().any(|(alias, _)| matches_params(&patterns, alias));
+        let matched = pkg.dependencies
+            .iter()
+            .any(|(alias, _)| matches_params(&patterns, alias));
         if matched && !install_dirs.contains(&pkg.install_dir) {
             install_dirs.push(pkg.install_dir);
         }
@@ -78,11 +83,16 @@ pub fn list_global_packages(
 
 /// Every installed dependency matching `params`, sorted by alias.
 fn collect_listed_deps(packages: &[GlobalPackageInfo], params: &[String]) -> Vec<ListedDep> {
-    let patterns: Vec<_> = params.iter().map(|pattern| WildcardMatcher::new(pattern)).collect();
+    let patterns: Vec<_> = params
+        .iter()
+        .map(|pattern| WildcardMatcher::new(pattern))
+        .collect();
     let mut deps: Vec<ListedDep> = packages
         .iter()
         .flat_map(|pkg| {
-            get_global_package_details(pkg).into_iter().map(move |installed| (pkg, installed))
+            get_global_package_details(pkg)
+                .into_iter()
+                .map(move |installed| (pkg, installed))
         })
         .filter(|(_, installed)| matches_params(&patterns, &installed.alias))
         .map(|(pkg, installed)| listed_dep(pkg, installed))
@@ -92,15 +102,20 @@ fn collect_listed_deps(packages: &[GlobalPackageInfo], params: &[String]) -> Vec
 }
 
 fn listed_dep(pkg: &GlobalPackageInfo, installed: InstalledGlobalPackage) -> ListedDep {
-    let name = installed
-        .manifest
+    let name = installed.manifest
         .get("name")
         .and_then(Value::as_str)
         .unwrap_or(&installed.alias)
         .to_string();
     let location = pkg.install_dir.join("node_modules").join(&installed.alias);
     let path = location.to_string_lossy().into_owned();
-    ListedDep { alias: installed.alias, name, version: installed.version, location, path }
+    ListedDep {
+        alias: installed.alias,
+        name,
+        version: installed.version,
+        location,
+        path,
+    }
 }
 
 fn render_empty(global_dir: &str, params: &[String], report_as: ListReportAs) -> String {
@@ -177,7 +192,10 @@ fn parseable_long_line(dep: &ListedDep) -> String {
         if dep.version.contains('@') {
             return format!("{}:{} {}", dep.path, dep.alias, dep.version);
         }
-        return format!("{}:{} npm:{}@{}", dep.path, dep.alias, dep.name, dep.version);
+        return format!(
+            "{}:{} npm:{}@{}",
+            dep.path, dep.alias, dep.name, dep.version,
+        );
     }
     if dep.version.contains('@') {
         return format!("{}:{}", dep.path, dep.version);
@@ -195,9 +213,15 @@ fn render_tree(global_dir: &str, deps: &[ListedDep], long: bool) -> String {
         let mut label = leaf_label(dep);
         if long && let Some(manifest) = read_dep_manifest(dep) {
             for value in [
-                manifest.get("description").and_then(Value::as_str).map(str::to_string),
+                manifest
+                    .get("description")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
                 repository_url(&manifest),
-                manifest.get("homepage").and_then(Value::as_str).map(str::to_string),
+                manifest
+                    .get("homepage")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
                 Some(dep.path.clone()),
             ]
             .into_iter()
@@ -207,12 +231,18 @@ fn render_tree(global_dir: &str, deps: &[ListedDep], long: bool) -> String {
                 label.push_str(&value);
             }
         }
-        leaves.push(TreeNode { label, groups: Vec::new() });
+        leaves.push(TreeNode {
+            label,
+            groups: Vec::new(),
+        });
     }
 
     let root = TreeNode {
         label: root_label,
-        groups: vec![Group { group: cyan_bright("dependencies:"), nodes: leaves }],
+        groups: vec![Group {
+            group: cyan_bright("dependencies:"),
+            nodes: leaves,
+        }],
     };
     let mut out = String::new();
     render_node(&root, "", "", &mut out);
@@ -225,7 +255,11 @@ fn leaf_label(dep: &ListedDep) -> String {
     if dep.alias != dep.name {
         // npm-aliased dependency.
         if !dep.version.contains('@') {
-            return format!("{}{}", dep.alias, gray(&format!("@npm:{}@{}", dep.name, dep.version)));
+            return format!(
+                "{}{}",
+                dep.alias,
+                gray(&format!("@npm:{}@{}", dep.name, dep.version)),
+            );
         }
         return format!("{}{}", dep.alias, gray(&format!("@{}", dep.version)));
     }
@@ -258,7 +292,11 @@ fn render_node(node: &TreeNode, connector: &str, prefix: &str, out: &mut String)
 fn flatten_groups(node: &TreeNode) -> Vec<(&TreeNode, &str)> {
     node.groups
         .iter()
-        .flat_map(|group| group.nodes.iter().map(|node| (node, group.group.as_str())))
+        .flat_map(|group| {
+            group.nodes
+                .iter()
+                .map(|node| (node, group.group.as_str()))
+        })
         .collect()
 }
 
@@ -304,7 +342,11 @@ fn push_group_header(group: &str, prefix: &str, out: &mut String) {
 fn child_frames(prefix: &str, last: bool, parent: bool) -> (String, String) {
     let branch = if last { "\u{2514}" } else { "\u{251c}" };
     let stem = if parent { "\u{252c}" } else { "\u{2500}" };
-    let child_prefix = if last { format!("{prefix}  ") } else { format!("{prefix}\u{2502} ") };
+    let child_prefix = if last {
+        format!("{prefix}  ")
+    } else {
+        format!("{prefix}\u{2502} ")
+    };
     (format!("{prefix}{branch}\u{2500}{stem} "), child_prefix)
 }
 
@@ -317,29 +359,43 @@ fn read_dep_manifest(dep: &ListedDep) -> Option<Value> {
 fn repository_url(manifest: &Value) -> Option<String> {
     match manifest.get("repository") {
         Some(Value::String(url)) => Some(url.clone()),
-        Some(Value::Object(map)) => map.get("url").and_then(Value::as_str).map(str::to_string),
+        Some(Value::Object(map)) => map
+            .get("url")
+            .and_then(Value::as_str)
+            .map(str::to_string),
         _ => None,
     }
 }
 
 fn matches_params(patterns: &[WildcardMatcher], alias: &str) -> bool {
-    patterns.is_empty() || patterns.iter().any(|pattern| pattern.matches(alias))
+    patterns.is_empty()
+        || patterns
+            .iter()
+            .any(|pattern| pattern.matches(alias))
 }
 
 fn dim(text: &str) -> String {
-    text.if_supports_color(Stream::Stdout, |t| t.dimmed()).to_string()
+    text
+        .if_supports_color(Stream::Stdout, |t| t.dimmed())
+        .to_string()
 }
 
 fn bold(text: &str) -> String {
-    text.if_supports_color(Stream::Stdout, |t| t.bold()).to_string()
+    text
+        .if_supports_color(Stream::Stdout, |t| t.bold())
+        .to_string()
 }
 
 fn cyan_bright(text: &str) -> String {
-    text.if_supports_color(Stream::Stdout, |t| t.bright_cyan()).to_string()
+    text
+        .if_supports_color(Stream::Stdout, |t| t.bright_cyan())
+        .to_string()
 }
 
 fn gray(text: &str) -> String {
-    text.if_supports_color(Stream::Stdout, |t| t.bright_black()).to_string()
+    text
+        .if_supports_color(Stream::Stdout, |t| t.bright_black())
+        .to_string()
 }
 
 #[cfg(test)]

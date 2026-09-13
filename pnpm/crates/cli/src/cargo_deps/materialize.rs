@@ -153,9 +153,12 @@ pub(super) fn add_cargo_checksum(
                 .map(|checksum| (path.clone(), checksum))
         })
         .collect::<Result<BTreeMap<_, _>>>()?;
-    let checksum = serde_json::to_vec(&CargoChecksum { files, package: package_checksum })
-        .into_diagnostic()
-        .wrap_err("serialize .cargo-checksum.json")?;
+    let checksum = serde_json::to_vec(&CargoChecksum {
+        files,
+        package: package_checksum,
+    })
+    .into_diagnostic()
+    .wrap_err("serialize .cargo-checksum.json")?;
     let (cas_path, hash) = store_dir
         .write_cas_file(&checksum, false)
         .into_diagnostic()

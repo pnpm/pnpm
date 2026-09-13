@@ -10,7 +10,11 @@ impl Request {
     pub(super) fn page_size(&self) -> Result<Option<usize>, Refusal> {
         query_param(Some(&self.query), "n")
             .map(|value| {
-                if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+                if value.is_empty()
+                    || !value
+                        .bytes()
+                        .all(|byte| byte.is_ascii_digit())
+                {
                     return Err(Refusal::new(
                         ErrorCode::NameInvalid,
                         "n must be a non-negative integer",
@@ -60,33 +64,48 @@ impl Request {
             Ok(Some(0)) => {
                 return private_no_cache(json(
                     StatusCode::OK,
-                    &Catalog { repositories: Vec::new() },
+                    &Catalog {
+                        repositories: Vec::new(),
+                    },
                 ));
             }
             Ok(_) => {}
             Err(refusal) => return refusal.respond(),
         }
-        let last = query_param(Some(&self.query), "last");
-        let mut repositories = Vec::new();
-        for source in hosted_sources(&self.state, &target, ECOSYSTEM) {
-            match self.readable_repositories(&target, &source, last.as_deref()).await {
-                Ok(names) => repositories.extend(names),
-                Err(err) => return registry_error(err),
-            }
-        }
-        repositories.sort();
-        repositories.dedup();
+        let mut repositories = match self.catalog_repositories(&target).await {
+            Ok(repositories) => repositories,
+            Err(err) => return registry_error(err),
+        };
         // The listing is built from what this caller may read, so it is
         // caller-specific whichever registry it came through.
         let link = match self.paginate(&mut repositories, "_catalog") {
             Ok(link) => link,
             Err(refusal) => return refusal.respond(),
         };
-        let mut response = json(StatusCode::OK, &Catalog { repositories });
+        let mut response = json(
+            StatusCode::OK,
+            &Catalog {
+                repositories,
+            },
+        );
         if let Some(link) = link {
             insert_header(&mut response, "link", &link);
         }
         private_no_cache(response)
+    }
+
+    async fn catalog_repositories(&self, target: &str) -> Result<Vec<String>, RegistryError> {
+        let last = query_param(Some(&self.query), "last");
+        let mut repositories = Vec::new();
+        for source in hosted_sources(&self.state, target, ECOSYSTEM) {
+            match self.readable_repositories(target, &source, last.as_deref()).await {
+                Ok(names) => repositories.extend(names),
+                Err(err) => return Err(err),
+            }
+        }
+        repositories.sort();
+        repositories.dedup();
+        Ok(repositories)
     }
 
     /// `GET /v2/<name>/tags/list`.
@@ -109,7 +128,13 @@ impl Request {
                             Ok(link) => link,
                             Err(refusal) => return refusal.respond(),
                         };
-                    let mut response = json(StatusCode::OK, &TagList { name: key.as_str(), tags });
+                    let mut response = json(
+                        StatusCode::OK,
+                        &TagList {
+                            name: key.as_str(),
+                            tags,
+                        },
+                    );
                     if let Some(link) = link {
                         insert_header(&mut response, "link", &link);
                     }

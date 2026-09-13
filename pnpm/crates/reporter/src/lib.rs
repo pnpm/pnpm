@@ -657,8 +657,12 @@ impl Reporter for NdjsonReporter {
 }
 
 fn write_record(buf: &mut Vec<u8>, event: &LogEvent) -> serde_json::Result<()> {
-    let envelope =
-        Envelope { time: now_millis(), hostname: &HOSTNAME, pid: std::process::id(), event };
+    let envelope = Envelope {
+        time: now_millis(),
+        hostname: &HOSTNAME,
+        pid: std::process::id(),
+        event,
+    };
     serde_json::to_writer(buf, &envelope)
 }
 
@@ -676,7 +680,9 @@ struct Envelope<'a> {
 }
 
 fn now_millis() -> u128 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis())
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis())
 }
 
 /// Capability for obtaining the host name written into the [bunyan]-shaped

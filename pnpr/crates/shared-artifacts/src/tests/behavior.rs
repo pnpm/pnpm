@@ -23,11 +23,18 @@ async fn local_store_uses_the_cache_layout_and_round_trips_artifacts() {
     let request = publication_with_blob("dependency-side-effects:v1:deps=abc", "ci/linux");
     let integrity = request.blobs[0].integrity.clone();
 
-    assert!(store.publish("acme", request.clone()).await.unwrap());
+    assert!(
+        store
+            .publish("acme", request.clone())
+            .await
+            .unwrap(),
+    );
     assert!(!store.publish("acme", request).await.unwrap());
 
-    let response =
-        store.resolve("acme", &serde_json::to_vec(&lookup("acme")).unwrap()).await.unwrap();
+    let response = store
+        .resolve("acme", &serde_json::to_vec(&lookup("acme")).unwrap())
+        .await
+        .unwrap();
     assert_eq!(response.artifacts.len(), 1);
     assert_eq!(response.artifacts[0].variants.len(), 1);
 
@@ -48,7 +55,12 @@ async fn local_store_uses_the_cache_layout_and_round_trips_artifacts() {
         bytes.extend_from_slice(&chunk.unwrap());
     }
     assert_eq!(bytes, b"shared addon");
-    assert!(storage.path().join("shared-artifacts/v0/.locks/usage.json").is_file());
+    assert!(
+        storage
+            .path()
+            .join("shared-artifacts/v0/.locks/usage.json")
+            .is_file(),
+    );
 }
 
 #[tokio::test]
@@ -95,24 +107,42 @@ async fn committed_envelope_writes_that_report_failure_remain_charged() {
             usage_writes: None,
         },
     });
-    let config =
-        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
+    let config = HostedStoreConfig::ObjectStore {
+        store: Arc::clone(&backend),
+        prefix: String::new(),
+    };
     let scratch = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
     let request = publication("ci/ambiguous-envelope");
     // The envelope reached the store while reporting failure, and the scope it
     // reaches stays claimed for it, so both are charged.
-    let scope_marker = request.envelope.digest().unwrap().len() as u64;
+    let scope_marker = request.envelope
+        .digest()
+        .unwrap()
+        .len() as u64;
     let expected_usage = serde_json::to_vec(&request.envelope).unwrap().len() as u64 + scope_marker;
 
     store.publish("acme", request).await.unwrap_err();
 
     let usage_path = ObjectPath::from(".pnpr-artifacts/v0/quota.json");
-    let usage: ArtifactUsage =
-        serde_json::from_slice(&backend.get(&usage_path).await.unwrap().bytes().await.unwrap())
-            .unwrap();
+    let usage: ArtifactUsage = serde_json::from_slice(
+        &backend
+            .get(&usage_path)
+            .await
+            .unwrap()
+            .bytes()
+            .await
+            .unwrap(),
+    )
+    .unwrap();
     assert_eq!(usage.global_bytes, expected_usage);
-    assert_eq!(usage.owner_bytes.values().copied().sum::<u64>(), expected_usage);
+    assert_eq!(
+        usage.owner_bytes
+            .values()
+            .copied()
+            .sum::<u64>(),
+        expected_usage,
+    );
 }
 
 /// A second build for a claimed slot is refused rather than stored beside the
@@ -121,17 +151,31 @@ async fn committed_envelope_writes_that_report_failure_remain_charged() {
 async fn a_second_artifact_cannot_claim_a_taken_slot() {
     let storage = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
-    assert!(store.publish("acme", publication("ci/first")).await.unwrap());
+    assert!(
+        store
+            .publish("acme", publication("ci/first"))
+            .await
+            .unwrap(),
+    );
 
-    let error = store.publish("acme", publication("ci/second")).await.unwrap_err();
+    let error = store
+        .publish("acme", publication("ci/second"))
+        .await
+        .unwrap_err();
 
     assert!(
         matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
         "expected a conflict, got {error:?}",
     );
-    let response =
-        store.resolve("acme", &serde_json::to_vec(&lookup("acme")).unwrap()).await.unwrap();
-    assert_eq!(response.artifacts[0].variants.len(), 1, "the first artifact still stands");
+    let response = store
+        .resolve("acme", &serde_json::to_vec(&lookup("acme")).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(
+        response.artifacts[0].variants.len(),
+        1,
+        "the first artifact still stands",
+    );
 }
 
 /// An artifact stored under its envelope digest claims its slot whatever order
@@ -139,7 +183,10 @@ async fn a_second_artifact_cannot_claim_a_taken_slot() {
 /// would otherwise leave an occupied slot looking free.
 #[tokio::test]
 async fn a_legacy_artifact_claims_its_slot_whatever_its_order_or_position() {
-    let tags = ["pnpm:v1:linux-x64-node22-glibc2.17", "pnpm:v1:linux-arm64-node22-glibc2.17"];
+    let tags = [
+        "pnpm:v1:linux-x64-node22-glibc2.17",
+        "pnpm:v1:linux-arm64-node22-glibc2.17",
+    ];
     let reversed = [tags[1], tags[0]];
 
     for (label, buried) in [("reordered", false), ("buried", true)] {
@@ -151,7 +198,11 @@ async fn a_legacy_artifact_claims_its_slot_whatever_its_order_or_position() {
         let entry = super::super::entry_digest(&legacy.key, &payload.subject);
         // Named to sort before the matching one, and more of them than a
         // lookup would scan.
-        let filler_count = if buried { MAX_VARIANTS_PER_CANDIDATE + 2 } else { 0 };
+        let filler_count = if buried {
+            MAX_VARIANTS_PER_CANDIDATE + 2
+        } else {
+            0
+        };
         for index in 0..filler_count {
             let filler = publication_tagged(
                 &format!("ci/filler/{index}"),
@@ -173,8 +224,10 @@ async fn a_legacy_artifact_claims_its_slot_whatever_its_order_or_position() {
             .await
             .unwrap();
 
-        let error =
-            store.publish("acme", publication_tagged("ci/second", &reversed)).await.unwrap_err();
+        let error = store
+            .publish("acme", publication_tagged("ci/second", &reversed))
+            .await
+            .unwrap_err();
 
         assert!(
             matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
@@ -196,11 +249,17 @@ async fn an_artifact_stored_under_the_older_name_still_claims_its_slot() {
     let entry = super::super::entry_digest(&first.key, &payload.subject);
     let envelope_digest = first.envelope.digest().unwrap();
     store
-        .create_object(&format!("{owner}/entries/{entry}/{envelope_digest}.json"), envelope_bytes)
+        .create_object(
+            &format!("{owner}/entries/{entry}/{envelope_digest}.json"),
+            envelope_bytes,
+        )
         .await
         .unwrap();
 
-    let error = store.publish("acme", publication("ci/second")).await.unwrap_err();
+    let error = store
+        .publish("acme", publication("ci/second"))
+        .await
+        .unwrap_err();
 
     assert!(
         matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
@@ -239,12 +298,18 @@ async fn losing_a_race_for_a_slot_is_not_reported_as_idempotent() {
         },
     });
     let racing = SharedArtifactStore::new(
-        &HostedStoreConfig::ObjectStore { store: racing, prefix: String::new() },
+        &HostedStoreConfig::ObjectStore {
+            store: racing,
+            prefix: String::new(),
+        },
         TempDir::new().unwrap().path(),
     )
     .unwrap();
 
-    let error = racing.publish("acme", publication("ci/loser")).await.unwrap_err();
+    let error = racing
+        .publish("acme", publication("ci/loser"))
+        .await
+        .unwrap_err();
 
     assert!(
         matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
@@ -274,12 +339,18 @@ async fn a_backfill_that_did_not_finish_runs_again() {
         .unwrap();
     // What a backfill that stopped before its sentinel leaves behind.
     store
-        .create_object(&format!("{owner}/entries/{entry}/scopes/darwin-x64-node22"), b"x".to_vec())
+        .create_object(
+            &format!("{owner}/entries/{entry}/scopes/darwin-x64-node22"),
+            b"x".to_vec(),
+        )
         .await
         .unwrap();
 
     let raised = ["pnpm:v1:linux-x64-node22-glibc2.31"];
-    let error = store.publish("acme", publication_tagged("ci/raised", &raised)).await.unwrap_err();
+    let error = store
+        .publish("acme", publication_tagged("ci/raised", &raised))
+        .await
+        .unwrap_err();
 
     assert!(
         matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
@@ -314,14 +385,24 @@ async fn a_stamp_survives_the_pass_that_refused_on_its_account() {
     // Refused: the limit is full of registrations that have only just been
     // stamped, so none of them is old enough to write off yet.
     let error = store
-        .publish("acme", publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.17"]))
+        .publish(
+            "acme",
+            publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.17"]),
+        )
         .await
         .unwrap_err();
 
-    assert!(error.to_string().contains("concurrency limit reached"), "{error}");
+    assert!(
+        error.to_string().contains("concurrency limit reached"),
+        "{error}",
+    );
 
     let usage: ArtifactUsage = serde_json::from_slice(
-        &store.read_object_bounded(".locks/usage.json", 1 << 20).await.unwrap().unwrap(),
+        &store
+            .read_object_bounded(".locks/usage.json", 1 << 20)
+            .await
+            .unwrap()
+            .unwrap(),
     )
     .unwrap();
     assert_eq!(
@@ -352,13 +433,18 @@ async fn a_backfill_writes_each_marker_once_however_many_variants_reach_it() {
             usage_writes: Some(Arc::clone(&usage_writes)),
         },
     });
-    let config =
-        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
+    let config = HostedStoreConfig::ObjectStore {
+        store: Arc::clone(&backend),
+        prefix: String::new(),
+    };
     let scratch = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
     // Two artifacts stored before markers existed, whose tags differ only in a
     // floor — so they reach the same scope, which is the overlap markers stop.
-    let floors = ["pnpm:v1:linux-x64-node22-glibc2.17", "pnpm:v1:linux-x64-node22-glibc2.31"];
+    let floors = [
+        "pnpm:v1:linux-x64-node22-glibc2.17",
+        "pnpm:v1:linux-x64-node22-glibc2.31",
+    ];
     let stored = publication_tagged("ci/stored", &floors[..1]);
     let (payload, _) = stored.envelope.decode_payload().unwrap();
     let owner = super::super::owner_key("acme", &payload.owner).unwrap();
@@ -417,14 +503,19 @@ async fn a_marker_written_by_a_failing_write_stays_charged() {
             usage_writes: None,
         },
     });
-    let config =
-        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
+    let config = HostedStoreConfig::ObjectStore {
+        store: Arc::clone(&backend),
+        prefix: String::new(),
+    };
     let scratch = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
     // An entry holding no markers, which is what a backfill is for.
     let envelope = serde_json::to_vec(&stored.envelope).unwrap();
     let stored_bytes = envelope.len() as u64;
-    store.create_object(&format!("{owner}/entries/{entry}/{slot}.json"), envelope).await.unwrap();
+    store
+        .create_object(&format!("{owner}/entries/{entry}/{slot}.json"), envelope)
+        .await
+        .unwrap();
     let ours = publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.17"]);
     let prepared = super::super::prepare_publication("acme", &ours).unwrap();
 
@@ -441,9 +532,15 @@ async fn a_marker_written_by_a_failing_write_stays_charged() {
             .unwrap(),
     )
     .unwrap();
-    let marker_bytes = stored.envelope.digest().unwrap().len() as u64;
+    let marker_bytes = stored.envelope
+        .digest()
+        .unwrap()
+        .len() as u64;
     assert_eq!(
-        usage.owner_bytes.values().copied().sum::<u64>(),
+        usage.owner_bytes
+            .values()
+            .copied()
+            .sum::<u64>(),
         stored_bytes + marker_bytes,
         "the marker that is there is charged for",
     );
@@ -476,14 +573,19 @@ async fn a_backfill_that_cannot_write_a_marker_gives_its_charge_back() {
             usage_writes: None,
         },
     });
-    let config =
-        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
+    let config = HostedStoreConfig::ObjectStore {
+        store: Arc::clone(&backend),
+        prefix: String::new(),
+    };
     let scratch = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
     // An entry holding no markers, which is what a backfill is for.
     let envelope = serde_json::to_vec(&stored.envelope).unwrap();
     let stored_bytes = envelope.len() as u64;
-    store.create_object(&format!("{owner}/entries/{entry}/{slot}.json"), envelope).await.unwrap();
+    store
+        .create_object(&format!("{owner}/entries/{entry}/{slot}.json"), envelope)
+        .await
+        .unwrap();
     let ours = publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.17"]);
     let prepared = super::super::prepare_publication("acme", &ours).unwrap();
 
@@ -501,7 +603,10 @@ async fn a_backfill_that_cannot_write_a_marker_gives_its_charge_back() {
     )
     .unwrap();
     assert_eq!(
-        usage.owner_bytes.values().copied().sum::<u64>(),
+        usage.owner_bytes
+            .values()
+            .copied()
+            .sum::<u64>(),
         stored_bytes,
         "the artifact that is stored is charged, and the marker that is not is not",
     );
@@ -536,7 +641,10 @@ async fn an_owner_with_no_room_cannot_have_markers_written_for_them() {
     assert!(error.to_string().contains("quota exceeded"), "{error}");
     assert!(
         store
-            .read_object_bounded(&format!("{owner}/entries/{entry}/scopes/linux-arm64-node22"), 128)
+            .read_object_bounded(
+                &format!("{owner}/entries/{entry}/scopes/linux-arm64-node22"),
+                128
+            )
             .await
             .unwrap()
             .is_none(),
@@ -549,23 +657,40 @@ async fn the_variant_limit_is_applied_at_read_time() {
     let storage = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
     for index in 0..MAX_VARIANTS_PER_CANDIDATE + 2 {
-        assert!(store.publish("acme", publication_for_platform(index)).await.unwrap());
+        assert!(
+            store
+                .publish("acme", publication_for_platform(index))
+                .await
+                .unwrap(),
+        );
     }
 
-    let response =
-        store.resolve("acme", &serde_json::to_vec(&lookup("acme")).unwrap()).await.unwrap();
+    let response = store
+        .resolve("acme", &serde_json::to_vec(&lookup("acme")).unwrap())
+        .await
+        .unwrap();
 
-    assert_eq!(response.artifacts[0].variants.len(), MAX_VARIANTS_PER_CANDIDATE);
+    assert_eq!(
+        response.artifacts[0].variants.len(),
+        MAX_VARIANTS_PER_CANDIDATE,
+    );
 }
 
 #[tokio::test]
 async fn another_owner_cannot_probe_artifacts() {
     let storage = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
-    assert!(store.publish("acme", publication("ci/acme")).await.unwrap());
+    assert!(
+        store
+            .publish("acme", publication("ci/acme"))
+            .await
+            .unwrap(),
+    );
 
-    let response =
-        store.resolve("mallory", &serde_json::to_vec(&lookup("acme")).unwrap()).await.unwrap();
+    let response = store
+        .resolve("mallory", &serde_json::to_vec(&lookup("acme")).unwrap())
+        .await
+        .unwrap();
 
     assert!(response.artifacts.is_empty());
 }

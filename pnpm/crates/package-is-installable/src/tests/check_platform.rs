@@ -16,9 +16,18 @@ const FAKE_MUSL: &str = "musl";
 
 fn wanted(os: Option<&[&str]>, cpu: Option<&[&str]>, libc: Option<&[&str]>) -> WantedPlatform {
     fn vec_opt(values: Option<&[&str]>) -> Option<Vec<String>> {
-        values.map(|slice| slice.iter().map(|item| (*item).to_string()).collect())
+        values.map(|slice| {
+            slice
+                .iter()
+                .map(|item| (*item).to_string())
+                .collect()
+        })
     }
-    WantedPlatform { os: vec_opt(os), cpu: vec_opt(cpu), libc: vec_opt(libc) }
+    WantedPlatform {
+        os: vec_opt(os),
+        cpu: vec_opt(cpu),
+        libc: vec_opt(libc),
+    }
 }
 
 /// Test-local convenience wrapper. The runtime `check_platform` takes
@@ -49,58 +58,123 @@ fn supported(
     libc: Option<&[&str]>,
 ) -> SupportedArchitectures {
     fn vec_opt(values: Option<&[&str]>) -> Option<Vec<String>> {
-        values.map(|slice| slice.iter().map(|item| (*item).to_string()).collect())
+        values.map(|slice| {
+            slice
+                .iter()
+                .map(|item| (*item).to_string())
+                .collect()
+        })
     }
-    SupportedArchitectures { os: vec_opt(os), cpu: vec_opt(cpu), libc: vec_opt(libc) }
+    SupportedArchitectures {
+        os: vec_opt(os),
+        cpu: vec_opt(cpu),
+        libc: vec_opt(libc),
+    }
 }
 
 #[test]
 fn target_cpu_wrong() {
     let wanted_platform = wanted(Some(&["any"]), Some(&["enten-cpu"]), Some(&["any"]));
-    let err = check_platform_w(PACKAGE_ID, &wanted_platform, None, FAKE_LINUX, FAKE_X64, FAKE_MUSL);
+    let err = check_platform_w(
+        PACKAGE_ID,
+        &wanted_platform,
+        None,
+        FAKE_LINUX,
+        FAKE_X64,
+        FAKE_MUSL,
+    );
     assert!(err.is_some());
 }
 
 #[test]
 fn os_wrong() {
     let wanted_platform = wanted(Some(&["enten-os"]), Some(&["any"]), Some(&["any"]));
-    let err = check_platform_w(PACKAGE_ID, &wanted_platform, None, FAKE_LINUX, FAKE_X64, FAKE_MUSL);
+    let err = check_platform_w(
+        PACKAGE_ID,
+        &wanted_platform,
+        None,
+        FAKE_LINUX,
+        FAKE_X64,
+        FAKE_MUSL,
+    );
     assert!(err.is_some());
 }
 
 #[test]
 fn libc_wrong() {
     let wanted_platform = wanted(Some(&["any"]), Some(&["any"]), Some(&["enten-libc"]));
-    let err = check_platform_w(PACKAGE_ID, &wanted_platform, None, FAKE_LINUX, FAKE_X64, FAKE_MUSL);
+    let err = check_platform_w(
+        PACKAGE_ID,
+        &wanted_platform,
+        None,
+        FAKE_LINUX,
+        FAKE_X64,
+        FAKE_MUSL,
+    );
     assert!(err.is_some());
 }
 
 #[test]
 fn nothing_wrong() {
     let wanted_platform = wanted(Some(&["any"]), Some(&["any"]), Some(&["any"]));
-    let err = check_platform_w(PACKAGE_ID, &wanted_platform, None, FAKE_LINUX, FAKE_X64, FAKE_MUSL);
+    let err = check_platform_w(
+        PACKAGE_ID,
+        &wanted_platform,
+        None,
+        FAKE_LINUX,
+        FAKE_X64,
+        FAKE_MUSL,
+    );
     assert!(err.is_none());
 }
 
 #[test]
 fn everything_wrong_with_arrays() {
-    let wanted_platform = wanted(Some(&["enten-os"]), Some(&["enten-cpu"]), Some(&["enten-libc"]));
-    let err = check_platform_w(PACKAGE_ID, &wanted_platform, None, FAKE_LINUX, FAKE_X64, FAKE_MUSL);
+    let wanted_platform = wanted(
+        Some(&["enten-os"]),
+        Some(&["enten-cpu"]),
+        Some(&["enten-libc"]),
+    );
+    let err = check_platform_w(
+        PACKAGE_ID,
+        &wanted_platform,
+        None,
+        FAKE_LINUX,
+        FAKE_X64,
+        FAKE_MUSL,
+    );
     assert!(err.is_some());
 }
 
 #[test]
 fn os_wrong_negation() {
     let wanted_platform = wanted(Some(&["!linux"]), Some(&["any"]), Some(&["any"]));
-    let err = check_platform_w(PACKAGE_ID, &wanted_platform, None, FAKE_LINUX, FAKE_X64, FAKE_MUSL);
+    let err = check_platform_w(
+        PACKAGE_ID,
+        &wanted_platform,
+        None,
+        FAKE_LINUX,
+        FAKE_X64,
+        FAKE_MUSL,
+    );
     assert!(err.is_some());
 }
 
 #[test]
 fn nothing_wrong_negation() {
-    let wanted_platform =
-        wanted(Some(&["!enten-os"]), Some(&["!enten-cpu"]), Some(&["!enten-libc"]));
-    let err = check_platform_w(PACKAGE_ID, &wanted_platform, None, FAKE_LINUX, FAKE_X64, FAKE_MUSL);
+    let wanted_platform = wanted(
+        Some(&["!enten-os"]),
+        Some(&["!enten-cpu"]),
+        Some(&["!enten-libc"]),
+    );
+    let err = check_platform_w(
+        PACKAGE_ID,
+        &wanted_platform,
+        None,
+        FAKE_LINUX,
+        FAKE_X64,
+        FAKE_MUSL,
+    );
     assert!(err.is_none());
 }
 
@@ -121,8 +195,11 @@ fn override_os() {
 
 #[test]
 fn accept_another_cpu() {
-    let supported_platform =
-        supported(Some(&["current"]), Some(&["current", "x64"]), Some(&["current"]));
+    let supported_platform = supported(
+        Some(&["current"]),
+        Some(&["current", "x64"]),
+        Some(&["current"]),
+    );
     let wanted_platform = wanted(Some(&["any"]), Some(&["x64"]), Some(&["any"]));
     let err = check_platform_w(
         PACKAGE_ID,
@@ -167,8 +244,11 @@ fn override_libc() {
 
 #[test]
 fn accept_another_libc() {
-    let supported_platform =
-        supported(Some(&["current"]), Some(&["current"]), Some(&["current", "glibc"]));
+    let supported_platform = supported(
+        Some(&["current"]),
+        Some(&["current"]),
+        Some(&["current", "glibc"]),
+    );
     let wanted_platform = wanted(Some(&["any"]), Some(&["any"]), Some(&["glibc"]));
     let err = check_platform_w(
         PACKAGE_ID,
@@ -183,8 +263,11 @@ fn accept_another_libc() {
 
 #[test]
 fn accept_negated_os_with_multi_valued_supported() {
-    let supported_platform =
-        supported(Some(&["linux", "current"]), Some(&["current"]), Some(&["current"]));
+    let supported_platform = supported(
+        Some(&["linux", "current"]),
+        Some(&["current"]),
+        Some(&["current"]),
+    );
     let wanted_platform = wanted(Some(&["!win32"]), Some(&["any"]), Some(&["any"]));
     let err = check_platform_w(
         PACKAGE_ID,
@@ -199,8 +282,11 @@ fn accept_negated_os_with_multi_valued_supported() {
 
 #[test]
 fn accept_negated_cpu_with_multi_valued_supported() {
-    let supported_platform =
-        supported(Some(&["current"]), Some(&["x64", "current"]), Some(&["current"]));
+    let supported_platform = supported(
+        Some(&["current"]),
+        Some(&["x64", "current"]),
+        Some(&["current"]),
+    );
     let wanted_platform = wanted(Some(&["any"]), Some(&["!ia32"]), Some(&["any"]));
     let err = check_platform_w(
         PACKAGE_ID,
@@ -215,8 +301,11 @@ fn accept_negated_cpu_with_multi_valued_supported() {
 
 #[test]
 fn reject_negated_os_when_any_supported_value_matches_negation() {
-    let supported_platform =
-        supported(Some(&["win32", "current"]), Some(&["current"]), Some(&["current"]));
+    let supported_platform = supported(
+        Some(&["win32", "current"]),
+        Some(&["current"]),
+        Some(&["current"]),
+    );
     let wanted_platform = wanted(Some(&["!win32"]), Some(&["any"]), Some(&["any"]));
     let err = check_platform_w(
         PACKAGE_ID,
@@ -232,6 +321,13 @@ fn reject_negated_os_when_any_supported_value_matches_negation() {
 #[test]
 fn libc_check_skipped_when_current_libc_is_unknown() {
     let wanted_platform = wanted(Some(&["any"]), Some(&["any"]), Some(&["glibc"]));
-    let err = check_platform_w(PACKAGE_ID, &wanted_platform, None, "darwin", FAKE_X64, "unknown");
+    let err = check_platform_w(
+        PACKAGE_ID,
+        &wanted_platform,
+        None,
+        "darwin",
+        FAKE_X64,
+        "unknown",
+    );
     assert!(err.is_none());
 }

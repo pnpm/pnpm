@@ -8,15 +8,19 @@ use pnpm_network::{
 };
 use reqwest::Response;
 use serde_json::Value;
-use std::time::Duration;
 
 fn parse_stars_response(body: &Value) -> Option<String> {
     if let Some(arr) = body.as_array() {
-        let res: Vec<String> =
-            arr.iter().filter_map(|val| val.as_str().map(String::from)).collect();
+        let res: Vec<String> = arr
+            .iter()
+            .filter_map(|val| val.as_str().map(String::from))
+            .collect();
         Some(res.join("\n"))
     } else if let Some(obj) = body.as_object() {
-        let res: Vec<String> = obj.keys().cloned().collect();
+        let res: Vec<String> = obj
+            .keys()
+            .cloned()
+            .collect();
         Some(res.join("\n"))
     } else {
         Some(String::new())
@@ -49,12 +53,7 @@ impl StarsArgs {
         let auth_header =
             config.auth_headers.for_url(&config.registry).ok_or(StarsError::Unauthorized);
         let http_client = build_registry_client(config)?;
-        let retry_opts = RetryOpts {
-            retries: config.fetch_retries,
-            factor: config.fetch_retry_factor,
-            min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-            max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-        };
+        let retry_opts = config.retry_opts();
 
         let mut user = self.username.clone();
         if user.is_none() {
@@ -67,8 +66,11 @@ impl StarsArgs {
         let is_self = self.username.is_none();
         let username = user.unwrap();
         let auth_header_str = auth_header.unwrap_or_default();
-        let auth_header_val =
-            if auth_header_str.is_empty() { None } else { Some(auth_header_str.as_str()) };
+        let auth_header_val = if auth_header_str.is_empty() {
+            None
+        } else {
+            Some(auth_header_str.as_str())
+        };
 
         let request = StarsRequest {
             registry_url: &config.registry,
@@ -142,11 +144,17 @@ impl StarsRequest<'_> {
         if !response.status().is_success() {
             let status = response.status();
             if status == 404 {
-                return Err(StarsError::UserNotFound { username: username.to_string() }.into());
+                return Err(StarsError::UserNotFound {
+                    username: username.to_string(),
+                }
+                .into());
             }
             return Err(StarsError::Failed {
                 status: status.as_u16(),
-                status_text: status.canonical_reason().unwrap_or_default().to_string(),
+                status_text: status
+                    .canonical_reason()
+                    .unwrap_or_default()
+                    .to_string(),
             }
             .into());
         }

@@ -18,7 +18,10 @@ pub fn plan_add<Reporter: self::Reporter + 'static>(
     if !context.config.python.enabled {
         bail!("pypi: dependencies require `python.enabled: true` in pnpm-workspace.yaml");
     }
-    if !matches!(options.prefix.as_deref().unwrap_or(">="), ">=" | "~=" | "==") {
+    if !matches!(
+        options.prefix.as_deref().unwrap_or(">="),
+        ">=" | "~=" | "==",
+    ) {
         bail!("Python --save-prefix must be >=, ~=, or ==");
     }
     let path = root.join("pyproject.toml");
@@ -26,13 +29,19 @@ pub fn plan_add<Reporter: self::Reporter + 'static>(
     let prepare = async move {
         manifest::add(&path, &options.requirements, options.development)?;
         let config = context.config;
-        let mut prepared =
-            prepare::<Reporter>(context, vec![path], true, manifest::DependencySelection::ALL)
-                .await?;
+        let mut prepared = prepare::<Reporter>(
+            context,
+            vec![path],
+            true,
+            manifest::DependencySelection::ALL,
+        )
+        .await?;
         save_added(&mut prepared, config, &options)?;
         Ok(prepared)
     };
-    Ok(pnpm_install_coordinator::InstallTask::new(metadata, prepare))
+    Ok(pnpm_install_coordinator::InstallTask::new(
+        metadata, prepare,
+    ))
 }
 
 fn save_added(
@@ -41,7 +50,9 @@ fn save_added(
     options: &AddOptions,
 ) -> Result<()> {
     let prefix = options.prefix.as_deref().unwrap_or(">=");
-    let [project] = prepared else { bail!("Python add requires exactly one project") };
+    let [project] = prepared else {
+        bail!("Python add requires exactly one project")
+    };
     let mut lock: Lockfile = toml::from_str(&project.lock).into_diagnostic()?;
     let mut requirements = Vec::new();
     for requirement in &options.requirements {
@@ -52,9 +63,10 @@ fn save_added(
     let path = project.root.join("pyproject.toml");
     manifest::add(&path, &requirements, options.development)?;
     let manifest = manifest::Manifest::parse(&fs::read_to_string(path).into_diagnostic()?)?;
-    lock.tool
-        .pnpm
-        .set_requirements(&manifest.requirements(config, manifest::DependencySelection::ALL)?);
+    lock.tool.pnpm.set_requirements(&manifest.requirements(
+        config,
+        manifest::DependencySelection::ALL,
+    )?);
     project.lock = toml::to_string_pretty(&lock).into_diagnostic()?;
     Ok(())
 }
@@ -70,7 +82,9 @@ fn pin_to_locked_version(
     if !options.exact && requirement.version_or_url.is_some() {
         return Ok(());
     }
-    let Some(package) = lock.packages.iter().find(|package| package.name == requirement.name)
+    let Some(package) = lock.packages
+        .iter()
+        .find(|package| package.name == requirement.name)
     else {
         return Ok(());
     };

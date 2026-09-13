@@ -34,7 +34,13 @@ where
     let grandchild_overlay =
         PreferredVersionsOverlay::layer(node.children_overlay.clone(), level_versions(ctx, &seeds));
     let grandchild_pkg_aliases = node.children_pkg_aliases.extend(level_aliases(&seeds));
-    Ok(SeededNode { node, child_specs, seeds, grandchild_overlay, grandchild_pkg_aliases })
+    Ok(SeededNode {
+        node,
+        child_specs,
+        seeds,
+        grandchild_overlay,
+        grandchild_pkg_aliases,
+    })
 }
 
 /// The occurrence's child specs: its manifest's dependencies less the
@@ -73,15 +79,17 @@ pub(super) fn child_specs_of(
             .collect::<Vec<ChildSpec>>()
             .pipe(Arc::new)
     };
-    Ok(match catalogs_for_children(ctx, pending.resolves_children_through_catalogs) {
-        Some(catalogs) => child_specs
-            .iter()
-            .cloned()
-            .collect::<Vec<ChildSpec>>()
-            .pipe(|specs| resolve_catalog_child_specs(specs, catalogs))?
-            .pipe(Arc::new),
-        None => child_specs,
-    })
+    Ok(
+        match catalogs_for_children(ctx, pending.resolves_children_through_catalogs) {
+            Some(catalogs) => child_specs
+                .iter()
+                .cloned()
+                .collect::<Vec<ChildSpec>>()
+                .pipe(|specs| resolve_catalog_child_specs(specs, catalogs))?
+                .pipe(Arc::new),
+            None => child_specs,
+        },
+    )
 }
 
 /// What every child edge of one occurrence resolves against.
@@ -108,12 +116,15 @@ pub(super) struct ChildSeedScope<'s> {
 impl<'s> ChildSeedScope<'s> {
     pub(super) fn of(ctx: &'s TreeCtx, pending: &PendingNode) -> Self {
         Self {
-            prior_children_snapshot: pending
-                .prior_key
+            prior_children_snapshot: pending.prior_key
                 .as_ref()
                 .filter(|key| landed_on_prior_entry(key, &pending.identity.id))
                 .and_then(|key| {
-                    ctx.workspace.reuse.lockfile.as_ref()?.snapshots.as_ref()?.get(key)
+                    ctx.workspace.reuse.lockfile
+                        .as_ref()?
+                        .snapshots
+                        .as_ref()?
+                        .get(key)
                 }),
             direct_versions: lock_recoverable(&ctx.workspace.versions.direct_dep_versions)
                 .get(&ctx.importer.id)
@@ -143,7 +154,9 @@ where
             ancestor_ids: &node.pending.ancestry.next_ancestors,
             depth: node.pending.ancestry.depth + 1,
             parent_optional: node.pending.ancestry.current_is_optional,
-            reuse: ReuseSource::Transitive { key: prior },
+            reuse: ReuseSource::Transitive {
+                key: prior,
+            },
             pick_overlay: node.children_overlay.clone(),
             parent_dir: scope.declaring_dir.as_deref(),
             parent_pkg_aliases: &node.children_pkg_aliases,
@@ -196,13 +209,19 @@ pub(crate) fn parent_ids_contain_sequence(
     pkg_id1: &str,
     pkg_id2: &str,
 ) -> bool {
-    let Some(pkg1_index) = pkg_ids.iter().position(|id| id == pkg_id1) else {
+    let Some(pkg1_index) = pkg_ids
+        .iter()
+        .position(|id| id == pkg_id1)
+    else {
         return false;
     };
     if pkg1_index == pkg_ids.len() - 1 {
         return false;
     }
-    let Some(pkg2_index) = pkg_ids.iter().rposition(|id| id == pkg_id2) else {
+    let Some(pkg2_index) = pkg_ids
+        .iter()
+        .rposition(|id| id == pkg_id2)
+    else {
         return false;
     };
     pkg1_index < pkg2_index && pkg2_index != pkg_ids.len() - 1

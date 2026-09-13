@@ -22,8 +22,11 @@ fn parse(argv: &[&str]) -> Result<CliArgs, clap::Error> {
 
 #[test]
 fn no_frozen_lockfile_parses_and_leaves_the_flag_off() {
-    let frozen = install_flag(&["pnpm", "install", "--no-frozen-lockfile"], "frozen_lockfile")
-        .expect("--no-frozen-lockfile should parse");
+    let frozen = install_flag(
+        &["pnpm", "install", "--no-frozen-lockfile"],
+        "frozen_lockfile",
+    )
+    .expect("--no-frozen-lockfile should parse");
     assert!(!frozen);
 }
 
@@ -37,7 +40,12 @@ fn positive_frozen_lockfile_still_sets_the_flag() {
 #[test]
 fn last_negation_wins_over_earlier_positive() {
     let frozen = install_flag(
-        &["pnpm", "install", "--frozen-lockfile", "--no-frozen-lockfile"],
+        &[
+            "pnpm",
+            "install",
+            "--frozen-lockfile",
+            "--no-frozen-lockfile",
+        ],
         "frozen_lockfile",
     )
     .expect("both flags together should parse");
@@ -47,7 +55,12 @@ fn last_negation_wins_over_earlier_positive() {
 #[test]
 fn last_positive_wins_over_earlier_negation() {
     let frozen = install_flag(
-        &["pnpm", "install", "--no-frozen-lockfile", "--frozen-lockfile"],
+        &[
+            "pnpm",
+            "install",
+            "--no-frozen-lockfile",
+            "--frozen-lockfile",
+        ],
         "frozen_lockfile",
     )
     .expect("both flags together should parse");

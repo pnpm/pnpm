@@ -25,8 +25,53 @@ use std::collections::HashSet;
 /// (recursively, across all subcommands) that lacks one. See the module
 /// docs for why this mirrors pnpm/nopt.
 pub fn with_boolean_negations(mut cmd: Command) -> Command {
-    let existing_longs: HashSet<String> =
-        cmd.get_arguments().filter_map(|arg| arg.get_long().map(String::from)).collect();
+    let negations = boolean_negations(&cmd);
+
+    for (positive_id, negated_long, is_global) in negations {
+        let negated_id = format!("__negated__{negated_long}");
+        cmd = cmd.mut_arg(positive_id.clone(), |arg| {
+            arg.overrides_with(negated_id.clone())
+        });
+        // A global source flag propagates into every subcommand, so its
+        // negation must too — otherwise the override reference dangles at
+        // the subcommand level.
+        let mut negation = Arg::new(negated_id)
+            .long(negated_long)
+            .action(ArgAction::SetTrue)
+            .hide(true)
+            .overrides_with(positive_id);
+        if is_global {
+            negation = negation.global(true);
+        }
+        cmd = cmd.arg(negation);
+    }
+
+    let subcommand_names: Vec<String> = cmd
+        .get_subcommands()
+        .map(|sub| sub.get_name().to_string())
+        .collect();
+    for name in subcommand_names {
+        cmd = cmd.mut_subcommand(name, with_boolean_negations);
+    }
+
+    cmd
+}
+
+/// The spelling that negates the boolean flag `long`. The one place the
+/// pairing is named, so [`crate::boolean_values`] resolves a false value
+/// to a flag this pass really adds.
+pub(crate) fn negation_of(long: &str) -> String {
+    format!("no-{long}")
+}
+
+#[cfg(test)]
+mod tests;
+
+fn boolean_negations(cmd: &Command) -> Vec<(clap::Id, String, bool)> {
+    let existing_longs: HashSet<String> = cmd
+        .get_arguments()
+        .filter_map(|arg| arg.get_long().map(String::from))
+        .collect();
 
     let negations: Vec<(clap::Id, String, bool)> = cmd
         .get_arguments()
@@ -44,39 +89,5 @@ pub fn with_boolean_negations(mut cmd: Command) -> Command {
             Some((arg.get_id().clone(), negation_of(long), arg.is_global_set()))
         })
         .collect();
-
-    for (positive_id, negated_long, is_global) in negations {
-        let negated_id = format!("__negated__{negated_long}");
-        cmd = cmd.mut_arg(positive_id.clone(), |arg| arg.overrides_with(negated_id.clone()));
-        // A global source flag propagates into every subcommand, so its
-        // negation must too — otherwise the override reference dangles at
-        // the subcommand level.
-        let mut negation = Arg::new(negated_id)
-            .long(negated_long)
-            .action(ArgAction::SetTrue)
-            .hide(true)
-            .overrides_with(positive_id);
-        if is_global {
-            negation = negation.global(true);
-        }
-        cmd = cmd.arg(negation);
-    }
-
-    let subcommand_names: Vec<String> =
-        cmd.get_subcommands().map(|sub| sub.get_name().to_string()).collect();
-    for name in subcommand_names {
-        cmd = cmd.mut_subcommand(name, with_boolean_negations);
-    }
-
-    cmd
+    negations
 }
-
-/// The spelling that negates the boolean flag `long`. The one place the
-/// pairing is named, so [`crate::boolean_values`] resolves a false value
-/// to a flag this pass really adds.
-pub(crate) fn negation_of(long: &str) -> String {
-    format!("no-{long}")
-}
-
-#[cfg(test)]
-mod tests;

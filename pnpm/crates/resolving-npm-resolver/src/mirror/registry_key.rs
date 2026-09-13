@@ -32,8 +32,10 @@ pub enum EncodeRegistryError {
 /// Windows rejects in a filename, or a glob metacharacter — the cache
 /// commands interpolate the key straight into a glob pattern, and
 /// `pnpm cache delete` erases whatever that pattern matches.
-pub(super) const ESCAPED_IN_REGISTRY_KEY: &AsciiSet =
-    &NON_ALPHANUMERIC.remove(b'.').remove(b'-').remove(b'_');
+pub(super) const ESCAPED_IN_REGISTRY_KEY: &AsciiSet = &NON_ALPHANUMERIC
+    .remove(b'.')
+    .remove(b'-')
+    .remove(b'_');
 
 /// Separates the scheme from the host. Every key begins with one, and a
 /// scheme cannot contain a `%`, so the first occurrence always ends the
@@ -75,13 +77,16 @@ pub(super) const MAX_KEY_LENGTH: usize = 255;
 /// `…/foo.` onto `…/foo`. A key that would not fit a 255-byte filename is
 /// replaced by its own hash.
 pub fn get_registry_name(registry: &str) -> Result<String, EncodeRegistryError> {
-    let parsed = reqwest::Url::parse(registry).map_err(|error| EncodeRegistryError::ParseUrl {
-        url: redact_and_sanitize(registry),
-        error: error.to_string(),
-    })?;
-    let host = parsed.host_str().ok_or_else(|| EncodeRegistryError::MissingHost {
-        url: redact_url_for_display(registry),
-    })?;
+    let parsed = reqwest::Url::parse(registry)
+        .map_err(|error| EncodeRegistryError::ParseUrl {
+            url: redact_and_sanitize(registry),
+            error: error.to_string(),
+        })?;
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| EncodeRegistryError::MissingHost {
+            url: redact_url_for_display(registry),
+        })?;
     let mut key = escape_registry_key_component(parsed.scheme());
     key.push_str(SCHEME_SEPARATOR);
     key.push_str(&escape_registry_key_component(host));
@@ -141,9 +146,14 @@ pub fn decode_registry_name(registry_key: &str) -> String {
     };
     let (host, path) = match authority.split_once(PATH_SEPARATOR) {
         None => (authority, None),
-        Some((host, rest)) => {
-            (host, Some(rest.split_once(HASH_SEPARATOR).map_or(rest, |(path, _hash)| path)))
-        }
+        Some((host, rest)) => (
+            host,
+            Some(
+                rest
+                    .split_once(HASH_SEPARATOR)
+                    .map_or(rest, |(path, _hash)| path),
+            ),
+        ),
     };
     let Some(host) = decode_registry_key_component(host, ":") else {
         return registry_key.to_string();
@@ -174,7 +184,10 @@ pub(super) fn decode_registry_key_component(component: &str, delimiter: &str) ->
     if !percent_escapes_are_well_formed(&replaced) {
         return None;
     }
-    percent_decode_str(&replaced).decode_utf8().ok().map(std::borrow::Cow::into_owned)
+    percent_decode_str(&replaced)
+        .decode_utf8()
+        .ok()
+        .map(std::borrow::Cow::into_owned)
 }
 
 /// Whether every `%` in `text` introduces two hexadecimal digits.
@@ -182,7 +195,10 @@ pub(super) fn percent_escapes_are_well_formed(text: &str) -> bool {
     let bytes = text.as_bytes();
     let mut index = 0;
     while index < bytes.len() {
-        let Some(offset) = bytes[index..].iter().position(|byte| *byte == b'%') else {
+        let Some(offset) = bytes[index..]
+            .iter()
+            .position(|byte| *byte == b'%')
+        else {
             return true;
         };
         let start = index + offset;
@@ -210,7 +226,10 @@ pub(super) fn path_segments(path: &str) -> Vec<&str> {
     // Every path opens with the `/` that [`PATH_SEPARATOR`] stands for, so its
     // empty head is dropped; a trailing `/` is the one slash the resolver
     // normalizes away, so its empty tail goes with it.
-    let mut segments: Vec<&str> = path.split('/').skip(1).collect();
+    let mut segments: Vec<&str> = path
+        .split('/')
+        .skip(1)
+        .collect();
     if path.ends_with('/') {
         segments.pop();
     }

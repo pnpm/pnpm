@@ -19,8 +19,11 @@ use crate::{
 use pnpm_deps_path::DepPath;
 
 fn exact_group(version: &str, key: &str, hash: &str) -> PatchGroup {
-    let info =
-        ExtendedPatchInfo { hash: hash.to_string(), patch_file_path: None, key: key.to_string() };
+    let info = ExtendedPatchInfo {
+        hash: hash.to_string(),
+        patch_file_path: None,
+        key: key.to_string(),
+    };
     let mut group = PatchGroup::default();
     group.exact.insert(version.to_string(), info);
     group
@@ -31,13 +34,23 @@ async fn appends_patch_hash_to_pkg_id_and_records_applied_key() {
     let mut table = HashMap::default();
     table.insert(
         ("foo".to_string(), "^1.0.0".to_string()),
-        fake_result("foo", "1.0.0", serde_json::json!({ "name": "foo", "version": "1.0.0" })),
+        fake_result(
+            "foo",
+            "1.0.0",
+            serde_json::json!({ "name": "foo", "version": "1.0.0" }),
+        ),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let resolver = StubResolver {
+        table,
+        calls: Mutex::new(Vec::new()),
+    };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "^1.0.0" }));
 
     let mut groups: PatchGroupRecord = PatchGroupRecord::new();
-    groups.insert("foo".to_string(), exact_group("1.0.0", "foo@1.0.0", "abc123"));
+    groups.insert(
+        "foo".to_string(),
+        exact_group("1.0.0", "foo@1.0.0", "abc123"),
+    );
 
     let mut tree = resolve_dependency_tree(
         &resolver,
@@ -71,8 +84,11 @@ async fn appends_patch_hash_to_pkg_id_and_records_applied_key() {
 #[tokio::test]
 async fn patches_git_dependency_with_manifest_version() {
     let git_ref = "git+file:///repo#0123456789012345678901234567890123456789";
-    let mut result =
-        fake_result("foo", "1.0.0", serde_json::json!({ "name": "foo", "version": "1.0.0" }));
+    let mut result = fake_result(
+        "foo",
+        "1.0.0",
+        serde_json::json!({ "name": "foo", "version": "1.0.0" }),
+    );
     result.id = PkgResolutionId::from(git_ref);
     result.package.name_ver = None;
     result.package.latest = None;
@@ -86,10 +102,16 @@ async fn patches_git_dependency_with_manifest_version() {
 
     let mut table = HashMap::default();
     table.insert(("foo".to_string(), git_ref.to_string()), result);
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let resolver = StubResolver {
+        table,
+        calls: Mutex::new(Vec::new()),
+    };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": git_ref }));
     let mut groups = PatchGroupRecord::new();
-    groups.insert("foo".to_string(), exact_group("1.0.0", "foo@1.0.0", "abc123"));
+    groups.insert(
+        "foo".to_string(),
+        exact_group("1.0.0", "foo@1.0.0", "abc123"),
+    );
 
     let tree = resolve_dependency_tree(
         &resolver,
@@ -108,28 +130,41 @@ async fn patches_git_dependency_with_manifest_version() {
     .await
     .unwrap();
 
-    assert_eq!(tree.direct[0].id, format!("foo@{git_ref}(patch_hash=abc123)"));
+    assert_eq!(
+        tree.direct[0].id,
+        format!("foo@{git_ref}(patch_hash=abc123)"),
+    );
     assert!(tree.applied_patches.contains("foo@1.0.0"));
 }
 
 #[tokio::test]
 async fn leaves_local_directory_dependencies_unpatched() {
     let local_ref = "file:../foo";
-    let mut result =
-        fake_result("foo", "1.0.0", serde_json::json!({ "name": "foo", "version": "1.0.0" }));
+    let mut result = fake_result(
+        "foo",
+        "1.0.0",
+        serde_json::json!({ "name": "foo", "version": "1.0.0" }),
+    );
     result.id = PkgResolutionId::from(local_ref);
     result.package.name_ver = None;
     result.package.latest = None;
-    result.resolution =
-        LockfileResolution::Directory(DirectoryResolution { directory: "../foo".to_string() });
+    result.resolution = LockfileResolution::Directory(DirectoryResolution {
+        directory: "../foo".to_string(),
+    });
     result.resolved_via = "local-filesystem".to_string();
 
     let mut table = HashMap::default();
     table.insert(("foo".to_string(), local_ref.to_string()), result);
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let resolver = StubResolver {
+        table,
+        calls: Mutex::new(Vec::new()),
+    };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": local_ref }));
     let mut groups = PatchGroupRecord::new();
-    groups.insert("foo".to_string(), exact_group("1.0.0", "foo@1.0.0", "abc123"));
+    groups.insert(
+        "foo".to_string(),
+        exact_group("1.0.0", "foo@1.0.0", "abc123"),
+    );
 
     let tree = resolve_dependency_tree(
         &resolver,
@@ -157,9 +192,16 @@ async fn range_match_applies_patch_and_records_user_key() {
     let mut table = HashMap::default();
     table.insert(
         ("foo".to_string(), "^1.0.0".to_string()),
-        fake_result("foo", "1.2.0", serde_json::json!({ "name": "foo", "version": "1.2.0" })),
+        fake_result(
+            "foo",
+            "1.2.0",
+            serde_json::json!({ "name": "foo", "version": "1.2.0" }),
+        ),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let resolver = StubResolver {
+        table,
+        calls: Mutex::new(Vec::new()),
+    };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "^1.0.0" }));
 
     let info = ExtendedPatchInfo {
@@ -168,7 +210,10 @@ async fn range_match_applies_patch_and_records_user_key() {
         key: "foo@^1.0.0".to_string(),
     };
     let mut group = PatchGroup::default();
-    group.range.push(PatchGroupRangeItem { version: "^1.0.0".to_string(), patch: info });
+    group.range.push(PatchGroupRangeItem {
+        version: "^1.0.0".to_string(),
+        patch: info,
+    });
     let mut groups: PatchGroupRecord = PatchGroupRecord::new();
     groups.insert("foo".to_string(), group);
 
@@ -198,9 +243,16 @@ async fn unused_patch_leaves_ids_and_applied_set_alone() {
     let mut table = HashMap::default();
     table.insert(
         ("foo".to_string(), "^1.0.0".to_string()),
-        fake_result("foo", "1.0.0", serde_json::json!({ "name": "foo", "version": "1.0.0" })),
+        fake_result(
+            "foo",
+            "1.0.0",
+            serde_json::json!({ "name": "foo", "version": "1.0.0" }),
+        ),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let resolver = StubResolver {
+        table,
+        calls: Mutex::new(Vec::new()),
+    };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "^1.0.0" }));
 
     let mut groups: PatchGroupRecord = PatchGroupRecord::new();
@@ -232,9 +284,16 @@ async fn ambiguous_range_match_fails_with_patch_key_conflict() {
     let mut table = HashMap::default();
     table.insert(
         ("foo".to_string(), "^1.0.0".to_string()),
-        fake_result("foo", "1.2.0", serde_json::json!({ "name": "foo", "version": "1.2.0" })),
+        fake_result(
+            "foo",
+            "1.2.0",
+            serde_json::json!({ "name": "foo", "version": "1.2.0" }),
+        ),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let resolver = StubResolver {
+        table,
+        calls: Mutex::new(Vec::new()),
+    };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "^1.0.0" }));
 
     let mut group = PatchGroup::default();
@@ -273,5 +332,8 @@ async fn ambiguous_range_match_fails_with_patch_key_conflict() {
     )
     .await
     .unwrap_err();
-    assert!(matches!(err, ResolveDependencyTreeError::PatchKeyConflict(_)), "got: {err:?}");
+    assert!(
+        matches!(err, ResolveDependencyTreeError::PatchKeyConflict(_)),
+        "got: {err:?}",
+    );
 }

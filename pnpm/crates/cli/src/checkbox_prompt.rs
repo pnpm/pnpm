@@ -90,7 +90,10 @@ const FRAME_OVERHEAD: usize = 6;
 impl<Value> CheckboxPrompt<Value> {
     pub(crate) fn new(message: impl Into<String>, items: Vec<CheckboxItem<Value>>) -> Self {
         let checked = vec![false; items.len()];
-        let active = items.iter().position(is_choice).unwrap_or_default();
+        let active = items
+            .iter()
+            .position(is_choice)
+            .unwrap_or_default();
         Self {
             message: message.into(),
             items,
@@ -98,7 +101,11 @@ impl<Value> CheckboxPrompt<Value> {
             required: false,
             theme: CheckboxTheme::default(),
             error: None,
-            viewport: PromptViewport { active, top: 0, page_size: 0 },
+            viewport: PromptViewport {
+                active,
+                top: 0,
+                page_size: 0,
+            },
         }
     }
 
@@ -124,8 +131,10 @@ impl<Value> CheckboxPrompt<Value> {
                 "the checkbox prompt was given no choice to make",
             ));
         }
-        let term =
-            [Term::stdout(), Term::stderr()].into_iter().find(Term::is_term).ok_or_else(|| {
+        let term = [Term::stdout(), Term::stderr()]
+            .into_iter()
+            .find(Term::is_term)
+            .ok_or_else(|| {
                 io::Error::new(
                     io::ErrorKind::NotConnected,
                     "the checkbox prompt needs a terminal on stdout or stderr",
@@ -169,7 +178,11 @@ impl<Value> CheckboxPrompt<Value> {
         }
         match key {
             Key::Enter => {
-                if self.required && !self.checked.iter().any(|&checked| checked) {
+                if self.required
+                    && !self.checked
+                        .iter()
+                        .any(|&checked| checked)
+                {
                     self.error = Some("At least one choice must be selected");
                     return KeyOutcome::Redraw;
                 }
@@ -182,8 +195,7 @@ impl<Value> CheckboxPrompt<Value> {
                 self.checked[self.viewport.active] = !self.checked[self.viewport.active];
             }
             Key::Char('a') => {
-                let select_all = self
-                    .items
+                let select_all = self.items
                     .iter()
                     .zip(&self.checked)
                     .any(|(item, &checked)| is_choice(item) && !checked);
@@ -201,8 +213,7 @@ impl<Value> CheckboxPrompt<Value> {
 
     fn toggle_numbered_choice(&mut self, digit: char) {
         let nth = usize::from(digit as u8 - b'1');
-        if let Some(index) = self
-            .items
+        if let Some(index) = self.items
             .iter()
             .enumerate()
             .filter(|(_, item)| is_choice(item))
@@ -269,7 +280,10 @@ impl<Value> CheckboxPrompt<Value> {
             lines.push(stdout_styled(&error, |text| text.red().to_string()));
         }
         lines.push(render_help_line());
-        lines.join("\n").trim_end().to_string()
+        lines
+            .join("\n")
+            .trim_end()
+            .to_string()
     }
 
     fn render_page(&self) -> Vec<String> {
@@ -278,7 +292,9 @@ impl<Value> CheckboxPrompt<Value> {
         } else {
             (self.viewport.top + self.viewport.page_size).min(self.items.len())
         };
-        (self.viewport.top..end).map(|index| self.render_item(index)).collect()
+        (self.viewport.top..end)
+            .map(|index| self.render_item(index))
+            .collect()
     }
 
     fn render_item(&self, index: usize) -> String {
@@ -291,8 +307,11 @@ impl<Value> CheckboxPrompt<Value> {
     fn render_choice(&self, index: usize, choice: &CheckboxChoice<Value>) -> String {
         let active = index == self.viewport.active;
         let cursor = if active { "❯" } else { " " };
-        let checkbox =
-            if self.checked[index] { &self.theme.checked } else { &self.theme.unchecked };
+        let checkbox = if self.checked[index] {
+            &self.theme.checked
+        } else {
+            &self.theme.unchecked
+        };
         let line = format!("{cursor}{checkbox} {}", choice.name);
         if active && self.theme.highlight_active {
             stdout_styled(&line, |text| text.cyan().to_string())
@@ -315,10 +334,13 @@ impl<Value> CheckboxPrompt<Value> {
     }
 
     pub(crate) fn selected_choices(&self) -> impl Iterator<Item = &CheckboxChoice<Value>> {
-        self.items.iter().zip(&self.checked).filter_map(|(item, &checked)| match item {
-            CheckboxItem::Choice(choice) if checked => Some(choice),
-            _ => None,
-        })
+        self.items
+            .iter()
+            .zip(&self.checked)
+            .filter_map(|(item, &checked)| match item {
+                CheckboxItem::Choice(choice) if checked => Some(choice),
+                _ => None,
+            })
     }
 
     fn take_selected(&mut self) -> Vec<Value> {
@@ -341,23 +363,31 @@ fn is_choice<Value>(item: &CheckboxItem<Value>) -> bool {
 /// `↑↓ navigate • space select • a all • i invert • ⏎ submit`, with the
 /// keys in bold and the rest dimmed.
 fn render_help_line() -> String {
-    [("↑↓", "navigate"), ("space", "select"), ("a", "all"), ("i", "invert"), ("⏎", "submit")]
-        .into_iter()
-        .map(|(key, action)| {
-            let key = stdout_styled(key, |text| text.bold().to_string());
-            let action = stdout_styled(action, |text| text.dimmed().to_string());
-            format!("{key} {action}")
-        })
-        .collect::<Vec<_>>()
-        .join(&stdout_styled(" • ", |text| text.dimmed().to_string()))
+    [
+        ("↑↓", "navigate"),
+        ("space", "select"),
+        ("a", "all"),
+        ("i", "invert"),
+        ("⏎", "submit"),
+    ]
+    .into_iter()
+    .map(|(key, action)| {
+        let key = stdout_styled(key, |text| text.bold().to_string());
+        let action = stdout_styled(action, |text| text.dimmed().to_string());
+        format!("{key} {action}")
+    })
+    .collect::<Vec<_>>()
+    .join(&stdout_styled(" • ", |text| text.dimmed().to_string()))
 }
 
 /// pnpm's `interactivePromptPageSize()`: the terminal height less the
 /// frame around the list, and never fewer than seven lines.
 fn page_size_for(term: &Term) -> usize {
-    term.size_checked().map_or(MIN_PAGE_SIZE, |(rows, _)| {
-        usize::from(rows).saturating_sub(FRAME_OVERHEAD).max(MIN_PAGE_SIZE)
-    })
+    term
+        .size_checked()
+        .map_or(MIN_PAGE_SIZE, |(rows, _)| {
+            usize::from(rows).saturating_sub(FRAME_OVERHEAD).max(MIN_PAGE_SIZE)
+        })
 }
 
 /// The terminal rows `frame` occupies once lines wider than the terminal
@@ -375,7 +405,9 @@ fn terminal_rows(frame: &str, columns: usize) -> usize {
 }
 
 fn stdout_styled(text: &str, style: impl Fn(&str) -> String) -> String {
-    text.if_supports_color(Stream::Stdout, |text| style(text)).to_string()
+    text
+        .if_supports_color(Stream::Stdout, |text| style(text))
+        .to_string()
 }
 
 #[cfg(test)]

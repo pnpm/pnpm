@@ -18,9 +18,18 @@ patchedDependencies:
 "#;
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let map = settings.patched_dependencies.expect("field present");
-    assert_eq!(map.get("lodash@4.17.21").map(String::as_str), Some("patches/lodash@4.17.21.patch"));
-    assert_eq!(map.get("foo@^1.0.0").map(String::as_str), Some("patches/foo.patch"));
-    assert_eq!(map.get("bar").map(String::as_str), Some("patches/bar.patch"));
+    assert_eq!(
+        map.get("lodash@4.17.21").map(String::as_str),
+        Some("patches/lodash@4.17.21.patch"),
+    );
+    assert_eq!(
+        map.get("foo@^1.0.0").map(String::as_str),
+        Some("patches/foo.patch"),
+    );
+    assert_eq!(
+        map.get("bar").map(String::as_str),
+        Some("patches/bar.patch"),
+    );
 }
 
 #[test]
@@ -49,7 +58,10 @@ ignoredOptionalDependencies:
     );
 
     let mut config = Config::new();
-    assert!(config.ignored_optional_dependencies.is_none(), "default is None");
+    assert!(
+        config.ignored_optional_dependencies.is_none(),
+        "default is None",
+    );
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(
         config.ignored_optional_dependencies.as_deref(),
@@ -103,7 +115,10 @@ allowedDeprecatedVersions:
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
 
     let mut config = Config::new();
-    assert!(config.allowed_deprecated_versions.is_empty(), "default is empty");
+    assert!(
+        config.allowed_deprecated_versions.is_empty(),
+        "default is empty",
+    );
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(
         config.allowed_deprecated_versions.get("request").map(String::as_str),
@@ -139,7 +154,10 @@ peerDependencyRules:
     );
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     let rules = &config.peer_dependency_rules;
-    assert_eq!(rules.ignore_missing.as_deref(), Some(&["ajv".to_string()][..]));
+    assert_eq!(
+        rules.ignore_missing.as_deref(),
+        Some(&["ajv".to_string()][..]),
+    );
     assert_eq!(rules.allow_any.as_deref(), Some(&["react".to_string()][..]));
     let allowed = rules.allowed_versions.as_ref().expect("allowedVersions set");
     assert_eq!(allowed.get("bbb").map(String::as_str), Some("2"));

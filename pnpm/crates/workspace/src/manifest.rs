@@ -98,7 +98,9 @@ pub enum ReadWorkspaceManifestError {
 /// pattern default, falling back to `["."]` when `packages:` is absent.
 #[must_use]
 pub fn workspace_package_patterns(manifest: &WorkspaceManifest) -> Vec<String> {
-    manifest.packages.clone().unwrap_or_else(|| vec![".".to_string()])
+    manifest.packages
+        .clone()
+        .unwrap_or_else(|| vec![".".to_string()])
 }
 
 /// Read and validate the `pnpm-workspace.yaml` under `dir`.
@@ -113,7 +115,12 @@ pub fn read_workspace_manifest(
     let text = match fs::read_to_string(&path) {
         Ok(text) => text,
         Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
-        Err(source) => return Err(ReadWorkspaceManifestError::ReadFile { path, source }),
+        Err(source) => {
+            return Err(ReadWorkspaceManifestError::ReadFile {
+                path,
+                source,
+            });
+        }
     };
 
     // An empty workspace manifest is valid and means "no settings, no
@@ -123,9 +130,11 @@ pub fn read_workspace_manifest(
         return Ok(Some(WorkspaceManifest::default()));
     }
 
-    let manifest: WorkspaceManifest = serde_saphyr::from_str(&text).map_err(|source| {
-        ReadWorkspaceManifestError::ParseYaml { path: path.clone(), source: Box::new(source) }
-    })?;
+    let manifest: WorkspaceManifest = serde_saphyr::from_str(&text)
+        .map_err(|source| ReadWorkspaceManifestError::ParseYaml {
+            path: path.clone(),
+            source: Box::new(source),
+        })?;
 
     // serde_saphyr already enforces the array shape and string type
     // for `packages:` at deserialization. The remaining invariant —

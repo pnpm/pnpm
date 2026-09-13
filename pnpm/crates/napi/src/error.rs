@@ -35,10 +35,18 @@ const ENVELOPE_PREFIX: &str = "PNPM_ERR_JSON:";
 /// [`napi::Error`] whose reason carries the `code` / `message` / `hint`
 /// envelope.
 pub fn to_napi_error<Diag: Diagnostic + ?Sized>(error: &Diag) -> napi::Error {
-    let code = error.code().map(|code| code.to_string());
-    let hint = error.help().map(|help| help.to_string());
+    let code = error
+        .code()
+        .map(|code| code.to_string());
+    let hint = error
+        .help()
+        .map(|help| help.to_string());
     let message = error.to_string();
-    let envelope = ErrorEnvelope { code, message, hint };
+    let envelope = ErrorEnvelope {
+        code,
+        message,
+        hint,
+    };
     let reason = match serde_json::to_string(&envelope) {
         Ok(json) => format!("{ENVELOPE_PREFIX}{json}"),
         // If the envelope itself fails to serialize, fall back to the plain

@@ -40,7 +40,10 @@ fn ignores_unrelated_asset_names() {
 fn extract_sha256_lifts_first_hex_run() {
     let body = "ED52239294AD517FBE91A268146D5D2AA8A17D2D62D64873E43219078BA71C4E  deno.zip";
     let hash = extract_sha256(body).unwrap();
-    assert_eq!(hash, "ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e");
+    assert_eq!(
+        hash,
+        "ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e",
+    );
 }
 
 #[test]

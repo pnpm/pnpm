@@ -26,8 +26,18 @@ foo = "1.0.0""#,
     let lockfile = std::fs::read_to_string(root.path().join("Cargo.lock"))
         .expect("read updated Cargo lockfile");
     assert!(lockfile.contains(r#"name = "foo""#), "{lockfile}");
-    assert!(!root.path().join("package.json").exists());
-    assert!(!root.path().join("pnpm-lock.yaml").exists());
+    assert!(
+        !root
+            .path()
+            .join("package.json")
+            .exists(),
+    );
+    assert!(
+        !root
+            .path()
+            .join("pnpm-lock.yaml")
+            .exists(),
+    );
 }
 
 #[test]
@@ -37,13 +47,22 @@ fn add_crate_can_target_build_dependencies() {
         .expect("find the pnpm binary")
         .with_current_dir(root.path())
         .with_env("PNPM_CONFIG_CACHE_DIR", &cache_dir)
-        .with_args(["add", "crate:foo@1", "--save-build", "--offline", "--lockfile-only"])
+        .with_args([
+            "add",
+            "crate:foo@1",
+            "--save-build",
+            "--offline",
+            "--lockfile-only",
+        ])
         .assert()
         .success();
 
     let manifest = std::fs::read_to_string(root.path().join("Cargo.toml"))
         .expect("read updated Cargo manifest");
-    assert!(manifest.contains("[build-dependencies]\nfoo = \"1\""), "{manifest}");
+    assert!(
+        manifest.contains("[build-dependencies]\nfoo = \"1\""),
+        "{manifest}",
+    );
 }
 
 #[test]
@@ -56,8 +75,11 @@ fn mixed_add_updates_node_and_cargo_projects_together() {
         r#"{"name":"local-package","version":"1.0.0"}"#,
     )
     .expect("write local npm manifest");
-    std::fs::write(root.path().join("package.json"), r#"{"name":"app","version":"1.0.0"}"#)
-        .expect("write root npm manifest");
+    std::fs::write(
+        root.path().join("package.json"),
+        r#"{"name":"app","version":"1.0.0"}"#,
+    )
+    .expect("write root npm manifest");
 
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
@@ -73,12 +95,25 @@ fn mixed_add_updates_node_and_cargo_projects_together() {
         .assert()
         .success();
 
-    assert_eq!(prod_spec(root.path(), "local-package"), "file:./local-package");
+    assert_eq!(
+        prod_spec(root.path(), "local-package"),
+        "file:./local-package",
+    );
     let cargo_manifest =
         std::fs::read_to_string(root.path().join("Cargo.toml")).expect("read Cargo manifest");
     assert!(cargo_manifest.contains(r#"foo = "1""#), "{cargo_manifest}");
-    assert!(root.path().join("pnpm-lock.yaml").is_file());
-    assert!(root.path().join("Cargo.lock").is_file());
+    assert!(
+        root
+            .path()
+            .join("pnpm-lock.yaml")
+            .is_file(),
+    );
+    assert!(
+        root
+            .path()
+            .join("Cargo.lock")
+            .is_file(),
+    );
 }
 
 #[test]
@@ -103,25 +138,60 @@ fn mixed_add_restores_metadata_when_an_ecosystem_fails() {
         .expect("find the pnpm binary")
         .with_current_dir(root.path())
         .with_env("PNPM_CONFIG_CACHE_DIR", &cache_dir)
-        .with_args(["add", "local-package@file:./local-package", "crate:foo@1", "--offline"])
+        .with_args([
+            "add",
+            "local-package@file:./local-package",
+            "crate:foo@1",
+            "--offline",
+        ])
         .assert()
         .failure();
 
-    assert_eq!(std::fs::read_to_string(node_manifest_path).unwrap(), node_manifest);
+    assert_eq!(
+        std::fs::read_to_string(node_manifest_path).unwrap(),
+        node_manifest,
+    );
     assert_eq!(std::fs::read(cargo_manifest_path).unwrap(), cargo_manifest);
     assert_eq!(std::fs::read(cargo_lock_path).unwrap(), cargo_lock);
-    eprintln!("wanted lockfile after rollback: {}", root.path().join("pnpm-lock.yaml").display());
-    assert!(!root.path().join("pnpm-lock.yaml").exists());
+    eprintln!(
+        "wanted lockfile after rollback: {}",
+        root
+            .path()
+            .join("pnpm-lock.yaml")
+            .display(),
+    );
+    assert!(
+        !root
+            .path()
+            .join("pnpm-lock.yaml")
+            .exists(),
+    );
     eprintln!(
         "current lockfile after rollback: {}",
-        root.path().join("node_modules/.pnpm/lock.yaml").display(),
+        root
+            .path()
+            .join("node_modules/.pnpm/lock.yaml")
+            .display(),
     );
-    assert!(!root.path().join("node_modules/.pnpm/lock.yaml").exists());
+    assert!(
+        !root
+            .path()
+            .join("node_modules/.pnpm/lock.yaml")
+            .exists(),
+    );
     eprintln!(
         "modules manifest after rollback: {}",
-        root.path().join("node_modules/.modules.yaml").display(),
+        root
+            .path()
+            .join("node_modules/.modules.yaml")
+            .display(),
     );
-    assert!(!root.path().join("node_modules/.modules.yaml").exists());
+    assert!(
+        !root
+            .path()
+            .join("node_modules/.modules.yaml")
+            .exists(),
+    );
 }
 
 #[test]
@@ -158,8 +228,16 @@ fn add_crate_in_a_cargo_workspace_member_updates_the_workspace_lockfile() {
 
     let member_manifest =
         std::fs::read_to_string(member.join("Cargo.toml")).expect("read member Cargo manifest");
-    assert!(member_manifest.contains(r#"foo = "1""#), "{member_manifest}");
-    assert!(root.path().join("Cargo.lock").is_file());
+    assert!(
+        member_manifest.contains(r#"foo = "1""#),
+        "{member_manifest}",
+    );
+    assert!(
+        root
+            .path()
+            .join("Cargo.lock")
+            .is_file(),
+    );
     assert!(!member.join("Cargo.lock").exists());
     assert!(!member.join("package.json").exists());
 }
@@ -200,7 +278,12 @@ fn add_crate_uses_a_nested_cargo_workspace_root() {
         .success();
 
     assert!(cargo_root.join("Cargo.lock").is_file());
-    assert!(!root.path().join("Cargo.lock").exists());
+    assert!(
+        !root
+            .path()
+            .join("Cargo.lock")
+            .exists(),
+    );
     assert!(!member.join("Cargo.lock").exists());
 }
 
@@ -209,8 +292,11 @@ fn install_discovers_multiple_nested_cargo_workspaces() {
     let root = TempDir::new().expect("create pnpm workspace");
     std::fs::write(root.path().join("package.json"), r#"{"name":"repository"}"#)
         .expect("write pnpm root manifest");
-    std::fs::write(root.path().join("pnpm-workspace.yaml"), "cargo:\n  enabled: true\n")
-        .expect("enable Cargo dependency management");
+    std::fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        "cargo:\n  enabled: true\n",
+    )
+    .expect("enable Cargo dependency management");
     for project_name in ["rust-a", "rust-b"] {
         let project = root.path().join(project_name);
         std::fs::create_dir_all(project.join("src")).expect("create Cargo source directory");
@@ -231,7 +317,22 @@ fn install_discovers_multiple_nested_cargo_workspaces() {
         .assert()
         .success();
 
-    assert!(root.path().join("rust-a/Cargo.lock").is_file());
-    assert!(root.path().join("rust-b/Cargo.lock").is_file());
-    assert!(!root.path().join("Cargo.lock").exists());
+    assert!(
+        root
+            .path()
+            .join("rust-a/Cargo.lock")
+            .is_file(),
+    );
+    assert!(
+        root
+            .path()
+            .join("rust-b/Cargo.lock")
+            .is_file(),
+    );
+    assert!(
+        !root
+            .path()
+            .join("Cargo.lock")
+            .exists(),
+    );
 }

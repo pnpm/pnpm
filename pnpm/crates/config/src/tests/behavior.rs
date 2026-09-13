@@ -65,7 +65,10 @@ pub fn have_default_values() {
     // behaviour of `default_store_dir` is exercised with fake-`Sys`
     // structs in `defaults::tests`.
     assert_eq!(value.store_dir, default_store_dir::<Host>());
-    assert_eq!(value.state_dir, default_state_dir::<Host>().unwrap_or_default());
+    assert_eq!(
+        value.state_dir,
+        default_state_dir::<Host>().unwrap_or_default(),
+    );
     assert_eq!(value.registry, "https://registry.npmjs.org/");
 }
 
@@ -73,18 +76,34 @@ pub fn have_default_values() {
 pub fn global_dirs_expand_a_leading_tilde() {
     let home = tempdir().expect("home tempdir");
     static HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-    HOME_PATH.set(home.path().to_path_buf()).expect("set once");
-    let config_dir = home.path().join("xdg").join("pnpm");
+    HOME_PATH
+        .set(home.path().to_path_buf())
+        .expect("set once");
+    let config_dir = home
+        .path()
+        .join("xdg")
+        .join("pnpm");
     fs::create_dir_all(&config_dir).expect("create config dir");
-    fs::write(config_dir.join("config.yaml"), "globalDir: ~/global\nglobalBinDir: ~/bin\n")
-        .expect("write global config.yaml");
+    fs::write(
+        config_dir.join("config.yaml"),
+        "globalDir: ~/global\nglobalBinDir: ~/bin\n",
+    )
+    .expect("write global config.yaml");
 
     struct HostWithHome;
     impl EnvVar for HostWithHome {
         fn var(name: &str) -> Option<String> {
             if name == "XDG_CONFIG_HOME" {
-                let xdg = HOME_PATH.get().expect("home path").join("xdg");
-                return Some(xdg.to_str().expect("utf-8 home path").to_string());
+                let xdg = HOME_PATH
+                    .get()
+                    .expect("home path")
+                    .join("xdg");
+                return Some(
+                    xdg
+                        .to_str()
+                        .expect("utf-8 home path")
+                        .to_string(),
+                );
             }
             safe_host_var(name)
         }
@@ -103,9 +122,18 @@ pub fn global_dirs_expand_a_leading_tilde() {
     host_current_dir!(HostWithHome);
 
     let project = tempdir().expect("project tempdir");
-    let config =
-        Config::new().current::<HostWithHome>(project.path()).expect("global config.yaml loads");
-    assert_eq!(config.global_pkg_dir, Some(home.path().join("global").join(GLOBAL_LAYOUT_VERSION)));
+    let config = Config::new()
+        .current::<HostWithHome>(project.path())
+        .expect("global config.yaml loads");
+    assert_eq!(
+        config.global_pkg_dir,
+        Some(
+            home
+                .path()
+                .join("global")
+                .join(GLOBAL_LAYOUT_VERSION)
+        ),
+    );
     assert_eq!(config.global_bin, Some(home.path().join("bin")));
 }
 
@@ -168,7 +196,10 @@ pub fn explicit_url_scoped_creds_pass_through() {
         config.auth_headers.for_url("https://trusted.example.com/pkg").as_deref(),
         Some("Bearer user-secret"),
     );
-    assert_eq!(config.auth_headers.for_url("https://attacker.example.com/pkg"), None);
+    assert_eq!(
+        config.auth_headers.for_url("https://attacker.example.com/pkg"),
+        None,
+    );
 }
 
 #[test]
@@ -179,7 +210,9 @@ pub fn test_current_folder_fallback_to_default() {
     // `symlink: false` override) is what surfaces.
     let home_dir = tempdir().unwrap();
     static HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-    HOME_PATH.set(home_dir.path().to_path_buf()).expect("set once");
+    HOME_PATH
+        .set(home_dir.path().to_path_buf())
+        .expect("set once");
     struct HostWithHome;
     impl EnvVar for HostWithHome {
         fn var(name: &str) -> Option<String> {
@@ -198,9 +231,12 @@ pub fn test_current_folder_fallback_to_default() {
     }
     inert_link_probe!(HostWithHome);
     host_current_dir!(HostWithHome);
-    let config = Config { symlink: false, ..Config::new() }
-        .current::<HostWithHome>(current_dir.path())
-        .expect("workspace yaml absent => no error");
+    let config = Config {
+        symlink: false,
+        ..Config::new()
+    }
+    .current::<HostWithHome>(current_dir.path())
+    .expect("workspace yaml absent => no error");
     assert!(!config.symlink);
 }
 
@@ -212,13 +248,21 @@ pub fn virtual_store_type_supersedes_the_boolean_spelling() {
         ("virtualStoreType: global\n", true),
         ("enableGlobalVirtualStore: false\n", false),
         ("enableGlobalVirtualStore: true\n", true),
-        ("virtualStoreType: project\nenableGlobalVirtualStore: true\n", false),
-        ("virtualStoreType: global\nenableGlobalVirtualStore: false\n", true),
+        (
+            "virtualStoreType: project\nenableGlobalVirtualStore: true\n",
+            false,
+        ),
+        (
+            "virtualStoreType: global\nenableGlobalVirtualStore: false\n",
+            true,
+        ),
     ] {
         let tmp = tempdir().unwrap();
         fs::write(tmp.path().join("pnpm-workspace.yaml"), yaml)
             .expect("write to pnpm-workspace.yaml");
-        let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+        let config = Config::new()
+            .current::<HostNoHome>(tmp.path())
+            .expect("yaml is valid");
         assert_eq!(config.enable_global_virtual_store, expected, "yaml: {yaml}");
     }
 }
@@ -226,11 +270,19 @@ pub fn virtual_store_type_supersedes_the_boolean_spelling() {
 #[test]
 pub fn gvs_disabled_keeps_project_local_virtual_store() {
     let tmp = tempdir().unwrap();
-    fs::write(tmp.path().join("pnpm-workspace.yaml"), "enableGlobalVirtualStore: false\n")
-        .expect("write to pnpm-workspace.yaml");
-    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "enableGlobalVirtualStore: false\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+    let config = Config::new()
+        .current::<HostNoHome>(tmp.path())
+        .expect("yaml is valid");
     assert!(!config.enable_global_virtual_store);
-    assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
+    assert_eq!(
+        config.virtual_store_dir,
+        tmp.path().join("node_modules/.pnpm"),
+    );
     assert_eq!(config.global_virtual_store_dir, config.store_dir.links());
 }
 
@@ -240,10 +292,15 @@ pub fn gvs_user_pinned_virtual_store_routes_into_global_virtual_store_dir() {
     let user_path = tmp.path().join("custom-links");
     fs::write(
         tmp.path().join("pnpm-workspace.yaml"),
-        format!("enableGlobalVirtualStore: true\nvirtualStoreDir: {}\n", user_path.display()),
+        format!(
+            "enableGlobalVirtualStore: true\nvirtualStoreDir: {}\n",
+            user_path.display(),
+        ),
     )
     .expect("write to pnpm-workspace.yaml");
-    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    let config = Config::new()
+        .current::<HostNoHome>(tmp.path())
+        .expect("yaml is valid");
     assert!(config.enable_global_virtual_store);
     assert_eq!(config.virtual_store_dir, user_path);
     assert_eq!(config.global_virtual_store_dir, user_path);
@@ -259,9 +316,14 @@ pub fn gvs_user_pinned_virtual_store_routes_into_global_virtual_store_dir() {
 #[test]
 pub fn single_project_anchors_modules_at_cwd() {
     let tmp = tempdir().unwrap();
-    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("config loads");
+    let config = Config::new()
+        .current::<HostNoHome>(tmp.path())
+        .expect("config loads");
     assert_eq!(config.modules_dir, tmp.path().join("node_modules"));
-    assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
+    assert_eq!(
+        config.virtual_store_dir,
+        tmp.path().join("node_modules/.pnpm"),
+    );
 }
 
 /// `scriptShell` is path-resolved only when it comes from the workspace
@@ -275,27 +337,54 @@ pub fn script_shell_source_routing_matches_pnpm() {
     let xdg = tempdir().expect("xdg tempdir");
     let config_dir = xdg.path().join("pnpm");
     fs::create_dir_all(&config_dir).expect("create config dir");
-    fs::write(config_dir.join("config.yaml"), "scriptShell: ./global-shell.sh\n")
-        .expect("write global config.yaml");
+    fs::write(
+        config_dir.join("config.yaml"),
+        "scriptShell: ./global-shell.sh\n",
+    )
+    .expect("write global config.yaml");
 
     let global_only = tempdir().expect("global-only project tempdir");
-    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    set_fake_env(&[(
+        "XDG_CONFIG_HOME",
+        xdg
+            .path()
+            .to_str()
+            .unwrap(),
+    )]);
     let config = load_with_fake_env(global_only.path());
     assert_eq!(config.script_shell.as_deref(), Some("./global-shell.sh"));
 
     let workspace = tempdir().expect("workspace tempdir");
-    fs::write(workspace.path().join("pnpm-workspace.yaml"), "scriptShell: ./workspace-shell.sh\n")
-        .expect("write workspace yaml");
-    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    fs::write(
+        workspace.path().join("pnpm-workspace.yaml"),
+        "scriptShell: ./workspace-shell.sh\n",
+    )
+    .expect("write workspace yaml");
+    set_fake_env(&[(
+        "XDG_CONFIG_HOME",
+        xdg
+            .path()
+            .to_str()
+            .unwrap(),
+    )]);
     let config = load_with_fake_env(workspace.path());
     let expected_workspace_shell =
         pnpm_fs::lexical_normalize(&workspace.path().join("workspace-shell.sh"))
             .to_string_lossy()
             .into_owned();
-    assert_eq!(config.script_shell.as_deref(), Some(expected_workspace_shell.as_str()));
+    assert_eq!(
+        config.script_shell.as_deref(),
+        Some(expected_workspace_shell.as_str()),
+    );
 
     set_fake_env(&[
-        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        (
+            "XDG_CONFIG_HOME",
+            xdg
+                .path()
+                .to_str()
+                .unwrap(),
+        ),
         ("PNPM_CONFIG_SCRIPT_SHELL", "./env-shell.sh"),
     ]);
     let config = load_with_fake_env(workspace.path());
@@ -309,16 +398,26 @@ pub fn max_sockets_accepts_npms_lowercase_spelling() {
     let tmp = tempdir().unwrap();
     fs::write(tmp.path().join("pnpm-workspace.yaml"), "maxsockets: 7\n")
         .expect("write to pnpm-workspace.yaml");
-    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    let config = Config::new()
+        .current::<HostNoHome>(tmp.path())
+        .expect("yaml is valid");
     assert_eq!(config.max_sockets, Some(7));
 }
 
 #[test]
 fn resolved_minimum_release_age_treats_zero_as_disabled() {
     let mut config = Config::new();
-    assert_eq!(config.resolved_minimum_release_age(), Some(1440), "default is 1 day");
+    assert_eq!(
+        config.resolved_minimum_release_age(),
+        Some(1440),
+        "default is 1 day",
+    );
     config.minimum_release_age = Some(0);
-    assert_eq!(config.resolved_minimum_release_age(), None, "0 disables the cutoff");
+    assert_eq!(
+        config.resolved_minimum_release_age(),
+        None,
+        "0 disables the cutoff",
+    );
     config.minimum_release_age = Some(60);
     assert_eq!(config.resolved_minimum_release_age(), Some(60));
     config.minimum_release_age = None;
@@ -341,7 +440,10 @@ fn the_built_in_release_age_default_leaves_strict_mode_off() {
 fn an_explicit_release_age_turns_on_strict_mode() {
     let config = config_from_workspace_yaml("minimumReleaseAge: 1440\n");
 
-    assert_eq!(config.minimum_release_age, Config::new().minimum_release_age);
+    assert_eq!(
+        config.minimum_release_age,
+        Config::new().minimum_release_age,
+    );
     assert!(config.resolved_minimum_release_age_strict());
 }
 
@@ -351,11 +453,19 @@ fn an_explicit_release_age_turns_on_strict_mode() {
 #[test]
 pub fn package_manager_bootstrap_defaults_to_npm_registry() {
     let project = tempdir().expect("project tempdir");
-    write_file(&project.path().join(".npmrc"), "registry=https://attacker.example.com/\n");
-    let config = Config::default().current::<HostNoHome>(project.path()).expect("load config");
+    write_file(
+        &project.path().join(".npmrc"),
+        "registry=https://attacker.example.com/\n",
+    );
+    let config = Config::default()
+        .current::<HostNoHome>(project.path())
+        .expect("load config");
 
     assert_eq!(config.registry, "https://attacker.example.com/");
-    assert_eq!(config.package_manager_bootstrap.registry, NPM_DEFAULT_REGISTRY);
+    assert_eq!(
+        config.package_manager_bootstrap.registry,
+        NPM_DEFAULT_REGISTRY,
+    );
 }
 
 /// A directly-constructed `PackageManagerBootstrap` (one not finalized
@@ -363,7 +473,10 @@ pub fn package_manager_bootstrap_defaults_to_npm_registry() {
 /// never an empty registry the resolver would choke on.
 #[test]
 pub fn package_manager_bootstrap_default_registry_is_npm() {
-    assert_eq!(crate::PackageManagerBootstrap::default().registry, NPM_DEFAULT_REGISTRY);
+    assert_eq!(
+        crate::PackageManagerBootstrap::default().registry,
+        NPM_DEFAULT_REGISTRY,
+    );
 }
 
 #[test]
@@ -375,10 +488,14 @@ pub fn the_branch_pattern_decides_merging_for_the_current_branch() {
     )
     .unwrap();
     static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    REPO_DIR
+        .set(repo.path().to_path_buf())
+        .expect("set once");
     host_in_repo!(HostOnRelease);
 
-    let config = Config::new().current::<HostOnRelease>(repo.path()).expect("yaml is valid");
+    let config = Config::new()
+        .current::<HostOnRelease>(repo.path())
+        .expect("yaml is valid");
     assert!(config.merge_git_branch_lockfiles);
 }
 
@@ -391,9 +508,13 @@ pub fn the_branch_pattern_leaves_an_unmatched_branch_alone() {
     )
     .unwrap();
     static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    REPO_DIR
+        .set(repo.path().to_path_buf())
+        .expect("set once");
     host_in_repo!(HostOnDevelop);
 
-    let config = Config::new().current::<HostOnDevelop>(repo.path()).expect("yaml is valid");
+    let config = Config::new()
+        .current::<HostOnDevelop>(repo.path())
+        .expect("yaml is valid");
     assert!(!config.merge_git_branch_lockfiles);
 }

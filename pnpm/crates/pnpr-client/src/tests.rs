@@ -66,9 +66,14 @@ async fn lockfile_repair_uses_an_advertised_capability() {
         .await;
     let resolve_mock = server
         .mock("POST", "/-/pnpr/v0/resolve")
-        .match_body(mockito::Matcher::PartialJson(json!({ "fixLockfile": true })))
+        .match_body(mockito::Matcher::PartialJson(
+            json!({ "fixLockfile": true }),
+        ))
         .with_header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
-        .with_body(format!("{}\n", json!({ "type": "done", "lockfile": response_lockfile })))
+        .with_body(format!(
+            "{}\n",
+            json!({ "type": "done", "lockfile": response_lockfile }),
+        ))
         .create_async()
         .await;
 
@@ -114,7 +119,10 @@ async fn the_resolve_request_carries_the_catalogs_and_the_whole_policy() {
             "updatePatches": true,
         })))
         .with_header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
-        .with_body(format!("{}\n", json!({ "type": "done", "lockfile": response_lockfile })))
+        .with_body(format!(
+            "{}\n",
+            json!({ "type": "done", "lockfile": response_lockfile }),
+        ))
         .create_async()
         .await;
 
@@ -185,13 +193,18 @@ async fn rejects_an_old_server_before_consuming_package_frames() {
         panic!("expected a protocol error");
     };
     assert!(message.contains("does not advertise project-transform support"));
-    assert!(prefetched.is_empty(), "an old server must not trigger prefetches");
+    assert!(
+        prefetched.is_empty(),
+        "an old server must not trigger prefetches",
+    );
 }
 
 #[tokio::test]
 async fn a_project_transform_header_preserves_streaming_prefetch() {
-    let frames =
-        vec![mock_package_frame(), json!({ "type": "error", "message": "resolution stopped" })];
+    let frames = vec![
+        mock_package_frame(),
+        json!({ "type": "error", "message": "resolution stopped" }),
+    ];
     let mut prefetched = Vec::new();
     let result = resolve_mock_frames(resolve_projects_options(), frames, true, |package| {
         prefetched.push(package.id);
@@ -306,7 +319,11 @@ async fn resolve_mock_frames(
     supports_project_transforms: bool,
     on_package: impl FnMut(ResolvedPackage),
 ) -> Result<ResolveOutcome, PnprClientError> {
-    let body = frames.into_iter().map(|frame| format!("{frame}\n")).collect::<Vec<_>>().concat();
+    let body = frames
+        .into_iter()
+        .map(|frame| format!("{frame}\n"))
+        .collect::<Vec<_>>()
+        .concat();
     let mut server = mockito::Server::new_async().await;
     let mut resolve_mock = server.mock("POST", "/-/pnpr/v0/resolve").with_body(body);
     if supports_project_transforms {
@@ -343,7 +360,10 @@ fn a_violations_frame_rebuilds_a_verify_error() {
         matches!(verify_err, VerifyError::MinimumReleaseAgeViolation { .. }),
         "got {verify_err:?}",
     );
-    assert!(verify_err.to_string().contains("@foo/no-deps@1.0.0"), "got {verify_err}");
+    assert!(
+        verify_err.to_string().contains("@foo/no-deps@1.0.0"),
+        "got {verify_err}",
+    );
 }
 
 #[test]
@@ -354,7 +374,10 @@ fn tarball_mismatch_maps_to_the_generic_envelope() {
     };
     let verify_err = build_verify_error(violations);
     assert!(
-        matches!(verify_err, VerifyError::LockfileResolutionVerification { .. }),
+        matches!(
+            verify_err,
+            VerifyError::LockfileResolutionVerification { .. }
+        ),
         "got {verify_err:?}",
     );
 }
@@ -391,7 +414,10 @@ fn package_frames_reject_invalid_revisions() {
         let line = format!(
             r#"{{"type":"package","id":"acme@1.0.0","name":"acme","version":"1.0.0","integrity":"sha512-abc","tarball":"https://r.test/acme/-/acme-1.0.0.tgz","revision":{revision}}}"#,
         );
-        assert!(matches!(parse_frame(line.as_bytes()), Err(PnprClientError::Protocol(_)),));
+        assert!(matches!(
+            parse_frame(line.as_bytes()),
+            Err(PnprClientError::Protocol(_)),
+        ));
     }
 }
 
@@ -422,7 +448,10 @@ async fn pipeline_reports_refuse_credentials_on_non_loopback_http() {
         summary: json!({}),
         events: Vec::new(),
     };
-    let error = client.publish_pipeline_run(&request, Some("Bearer secret")).await.unwrap_err();
+    let error = client
+        .publish_pipeline_run(&request, Some("Bearer secret"))
+        .await
+        .unwrap_err();
     assert!(
         matches!(error, PnprClientError::Protocol(_)),
         "insecure credentials must be rejected before any request: {error}",
@@ -438,7 +467,11 @@ async fn pipeline_report_redirects_are_not_followed() {
         .with_header("location", "/unexpected")
         .create_async()
         .await;
-    let destination = server.mock("PUT", "/unexpected").expect(0).create_async().await;
+    let destination = server
+        .mock("PUT", "/unexpected")
+        .expect(0)
+        .create_async()
+        .await;
     let client = PnprClient::new(server.url());
     let request = super::PublishPipelineRunRequest {
         workspace: "demo".to_string(),
@@ -447,7 +480,10 @@ async fn pipeline_report_redirects_are_not_followed() {
         events: Vec::new(),
     };
     assert!(
-        client.publish_pipeline_run(&request, Some("Bearer secret")).await.is_err(),
+        client
+            .publish_pipeline_run(&request, Some("Bearer secret"))
+            .await
+            .is_err(),
         "report redirects must not receive credentials",
     );
     redirect.assert_async().await;

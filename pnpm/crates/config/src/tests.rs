@@ -64,14 +64,20 @@ pub(crate) fn capture_warnings<Func: FnOnce()>(f: Func) -> Vec<String> {
                 }
                 let mut visitor = Visitor::default();
                 event.record(&mut visitor);
-                self.0.lock().unwrap().push(format!("{}{}", visitor.message, visitor.fields));
+                self.0
+                    .lock()
+                    .unwrap()
+                    .push(format!("{}{}", visitor.message, visitor.fields));
             }
         }
     }
 
     let subscriber = tracing_subscriber::registry().with(CaptureLayer(messages_clone));
     tracing::subscriber::with_default(subscriber, f);
-    Arc::try_unwrap(messages).unwrap().into_inner().unwrap()
+    Arc::try_unwrap(messages)
+        .unwrap()
+        .into_inner()
+        .unwrap()
 }
 
 /// `Config::current` requires `Sys: LinkProbe` so the late-stage
@@ -185,7 +191,10 @@ macro_rules! fake_env {
 }
 
 fn display_store_dir(store_dir: &StoreDir) -> String {
-    store_dir.display().to_string().replace('\\', "/")
+    store_dir
+        .display()
+        .to_string()
+        .replace('\\', "/")
 }
 
 /// Delegate to [`Host::var`] but mask the env vars that would
@@ -260,16 +269,21 @@ fn write_file(path: &Path, contents: &str) {
 fn load_with_project_and_user(project_npmrc: &str, user_file: PathBuf) -> Config {
     let project = tempdir().expect("project tempdir");
     write_file(&project.path().join(".npmrc"), project_npmrc);
-    Config { npmrc_auth_file: Some(user_file), ..Config::default() }
-        .current::<HostNoHome>(project.path())
-        .expect("load config")
+    Config {
+        npmrc_auth_file: Some(user_file),
+        ..Config::default()
+    }
+    .current::<HostNoHome>(project.path())
+    .expect("load config")
 }
 
 /// Load a config from a workspace whose `pnpm-workspace.yaml` holds `yaml`.
 fn config_from_workspace_yaml(yaml: &str) -> Config {
     let tmp = tempdir().expect("workspace tempdir");
     fs::write(tmp.path().join("pnpm-workspace.yaml"), yaml).expect("write to pnpm-workspace.yaml");
-    Config::new().current::<HostNoHome>(tmp.path()).expect("config loads")
+    Config::new()
+        .current::<HostNoHome>(tmp.path())
+        .expect("config loads")
 }
 
 const NPM_DEFAULT_REGISTRY: &str = "https://registry.npmjs.org/";
@@ -308,7 +322,10 @@ macro_rules! host_in_repo {
         inert_link_probe!($name);
         impl GetCurrentDir for $name {
             fn current_dir() -> io::Result<PathBuf> {
-                REPO_DIR.get().cloned().ok_or_else(|| io::Error::other("no repo fixture"))
+                REPO_DIR
+                    .get()
+                    .cloned()
+                    .ok_or_else(|| io::Error::other("no repo fixture"))
             }
         }
     };
@@ -328,7 +345,13 @@ fn load_with_auth_file(auth_yaml: &str, project_yaml: Option<&str>) -> Config {
         fs::write(project.path().join("pnpm-workspace.yaml"), project_yaml)
             .expect("write pnpm-workspace.yaml");
     }
-    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    set_fake_env(&[(
+        "XDG_CONFIG_HOME",
+        xdg
+            .path()
+            .to_str()
+            .unwrap(),
+    )]);
 
     load_with_fake_env(project.path())
 }
@@ -349,7 +372,13 @@ fn load_with_auth_file_and_npmrc(auth_yaml: &str, npmrc: &str) -> Config {
 
     let project = tempdir().expect("project tempdir");
     fs::write(project.path().join(".npmrc"), npmrc).expect("write .npmrc");
-    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    set_fake_env(&[(
+        "XDG_CONFIG_HOME",
+        xdg
+            .path()
+            .to_str()
+            .unwrap(),
+    )]);
 
     load_with_fake_env(project.path())
 }

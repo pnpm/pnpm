@@ -27,8 +27,11 @@ fn resolved_location_matches_canonicalize_fallback_for_node_path() {
     let manifest: Arc<Value> = Arc::new(
         serde_json::from_slice(&read_file(slot_pkg_dir.join("package.json")).unwrap()).unwrap(),
     );
-    let extras =
-        [tmp.path().join("node_modules/.pnpm/node_modules").to_string_lossy().into_owned()];
+    let extras = [tmp
+        .path()
+        .join("node_modules/.pnpm/node_modules")
+        .to_string_lossy()
+        .into_owned()];
 
     // The fallback resolves the alias symlink; the canonicalized slot
     // dir anchors the expectation so a `/tmp` → `/private/tmp`-style
@@ -46,8 +49,15 @@ fn resolved_location_matches_canonicalize_fallback_for_node_path() {
     assert_eq!(
         via_resolved[..2],
         [
-            real_slot_pkg_dir.join("node_modules").to_string_lossy().into_owned(),
-            real_slot_pkg_dir.parent().unwrap().to_string_lossy().into_owned(),
+            real_slot_pkg_dir
+                .join("node_modules")
+                .to_string_lossy()
+                .into_owned(),
+            real_slot_pkg_dir
+                .parent()
+                .unwrap()
+                .to_string_lossy()
+                .into_owned(),
         ],
     );
 }
@@ -73,8 +83,11 @@ fn linking_the_pnpm_cli_deletes_a_stale_powershell_shim() {
     let bins_dir = tmp.path().join("node_modules/.bin");
     create_dir_all(&bins_dir).unwrap();
     for bin_name in ["pnpm", "pn"] {
-        write_file(bins_dir.join(format!("{bin_name}.ps1")), "an older install wrote this")
-            .unwrap();
+        write_file(
+            bins_dir.join(format!("{bin_name}.ps1")),
+            "an older install wrote this",
+        )
+        .unwrap();
     }
 
     let manifest_value: Value =
@@ -83,13 +96,20 @@ fn linking_the_pnpm_cli_deletes_a_stale_powershell_shim() {
     link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
 
     for bin_name in ["pnpm", "pn"] {
-        assert!(bins_dir.join(bin_name).exists(), "{bin_name} must be linked");
         assert!(
-            !bins_dir.join(format!("{bin_name}.ps1")).exists(),
+            bins_dir.join(bin_name).exists(),
+            "{bin_name} must be linked",
+        );
+        assert!(
+            !bins_dir
+                .join(format!("{bin_name}.ps1"))
+                .exists(),
             "the stale {bin_name}.ps1 must be deleted, not left to shadow the linked bin",
         );
         assert_eq!(
-            bins_dir.join(format!("{bin_name}.cmd")).exists(),
+            bins_dir
+                .join(format!("{bin_name}.cmd"))
+                .exists(),
             cfg!(windows),
             "{bin_name}.cmd is the Windows entry point and must survive the cleanup",
         );
@@ -119,7 +139,10 @@ fn a_shim_in_a_freshly_created_bin_dir_is_written_without_reading_it_first() {
     }
     impl FsReadToString for ReadCountingHost {
         fn read_to_string(path: &Path) -> io::Result<String> {
-            if path.file_name().is_some_and(|name| name == "foo") {
+            if path
+                .file_name()
+                .is_some_and(|name| name == "foo")
+            {
                 SHIM_READS.fetch_add(1, Ordering::Relaxed);
             }
             <Host as FsReadToString>::read_to_string(path)
@@ -164,7 +187,10 @@ fn a_shim_in_a_freshly_created_bin_dir_is_written_without_reading_it_first() {
     write_file(pkg.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
     let link = |bins_dir: &Path| {
         link_bins_of_packages::<ReadCountingHost>(
-            &[PackageBinSource::new(pkg.clone(), Arc::new(manifest.clone()))],
+            &[PackageBinSource::new(
+                pkg.clone(),
+                Arc::new(manifest.clone()),
+            )],
             bins_dir,
             &LinkBinsOptions::default(),
         )
@@ -177,7 +203,11 @@ fn a_shim_in_a_freshly_created_bin_dir_is_written_without_reading_it_first() {
         &read_to_string(fresh_bins.join("foo")).unwrap(),
         &pkg.join("cli.js"),
     ));
-    assert_eq!(SHIM_READS.load(Ordering::Relaxed), 0, "nothing can occupy a dir we just made");
+    assert_eq!(
+        SHIM_READS.load(Ordering::Relaxed),
+        0,
+        "nothing can occupy a dir we just made",
+    );
 
     let existing_bins = tmp.path().join("existing/.bin");
     create_dir_all(&existing_bins).unwrap();
@@ -186,7 +216,11 @@ fn a_shim_in_a_freshly_created_bin_dir_is_written_without_reading_it_first() {
         &read_to_string(existing_bins.join("foo")).unwrap(),
         &pkg.join("cli.js"),
     ));
-    assert_eq!(SHIM_READS.load(Ordering::Relaxed), 1, "a pre-existing dir is read first");
+    assert_eq!(
+        SHIM_READS.load(Ordering::Relaxed),
+        1,
+        "a pre-existing dir is read first",
+    );
 }
 
 #[test]
@@ -245,7 +279,10 @@ fn shared_shim_target_cache_probes_a_resolved_target_once() {
     write_file(store_pkg.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
     let cache = ShimTargetCache::default();
     for importer in ["a", "b"] {
-        let modules = tmp.path().join(importer).join("node_modules");
+        let modules = tmp
+            .path()
+            .join(importer)
+            .join("node_modules");
         let location = modules.join("foo");
         create_dir_all(&location).unwrap();
         write_file(location.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
@@ -259,5 +296,9 @@ fn shared_shim_target_cache_probes_a_resolved_target_once() {
         .unwrap();
         assert!(modules.join(".bin/foo").exists());
     }
-    assert_eq!(READ_HEAD_CALLS.load(Ordering::Relaxed), 1, "one probe for the shared target");
+    assert_eq!(
+        READ_HEAD_CALLS.load(Ordering::Relaxed),
+        1,
+        "one probe for the shared target",
+    );
 }

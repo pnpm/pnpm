@@ -24,7 +24,12 @@ fn deferred_builds_uses_only_the_supplied_snapshots() {
     let requires_build = HashMap::from([(first.clone(), true), (second, true)]);
 
     assert_eq!(
-        deferred_builds(requires_build.iter().filter(|(key, _)| *key == &first), true),
+        deferred_builds(
+            requires_build
+                .iter()
+                .filter(|(key, _)| *key == &first),
+            true
+        ),
         [first.to_string()],
     );
 }
@@ -53,7 +58,10 @@ fn from_config_consumes_allow_builds_and_dangerously_allow_all_builds() {
     config.allow_builds.insert("@pnpm.e2e/bad-package".to_string(), false);
 
     let policy = AllowBuildPolicy::from_config(&config).expect("valid specs");
-    assert_eq!(policy.check("@pnpm.e2e/install-script-example@1.0.0"), Some(true));
+    assert_eq!(
+        policy.check("@pnpm.e2e/install-script-example@1.0.0"),
+        Some(true),
+    );
     assert_eq!(policy.check("@pnpm.e2e/bad-package@1.0.0"), Some(false));
     assert_eq!(policy.check("@pnpm.e2e/unrelated@1.0.0"), None);
 }
@@ -198,7 +206,10 @@ fn mutated_slots_is_false_when_every_build_is_ignored() {
     }
     .run::<SilentReporter>()
     .expect("run BuildModules");
-    assert!(!output.mutated_slots, "an ignored build must not report a slot mutation");
+    assert!(
+        !output.mutated_slots,
+        "an ignored build must not report a slot mutation",
+    );
 }
 /// The converse of [`mutated_slots_is_false_when_every_build_is_ignored`]:
 /// an allowed candidate actually runs its script, so the signal must be
@@ -271,7 +282,10 @@ fn mutated_slots_is_true_when_a_script_runs() {
     }
     .run::<SilentReporter>()
     .expect("run BuildModules");
-    assert!(output.mutated_slots, "an executed script must report a slot mutation");
+    assert!(
+        output.mutated_slots,
+        "an executed script must report a slot mutation",
+    );
 }
 /// Under `ignore_scripts`, the same default-deny build candidates that
 /// [`build_modules_collects_ignored_builds`] reports as ignored are
@@ -346,7 +360,10 @@ fn ignore_scripts_skips_build_without_collecting_ignored() {
     .ignored_builds;
     dbg!(&ignored);
 
-    assert!(ignored.is_empty(), "ignore_scripts must not collect ignored builds: {ignored:?}");
+    assert!(
+        ignored.is_empty(),
+        "ignore_scripts must not collect ignored builds: {ignored:?}",
+    );
 }
 #[test]
 fn cached_requires_build_false_skips_package_dir_probe() {
@@ -605,12 +622,18 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
 #[test]
 fn using_side_effects_cache_skips_rebuild() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().expect("lock").clear();
+    EVENTS
+        .lock()
+        .expect("lock")
+        .clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS
+                .lock()
+                .expect("lock")
+                .push(event.clone());
         }
     }
 
@@ -746,9 +769,17 @@ fn using_side_effects_cache_skips_rebuild() {
     // emitted a `Script` (and a non-zero `Exit`) event, plus
     // returned `Err(BuildModulesError::LifecycleScript(...))` from
     // `.run()`.
-    let captured = EVENTS.lock().expect("lock").clone();
-    let any_lifecycle = captured.iter().any(|e| matches!(e, LogEvent::Lifecycle(_)));
-    assert!(!any_lifecycle, "side-effects cache hit must skip lifecycle scripts: {captured:#?}");
+    let captured = EVENTS
+        .lock()
+        .expect("lock")
+        .clone();
+    let any_lifecycle = captured
+        .iter()
+        .any(|e| matches!(e, LogEvent::Lifecycle(_)));
+    assert!(
+        !any_lifecycle,
+        "side-effects cache hit must skip lifecycle scripts: {captured:#?}",
+    );
 
     // The script was skipped, but the cached build output still has to
     // be materialized — the overlay's side-effect file must land in the
@@ -822,7 +853,10 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
     // store whose side-effects blob went missing.
     let overlay = std::collections::HashMap::from([
         ("package.json".to_string(), pkg_dir.join("package.json")),
-        ("generated.txt".to_string(), virtual_store_dir.path().join("missing-cas-blob")),
+        (
+            "generated.txt".to_string(),
+            virtual_store_dir.path().join("missing-cas-blob"),
+        ),
     ]);
     let mut side_effects_maps = std::collections::HashMap::new();
     side_effects_maps.insert(

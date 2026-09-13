@@ -12,7 +12,10 @@ fn picks_up_runtime_pin_from_dependencies() {
         PkgName::parse("node").expect("parse pkg name"),
         SnapshotDepRef::Plain("runtime:22.11.0".parse().expect("parse ver-peer")),
     );
-    let snapshot = SnapshotEntry { dependencies: Some(deps), ..SnapshotEntry::default() };
+    let snapshot = SnapshotEntry {
+        dependencies: Some(deps),
+        ..SnapshotEntry::default()
+    };
     assert_eq!(find_own_runtime_node_major(&snapshot), Some(22));
 }
 
@@ -26,7 +29,10 @@ fn ignores_non_runtime_node_dep() {
         PkgName::parse("node").expect("parse pkg name"),
         SnapshotDepRef::Plain("22.11.0".parse().expect("parse ver-peer")),
     );
-    let snapshot = SnapshotEntry { dependencies: Some(deps), ..SnapshotEntry::default() };
+    let snapshot = SnapshotEntry {
+        dependencies: Some(deps),
+        ..SnapshotEntry::default()
+    };
     assert_eq!(find_own_runtime_node_major(&snapshot), None);
 }
 
@@ -39,7 +45,10 @@ fn ignores_scoped_node_alias() {
         PkgName::parse("@scope/node").expect("parse pkg name"),
         SnapshotDepRef::Plain("runtime:22.11.0".parse().expect("parse ver-peer")),
     );
-    let snapshot = SnapshotEntry { dependencies: Some(deps), ..SnapshotEntry::default() };
+    let snapshot = SnapshotEntry {
+        dependencies: Some(deps),
+        ..SnapshotEntry::default()
+    };
     assert_eq!(find_own_runtime_node_major(&snapshot), None);
 }
 
@@ -63,11 +72,13 @@ async fn load_custom_fetcher_session_is_none_without_a_pnpmfile() {
 #[tokio::test]
 async fn load_custom_fetcher_session_is_none_when_pnpmfile_exports_no_fetchers() {
     let tmp = tempfile::tempdir().expect("tempdir");
-    std::fs::write(tmp.path().join(".pnpmfile.cjs"), "module.exports = { hooks: {} }\n")
-        .expect("write pnpmfile");
+    std::fs::write(
+        tmp.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: {} }\n",
+    )
+    .expect("write pnpmfile");
     let hooks = pnpm_hooks::finder::load_pnpmfile(tmp.path());
-    let session = super::load_custom_fetcher_session(hooks.as_ref())
-        .await
+    let session = super::load_custom_fetcher_session(hooks.as_ref()).await
         .expect("a fetchers-less pnpmfile is not an error");
     assert!(session.is_none());
 }
@@ -81,8 +92,7 @@ async fn load_custom_fetcher_session_loads_exported_fetchers() {
     )
     .expect("write pnpmfile");
     let hooks = pnpm_hooks::finder::load_pnpmfile(tmp.path());
-    let session = super::load_custom_fetcher_session(hooks.as_ref())
-        .await
+    let session = super::load_custom_fetcher_session(hooks.as_ref()).await
         .expect("a well-formed fetchers export must load");
     assert!(session.is_some());
 }
@@ -94,8 +104,11 @@ async fn load_custom_fetcher_session_loads_exported_fetchers() {
 #[tokio::test]
 async fn load_custom_fetcher_session_propagates_a_broken_pnpmfile() {
     let tmp = tempfile::tempdir().expect("tempdir");
-    std::fs::write(tmp.path().join(".pnpmfile.cjs"), "throw new Error('pnpmfile exploded')\n")
-        .expect("write pnpmfile");
+    std::fs::write(
+        tmp.path().join(".pnpmfile.cjs"),
+        "throw new Error('pnpmfile exploded')\n",
+    )
+    .expect("write pnpmfile");
     let hooks = pnpm_hooks::finder::load_pnpmfile(tmp.path());
     let Err(err) = super::load_custom_fetcher_session(hooks.as_ref()).await else {
         panic!("a throwing pnpmfile must fail the load");

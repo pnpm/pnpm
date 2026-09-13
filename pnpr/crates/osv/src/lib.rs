@@ -57,7 +57,9 @@ impl OsvIndex {
         if !config.osv.enabled {
             return Ok(None);
         }
-        let path = config.osv.path.clone().unwrap_or_else(|| default_osv_path(config));
+        let path = config.osv.path
+            .clone()
+            .unwrap_or_else(|| default_osv_path(config));
         if !path.exists() {
             return Err(invalid_config(format!(
                 "OSV is enabled but database {} does not exist; download the npm OSV dump to this path or set osv.path",
@@ -115,7 +117,9 @@ impl OsvIndex {
             return false;
         };
         let parsed = Version::parse(version).ok();
-        advisories.iter().any(|advisory| advisory.affects(version, parsed.as_ref()))
+        advisories
+            .iter()
+            .any(|advisory| advisory.affects(version, parsed.as_ref()))
     }
 
     #[must_use]
@@ -138,7 +142,9 @@ impl OsvIndex {
     }
 
     fn advisories(&self, name: &str) -> Option<&[Advisory]> {
-        self.packages.get(normalized_name(name).as_ref()).map(Vec::as_slice)
+        self.packages
+            .get(normalized_name(name).as_ref())
+            .map(Vec::as_slice)
     }
 
     fn decision(&self, name: &str, version: &str) -> PackageVersionGuardDecision {
@@ -176,7 +182,9 @@ impl Advisory {
         let Some(parsed) = parsed else {
             return false;
         };
-        self.ranges.iter().any(|range| range.affects(parsed))
+        self.ranges
+            .iter()
+            .any(|range| range.affects(parsed))
     }
 }
 
@@ -241,16 +249,24 @@ pub fn load_osv_index(config: &Config) -> Result<Option<Arc<OsvIndex>>, Registry
 }
 
 fn default_osv_path(config: &Config) -> PathBuf {
-    config.storage.cache_dir.join("osv").join("npm").join("all.zip")
+    config.storage.cache_dir
+        .join("osv")
+        .join("npm")
+        .join("all.zip")
 }
 
 fn load_from_zip(path: &Path) -> Result<OsvIndex, RegistryError> {
-    let file = File::open(path).map_err(|err| {
-        invalid_config(format!("failed to open OSV database {}: {err}", path.display()))
-    })?;
-    let mut archive = zip::ZipArchive::new(file).map_err(|err| {
-        invalid_config(format!("failed to read OSV zip {}: {err}", path.display()))
-    })?;
+    let file = File::open(path)
+        .map_err(|err| {
+            invalid_config(format!(
+                "failed to open OSV database {}: {err}",
+                path.display(),
+            ))
+        })?;
+    let mut archive = zip::ZipArchive::new(file)
+        .map_err(|err| {
+            invalid_config(format!("failed to read OSV zip {}: {err}", path.display()))
+        })?;
     let mut packages = HashMap::new();
     // Fingerprint the decompressed record contents while parsing (one
     // pass over the same handle), not the raw archive bytes: that avoids
@@ -258,9 +274,14 @@ fn load_from_zip(path: &Path) -> Result<OsvIndex, RegistryError> {
     // recompression/repackaging of identical advisory data.
     let mut digests = Vec::new();
     for index in 0..archive.len() {
-        let mut entry = archive.by_index(index).map_err(|err| {
-            invalid_config(format!("failed to read OSV zip entry in {}: {err}", path.display()))
-        })?;
+        let mut entry = archive
+            .by_index(index)
+            .map_err(|err| {
+                invalid_config(format!(
+                    "failed to read OSV zip entry in {}: {err}",
+                    path.display(),
+                ))
+            })?;
         if !entry.is_file() || !entry.name().ends_with(".json") {
             continue;
         }
@@ -268,17 +289,26 @@ fn load_from_zip(path: &Path) -> Result<OsvIndex, RegistryError> {
         digests.push(record_digest(&name, &bytes));
         ingest_record_bytes(&mut packages, &name, &bytes)?;
     }
-    Ok(OsvIndex { packages, fingerprint: combine_fingerprint(digests) })
+    Ok(OsvIndex {
+        packages,
+        fingerprint: combine_fingerprint(digests),
+    })
 }
 
 fn load_from_directory(path: &Path) -> Result<OsvIndex, RegistryError> {
     let entries = std::fs::read_dir(path)
         .map_err(|err| {
-            invalid_config(format!("failed to read OSV directory {}: {err}", path.display()))
+            invalid_config(format!(
+                "failed to read OSV directory {}: {err}",
+                path.display(),
+            ))
         })?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|err| {
-            invalid_config(format!("failed to read OSV directory {}: {err}", path.display()))
+            invalid_config(format!(
+                "failed to read OSV directory {}: {err}",
+                path.display(),
+            ))
         })?;
 
     let mut packages = HashMap::new();
@@ -286,16 +316,24 @@ fn load_from_directory(path: &Path) -> Result<OsvIndex, RegistryError> {
     for entry in entries {
         let entry_path = entry.path();
         if !entry_path.is_file()
-            || entry_path.extension().is_none_or(|extension| extension != "json")
+            || entry_path
+                .extension()
+                .is_none_or(|extension| extension != "json")
         {
             continue;
         }
         let bytes = read_directory_record(&entry_path)?;
-        let name = entry_path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
+        let name = entry_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default();
         digests.push(record_digest(name, &bytes));
         ingest_record_bytes(&mut packages, name, &bytes)?;
     }
-    Ok(OsvIndex { packages, fingerprint: combine_fingerprint(digests) })
+    Ok(OsvIndex {
+        packages,
+        fingerprint: combine_fingerprint(digests),
+    })
 }
 
 /// Per-record content digest over a length-prefixed `(name, bytes)` so
@@ -308,7 +346,10 @@ fn load_from_directory(path: &Path) -> Result<OsvIndex, RegistryError> {
 #[cfg(unix)]
 fn open_osv_record(path: &Path) -> std::io::Result<File> {
     use std::os::unix::fs::OpenOptionsExt;
-    std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK).open(path)
+    std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NONBLOCK)
+        .open(path)
 }
 
 #[cfg(not(unix))]
@@ -352,7 +393,9 @@ pub fn format_advisory_ids(ids: &[String]) -> String {
 }
 
 fn invalid_config(reason: String) -> RegistryError {
-    RegistryError::InvalidConfig { reason }
+    RegistryError::InvalidConfig {
+        reason,
+    }
 }
 
 #[cfg(test)]
@@ -395,10 +438,16 @@ fn read_zip_record(
 /// Open without blocking on a concurrently substituted FIFO, then verify the
 /// opened handle is a regular file before reading a bounded record.
 fn read_directory_record(entry_path: &Path) -> Result<Vec<u8>, RegistryError> {
-    let file = open_osv_record(entry_path).map_err(|err| {
-        invalid_config(format!("failed to read OSV record {}: {err}", entry_path.display()))
-    })?;
-    let is_regular_file = file.metadata().is_ok_and(|metadata| metadata.is_file());
+    let file = open_osv_record(entry_path)
+        .map_err(|err| {
+            invalid_config(format!(
+                "failed to read OSV record {}: {err}",
+                entry_path.display(),
+            ))
+        })?;
+    let is_regular_file = file
+        .metadata()
+        .is_ok_and(|metadata| metadata.is_file());
     if !is_regular_file {
         return Err(invalid_config(format!(
             "OSV record {} is not a regular file",
@@ -406,9 +455,15 @@ fn read_directory_record(entry_path: &Path) -> Result<Vec<u8>, RegistryError> {
         )));
     }
     let mut bytes = Vec::new();
-    file.take(MAX_OSV_RECORD_BYTES + 1).read_to_end(&mut bytes).map_err(|err| {
-        invalid_config(format!("failed to read OSV record {}: {err}", entry_path.display()))
-    })?;
+    file
+        .take(MAX_OSV_RECORD_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|err| {
+            invalid_config(format!(
+                "failed to read OSV record {}: {err}",
+                entry_path.display(),
+            ))
+        })?;
     if bytes.len() as u64 > MAX_OSV_RECORD_BYTES {
         return Err(invalid_config(format!(
             "OSV record {} is over the {MAX_OSV_RECORD_BYTES}-byte per-record limit",

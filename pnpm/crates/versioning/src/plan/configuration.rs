@@ -34,7 +34,10 @@ pub(super) fn resolve_fixed_groups(
     versioning: Option<&VersioningSettings>,
 ) -> Result<Vec<Vec<String>>, VersioningError> {
     let mut groups = Vec::new();
-    for group in versioning.map(|settings| settings.fixed.as_slice()).unwrap_or_default() {
+    for group in versioning
+        .map(|settings| settings.fixed.as_slice())
+        .unwrap_or_default()
+    {
         groups.push(resolve_fixed_group(refs, participants, group)?);
     }
     Ok(groups)
@@ -62,12 +65,17 @@ pub(super) fn validate_fixed_group_lanes(
     versioning: Option<&VersioningSettings>,
 ) -> Result<(), VersioningError> {
     for (index, group) in fixed_groups.iter().enumerate() {
-        let tags: HashSet<Option<&String>> =
-            group.iter().map(|dir| lanes_by_dir.get(dir)).collect();
+        let tags: HashSet<Option<&String>> = group
+            .iter()
+            .map(|dir| lanes_by_dir.get(dir))
+            .collect();
         if tags.len() > 1 {
-            let declared =
-                versioning.map(|settings| settings.fixed[index].clone()).unwrap_or_default();
-            return Err(VersioningError::ConflictingConfig { group: declared });
+            let declared = versioning
+                .map(|settings| settings.fixed[index].clone())
+                .unwrap_or_default();
+            return Err(VersioningError::ConflictingConfig {
+                group: declared,
+            });
         }
     }
     Ok(())
@@ -83,14 +91,21 @@ pub(super) fn resolve_epics(
     versioning: Option<&VersioningSettings>,
 ) -> Result<Vec<ResolvedEpic>, VersioningError> {
     let mut epics = Vec::new();
-    for epic in versioning.map(|settings| settings.epics.as_slice()).unwrap_or_default() {
+    for epic in versioning
+        .map(|settings| settings.epics.as_slice())
+        .unwrap_or_default()
+    {
         let lead_dir = resolve_config_ref(refs, &epic.lead, "versioning.epics lead")?
             .into_iter()
             .next()
             .filter(|dir| participants.contains_key(dir))
-            .ok_or_else(|| VersioningError::EpicUnknownLead { lead: epic.lead.clone() })?;
-        let selectors: Vec<EpicSelector> =
-            epic.packages.iter().map(|selector| compile_epic_selector(selector)).collect();
+            .ok_or_else(|| VersioningError::EpicUnknownLead {
+                lead: epic.lead.clone(),
+            })?;
+        let selectors: Vec<EpicSelector> = epic.packages
+            .iter()
+            .map(|selector| compile_epic_selector(selector))
+            .collect();
         let mut member_dirs = HashSet::new();
         for participant in participants.values() {
             if participant.dir == lead_dir {
@@ -100,7 +115,11 @@ pub(super) fn resolve_epics(
                 member_dirs.insert(participant.dir.clone());
             }
         }
-        epics.push(ResolvedEpic { lead_ref: epic.lead.clone(), lead_dir, member_dirs });
+        epics.push(ResolvedEpic {
+            lead_ref: epic.lead.clone(),
+            lead_dir,
+            member_dirs,
+        });
     }
     Ok(epics)
 }
@@ -118,8 +137,16 @@ fn compile_epic_selector(selector: &str) -> EpicSelector {
         None => (false, selector),
     };
     let on_dir = is_dir_ref(body);
-    let pattern = if on_dir { normalize_project_dir(body) } else { body.to_string() };
-    EpicSelector { negated, on_dir, pattern: WildcardMatcher::new(&pattern) }
+    let pattern = if on_dir {
+        normalize_project_dir(body)
+    } else {
+        body.to_string()
+    };
+    EpicSelector {
+        negated,
+        on_dir,
+        pattern: WildcardMatcher::new(&pattern),
+    }
 }
 
 /// Whether a project is an epic member under pnpm's order-dependent selector
@@ -182,7 +209,10 @@ fn assert_fixed_group_fits_epic(
     epic: &ResolvedEpic,
     group: &[String],
 ) -> Result<(), VersioningError> {
-    if !group.iter().any(|dir| epic.member_dirs.contains(dir)) {
+    if !group
+        .iter()
+        .any(|dir| epic.member_dirs.contains(dir))
+    {
         return Ok(());
     }
     let outsiders: Vec<String> = group
@@ -246,7 +276,10 @@ fn resolve_intent_ref(
             dirs,
         });
     }
-    let dir = dirs.into_iter().next().expect("one element");
+    let dir = dirs
+        .into_iter()
+        .next()
+        .expect("one element");
     if bump_type != IntentBumpType::None && !participants.contains_key(&dir) {
         return Err(VersioningError::UnreleasablePackage {
             file_path: intent.file_path.clone(),

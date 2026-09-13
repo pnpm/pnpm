@@ -151,7 +151,10 @@ impl LinkVirtualStoreBins<'_> {
                 layout,
                 snapshots,
                 selected_snapshots,
-                BinSlotSets { has_bin: has_bin_set.as_ref(), bundling: &bundling_set },
+                BinSlotSets {
+                    has_bin: has_bin_set.as_ref(),
+                    bundling: &bundling_set,
+                },
                 package_manifests,
                 skipped,
                 link_options,
@@ -291,16 +294,25 @@ where
         .iter()
         .filter(|(slot_key, _)| {
             !skipped.contains(slot_key)
-                && selected_snapshots.as_ref().is_none_or(|keys| keys.contains(slot_key))
+                && selected_snapshots
+                    .as_ref()
+                    .is_none_or(|keys| keys.contains(slot_key))
         })
         .collect();
-    slot_entries.par_iter().try_for_each(|(slot_key, snapshot)| {
-        link_slot_bins::<Sys>(
-            &SlotBinContext { layout, sets, package_manifests, link_options },
-            slot_key,
-            snapshot,
-        )
-    })
+    slot_entries
+        .par_iter()
+        .try_for_each(|(slot_key, snapshot)| {
+            link_slot_bins::<Sys>(
+                &SlotBinContext {
+                    layout,
+                    sets,
+                    package_manifests,
+                    link_options,
+                },
+                slot_key,
+                snapshot,
+            )
+        })
 }
 
 /// The inputs [`link_slot_bins`] shares across every slot of one pass.
@@ -430,8 +442,7 @@ fn children_with_bins<'a>(
     snapshot: &'a SnapshotEntry,
     has_bin_set: Option<&HashSet<PackageKey>>,
 ) -> Vec<(&'a PkgName, PackageKey, PackageKey)> {
-    snapshot
-        .dependencies
+    snapshot.dependencies
         .iter()
         .flatten()
         .chain(snapshot.optional_dependencies.iter().flatten())
@@ -496,7 +507,9 @@ fn slot_own_pkg_dir(modules_dir: &Path, slot_key: &PackageKey) -> PathBuf {
 /// represents `@types/node`, **not** `@types+node`.
 fn pkg_dir_under(modules_dir: &Path, name: &PkgName) -> PathBuf {
     match &name.scope {
-        Some(scope) => modules_dir.join(format!("@{scope}")).join(&name.bare),
+        Some(scope) => modules_dir
+            .join(format!("@{scope}"))
+            .join(&name.bare),
         None => modules_dir.join(&name.bare),
     }
 }

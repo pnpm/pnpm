@@ -31,7 +31,10 @@ fn dep_key(name: &str, version: &str) -> PkgNameVerPeer {
 }
 
 fn resolved_dep(version: &str) -> ResolvedDependencySpec {
-    ResolvedDependencySpec { specifier: version.to_string(), version: ver_peer(version).into() }
+    ResolvedDependencySpec {
+        specifier: version.to_string(),
+        version: ver_peer(version).into(),
+    }
 }
 
 fn empty_lockfile() -> Lockfile {
@@ -93,8 +96,16 @@ fn result_node(
         name: name.to_string(),
         ident_name: name.to_string(),
         references: RefCell::new(BTreeSet::from([reference.to_string()])),
-        peer_names: peer_names.iter().map(|&peer| peer.to_string()).collect(),
-        dependencies: RefCell::new(dependencies.into_iter().map(RcByPtr).collect::<IndexSet<_>>()),
+        peer_names: peer_names
+            .iter()
+            .map(|&peer| peer.to_string())
+            .collect(),
+        dependencies: RefCell::new(
+            dependencies
+                .into_iter()
+                .map(RcByPtr)
+                .collect::<IndexSet<_>>(),
+        ),
         hoisted_dependencies: RefCell::new(std::collections::HashMap::new()),
         decoupled: std::cell::Cell::new(false),
     })

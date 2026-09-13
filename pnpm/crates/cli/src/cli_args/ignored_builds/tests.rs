@@ -61,7 +61,11 @@ fn lists_explicitly_ignored_dependencies() {
 #[test]
 fn lists_both_automatically_and_explicitly_ignored() {
     let dir = tempdir().unwrap();
-    let config = config_with(dir.path(), Some(&["foo@1.0.0", "bar@1.0.0"]), &["qar", "zoo"]);
+    let config = config_with(
+        dir.path(),
+        Some(&["foo@1.0.0", "bar@1.0.0"]),
+        &["qar", "zoo"],
+    );
     let output = render_ignored_builds(&config).unwrap();
     assert_eq!(
         output,

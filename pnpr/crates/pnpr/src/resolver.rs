@@ -215,9 +215,9 @@ impl Resolver {
         // request boundary uses, so an allowlisted registry that redirects to
         // an off-allowlist host cannot slip a server-side fetch past it (SSRF).
         let redirect_context = Arc::clone(&route_context);
-        let client = Arc::new(ThrottledClient::new_for_installs_with_redirect_guard(move |url| {
-            redirect_context.allows_registry(url.as_str())
-        }));
+        let client = Arc::new(ThrottledClient::new_for_installs_with_redirect_guard(
+            move |url| redirect_context.allows_registry(url.as_str()),
+        ));
         Resolver {
             store_dir: StoreDir::new(store_dir),
             client,
@@ -256,14 +256,18 @@ impl Resolver {
     /// name never share an entry; the caller's route scope adds the last
     /// namespace segment at fetch time.
     fn cargo_index_cache_dir(&self, registry: &str) -> PathBuf {
-        self.cache.dir.join("cargo-index").join(pnpm_crypto_hash::create_hex_hash(registry))
+        self.cache.dir
+            .join("cargo-index")
+            .join(pnpm_crypto_hash::create_hex_hash(registry))
     }
 
     /// Where `index`'s Python documents are cached. As with Cargo, the
     /// origin is hashed into the path so two indexes serving the same
     /// project never share an entry.
     fn python_index_cache_dir(&self, index: &str) -> PathBuf {
-        self.cache.dir.join("python-index").join(pnpm_crypto_hash::create_hex_hash(index))
+        self.cache.dir
+            .join("python-index")
+            .join(pnpm_crypto_hash::create_hex_hash(index))
     }
 
     /// Resolve (or build + intern) the `&'static Config` for a request's
@@ -378,25 +382,17 @@ async fn resolve_npm_request(
     // opt-out (mirrors the local path's `--trust-lockfile`). Freshly-
     // resolved entries are held to the same policy by the resolver's
     // pick-time gate (the policy is wired into `config`).
-    let verified_dist_stats =
-        match verify_request_lockfile(runtime, config, &request, &request_auth, &tarball_router)
-            .await
-        {
-            Ok(stats) => stats,
-            Err(response) => return response,
-        };
-
-    // Short-circuit paths that produce the whole lockfile without an
-    // incremental tree walk. A verified frozen lockfile still announces
-    // its tarballs as `package` frames when the verification fan-out
-    // just fetched their metadata — the sizes let the client start the
-    // largest downloads first. On a verdict-cache hit no metadata was
-    // fetched, so there's nothing to add and the response is the bare
-    // `done` frame.
-    if let Some(response) =
-        frozen_lockfile_response(runtime, config, &request, &tarball_router, verified_dist_stats)
+    match verify_lockfile::verified_frozen_response(
+        runtime,
+        config,
+        &request,
+        &request_auth,
+        &tarball_router,
+    )
+    .await
     {
-        return response;
+        Ok(Some(response)) | Err(response) => return response,
+        Ok(None) => {}
     }
     // The base key is auth-excluded and shared by every candidate for the
     // same resolution inputs. Candidate footprints decide which callers
@@ -537,7 +533,10 @@ struct StoreCandidate<'a> {
 /// Offer a finished resolution to the cache, logging what a private one was
 /// judged on.
 fn store_resolution_candidate(candidate: StoreCandidate<'_>) {
-    let footprint = candidate.footprint.lock().expect("footprint poisoned").clone();
+    let footprint = candidate.footprint
+        .lock()
+        .expect("footprint poisoned")
+        .clone();
     let descriptor = footprint.digest(candidate.cache_secret);
     let cached = store_resolution(
         candidate.cache,
@@ -561,7 +560,11 @@ fn store_resolution_candidate(candidate: StoreCandidate<'_>) {
 /// rides an NDJSON frame, where miette's rendered report would arrive as
 /// an unreadable block of escaped newlines.
 fn report_message(report: &miette::Report) -> String {
-    report.chain().map(ToString::to_string).collect::<Vec<_>>().join(": ")
+    report
+        .chain()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(": ")
 }
 
 fn json_error(status: StatusCode, message: &str) -> Response {
@@ -585,6 +588,9 @@ fn request_tarball_router(
         Arc::clone(&runtime.route_context),
         identity.clone(),
         runtime.public_url.clone(),
-        config.resolved_registries().into_iter().collect(),
+        config
+            .resolved_registries()
+            .into_iter()
+            .collect(),
     )
 }

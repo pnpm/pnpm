@@ -26,7 +26,11 @@ pub(super) fn metadata_cache_key(
     use_filtered_full_metadata: bool,
 ) -> String {
     let suffix = if full_metadata {
-        if use_filtered_full_metadata { ":full:filtered" } else { ":full" }
+        if use_filtered_full_metadata {
+            ":full:filtered"
+        } else {
+            ":full"
+        }
     } else {
         ""
     };
@@ -41,14 +45,19 @@ pub(super) fn metadata_cache_key(
 pub(super) fn validate_package_name(pkg_name: &str) -> Result<(), PickPackageError> {
     // A slash without a `@scope/` prefix is structurally invalid.
     if pkg_name.contains('/') && !pkg_name.starts_with('@') {
-        return Err(PickPackageError::InvalidPackageName { pkg_name: pkg_name.to_string() });
+        return Err(PickPackageError::InvalidPackageName {
+            pkg_name: pkg_name.to_string(),
+        });
     }
     Ok(())
 }
 
 pub(super) fn get_file_mtime(path: &Path) -> Option<DateTime<Utc>> {
     let metadata = std::fs::metadata(path).ok()?;
-    let mtime: chrono::DateTime<Utc> = metadata.modified().ok()?.into();
+    let mtime: chrono::DateTime<Utc> = metadata
+        .modified()
+        .ok()?
+        .into();
     Some(mtime)
 }
 
@@ -118,9 +127,13 @@ pub fn persist_meta_to_mirror(
     meta: &Package,
 ) -> Result<(), MirrorPersistError> {
     let path = get_pkg_mirror_path(cache_dir, meta_dir, registry, &meta.name)
-        .map_err(|error| MirrorPersistError::EncodePath { error: error.to_string() })?;
+        .map_err(|error| MirrorPersistError::EncodePath {
+            error: error.to_string(),
+        })?;
     save_meta_indexed(&path, meta, meta.etag.as_deref())
-        .map_err(|error| MirrorPersistError::Write { error: error.to_string() })
+        .map_err(|error| MirrorPersistError::Write {
+            error: error.to_string(),
+        })
 }
 
 /// Failure modes for [`persist_meta_to_mirror`]. Each variant

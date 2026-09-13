@@ -23,7 +23,10 @@ pub(super) fn selected_seed_policy(
     if patches {
         return UpdateSeedPolicy::RefreshRevisions;
     }
-    UpdateSeedPolicy::ByImporter { policies, max_depth: UpdateDepth::new(depth) }
+    UpdateSeedPolicy::ByImporter {
+        policies,
+        max_depth: UpdateDepth::new(depth),
+    }
 }
 /// What every branch of the seed-policy decision reads.
 pub(super) struct UpdateScope<'a> {
@@ -52,7 +55,10 @@ pub(super) struct UpdatePlan {
 }
 impl UpdatePlan {
     fn drop_only(&mut self, max_depth: UpdateDepth) -> UpdateSeedPolicy {
-        UpdateSeedPolicy::DropOnly { targets: std::mem::take(&mut self.drop_targets), max_depth }
+        UpdateSeedPolicy::DropOnly {
+            targets: std::mem::take(&mut self.drop_targets),
+            max_depth,
+        }
     }
 }
 /// The seed policy this update runs under, or `None` when nothing it names is
@@ -67,7 +73,12 @@ pub(super) async fn select_seed_policy<Reporter: self::Reporter>(
 ) -> Result<Option<UpdateSeedPolicy>, UpdateError> {
     let (workspace_packages, workspace_targets) = workspace;
     if let Some(workspace_packages) = workspace_packages.filter(|_| !workspace_targets.is_empty()) {
-        return Ok(Some(workspace_seed_policy(scope, plan, workspace_targets, workspace_packages)));
+        return Ok(Some(workspace_seed_policy(
+            scope,
+            plan,
+            workspace_targets,
+            workspace_packages,
+        )));
     }
     if scope.selectors.is_empty() {
         return all_direct_seed_policy::<Reporter>(
@@ -118,8 +129,11 @@ pub(super) async fn all_direct_seed_policy<Reporter: self::Reporter>(
     let ignore_patterns =
         scope.config.update_config.ignore_dependencies.as_deref().unwrap_or_default();
     let ignore_matcher = (!ignore_patterns.is_empty()).then(|| create_matcher(ignore_patterns));
-    let is_ignored =
-        |name: &str| ignore_matcher.as_ref().is_some_and(|matcher| matcher.matches(name));
+    let is_ignored = |name: &str| {
+        ignore_matcher
+            .as_ref()
+            .is_some_and(|matcher| matcher.matches(name))
+    };
     if scope.version.latest && !scope.version.save {
         emit_latest_ignored::<Reporter>(rewrite_ctx.manifest);
     }
@@ -139,7 +153,9 @@ pub(super) async fn all_direct_seed_policy<Reporter: self::Reporter>(
     }
     if scope.updates_all_groups && ignore_patterns.is_empty() {
         // A bare, ungated update re-resolves the whole graph.
-        return Ok(UpdateSeedPolicy::DropAll { max_depth: scope.max_depth() });
+        return Ok(UpdateSeedPolicy::DropAll {
+            max_depth: scope.max_depth(),
+        });
     }
     let nothing_dropped = plan.drop_targets.is_empty();
     widen_drop_targets_to_lockfile(scope, plan, nothing_dropped, &is_ignored);
@@ -163,7 +179,9 @@ pub(super) async fn record_direct_update(
         plan.rewrites.push((name.clone(), group, specifier));
     }
     if scope.version.save && !scope.version.latest {
-        plan.bump_targets.entry(name.clone()).or_insert_with(|| (group, previous.clone()));
+        plan.bump_targets
+            .entry(name.clone())
+            .or_insert_with(|| (group, previous.clone()));
     }
     plan.drop_targets.insert(name.clone(), None);
     Ok(())
@@ -195,15 +213,19 @@ pub(super) fn name_matched_seed_policy(
     scope: &UpdateScope<'_>,
     plan: &mut UpdatePlan,
 ) -> UpdateSeedPolicy {
-    let patterns =
-        scope.selectors.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>();
+    let patterns = scope.selectors
+        .iter()
+        .map(|selector| selector.pattern.clone())
+        .collect::<Vec<_>>();
     let matcher = create_matcher(&patterns);
     for (name, group, previous) in scope.direct {
         if !matcher.matches(name) {
             continue;
         }
         if scope.version.save {
-            plan.bump_targets.entry(name.clone()).or_insert_with(|| (*group, previous.clone()));
+            plan.bump_targets
+                .entry(name.clone())
+                .or_insert_with(|| (*group, previous.clone()));
         }
         plan.drop_targets.insert(name.clone(), None);
     }
@@ -234,16 +256,8 @@ pub(super) async fn selector_seed_policy<Reporter: self::Reporter>(
     latest_chain: &mut Option<LatestResolverChain>,
     catalog_ctx: &mut Option<CatalogCtx>,
 ) -> Result<Option<UpdateSeedPolicy>, UpdateError> {
-    let patterns =
-        scope.selectors.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>();
-    let matcher = create_matcher(&patterns);
     let expanded = expand_update_selectors(scope.selectors);
-    let matched_direct = scope
-        .direct
-        .iter()
-        .filter(|(name, _, _)| matcher.matches(name))
-        .cloned()
-        .collect::<Vec<_>>();
+    let matched_direct = matching_direct_dependencies(scope);
     if matched_direct.is_empty() {
         // An unmatched `--latest` selector is a no-op. Deeper versioned
         // selectors can still target lockfile names but cannot force that
@@ -261,7 +275,12 @@ pub(super) async fn selector_seed_policy<Reporter: self::Reporter>(
         record_matched_direct_update::<Reporter>(
             scope,
             plan,
-            MatchedRewriteInputs { rewrite_ctx, latest_chain, catalog_ctx, expanded: &expanded },
+            MatchedRewriteInputs {
+                rewrite_ctx,
+                latest_chain,
+                catalog_ctx,
+                expanded: &expanded,
+            },
             (name, *group, previous),
         )
         .await?;
@@ -277,7 +296,10 @@ pub(super) fn widen_drop_targets_by_selectors(
         return;
     };
     let target_matcher = create_matcher(
-        &expanded.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>(),
+        &expanded
+            .iter()
+            .map(|selector| selector.pattern.clone())
+            .collect::<Vec<_>>(),
     );
     for key in snapshots.keys() {
         let name = key.name.to_string();
@@ -320,8 +342,23 @@ impl UpdateScope<'_> {
 
     fn use_name_matcher(&self) -> bool {
         !self.selectors.is_empty()
-            && self.selectors.iter().all(|selector| selector.version.is_none())
+            && self.selectors
+                .iter()
+                .all(|selector| selector.version.is_none())
             && self.depth > 0
             && !self.version.latest
     }
+}
+
+fn matching_direct_dependencies(scope: &UpdateScope<'_>) -> Vec<(String, DependencyGroup, String)> {
+    let patterns = scope.selectors
+        .iter()
+        .map(|selector| selector.pattern.clone())
+        .collect::<Vec<_>>();
+    let matcher = create_matcher(&patterns);
+    scope.direct
+        .iter()
+        .filter(|(name, _, _)| matcher.matches(name))
+        .cloned()
+        .collect::<Vec<_>>()
 }

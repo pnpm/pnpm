@@ -39,7 +39,10 @@ fn read_propagates_non_not_found_io_error() {
         .pipe(read_modules_manifest::<FailingRead>)
         .expect_err("expected error");
     eprintln!("error: {err}");
-    assert!(matches!(err, pnpm_modules_yaml::ReadModulesError::ReadFile { .. }));
+    assert!(matches!(
+        err,
+        pnpm_modules_yaml::ReadModulesError::ReadFile { .. }
+    ));
 }
 
 /// `read_modules_manifest` should surface a YAML parse failure as
@@ -65,7 +68,10 @@ fn read_propagates_parse_error() {
         .pipe(read_modules_manifest::<BadYamlContent>)
         .expect_err("expected error");
     eprintln!("error: {err}");
-    assert!(matches!(err, pnpm_modules_yaml::ReadModulesError::ParseYaml { .. }));
+    assert!(matches!(
+        err,
+        pnpm_modules_yaml::ReadModulesError::ParseYaml { .. }
+    ));
 }
 
 /// A YAML document that parses to `null` should yield `Ok(None)`.
@@ -116,7 +122,10 @@ fn write_propagates_create_dir_error() {
     let err = write_modules_manifest::<FailingMkdir>(modules_dir, Modules::default())
         .expect_err("expected error");
     eprintln!("error: {err}");
-    assert!(matches!(err, pnpm_modules_yaml::WriteModulesError::CreateDir { .. }));
+    assert!(matches!(
+        err,
+        pnpm_modules_yaml::WriteModulesError::CreateDir { .. }
+    ));
 }
 
 /// `write_modules_manifest` should map a `write` failure to
@@ -141,7 +150,10 @@ fn write_propagates_write_error() {
     let err = write_modules_manifest::<FailingWrite>(modules_dir, Modules::default())
         .expect_err("expected error");
     eprintln!("error: {err}");
-    assert!(matches!(err, pnpm_modules_yaml::WriteModulesError::WriteFile { .. }));
+    assert!(matches!(
+        err,
+        pnpm_modules_yaml::WriteModulesError::WriteFile { .. }
+    ));
 }
 
 /// `LayoutVersion` is a unit type pinned to `5`, and a manifest naming
@@ -218,8 +230,7 @@ fn ignored_builds_dedups_and_preserves_insertion_order() {
         .pipe(read_modules_manifest::<DupIgnored>)
         .expect("read manifest")
         .expect("manifest exists");
-    let ignored: Vec<&str> = manifest
-        .ignored_builds
+    let ignored: Vec<&str> = manifest.ignored_builds
         .as_ref()
         .expect("ignored_builds present")
         .iter()
@@ -244,7 +255,10 @@ fn read_fills_pruned_at_from_clock_when_missing() {
     }
     impl Clock for FakeClock {
         fn now() -> SystemTime {
-            Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap().into()
+            Utc
+                .with_ymd_and_hms(2026, 1, 1, 0, 0, 0)
+                .unwrap()
+                .into()
         }
     }
 

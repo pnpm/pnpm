@@ -26,25 +26,45 @@ async fn time_based_cutoff_falls_back_to_the_lockfiles_recorded_time() {
     );
     table.insert(
         ("sub".to_string(), "^2.0.0".to_string()),
-        fake_result("sub", "2.0.0", None, serde_json::json!({ "name": "sub", "version": "2.0.0" })),
+        fake_result(
+            "sub",
+            "2.0.0",
+            None,
+            serde_json::json!({ "name": "sub", "version": "2.0.0" }),
+        ),
     );
-    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
+    let resolver = RecordingResolver {
+        table,
+        seen: Mutex::new(HashMap::default()),
+    };
     let (tmp, manifest) = fake_manifest(serde_json::json!({ "a": "^1.0.0" }));
-    let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+    let importers = [WorkspaceImporter {
+        id: ".".to_string(),
+        manifest: &manifest,
+    }];
 
     let mut opts = workspace_opts(true, true);
-    opts.reuse.lockfile =
-        Some(Arc::new(lockfile_recording_time(&[("a@1.0.0", "2024-05-20T08:00:00.000Z")])));
+    opts.reuse.lockfile = Some(Arc::new(lockfile_recording_time(&[(
+        "a@1.0.0",
+        "2024-05-20T08:00:00.000Z",
+    )])));
 
-    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
-        importer_opts(tmp.path().to_path_buf(), None)
-    })
+    let result = resolve_workspace(
+        &resolver,
+        &importers,
+        &[DependencyGroup::Prod],
+        opts,
+        |_| importer_opts(tmp.path().to_path_buf(), None),
+    )
     .await
     .unwrap();
 
     assert_eq!(
         resolver.opts_for("sub"),
-        (false, Some(Utc.with_ymd_and_hms(2024, 5, 20, 9, 0, 0).unwrap())),
+        (
+            false,
+            Some(Utc.with_ymd_and_hms(2024, 5, 20, 9, 0, 0).unwrap())
+        ),
         "the recorded publish date stands in for the missing one",
     );
     assert_eq!(
@@ -57,12 +77,20 @@ async fn time_based_cutoff_falls_back_to_the_lockfiles_recorded_time() {
 #[tokio::test]
 async fn skips_an_optional_dependency_whose_resolution_fails_with_no_locked_entry() {
     let (_tmp, manifest, resolver) = optional_failure_fixture(FailureShape::Plain);
-    let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+    let importers = [WorkspaceImporter {
+        id: ".".to_string(),
+        manifest: &manifest,
+    }];
     let skipped = std::sync::Arc::new(Mutex::new(Vec::new()));
     let mut opts = workspace_opts(false, false);
     opts.hooks.skipped_optional_log = Some(std::sync::Arc::new({
         let skipped = std::sync::Arc::clone(&skipped);
-        move |notification| skipped.lock().unwrap().push(notification)
+        move |notification| {
+            skipped
+                .lock()
+                .unwrap()
+                .push(notification);
+        }
     }));
     let result = resolve_workspace(
         &resolver,
@@ -75,8 +103,14 @@ async fn skips_an_optional_dependency_whose_resolution_fails_with_no_locked_entr
     .expect("resolution failure of an optional dependency is skipped");
 
     let direct = &result.peers.direct_dependencies_by_importer["."];
-    assert!(direct.contains_key("kept"), "the regular dep resolves: {direct:?}");
-    assert!(!direct.contains_key("broken"), "the failing optional edge is dropped: {direct:?}");
+    assert!(
+        direct.contains_key("kept"),
+        "the regular dep resolves: {direct:?}",
+    );
+    assert!(
+        !direct.contains_key("broken"),
+        "the failing optional edge is dropped: {direct:?}",
+    );
     let skipped = skipped.lock().unwrap();
     assert_eq!(skipped.len(), 1);
     assert_eq!(skipped[0].name.as_deref(), Some("broken"));
@@ -101,7 +135,10 @@ async fn skips_an_optional_dependency_whose_resolution_fails_with_no_locked_entr
 #[tokio::test]
 async fn fails_on_an_optional_dependency_that_cannot_be_resolved_with_a_satisfying_locked_entry() {
     let (_tmp, manifest, resolver) = optional_failure_fixture(FailureShape::Plain);
-    let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+    let importers = [WorkspaceImporter {
+        id: ".".to_string(),
+        manifest: &manifest,
+    }];
     let mut opts = workspace_opts(false, false);
     opts.reuse.lockfile = Some(std::sync::Arc::new(lockfile_with_package("broken@1.2.0")));
     // Model `pacquet dedupe`: the prior lockfile rides along for the
@@ -120,9 +157,15 @@ async fn fails_on_an_optional_dependency_that_cannot_be_resolved_with_a_satisfyi
         panic!("a locked optional dependency must fail loudly");
     };
     let help = miette::Diagnostic::help(&err).expect("carries the lockfile hint").to_string();
-    assert!(help.contains("the lockfile contains a resolution for it"), "unexpected hint: {help}");
     assert!(
-        matches!(err, crate::ResolveDependencyTreeError::LockedOptionalResolutionFailure(_)),
+        help.contains("the lockfile contains a resolution for it"),
+        "unexpected hint: {help}",
+    );
+    assert!(
+        matches!(
+            err,
+            crate::ResolveDependencyTreeError::LockedOptionalResolutionFailure(_)
+        ),
         "unexpected error: {err}",
     );
 }
@@ -130,7 +173,10 @@ async fn fails_on_an_optional_dependency_that_cannot_be_resolved_with_a_satisfyi
 #[tokio::test]
 async fn skips_an_optional_dependency_when_the_locked_entry_does_not_satisfy_the_wanted_range() {
     let (_tmp, manifest, resolver) = optional_failure_fixture(FailureShape::Plain);
-    let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+    let importers = [WorkspaceImporter {
+        id: ".".to_string(),
+        manifest: &manifest,
+    }];
     let mut opts = workspace_opts(false, false);
     opts.reuse.lockfile = Some(std::sync::Arc::new(lockfile_with_package("broken@0.9.0")));
     opts.reuse.scope = crate::UpdateReuseScope::None;
@@ -145,16 +191,25 @@ async fn skips_an_optional_dependency_when_the_locked_entry_does_not_satisfy_the
     .expect("an out-of-range locked entry keeps the skip behavior");
 
     let direct = &result.peers.direct_dependencies_by_importer["."];
-    assert!(!direct.contains_key("broken"), "the failing optional edge is dropped: {direct:?}");
+    assert!(
+        !direct.contains_key("broken"),
+        "the failing optional edge is dropped: {direct:?}",
+    );
 }
 
 /// The loud-failure path for a locked optional dependency has to cover
 /// the coded failures too, for the same reason as the skip arm.
 #[tokio::test]
 async fn fails_loudly_on_a_locked_optional_dependency_for_every_coded_resolver_failure() {
-    for failure in [FailureShape::NoMatchingVersion, FailureShape::RegistryResponse] {
+    for failure in [
+        FailureShape::NoMatchingVersion,
+        FailureShape::RegistryResponse,
+    ] {
         let (_tmp, manifest, resolver) = optional_failure_fixture(failure);
-        let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+        let importers = [WorkspaceImporter {
+            id: ".".to_string(),
+            manifest: &manifest,
+        }];
         let mut opts = workspace_opts(false, false);
         opts.reuse.lockfile = Some(std::sync::Arc::new(lockfile_with_package("broken@1.2.0")));
         opts.reuse.scope = crate::UpdateReuseScope::None;
@@ -171,7 +226,10 @@ async fn fails_loudly_on_a_locked_optional_dependency_for_every_coded_resolver_f
             panic!("a locked optional dependency must fail loudly");
         };
         assert!(
-            matches!(err, crate::ResolveDependencyTreeError::LockedOptionalResolutionFailure(_)),
+            matches!(
+                err,
+                crate::ResolveDependencyTreeError::LockedOptionalResolutionFailure(_)
+            ),
             "unexpected error: {err}",
         );
     }
@@ -184,12 +242,16 @@ async fn fails_loudly_on_a_locked_optional_dependency_for_every_coded_resolver_f
 #[tokio::test]
 async fn reused_lockfile_entries_still_notify_the_deprecation_sink() {
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "old": "^1.0.0" }));
-    let importers = [WorkspaceImporter { id: "root".to_string(), manifest: &manifest }];
-    let resolver =
-        RecordingResolver { table: HashMap::default(), seen: Mutex::new(HashMap::default()) };
+    let importers = [WorkspaceImporter {
+        id: "root".to_string(),
+        manifest: &manifest,
+    }];
+    let resolver = RecordingResolver {
+        table: HashMap::default(),
+        seen: Mutex::new(HashMap::default()),
+    };
     let mut lockfile = importer_scoped_update_lockfile(&["root"], "old", "^1.0.0", "1.2.0", None);
-    lockfile
-        .packages
+    lockfile.packages
         .as_mut()
         .expect("lockfile carries packages")
         .get_mut(&"old@1.2.0".parse::<pnpm_lockfile::PkgNameVerPeer>().expect("parse key"))
@@ -199,13 +261,21 @@ async fn reused_lockfile_entries_still_notify_the_deprecation_sink() {
     let sink = std::sync::Arc::clone(&notifications);
     let mut opts = workspace_opts(false, false);
     opts.reuse.lockfile = Some(std::sync::Arc::new(lockfile));
-    opts.hooks.deprecation_log =
-        Some(std::sync::Arc::new(move |deprecation: crate::Deprecation| {
-            sink.lock().unwrap().push(deprecation);
-        }));
-    resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
-        importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
-    })
+    opts.hooks.deprecation_log = Some(std::sync::Arc::new(
+        move |deprecation: crate::Deprecation| {
+            sink
+                .lock()
+                .unwrap()
+                .push(deprecation);
+        },
+    ));
+    resolve_workspace(
+        &resolver,
+        &importers,
+        &[DependencyGroup::Prod],
+        opts,
+        |importer| importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None),
+    )
     .await
     .expect("resolve workspace reusing the lockfile");
 
@@ -228,7 +298,10 @@ async fn reused_lockfile_entries_still_notify_the_deprecation_sink() {
 #[tokio::test]
 async fn fresh_resolved_parent_on_recorded_version_reuses_child_subtrees() {
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "app": "^1.0.0" }));
-    let importers = [WorkspaceImporter { id: "proj".to_string(), manifest: &manifest }];
+    let importers = [WorkspaceImporter {
+        id: "proj".to_string(),
+        manifest: &manifest,
+    }];
     let resolver = RecordingResolver {
         table: HashMap::from_iter([
             (
@@ -311,15 +384,22 @@ async fn fresh_resolved_parent_on_recorded_version_reuses_child_subtrees() {
         ],
         &[],
     )));
-    let result =
-        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
-            importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
-        })
-        .await
-        .expect("resolve workspace with a cycle next to a reusable subtree");
+    let result = resolve_workspace(
+        &resolver,
+        &importers,
+        &[DependencyGroup::Prod],
+        opts,
+        |importer| importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None),
+    )
+    .await
+    .expect("resolve workspace with a cycle next to a reusable subtree");
 
     for name in ["app", "cyclic", "loop", "stable", "open"] {
-        assert_eq!(graph_versions_of(&result, name), ["1.0.0"], "{name} must keep 1.0.0");
+        assert_eq!(
+            graph_versions_of(&result, name),
+            ["1.0.0"],
+            "{name} must keep 1.0.0",
+        );
     }
 }
 
@@ -398,7 +478,10 @@ async fn unchanged_shadow_ownership_handover_keeps_reused_subtree() {
             serde_json::json!({ "name": "leaf2", "version": "1.5.0" }),
         ),
     );
-    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
+    let resolver = RecordingResolver {
+        table,
+        seen: Mutex::new(HashMap::default()),
+    };
     let (tmp_b, b_manifest) = fake_manifest(serde_json::json!({ "wrapperB": "1.0.0" }));
     // The root carries only the peer consumer: with importers walked in
     // id order the root's wave runs first, so the shared subtree must
@@ -406,8 +489,14 @@ async fn unchanged_shadow_ownership_handover_keeps_reused_subtree() {
     // later peer-hoist round for a handover to occur at all.
     let (tmp_root, root_manifest) = fake_manifest(serde_json::json!({ "needyC": "1.0.0" }));
     let importers = [
-        WorkspaceImporter { id: "pkg-b".to_string(), manifest: &b_manifest },
-        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
+        WorkspaceImporter {
+            id: "pkg-b".to_string(),
+            manifest: &b_manifest,
+        },
+        WorkspaceImporter {
+            id: ".".to_string(),
+            manifest: &root_manifest,
+        },
     ];
     let dirs = [tmp_b.path(), tmp_root.path()];
 
@@ -415,13 +504,19 @@ async fn unchanged_shadow_ownership_handover_keeps_reused_subtree() {
     opts.peers.auto_install_peers = true;
     opts.reuse.lockfile = Some(std::sync::Arc::new(reuse_steal_lockfile()));
     let mut next = 0;
-    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
-        let dir = dirs[next].to_path_buf();
-        next += 1;
-        let mut opts = importer_opts(dir, None);
-        opts.peers.auto_install_peers = true;
-        opts
-    })
+    let result = resolve_workspace(
+        &resolver,
+        &importers,
+        &[DependencyGroup::Prod],
+        opts,
+        |_| {
+            let dir = dirs[next].to_path_buf();
+            next += 1;
+            let mut opts = importer_opts(dir, None);
+            opts.peers.auto_install_peers = true;
+            opts
+        },
+    )
     .await
     .unwrap();
 
@@ -431,9 +526,7 @@ async fn unchanged_shadow_ownership_handover_keeps_reused_subtree() {
         Some("mid2@1.0.0".to_string()),
         "needyC's required peer mid2 is hoisted to the root importer",
     );
-    let mid2 = result
-        .peers
-        .graph
+    let mid2 = result.peers.graph
         .get(&pnpm_deps_path::DepPath::from("mid2@1.0.0".to_string()))
         .expect("mid2 in graph");
     assert_eq!(
@@ -451,14 +544,17 @@ async fn unchanged_shadow_ownership_handover_keeps_reused_subtree() {
 async fn a_pinned_subtree_keeps_its_children_against_a_fresh_walk() {
     for slow in [("fresh", "1.0.0"), ("reused", "1.0.0")] {
         let tree = resolve_pinned_versus_fresh(slow).await;
-        let recorded: Vec<&str> = tree
-            .children_by_id
+        let recorded: Vec<&str> = tree.children_by_id
             .get("shared@1.0.0")
             .expect("shared children")
             .iter()
             .map(|edge| &*edge.pkg_id)
             .collect();
-        assert_eq!(recorded, ["pin@1.0.0"], "the pins stand, held back: {slow:?}");
+        assert_eq!(
+            recorded,
+            ["pin@1.0.0"],
+            "the pins stand, held back: {slow:?}",
+        );
         assert!(
             !tree.packages.contains_key("pin@1.5.0"),
             "and nothing re-resolves the range they pinned, held back: {slow:?}",
@@ -507,8 +603,16 @@ async fn warm_up_of_a_speculative_only_edge_leaves_patch_bookkeeping_alone() {
     )
     .await
     .expect("resolve");
-    assert_eq!(resolver.calls_for("q", "^2.0.0"), 1, "the edge was warmed speculatively");
-    assert_eq!(graph_versions_of(&result, "q"), ["1.0.0"], "and never entered the graph");
+    assert_eq!(
+        resolver.calls_for("q", "^2.0.0"),
+        1,
+        "the edge was warmed speculatively",
+    );
+    assert_eq!(
+        graph_versions_of(&result, "q"),
+        ["1.0.0"],
+        "and never entered the graph",
+    );
     assert!(
         !result.merged_tree.applied_patches.contains("q@2.0.0"),
         "a patch the real walk never applied must not count as applied",

@@ -29,7 +29,10 @@ fn progress_and_in_progress_downloads_coalesce() {
 fn stats_are_not_throttled() {
     let stats = LogEvent::Stats(StatsLog {
         level: LogLevel::Debug,
-        message: StatsMessage::Added { prefix: "/repo".to_string(), added: 1 },
+        message: StatsMessage::Added {
+            prefix: "/repo".to_string(),
+            added: 1,
+        },
     });
     assert!(!is_coalesceable(&stats));
 }
@@ -63,12 +66,19 @@ fn prompt_replays_every_append_only_line() {
 
     sink.on_prompt_to(PromptAction::Start, &mut writes);
     sink.write_to(Output::Lines(vec!["first".to_string()]), false, &mut writes);
-    sink.write_to(Output::Lines(vec!["second".to_string()]), false, &mut writes);
+    sink.write_to(
+        Output::Lines(vec!["second".to_string()]),
+        false,
+        &mut writes,
+    );
     assert!(writes.is_empty());
 
     sink.on_prompt_to(PromptAction::End, &mut writes);
 
-    assert_eq!(String::from_utf8(writes).expect("utf8 output"), "first\nsecond\n");
+    assert_eq!(
+        String::from_utf8(writes).expect("utf8 output"),
+        "first\nsecond\n",
+    );
 }
 
 #[test]
@@ -94,7 +104,10 @@ fn cursor_ups(output: &str) -> Vec<usize> {
     let mut rest = output;
     while let Some(start) = rest.find("\x1b[") {
         rest = &rest[start + 2..];
-        let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
+        let digits: String = rest
+            .chars()
+            .take_while(char::is_ascii_digit)
+            .collect();
         if !digits.is_empty() && rest[digits.len()..].starts_with('A') {
             result.push(digits.parse().expect("parse the cursor-up distance"));
         }
@@ -137,9 +150,14 @@ fn never_redraws_above_the_top_of_the_terminal() {
 
     let output = String::from_utf8(writes).expect("utf8 output");
     let ups = cursor_ups(&output);
-    assert!(!ups.is_empty(), "the frame must have been redrawn at least once");
     assert!(
-        ups.iter().all(|up| *up < ROWS),
+        !ups.is_empty(),
+        "the frame must have been redrawn at least once",
+    );
+    assert!(
+        ups
+            .iter()
+            .all(|up| *up < ROWS),
         "no redraw may reach above the terminal's top row, got: {ups:?}",
     );
 }
@@ -155,15 +173,24 @@ fn a_frame_shorter_than_the_committed_prefix_is_rendered_whole() {
     sink.diff = crate::diff::Diff::new(120);
     let mut writes = Vec::new();
 
-    let tall = (0..12).map(|line| format!("line {line}")).collect::<Vec<_>>().join("\n");
+    let tall = (0..12)
+        .map(|line| format!("line {line}"))
+        .collect::<Vec<_>>()
+        .join("\n");
     sink.write_to(Output::Frame(tall), false, &mut writes);
-    assert!(sink.viewport.committed_lines > 0, "the tall frame must have overflowed the terminal");
+    assert!(
+        sink.viewport.committed_lines > 0,
+        "the tall frame must have overflowed the terminal",
+    );
 
     writes.clear();
     sink.write_to(Output::Frame("Error: boom".to_string()), false, &mut writes);
 
     let output = String::from_utf8(writes).expect("utf8 output");
-    assert!(output.contains("Error: boom"), "the error frame must be rendered, got: {output:?}");
+    assert!(
+        output.contains("Error: boom"),
+        "the error frame must be rendered, got: {output:?}",
+    );
 }
 
 /// A single logical line can wrap to more rows than the terminal has, and then
@@ -185,17 +212,30 @@ fn a_line_taller_than_the_terminal_is_reprinted_rather_than_revised() {
             "global/install-0: Progress: resolved {resolved}, reused 0, downloaded 0, added 0",
         );
         // `commit_overflow` keeps one row spare for the cursor line.
-        assert!(line.len() > COLUMNS * (ROWS - 1), "the line has to outgrow the terminal");
+        assert!(
+            line.len() > COLUMNS * (ROWS - 1),
+            "the line has to outgrow the terminal",
+        );
         sink.write_to(Output::Frame(line), false, &mut writes);
     }
 
     // The frame left over from an unfittable round is just as unreachable, so a
     // shorter frame after one may not be diffed against it either.
-    sink.write_to(Output::Frame("Progress: resolved 5".to_string()), false, &mut writes);
+    sink.write_to(
+        Output::Frame("Progress: resolved 5".to_string()),
+        false,
+        &mut writes,
+    );
 
     let output = String::from_utf8(writes).expect("utf8 output");
-    assert!(output.contains("resolved 4"), "the tall frame must be rendered: {output:?}");
-    assert!(output.contains("resolved 5"), "the short frame must be rendered: {output:?}");
+    assert!(
+        output.contains("resolved 4"),
+        "the tall frame must be rendered: {output:?}",
+    );
+    assert!(
+        output.contains("resolved 5"),
+        "the short frame must be rendered: {output:?}",
+    );
     assert!(
         cursor_ups(&output).is_empty(),
         "an unreachable line must not be redrawn, got: {:?}",
@@ -245,8 +285,9 @@ fn a_shrinking_window_starts_a_fresh_frame() {
     let mut writes = Vec::new();
 
     let frame = |resolved: usize| -> Output {
-        let lines: Vec<String> =
-            (0..20).map(|group| format!("install-{group}: resolved {resolved}")).collect();
+        let lines: Vec<String> = (0..20)
+            .map(|group| format!("install-{group}: resolved {resolved}"))
+            .collect();
         Output::Frame(lines.join("\n"))
     };
     sink.write_to(frame(1), false, &mut writes);
@@ -257,7 +298,9 @@ fn a_shrinking_window_starts_a_fresh_frame() {
 
     let output = String::from_utf8(writes).expect("utf8 output");
     assert!(
-        cursor_ups(&output).iter().all(|up| *up < 6),
+        cursor_ups(&output)
+            .iter()
+            .all(|up| *up < 6),
         "a frame the window shrank under must not be moved into, got: {:?}",
         cursor_ups(&output),
     );

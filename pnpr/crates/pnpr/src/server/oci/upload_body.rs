@@ -14,15 +14,25 @@ use tokio::io::AsyncReadExt;
 /// advance an upload under a range that means nothing.
 pub(super) fn parse_content_range(range: &str) -> Option<(u64, u64)> {
     let (start, end) = range.trim().split_once('-')?;
-    let start: u64 = start.trim().parse().ok()?;
-    let end: u64 = end.trim().parse().ok()?;
+    let start: u64 = start
+        .trim()
+        .parse()
+        .ok()?;
+    let end: u64 = end
+        .trim()
+        .parse()
+        .ok()?;
     (start <= end).then_some((start, end))
 }
 
 pub(super) async fn collect_body(body: Body, limit: usize) -> Result<Bytes, Refusal> {
-    axum::body::to_bytes(body, limit)
-        .await
-        .map_err(|_| Refusal::new(ErrorCode::SizeInvalid, "request body is too large or truncated"))
+    axum::body::to_bytes(body, limit).await
+        .map_err(|_| {
+            Refusal::new(
+                ErrorCode::SizeInvalid,
+                "request body is too large or truncated",
+            )
+        })
 }
 
 /// Stream a request body onto the end of an upload, holding the whole upload
@@ -58,7 +68,10 @@ pub(super) async fn append_body(
     while let Some(chunk) = stream.next().await {
         let Ok(chunk) = chunk else {
             writer.finish().await?;
-            return Err(Refusal::new(ErrorCode::BlobUploadInvalid, "upload stream ended early"));
+            return Err(Refusal::new(
+                ErrorCode::BlobUploadInvalid,
+                "upload stream ended early",
+            ));
         };
         let Some(next) = advance_within_ceiling(written, chunk.len(), limit) else {
             let _ = storage.abort_blob_upload(upload.id()).await;
@@ -85,7 +98,9 @@ pub(super) fn advance_within_ceiling(written: u64, chunk: usize, limit: u64) -> 
 pub(super) fn now_millis() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map_or(0, |since_epoch| u64::try_from(since_epoch.as_millis()).unwrap_or(u64::MAX))
+        .map_or(0, |since_epoch| {
+            u64::try_from(since_epoch.as_millis()).unwrap_or(u64::MAX)
+        })
 }
 
 /// An upload's key in the shared lock table, kept out of the package keyspace
@@ -108,7 +123,9 @@ pub(super) async fn hash_upload(upload: &BlobUpload) -> Result<Digest, RegistryE
         hasher.update(&buffer[..read]);
     }
     Digest::parse(&format!("sha256:{:x}", hasher.finalize()))
-        .map_err(|err| RegistryError::BadRequest { reason: err.to_string() })
+        .map_err(|err| RegistryError::BadRequest {
+            reason: err.to_string(),
+        })
 }
 
 pub(super) async fn read_manifest_bytes(
@@ -120,8 +137,9 @@ pub(super) async fn read_manifest_bytes(
     let Some((body, _)) = storage.open_hosted_blob(key, filename).await? else {
         return Ok(None);
     };
-    let bytes = axum::body::to_bytes(body, limit)
-        .await
-        .map_err(|_| RegistryError::BadRequest { reason: "manifest is too large".to_string() })?;
+    let bytes = axum::body::to_bytes(body, limit).await
+        .map_err(|_| RegistryError::BadRequest {
+            reason: "manifest is too large".to_string(),
+        })?;
     Ok(Some(bytes.to_vec()))
 }

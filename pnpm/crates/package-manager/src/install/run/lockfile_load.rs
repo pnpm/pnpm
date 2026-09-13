@@ -34,35 +34,22 @@ pub(super) async fn load_lockfiles<'a, Reporter: self::Reporter + 'static>(
     discovery: (&HashSet<PathBuf>, Option<&[pnpm_workspace::Project]>),
 ) -> Result<Loaded<'a>, InstallError> {
     let (pre_hooked_paths, loaded_workspace_projects) = discovery;
-    let StartedLockfiles { wanted, current_lockfile_task, early_host_detection } =
-        start_lockfile_load::<Reporter>(
-            install,
-            owned,
-            mode,
-            workspace,
-            selection,
-            loaded_workspace_projects,
-        )?;
-    announce_manifest_load::<Reporter>(install, &workspace.dirs.workspace_root);
-    // The pnpmfile whose checksum the freshness gates compare
-    // against a lockfile's `pnpmfileChecksum`, resolved the way the
-    // install that records one resolves it. Building the handle
-    // costs a `stat`. The Node worker only starts if a gate has to
-    // ask whether the pnpmfile exports hooks. The handle is handed to
-    // the resolve path below so an install spawns at most one.
-    let pnpmfile_hook = resolve_pnpmfile_hook(
-        install.context.config,
-        &workspace.dirs.workspace_root,
-        owned.projects.pnpmfile_hook_override.take(),
+    let StartedLockfiles {
+        wanted,
+        current_lockfile_task,
+        early_host_detection,
+    } = start_lockfile_load::<Reporter>(
+        install,
+        owned,
+        mode,
+        workspace,
+        selection,
+        loaded_workspace_projects,
     )?;
-    let manifests = HookedManifests::hook::<Reporter>(
-        install.context.config,
-        &workspace.dirs.workspace_root,
-        &scope.project_manifests,
-        pnpmfile_hook.as_ref(),
-        pre_hooked_paths,
-    )
-    .await?;
+    announce_manifest_load::<Reporter>(install, &workspace.dirs.workspace_root);
+    let (pnpmfile_hook, manifests) =
+        load_hooked_manifests::<Reporter>(install, owned, workspace, scope, pre_hooked_paths)
+            .await?;
     Ok(Loaded {
         lockfile: wanted.lockfile,
         shared: wanted.shared,
@@ -115,7 +102,10 @@ pub(super) fn start_lockfile_load<'a, Reporter: self::Reporter>(
         install.context.config,
         workspace.dirs.workspace_dir.as_deref(),
         selection,
-        (install.execution.mutation, workspace_projects(loaded_workspace_projects, selection)),
+        (
+            install.execution.mutation,
+            workspace_projects(loaded_workspace_projects, selection),
+        ),
     )?;
     let current_lockfile_task = spawn_current_lockfile_load(install.context.config);
     // Past the repeat-install fast path every install flavor needs
@@ -147,7 +137,11 @@ pub(super) fn start_lockfile_load<'a, Reporter: self::Reporter>(
                     owned.projects.supported_architectures.clone(),
                 )
             });
-    Ok(StartedLockfiles { wanted, current_lockfile_task, early_host_detection })
+    Ok(StartedLockfiles {
+        wanted,
+        current_lockfile_task,
+        early_host_detection,
+    })
 }
 // Both lockfiles can be megabyte-scale YAML documents; read the current one off the reactor
 // while the wanted one parses, since neither depends on the other.
@@ -311,4 +305,33 @@ pub(super) fn load_current_lockfile<Reporter: self::Reporter>(
             None
         }
     }
+}
+
+async fn load_hooked_manifests<Reporter: self::Reporter + 'static>(
+    install: InstallView<'_>,
+    owned: &mut InstallOwned,
+    workspace: &InstallWorkspace<'_>,
+    scope: &InstallScope<'_>,
+    pre_hooked_paths: &HashSet<PathBuf>,
+) -> Result<(Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>, HookedManifests), InstallError> {
+    // The pnpmfile whose checksum the freshness gates compare
+    // against a lockfile's `pnpmfileChecksum`, resolved the way the
+    // install that records one resolves it. Building the handle
+    // costs a `stat`. The Node worker only starts if a gate has to
+    // ask whether the pnpmfile exports hooks. The handle is handed to
+    // the resolve path below so an install spawns at most one.
+    let pnpmfile_hook = resolve_pnpmfile_hook(
+        install.context.config,
+        &workspace.dirs.workspace_root,
+        owned.projects.pnpmfile_hook_override.take(),
+    )?;
+    let manifests = HookedManifests::hook::<Reporter>(
+        install.context.config,
+        &workspace.dirs.workspace_root,
+        &scope.project_manifests,
+        pnpmfile_hook.as_ref(),
+        pre_hooked_paths,
+    )
+    .await?;
+    Ok((pnpmfile_hook, manifests))
 }

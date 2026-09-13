@@ -91,7 +91,9 @@ impl TryFrom<u64> for TarballRevision {
         if (1..=MAX_TARBALL_REVISION).contains(&revision) {
             Ok(Self(revision))
         } else {
-            Err(InvalidTarballRevisionError { revision })
+            Err(InvalidTarballRevisionError {
+                revision,
+            })
         }
     }
 }
@@ -280,9 +282,9 @@ impl TryFrom<String> for CustomResolutionType {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         match value.as_str() {
-            "directory" | "git" | "binary" | "variations" => {
-                Err(format!("`{value}` is a built-in resolution type, not a custom one"))
-            }
+            "directory" | "git" | "binary" | "variations" => Err(format!(
+                "`{value}` is a built-in resolution type, not a custom one",
+            )),
             _ => Ok(Self(value)),
         }
     }
@@ -346,13 +348,17 @@ pub fn select_platform_variant<'a>(
     variants: &'a [PlatformAssetResolution],
     selector: &PlatformSelector,
 ) -> Option<&'a PlatformAssetResolution> {
-    variants.iter().find(|variant| {
-        variant.targets.iter().any(|target| {
-            target.os == selector.os
-                && target.cpu == selector.cpu
-                && libc_matches(target.libc.as_deref(), selector.libc.as_deref())
+    variants
+        .iter()
+        .find(|variant| {
+            variant.targets
+                .iter()
+                .any(|target| {
+                    target.os == selector.os
+                        && target.cpu == selector.cpu
+                        && libc_matches(target.libc.as_deref(), selector.libc.as_deref())
+                })
         })
-    })
 }
 
 /// Check whether a variant's `libc` annotation matches the host
@@ -412,7 +418,9 @@ impl LockfileResolution {
     /// all, and [`Integrity::check`] would panic on it.
     #[must_use]
     pub fn checkable_integrity(&self) -> Option<&'_ Integrity> {
-        self.integrity().filter(|integrity| !integrity.hashes.is_empty())
+        self
+            .integrity()
+            .filter(|integrity| !integrity.hashes.is_empty())
     }
 
     /// Convert an in-memory resolution into the form written to the lockfile.
@@ -431,8 +439,9 @@ impl LockfileResolution {
         version: &str,
         opts: LockfileFormOptions<'_>,
     ) -> Result<LockfileResolution, LockfileFormError> {
-        let LockfileFormOptions { registry, server_type, include_tarball_url } = opts;
-        let LockfileResolution::Tarball(tarball) = self else { return Ok(self.clone()) };
+        let LockfileResolution::Tarball(tarball) = self else {
+            return Ok(self.clone());
+        };
         let Some(integrity) = tarball.integrity.as_ref() else {
             return if tarball.revision.is_some() {
                 Err(LockfileFormError::RevisionWithoutIntegrity)
@@ -443,27 +452,19 @@ impl LockfileResolution {
 
         let git_hosted = tarball.is_git_hosted();
         let integrity_addressed =
-            is_integrity_addressed_registry_tarball_url(&tarball.tarball, integrity, registry);
+            is_integrity_addressed_registry_tarball_url(&tarball.tarball, integrity, opts.registry);
         if let Some(revision) = tarball.revision.filter(|_| !integrity_addressed) {
-            return Err(LockfileFormError::RevisionUrlMismatch { revision });
+            return Err(LockfileFormError::RevisionUrlMismatch {
+                revision,
+            });
         }
-        // A standard registry tarball whose URL can be rebuilt from name+version+
-        // registry is written as just `{integrity}` — pnpm derives the URL on
-        // demand. Every other tarball must keep its URL or it can no longer be
-        // re-fetched on a frozen-lockfile install: `file:` tarballs, git-provider
-        // tarballs, and non-standard registry URLs (npm Enterprise, GitHub Packages
-        // `/download/` URLs). `include_tarball_url` forces the URL to be kept.
-        let rebuildable = !git_hosted
-            && !tarball.tarball.starts_with("file:")
-            && (integrity_addressed
-                || (!include_tarball_url
-                    && tarball.revision.is_none()
-                    && is_canonical_registry_tarball_url(
-                        &tarball.tarball,
-                        name,
-                        version,
-                        TarballUrlOptions { registry, server_type },
-                    )));
+        let rebuildable = is_rebuildable_tarball(
+            tarball,
+            (name, version),
+            opts,
+            integrity_addressed,
+            git_hosted,
+        );
         if rebuildable {
             return Ok(LockfileResolution::Registry(RegistryResolution {
                 integrity: integrity.clone(),
@@ -575,3 +576,26 @@ mod registry;
 use registry::is_canonical_registry_tarball_url;
 
 mod git_hosted;
+
+fn is_rebuildable_tarball(
+    tarball: &TarballResolution,
+    (name, version): (&str, &str),
+    opts: LockfileFormOptions<'_>,
+    integrity_addressed: bool,
+    git_hosted: bool,
+) -> bool {
+    !git_hosted
+        && !tarball.tarball.starts_with("file:")
+        && (integrity_addressed
+            || (!opts.include_tarball_url
+                && tarball.revision.is_none()
+                && is_canonical_registry_tarball_url(
+                    &tarball.tarball,
+                    name,
+                    version,
+                    TarballUrlOptions {
+                        registry: opts.registry,
+                        server_type: opts.server_type,
+                    },
+                )))
+}

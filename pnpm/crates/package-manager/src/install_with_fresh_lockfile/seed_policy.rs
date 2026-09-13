@@ -36,9 +36,7 @@ pub enum UpdateSeedPolicy {
     RefreshRevisions,
     /// Withhold every lockfile pin. `pacquet update` with no package
     /// selectors — the whole graph re-resolves to highest-in-range.
-    DropAll {
-        max_depth: UpdateDepth,
-    },
+    DropAll { max_depth: UpdateDepth },
     /// Withhold only the update targets' pins. `pacquet update <pattern>`
     /// — a matched name re-resolves while everything else keeps its pin,
     /// and a selector that pinned an exact version narrows the target to
@@ -73,13 +71,16 @@ pub(crate) fn prefer_requested_version(
     if node_semver::Version::parse(version).is_err() {
         return;
     }
-    preferred.entry(name.to_string()).or_default().insert(
-        version.to_string(),
-        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
-            selector_type: VersionSelectorType::Version,
-            weight: EXISTING_VERSION_SELECTOR_WEIGHT + 1,
-        }),
-    );
+    preferred
+        .entry(name.to_string())
+        .or_default()
+        .insert(
+            version.to_string(),
+            VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+                selector_type: VersionSelectorType::Version,
+                weight: EXISTING_VERSION_SELECTOR_WEIGHT + 1,
+            }),
+        );
 }
 impl UpdateSeedPolicy {
     /// Withhold every pin at every depth — the re-resolve `pacquet
@@ -87,7 +88,9 @@ impl UpdateSeedPolicy {
     /// which expose a `--depth`.
     #[must_use]
     pub fn drop_all() -> Self {
-        UpdateSeedPolicy::DropAll { max_depth: UpdateDepth::UNLIMITED }
+        UpdateSeedPolicy::DropAll {
+            max_depth: UpdateDepth::UNLIMITED,
+        }
     }
 
     pub(super) fn max_depth(&self) -> UpdateDepth {
@@ -150,12 +153,14 @@ pub(super) fn full_resolution_required<'a>(
     use pnpm_resolving_deps_resolver::UpdateReuseScope;
 
     !has_reusable_seed
-        || importer_ids.into_iter().all(|importer_id| {
-            let scope = if matches!(default_scope, UpdateReuseScope::None) {
-                default_scope
-            } else {
-                scopes_by_importer.get(importer_id).unwrap_or(default_scope)
-            };
-            matches!(scope, UpdateReuseScope::None)
-        })
+        || importer_ids
+            .into_iter()
+            .all(|importer_id| {
+                let scope = if matches!(default_scope, UpdateReuseScope::None) {
+                    default_scope
+                } else {
+                    scopes_by_importer.get(importer_id).unwrap_or(default_scope)
+                };
+                matches!(scope, UpdateReuseScope::None)
+            })
 }

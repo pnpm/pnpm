@@ -47,7 +47,10 @@ fn make_package(name: &str, versions: &[&str], dist_tags: &[(&str, &str)]) -> Pa
 }
 
 fn rendered_help(error: &dyn Diagnostic) -> String {
-    error.help().map(|help| help.to_string()).unwrap_or_default()
+    error
+        .help()
+        .map(|help| help.to_string())
+        .unwrap_or_default()
 }
 
 #[test]
@@ -64,14 +67,21 @@ fn no_matching_version_reports_the_upstream_code_and_message() {
         "No matching version found for is-odd@99.99.99 while fetching it from https://registry.npmjs.org/",
     );
     assert_eq!(
-        error.code().map(|code| code.to_string()).as_deref(),
+        error
+            .code()
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_NO_MATCHING_VERSION"),
     );
 }
 
 #[test]
 fn no_matching_version_help_lists_the_latest_release_and_how_to_see_the_rest() {
-    let meta = make_package("is-odd", &["1.0.0", "2.0.0", "3.0.1"], &[("latest", "3.0.1")]);
+    let meta = make_package(
+        "is-odd",
+        &["1.0.0", "2.0.0", "3.0.1"],
+        &[("latest", "3.0.1")],
+    );
     let error = NoMatchingVersionError::new(
         "is-odd@99.99.99".to_string(),
         "https://registry.npmjs.org/".to_string(),
@@ -80,7 +90,10 @@ fn no_matching_version_help_lists_the_latest_release_and_how_to_see_the_rest() {
 
     let help = rendered_help(&error);
     dbg!(&help);
-    assert!(help.contains(r#"The latest release of is-odd is "3.0.1"."#), "{help}");
+    assert!(
+        help.contains(r#"The latest release of is-odd is "3.0.1"."#),
+        "{help}",
+    );
     assert!(
         help.contains(r#"If you need the full list of all 3 published versions run "pnpm view is-odd versions"."#),
         "{help}",
@@ -93,7 +106,11 @@ fn no_matching_version_help_lists_the_other_dist_tags_in_a_stable_order() {
     let meta = make_package(
         "is-odd",
         &["1.0.0", "3.0.1", "4.0.0-beta.1"],
-        &[("latest", "3.0.1"), ("next", "4.0.0-beta.1"), ("legacy", "1.0.0")],
+        &[
+            ("latest", "3.0.1"),
+            ("next", "4.0.0-beta.1"),
+            ("legacy", "1.0.0"),
+        ],
     );
     let error = NoMatchingVersionError::new(
         "is-odd@99.99.99".to_string(),
@@ -119,8 +136,17 @@ fn registry_response_error_codes_the_status_and_hints_at_the_missing_package() {
         auth_header_value: None,
     });
 
-    assert_eq!(error.to_string(), "GET https://registry.npmjs.org/@repro%2Fpkg-a: Not Found - 404");
-    assert_eq!(error.code().map(|code| code.to_string()).as_deref(), Some("ERR_PNPM_FETCH_404"));
+    assert_eq!(
+        error.to_string(),
+        "GET https://registry.npmjs.org/@repro%2Fpkg-a: Not Found - 404",
+    );
+    assert_eq!(
+        error
+            .code()
+            .map(|code| code.to_string())
+            .as_deref(),
+        Some("ERR_PNPM_FETCH_404"),
+    );
     assert_eq!(
         rendered_help(&error),
         "@repro/pkg-a is not in the npm registry, or you have no permission to fetch it.\n\nNo authorization header was set for the request.",
@@ -139,7 +165,10 @@ fn registry_response_error_masks_the_authorization_header() {
 
     let help = rendered_help(&error);
     dbg!(&help);
-    assert!(help.ends_with("An authorization header was used: Bearer npm_[hidden]"), "{help}");
+    assert!(
+        help.ends_with("An authorization header was used: Bearer npm_[hidden]"),
+        "{help}",
+    );
 }
 
 #[test]
@@ -152,8 +181,17 @@ fn registry_response_error_hints_only_at_authorization_for_a_403() {
         auth_header_value: None,
     });
 
-    assert_eq!(error.code().map(|code| code.to_string()).as_deref(), Some("ERR_PNPM_FETCH_403"));
-    assert_eq!(rendered_help(&error), "No authorization header was set for the request.");
+    assert_eq!(
+        error
+            .code()
+            .map(|code| code.to_string())
+            .as_deref(),
+        Some("ERR_PNPM_FETCH_403"),
+    );
+    assert_eq!(
+        rendered_help(&error),
+        "No authorization header was set for the request.",
+    );
 }
 
 #[test]
@@ -173,8 +211,14 @@ fn registry_response_error_leaves_a_500_without_a_hint() {
 fn a_release_older_than_a_day_is_dated_without_a_time_of_day() {
     let rendered = stringify_date("2024-03-15T09:42:13Z").expect("a parsable timestamp");
     dbg!(&rendered);
-    assert!(rendered.starts_with("3/1"), "expected a month/day/year date, got {rendered:?}");
-    assert!(!rendered.contains(':'), "an old release carries no time of day: {rendered:?}");
+    assert!(
+        rendered.starts_with("3/1"),
+        "expected a month/day/year date, got {rendered:?}",
+    );
+    assert!(
+        !rendered.contains(':'),
+        "an old release carries no time of day: {rendered:?}",
+    );
 }
 
 #[test]
@@ -195,9 +239,18 @@ fn an_unparsable_timestamp_is_dropped_rather_than_echoed() {
 
 #[test]
 fn a_name_carrying_a_version_suffix_suggests_the_bare_name() {
-    assert_eq!(strip_trailing_semver_suffix("lodash@4.17.21"), Some("lodash"));
-    assert_eq!(strip_trailing_semver_suffix("lodash4.17.21"), Some("lodash"));
-    assert_eq!(strip_trailing_semver_suffix("@scope/pkg@1.0.0"), Some("@scope/pkg"));
+    assert_eq!(
+        strip_trailing_semver_suffix("lodash@4.17.21"),
+        Some("lodash"),
+    );
+    assert_eq!(
+        strip_trailing_semver_suffix("lodash4.17.21"),
+        Some("lodash"),
+    );
+    assert_eq!(
+        strip_trailing_semver_suffix("@scope/pkg@1.0.0"),
+        Some("@scope/pkg"),
+    );
 }
 
 #[test]
@@ -216,12 +269,21 @@ fn an_unreachable_https_remote_explains_the_transport_and_how_to_substitute_it()
         "git ls-remote failed: fatal: unable to access",
     );
 
-    assert_eq!(err.code().expect("code").to_string(), "ERR_PNPM_GIT_RESOLVE_FAILED");
+    assert_eq!(
+        err
+            .code()
+            .expect("code")
+            .to_string(),
+        "ERR_PNPM_GIT_RESOLVE_FAILED",
+    );
     assert_eq!(
         err.to_string(),
         r#"Failed to resolve git dependency "zkochan/is-negative#next": git ls-remote failed: fatal: unable to access"#,
     );
-    let help = err.help().expect("help").to_string();
+    let help = err
+        .help()
+        .expect("help")
+        .to_string();
     assert!(
         help.contains(
             r#"git config --global url."git@github.com:".insteadOf "https://github.com/""#
@@ -249,7 +311,10 @@ fn the_transport_hint_keeps_a_non_default_port_out_of_the_ssh_remote() {
         "git ls-remote failed: connection refused",
     );
 
-    let help = err.help().expect("help").to_string();
+    let help = err
+        .help()
+        .expect("help")
+        .to_string();
     assert!(
         help.contains(
             r#"git config --global url."git@git.example.com:".insteadOf "https://git.example.com:8443/""#
@@ -267,7 +332,13 @@ fn an_unreachable_remote_redacts_the_credentials_git_echoes_back() {
     );
 
     assert!(!err.to_string().contains("hunter2"), "{err}");
-    assert!(!err.help().expect("help").to_string().contains("hunter2"));
+    assert!(
+        !err
+            .help()
+            .expect("help")
+            .to_string()
+            .contains("hunter2"),
+    );
 }
 
 #[test]
@@ -278,7 +349,10 @@ fn the_transport_hint_drops_the_scheme_s_own_port() {
         "git ls-remote failed: connection refused",
     );
 
-    let help = err.help().expect("help").to_string();
+    let help = err
+        .help()
+        .expect("help")
+        .to_string();
     assert!(
         help.contains(
             r#"git config --global url."git@github.com:".insteadOf "https://github.com/""#

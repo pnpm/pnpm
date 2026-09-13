@@ -15,8 +15,14 @@ fn the_unimplemented_npm_commands_point_at_the_npm_cli() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         eprintln!("{command} stderr={stderr}");
         assert!(!output.status.success(), "pacquet {command} must fail");
-        assert!(stderr.contains("ERR_PNPM_NOT_IMPLEMENTED"), "{command}: {stderr}");
-        assert!(stderr.contains(&format!("npm {command}")), "{command}: {stderr}");
+        assert!(
+            stderr.contains("ERR_PNPM_NOT_IMPLEMENTED"),
+            "{command}: {stderr}",
+        );
+        assert!(
+            stderr.contains(&format!("npm {command}")),
+            "{command}: {stderr}",
+        );
 
         drop(root);
     }

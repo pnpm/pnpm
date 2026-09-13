@@ -2,8 +2,20 @@ use super::is_valid_dependency_alias;
 
 #[test]
 fn accepts_valid_aliases() {
-    for alias in ["foo", "Foo", "@scope/name", "@s/x", "lodash.merge", "a_b", "a-b", "underscore"] {
-        assert!(is_valid_dependency_alias(alias), "expected valid: {alias:?}");
+    for alias in [
+        "foo",
+        "Foo",
+        "@scope/name",
+        "@s/x",
+        "lodash.merge",
+        "a_b",
+        "a-b",
+        "underscore",
+    ] {
+        assert!(
+            is_valid_dependency_alias(alias),
+            "expected valid: {alias:?}",
+        );
     }
 }
 
@@ -32,6 +44,9 @@ fn rejects_invalid_aliases() {
         "foo bar",
         "foo?bar",
     ] {
-        assert!(!is_valid_dependency_alias(alias), "expected invalid: {alias:?}");
+        assert!(
+            !is_valid_dependency_alias(alias),
+            "expected invalid: {alias:?}",
+        );
     }
 }

@@ -67,7 +67,9 @@ pub(super) fn router_with_auth_and_osv(
         artifacts: config.features.artifacts.enabled,
         pipeline: config.features.pipeline.enabled,
     };
-    let state = AppState { inner: Arc::new(AppInner::new(config, auth, osv_index)?) };
+    let state = AppState {
+        inner: Arc::new(AppInner::new(config, auth, osv_index)?),
+    };
     finish_router(state, surfaces, cors_origins)
 }
 
@@ -84,7 +86,10 @@ fn finish_router(
         // restricted token is rejected before a write handler buffers its
         // up-to-100-MiB body), and stash the identity for handlers to read.
         // Inside the trace layer below, so a rejection is still one record.
-        .layer(axum::middleware::from_fn_with_state(state.clone(), authenticate));
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            authenticate,
+        ));
     if !cors_origins.is_empty() {
         router = router.layer(
             CorsLayer::new()
@@ -97,15 +102,16 @@ fn finish_router(
 }
 
 fn cors_origins(config: &Config) -> pnpr_error::Result<Vec<HeaderValue>> {
-    config
-        .http
-        .cors
+    config.http.cors
         .allowed_origins()
         .iter()
         .map(|origin| {
-            HeaderValue::from_str(origin).map_err(|_| pnpr_error::RegistryError::InvalidConfig {
-                reason: format!("CORS allowed origin {origin:?} is not a valid HTTP header value"),
-            })
+            HeaderValue::from_str(origin)
+                .map_err(|_| pnpr_error::RegistryError::InvalidConfig {
+                    reason: format!(
+                        "CORS allowed origin {origin:?} is not a valid HTTP header value",
+                    ),
+                })
         })
         .collect()
 }
@@ -123,11 +129,12 @@ fn with_observability_layers(router: Router<AppState>) -> Router<AppState> {
         // would defeat the point of streaming — frames must flush to the
         // client as each package resolves, not wait for the encoder.
         .layer(
-            CompressionLayer::new().compress_when(
-                DefaultPredicate::new()
-                    .and(NotForContentType::const_new("application/octet-stream"))
-                    .and(NotForContentType::const_new("application/x-ndjson")),
-            ),
+            CompressionLayer::new()
+                .compress_when(
+                    DefaultPredicate::new()
+                        .and(NotForContentType::const_new("application/octet-stream"))
+                        .and(NotForContentType::const_new("application/x-ndjson")),
+                ),
         )
         // One structured access record per HTTP request: a span
         // carrying method + URI plus a single `finished processing
@@ -153,14 +160,16 @@ fn with_observability_layers(router: Router<AppState>) -> Router<AppState> {
                     )
                 })
                 .on_request(())
-                .on_response(|response: &Response<Body>, latency: Duration, _span: &Span| {
-                    tracing::info!(
-                        target: "pnpr::access",
-                        status = response.status().as_u16(),
-                        latency_ms = latency.as_millis() as u64,
-                        "finished processing request",
-                    );
-                })
+                .on_response(
+                    |response: &Response<Body>, latency: Duration, _span: &Span| {
+                        tracing::info!(
+                            target: "pnpr::access",
+                            status = response.status().as_u16(),
+                            latency_ms = latency.as_millis() as u64,
+                            "finished processing request",
+                        );
+                    },
+                )
                 .on_failure(()),
         )
 }
@@ -225,14 +234,19 @@ fn registry_routes(state: &AppState, router: Router<AppState>) -> Router<AppStat
     // rather than inside the npm surface.
     let mut router = router
         .route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish))
-        .route("/-/pnpr/v0/registries", get(super::registry_directory::serve));
+        .route(
+            "/-/pnpr/v0/registries",
+            get(super::registry_directory::serve),
+        );
     if registries.is_only_ecosystem(Ecosystem::Npm) {
         router = router.merge(npm);
     } else {
         router = router.nest("/npm", account_routes().merge(npm));
     }
     if registries.has_ecosystem(Ecosystem::Cargo) {
-        router = router.merge(cargo::routes(!registries.is_only_ecosystem(Ecosystem::Cargo)));
+        router = router.merge(cargo::routes(!registries.is_only_ecosystem(
+            Ecosystem::Cargo,
+        )));
     }
     if registries.has_ecosystem(Ecosystem::Pypi) {
         router = router.merge(pypi::routes(!registries.is_only_ecosystem(Ecosystem::Pypi)));
@@ -272,7 +286,10 @@ fn account_routes() -> Router<AppState> {
             .route(&path("/-/user/token/{token}"), delete(delete_session_token))
             .route(&path("/-/npm/v1/user"), get(get_profile))
             .route(&path("/-/npm/v1/tokens"), get(get_token_list))
-            .route(&path("/-/npm/v1/tokens/token/{key}"), delete(delete_token_by_key));
+            .route(
+                &path("/-/npm/v1/tokens/token/{key}"),
+                delete(delete_token_by_key),
+            );
     }
     router
 }
@@ -295,8 +312,14 @@ fn npm_registry_routes() -> Router<AppState> {
         let path = |tail: &str| format!("{base}{tail}");
         router = staged_routes(router, base)
             .route(&path("/-/v1/search"), get(get_search))
-            .route(&path("/-/tarballs/sha512/{digest}"), get(get_revision_tarball))
-            .route(&path("/-/package/{name}/dist-tags"), get(get_package_dist_tags))
+            .route(
+                &path("/-/tarballs/sha512/{digest}"),
+                get(get_revision_tarball),
+            )
+            .route(
+                &path("/-/package/{name}/dist-tags"),
+                get(get_package_dist_tags),
+            )
             .route(
                 &path("/-/package/{name}/dist-tags/{tag}"),
                 put(put_package_dist_tag).delete(delete_package_dist_tag),
@@ -307,29 +330,8 @@ fn npm_registry_routes() -> Router<AppState> {
             .route(
                 &path("/-/team/{scope}/{team}/user"),
                 get(get_team_users).put(put_team_user).delete(delete_team_user),
-            )
-            // Package addresses. npm spells a scoped name either as two
-            // literal segments (`/@scope/name`) or as one percent-encoded
-            // segment (`/@scope%2Fname`), so a path's segment count never says
-            // on its own which resource it names. The `-` and `-rev` markers
-            // do: whatever stands to their left is the package.
-            .route(&path("/{name}"), get(get_packument).put(put_package))
-            .route(
-                &path("/{first}/{second}"),
-                get(get_packument_or_version_manifest).put(put_scoped_package),
-            )
-            .route(&path("/{name}/-/{filename}"), get(get_tarball))
-            .route(
-                &path("/{name}/-rev/{rev}"),
-                put(put_packument_revision).delete(unpublish_package),
-            )
-            .route(&path("/{scope}/{name}/{version}"), get(get_scoped_version_manifest))
-            .route(&path("/{scope}/{name}/-/{filename}"), get(get_scoped_tarball))
-            .route(&path("/{name}/-/{filename}/-rev/{rev}"), delete(unpublish_tarball))
-            .route(
-                &path("/{scope}/{name}/-/{filename}/-rev/{rev}"),
-                delete(unpublish_scoped_tarball),
             );
+        router = npm_package_routes(router, base);
     }
     router
 }
@@ -338,17 +340,19 @@ fn resolver_routes(state: &AppState, router: Router<AppState>) -> Router<AppStat
     router
         .route(
             "/-/pnpr/v0/resolve",
-            post(serve_resolve).route_layer(middleware::from_fn_with_state(
-                state.clone(),
-                require_resolver_caller,
-            )),
+            post(serve_resolve)
+                .route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    require_resolver_caller,
+                )),
         )
         .route(
             "/-/pnpr/v0/verify-lockfile",
-            post(serve_verify_lockfile).route_layer(middleware::from_fn_with_state(
-                state.clone(),
-                require_resolver_caller,
-            )),
+            post(serve_verify_lockfile)
+                .route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    require_resolver_caller,
+                )),
         )
 }
 
@@ -397,10 +401,11 @@ fn pipeline_routes(state: &AppState, router: Router<AppState>) -> Router<AppStat
         )
         .route(
             "/-/pnpr/v0/pipeline/runs/{workspace}/{run_id}",
-            get(serve_get_pipeline_run).route_layer(middleware::from_fn_with_state(
-                state.clone(),
-                require_pipeline_caller,
-            )),
+            get(serve_get_pipeline_run)
+                .route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    require_pipeline_caller,
+                )),
         )
         // The viewer page is static HTML with no data of its own; the
         // reads it issues are what authenticate.
@@ -408,28 +413,78 @@ fn pipeline_routes(state: &AppState, router: Router<AppState>) -> Router<AppStat
 }
 
 fn compiler_cache_routes(state: &AppState, router: Router<AppState>) -> Router<AppState> {
-    router.route("/-/pnpr/v0/compiler-cache/{cache}/", any(compiler_cache::directory)).route(
-        "/-/pnpr/v0/compiler-cache/{cache}/{*key}",
-        get(compiler_cache::read)
-            .head(compiler_cache::head)
-            .put(compiler_cache::write)
-            .fallback(compiler_cache::directory)
-            .route_layer(DefaultBodyLimit::max(
-                pnpr_shared_artifacts::MAX_COMPILER_CACHE_ENTRY_SIZE,
-            ))
-            .route_layer(middleware::from_fn_with_state(
-                state.clone(),
-                compiler_cache::authorize_request,
-            )),
-    )
+    router
+        .route(
+            "/-/pnpr/v0/compiler-cache/{cache}/",
+            any(compiler_cache::directory),
+        )
+        .route(
+            "/-/pnpr/v0/compiler-cache/{cache}/{*key}",
+            get(compiler_cache::read)
+                .head(compiler_cache::head)
+                .put(compiler_cache::write)
+                .fallback(compiler_cache::directory)
+                .route_layer(DefaultBodyLimit::max(
+                    pnpr_shared_artifacts::MAX_COMPILER_CACHE_ENTRY_SIZE,
+                ))
+                .route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    compiler_cache::authorize_request,
+                )),
+        )
 }
 
 fn staged_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
     let path = |tail: &str| format!("{base}{tail}");
     router
         .route(&path("/-/stage"), get(staged::list_staged))
-        .route(&path("/-/stage/package/{name}"), post(staged::post_staged_publish))
-        .route(&path("/-/stage/{id}"), get(staged::get_staged).delete(staged::reject_staged))
+        .route(
+            &path("/-/stage/package/{name}"),
+            post(staged::post_staged_publish),
+        )
+        .route(
+            &path("/-/stage/{id}"),
+            get(staged::get_staged).delete(staged::reject_staged),
+        )
         .route(&path("/-/stage/{id}/approve"), post(staged::approve_staged))
-        .route(&path("/-/stage/{id}/tarball"), get(staged::get_staged_tarball))
+        .route(
+            &path("/-/stage/{id}/tarball"),
+            get(staged::get_staged_tarball),
+        )
+}
+
+fn npm_package_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
+    let path = |tail: &str| format!("{base}{tail}");
+    router
+        // Package addresses. npm spells a scoped name either as two
+        // literal segments (`/@scope/name`) or as one percent-encoded
+        // segment (`/@scope%2Fname`), so a path's segment count never says
+        // on its own which resource it names. The `-` and `-rev` markers
+        // do: whatever stands to their left is the package.
+        .route(&path("/{name}"), get(get_packument).put(put_package))
+        .route(
+            &path("/{first}/{second}"),
+            get(get_packument_or_version_manifest).put(put_scoped_package),
+        )
+        .route(&path("/{name}/-/{filename}"), get(get_tarball))
+        .route(
+            &path("/{name}/-rev/{rev}"),
+            put(put_packument_revision).delete(unpublish_package),
+        )
+        .route(
+            &path("/{scope}/{name}/{version}"),
+            get(get_scoped_version_manifest),
+        )
+        .route(
+            &path("/{scope}/{name}/-/{filename}"),
+            get(get_scoped_tarball),
+        )
+        .route(
+            &path("/{name}/-/{filename}/-rev/{rev}"),
+            delete(unpublish_tarball),
+        )
+        .route(
+            &path("/{scope}/{name}/-/{filename}/-rev/{rev}"),
+            delete(unpublish_scoped_tarball),
+        )
 }

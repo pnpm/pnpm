@@ -41,7 +41,9 @@ impl WantedLockfile<'_> {
     /// a superseded document.
     pub(super) fn loader_handle(&self, shared: Option<Arc<Lockfile>>) -> Option<Arc<Lockfile>> {
         shared.filter(|shared| {
-            self.get().is_some_and(|lockfile| std::ptr::eq(lockfile, Arc::as_ptr(shared)))
+            self
+                .get()
+                .is_some_and(|lockfile| std::ptr::eq(lockfile, Arc::as_ptr(shared)))
         })
     }
 
@@ -130,8 +132,7 @@ pub(super) fn reconcile_branch_lockfile(
     loaded: &Loaded<'_>,
     config: &Config,
 ) {
-    lockfiles.wanted.merged_branch = loaded
-        .pre_merge_importers
+    lockfiles.wanted.merged_branch = loaded.pre_merge_importers
         .zip(lockfiles.wanted.get())
         .and_then(|(pre_merge_importers, lockfile)| {
             prune_merged_branch_lockfile(
@@ -193,7 +194,9 @@ pub(super) async fn synthesize_lockfile_from_current(
     if !scope.lockfile_is_absent || scope.frozen_lockfile || !scope.prefer_frozen_lockfile {
         return None;
     }
-    check_lockfile_freshness(current, &scope.freshness).await.ok().map(|()| current.clone())
+    check_lockfile_freshness(current, &scope.freshness).await
+        .ok()
+        .map(|()| current.clone())
 }
 pub(super) fn may_fast_update_lockfile(
     install: InstallView<'_>,

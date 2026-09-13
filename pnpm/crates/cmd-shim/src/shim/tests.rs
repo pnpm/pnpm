@@ -63,7 +63,10 @@ fn relative_target_traverses_into_sibling_package() {
 fn generate_sh_shim_matches_pnpm_typical_case() {
     let target = Path::new("/proj/node_modules/typescript/bin/tsc");
     let shim = Path::new("/proj/node_modules/.bin/tsc");
-    let runtime = ScriptRuntime { prog: Some("node".into()), args: String::new() };
+    let runtime = ScriptRuntime {
+        prog: Some("node".into()),
+        args: String::new(),
+    };
     let body = generate_sh_shim(target, shim, Some(&runtime), &[]);
 
     assert!(body.starts_with("#!/bin/sh\n"), "shebang must come first");
@@ -107,7 +110,10 @@ case `uname -a` in"#
 fn is_shim_pointing_at_round_trips_through_marker() {
     let target = Path::new("/p/node_modules/typescript/bin/tsc");
     let shim = Path::new("/p/node_modules/.bin/tsc");
-    let runtime = ScriptRuntime { prog: Some("node".into()), args: String::new() };
+    let runtime = ScriptRuntime {
+        prog: Some("node".into()),
+        args: String::new(),
+    };
     let body = generate_sh_shim(target, shim, Some(&runtime), &[]);
     assert!(is_shim_pointing_at(&body, target));
     assert!(!is_shim_pointing_at(&body, Path::new("/elsewhere")));
@@ -129,7 +135,10 @@ fn extension_program_covers_every_known_extension() {
 #[test]
 fn parse_shebang_returns_none_for_empty_prog() {
     assert!(parse_shebang("#!\t").is_none());
-    assert!(parse_shebang("#!").is_none(), "empty line after #! must yield None");
+    assert!(
+        parse_shebang("#!").is_none(),
+        "empty line after #! must yield None",
+    );
     assert!(parse_shebang("not a shebang").is_none());
 }
 
@@ -161,7 +170,10 @@ fn generate_sh_shim_emits_direct_exec_when_no_runtime() {
 fn generate_sh_shim_threads_args_when_prog_is_none() {
     let target = Path::new("/p/cli");
     let shim = Path::new("/p/.bin/cli");
-    let runtime = ScriptRuntime { prog: None, args: "--flag".to_string() };
+    let runtime = ScriptRuntime {
+        prog: None,
+        args: "--flag".to_string(),
+    };
     let body = generate_sh_shim(target, shim, Some(&runtime), &[]);
     assert!(
         body.contains("exec \"$basedir/../cli\" --flag \"$@\"\nexit $?\n"),
@@ -184,7 +196,10 @@ fn generate_sh_shim_uses_absolute_target_when_no_common_prefix() {
     // whose parent is empty.
     let target = Path::new("/abs/elsewhere/cli");
     let shim = Path::new("local-shim");
-    let runtime = ScriptRuntime { prog: Some("node".into()), args: String::new() };
+    let runtime = ScriptRuntime {
+        prog: Some("node".into()),
+        args: String::new(),
+    };
     let body = generate_sh_shim(target, shim, Some(&runtime), &[]);
     assert!(
         body.contains(r#""/abs/elsewhere/cli""#),
@@ -304,7 +319,10 @@ fn strip_exe_suffix_is_case_insensitive() {
 fn generate_sh_shim_uses_windows_target_only_for_exe_branches() {
     let target = Path::new("/proj/node_modules/foo/src.bat");
     let shim = Path::new("/proj/node_modules/.bin/foo");
-    let runtime = ScriptRuntime { prog: Some("cmd".into()), args: "/C".into() };
+    let runtime = ScriptRuntime {
+        prog: Some("cmd".into()),
+        args: "/C".into(),
+    };
     let body = generate_sh_shim(target, shim, Some(&runtime), &[]);
 
     assert!(
@@ -317,7 +335,10 @@ fn generate_sh_shim_uses_windows_target_only_for_exe_branches() {
 fn generate_sh_shim_checks_path_before_exe_fallback() {
     let target = Path::new("/proj/node_modules/foo/src.sh");
     let shim = Path::new("/proj/node_modules/.bin/foo");
-    let runtime = ScriptRuntime { prog: Some("sh".into()), args: String::new() };
+    let runtime = ScriptRuntime {
+        prog: Some("sh".into()),
+        args: String::new(),
+    };
     let body = generate_sh_shim(target, shim, Some(&runtime), &[]);
 
     assert!(
@@ -330,10 +351,16 @@ fn generate_sh_shim_checks_path_before_exe_fallback() {
 fn generate_sh_shim_does_not_append_exe_twice() {
     let target = Path::new("/proj/node_modules/foo/src.bat");
     let shim = Path::new("/proj/node_modules/.bin/foo");
-    let runtime = ScriptRuntime { prog: Some("cmd.exe".into()), args: "/C".into() };
+    let runtime = ScriptRuntime {
+        prog: Some("cmd.exe".into()),
+        args: "/C".into(),
+    };
     let body = generate_sh_shim(target, shim, Some(&runtime), &[]);
 
-    assert!(!body.contains("cmd.exe.exe"), "explicit .exe runtime must not double suffix:\n{body}");
+    assert!(
+        !body.contains("cmd.exe.exe"),
+        "explicit .exe runtime must not double suffix:\n{body}",
+    );
     assert!(
         body.contains("if [ -n \"$msys\" ]; then\n  if [ -x \"$basedir/cmd.exe\" ]; then\n    exec \"$basedir/cmd.exe\" //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  else\n    exec cmd.exe //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  fi\nelse\n  if [ -x \"$basedir/cmd.exe\" ]; then\n    exec \"$basedir/cmd.exe\" /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  else\n    exec cmd.exe /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  fi\nfi\n"),
         "explicit .exe runtime must use Windows-form targets and escape switches only for MSYS, body was:\n{body}",
@@ -410,7 +437,9 @@ fn read_head_filled_real_fs_long_file_fills_buffer() {
     use tempfile::tempdir;
     let tmp = tempdir().unwrap();
     let path = tmp.path().join("long");
-    let payload: Vec<u8> = (0..1024).map(|index| (index % 251) as u8).collect();
+    let payload: Vec<u8> = (0..1024)
+        .map(|index| (index % 251) as u8)
+        .collect();
     std::fs::write(&path, &payload).unwrap();
 
     let mut buf = [0u8; 256];
@@ -465,7 +494,10 @@ fn read_head_filled_accumulates_short_reads_from_fake() {
                 return Ok(0); // EOF
             }
             let remaining = &PAYLOAD[off..];
-            let take = remaining.len().min(buf.len()).min(CHUNK_SIZE);
+            let take = remaining
+                .len()
+                .min(buf.len())
+                .min(CHUNK_SIZE);
             buf[..take].copy_from_slice(&remaining[..take]);
             Ok(take)
         }
@@ -473,7 +505,10 @@ fn read_head_filled_accumulates_short_reads_from_fake() {
 
     let mut buf = [0u8; 8];
     let read = read_head_filled::<ShortReader>(Path::new("any"), &mut buf).unwrap();
-    assert_eq!(read, 8, "loop must accumulate short reads to fill the buffer");
+    assert_eq!(
+        read, 8,
+        "loop must accumulate short reads to fill the buffer",
+    );
     assert_eq!(&buf[..], b"abcdefgh");
 
     assert_eq!(CALL_COUNT.load(Ordering::Relaxed), 3);
@@ -498,7 +533,10 @@ fn read_head_filled_terminates_on_zero_byte_read_from_fake() {
 
     let mut buf = [0u8; 16];
     let read = read_head_filled::<EofAfterOne>(Path::new("any"), &mut buf).unwrap();
-    assert_eq!(read, 1, "loop must stop on EOF, returning the partial count");
+    assert_eq!(
+        read, 1,
+        "loop must stop on EOF, returning the partial count",
+    );
     assert_eq!(buf[0], b'X');
 }
 
@@ -520,10 +558,16 @@ fn read_head_filled_propagates_io_error_from_fake() {
 fn generate_cmd_shim_matches_pnpm_template() {
     let target = Path::new("/proj/node_modules/typescript/bin/tsc");
     let shim = Path::new("/proj/node_modules/.bin/tsc.cmd");
-    let runtime = ScriptRuntime { prog: Some("node".into()), args: String::new() };
+    let runtime = ScriptRuntime {
+        prog: Some("node".into()),
+        args: String::new(),
+    };
     let body = generate_cmd_shim(target, shim, Some(&runtime), &[]);
 
-    assert!(body.starts_with("@SETLOCAL\r\n"), "must start with @SETLOCAL CRLF");
+    assert!(
+        body.starts_with("@SETLOCAL\r\n"),
+        "must start with @SETLOCAL CRLF",
+    );
     assert!(
         body.contains("@IF EXIST \"%~dp0\\node.exe\" (\r\n  \"%~dp0\\node.exe\"  \"%~dp0\\..\\typescript\\bin\\tsc\" %*\r\n) ELSE (\r\n  @SET PATHEXT=%PATHEXT:;.JS;=;%\r\n  node  \"%~dp0\\..\\typescript\\bin\\tsc\" %*\r\n)\r\n"),
         "exec block must match pnpm's generateCmdShim template, body was:\n{body}",
@@ -545,15 +589,24 @@ fn generate_cmd_shim_emits_direct_exec_when_no_runtime() {
 fn generate_pwsh_shim_matches_pnpm_template() {
     let target = Path::new("/proj/node_modules/typescript/bin/tsc");
     let shim = Path::new("/proj/node_modules/.bin/tsc.ps1");
-    let runtime = ScriptRuntime { prog: Some("node".into()), args: String::new() };
+    let runtime = ScriptRuntime {
+        prog: Some("node".into()),
+        args: String::new(),
+    };
     let body = generate_pwsh_shim(target, shim, Some(&runtime), &[]);
 
-    assert!(body.starts_with("#!/usr/bin/env pwsh\n"), "ps1 shim must start with pwsh shebang");
+    assert!(
+        body.starts_with("#!/usr/bin/env pwsh\n"),
+        "ps1 shim must start with pwsh shebang",
+    );
     assert!(
         body.contains("$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent"),
         "must declare $basedir from MyInvocation",
     );
-    assert!(body.contains(r#"$exe=".exe""#), "Windows-detection branch must set $exe to .exe");
+    assert!(
+        body.contains(r#"$exe=".exe""#),
+        "Windows-detection branch must set $exe to .exe",
+    );
     assert!(
         body.contains(
             "if (Test-Path \"$basedir/node$exe\") {\n  # Support pipeline input\n  if ($MyInvocation.ExpectingInput) {\n    $input | & \"$basedir/node$exe\"  \"$basedir/../typescript/bin/tsc\" $args\n  } else {\n    & \"$basedir/node$exe\"  \"$basedir/../typescript/bin/tsc\" $args\n  }",
@@ -592,7 +645,10 @@ fn shim_execution_resolves_symlink_chain() {
     let tmp_path = tmp.path();
 
     let bin_dir = tmp_path.join("node_modules").join(".bin");
-    let target_dir = tmp_path.join("node_modules").join("typescript").join("bin");
+    let target_dir = tmp_path
+        .join("node_modules")
+        .join("typescript")
+        .join("bin");
     fs::create_dir_all(&bin_dir).unwrap();
     fs::create_dir_all(&target_dir).unwrap();
 
@@ -656,6 +712,10 @@ fn a_shim_lets_the_targets_signal_death_reach_the_caller() {
         .status()
         .expect("run the target through the shim");
 
-    assert_eq!(status.signal(), Some(9), "the shim swallowed the signal, reporting {status:?}");
+    assert_eq!(
+        status.signal(),
+        Some(9),
+        "the shim swallowed the signal, reporting {status:?}",
+    );
     assert_eq!(status.code(), None);
 }

@@ -17,7 +17,10 @@ fn unscoped_empty_prefix_is_unchanged() {
 
 #[test]
 fn unscoped_underscore_prefix_gets_double_prefix() {
-    assert_eq!(convert_to_create_name("create_no_dash"), "create-create_no_dash");
+    assert_eq!(
+        convert_to_create_name("create_no_dash"),
+        "create-create_no_dash",
+    );
 }
 
 #[test]
@@ -27,7 +30,10 @@ fn scoped_unprefixed_gets_create_prefix() {
 
 #[test]
 fn scoped_already_prefixed_is_unchanged() {
-    assert_eq!(convert_to_create_name("@scope/create-foo"), "@scope/create-foo");
+    assert_eq!(
+        convert_to_create_name("@scope/create-foo"),
+        "@scope/create-foo",
+    );
 }
 
 #[test]
@@ -37,7 +43,10 @@ fn scoped_empty_prefix_is_unchanged() {
 
 #[test]
 fn scoped_underscore_prefix_gets_double_prefix() {
-    assert_eq!(convert_to_create_name("@scope/create_no_dash"), "@scope/create-create_no_dash");
+    assert_eq!(
+        convert_to_create_name("@scope/create_no_dash"),
+        "@scope/create-create_no_dash",
+    );
 }
 
 #[test]
@@ -53,16 +62,25 @@ fn unscoped_with_version() {
 
 #[test]
 fn scoped_with_version() {
-    assert_eq!(convert_to_create_name("@scope/foo@2.0.0"), "@scope/create-foo@2.0.0");
+    assert_eq!(
+        convert_to_create_name("@scope/foo@2.0.0"),
+        "@scope/create-foo@2.0.0",
+    );
 }
 
 #[test]
 fn scoped_already_prefixed_with_version() {
-    assert_eq!(convert_to_create_name("@scope/create-a@2.0.0"), "@scope/create-a@2.0.0");
+    assert_eq!(
+        convert_to_create_name("@scope/create-a@2.0.0"),
+        "@scope/create-a@2.0.0",
+    );
 }
 
 #[test]
 fn plain_scope_with_version() {
-    assert_eq!(convert_to_create_name("@scope@2.0.0"), "@scope/create@2.0.0");
+    assert_eq!(
+        convert_to_create_name("@scope@2.0.0"),
+        "@scope/create@2.0.0",
+    );
     assert_eq!(convert_to_create_name("@scope@next"), "@scope/create@next");
 }

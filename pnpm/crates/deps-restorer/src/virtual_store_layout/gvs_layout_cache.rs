@@ -31,7 +31,9 @@ fn cache_path(cache_dir: &Path, lockfile_dir: &Path) -> PathBuf {
     let mut hasher = sha2::Sha256::new();
     hasher.update(CACHE_FORMAT_VERSION.as_bytes());
     hasher.update(lockfile_dir.to_string_lossy().as_bytes());
-    cache_dir.join("gvs-layout").join(format!("{:x}.bin", hasher.finalize()))
+    cache_dir
+        .join("gvs-layout")
+        .join(format!("{:x}.bin", hasher.finalize()))
 }
 
 /// Where one project's entry lives and what it must have been
@@ -91,23 +93,13 @@ pub(super) fn load(
     // the bound is hit — an over-long file fails validation below
     // either way — so this only caps the memory a preseeded one can
     // make an install allocate.
-    let path = cache_path(file.cache_dir, file.lockfile_dir);
-    // A hostile checkout can point `cacheDir` at a directory it
-    // ships, so this path may be anything it likes. Opening a FIFO
-    // blocks until someone writes to it, which would hang the
-    // install before it has read a single package: require a
-    // regular file, and one that is not reached through a symlink,
-    // before opening.
-    if !std::fs::symlink_metadata(&path).ok()?.is_file() {
-        return None;
-    }
-    let handle = std::fs::File::open(&path).ok()?;
-    if !handle.metadata().ok()?.is_file() {
-        return None;
-    }
+    let handle = open_cache_file(file)?;
     let mut bytes = Vec::new();
     let ceiling = (expected.snapshots.len() as u64 + 1).saturating_mul(MAX_ENTRY_BYTES);
-    handle.take(ceiling).read_to_end(&mut bytes).ok()?;
+    handle
+        .take(ceiling)
+        .read_to_end(&mut bytes)
+        .ok()?;
     let (stored_fingerprint, mut cursor) = read_field(&bytes, 0)?;
     if stored_fingerprint != file.fingerprint {
         return None;
@@ -124,7 +116,10 @@ pub(super) fn load(
         }
         suffixes.insert(package_key, suffix.to_owned());
     }
-    expected.snapshots.keys().all(|key| suffixes.contains_key(key)).then_some(suffixes)
+    expected.snapshots
+        .keys()
+        .all(|key| suffixes.contains_key(key))
+        .then_some(suffixes)
 }
 
 /// Whether `digest` is the hex `calc_graph_node_hash` produces, and
@@ -138,7 +133,9 @@ pub(super) fn load(
 /// suffix into components rather than to judge them.
 fn is_graph_node_digest(digest: &str) -> bool {
     digest.len() == 64
-        && digest.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        && digest
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 /// The snapshots a cached map has to describe, and the metadata
@@ -168,7 +165,12 @@ impl Expected<'_> {
 
 fn read_field(bytes: &[u8], cursor: usize) -> Option<(&str, usize)> {
     let len_end = cursor.checked_add(4)?;
-    let len = u32::from_le_bytes(bytes.get(cursor..len_end)?.try_into().ok()?) as usize;
+    let len = u32::from_le_bytes(
+        bytes
+            .get(cursor..len_end)?
+            .try_into()
+            .ok()?,
+    ) as usize;
     let field_end = len_end.checked_add(len)?;
     let field = std::str::from_utf8(bytes.get(len_end..field_end)?).ok()?;
     Some((field, field_end))
@@ -193,7 +195,9 @@ pub(super) fn store(file: CacheFile<'_>, suffixes: &HashMap<PackageKey, String>)
     // two concurrent writers never share a staging file. A
     // predictable one would also let anything that can write the
     // cache directory redirect the write through a symlink.
-    let Ok(mut file) = tempfile::NamedTempFile::new_in(parent) else { return };
+    let Ok(mut file) = tempfile::NamedTempFile::new_in(parent) else {
+        return;
+    };
     // No `sync_all`: this runs on the miss path, after the map has
     // already been derived, and an fsync there is latency spent on
     // the install this cache exists to speed up. A crash mid-write
@@ -206,4 +210,26 @@ pub(super) fn store(file: CacheFile<'_>, suffixes: &HashMap<PackageKey, String>)
 fn write_field(bytes: &mut Vec<u8>, field: &str) {
     bytes.extend_from_slice(&(field.len() as u32).to_le_bytes());
     bytes.extend_from_slice(field.as_bytes());
+}
+
+fn open_cache_file(file: CacheFile<'_>) -> Option<std::fs::File> {
+    let path = cache_path(file.cache_dir, file.lockfile_dir);
+    // A hostile checkout can point `cacheDir` at a directory it
+    // ships, so this path may be anything it likes. Opening a FIFO
+    // blocks until someone writes to it, which would hang the
+    // install before it has read a single package: require a
+    // regular file, and one that is not reached through a symlink,
+    // before opening.
+    if !std::fs::symlink_metadata(&path).ok()?.is_file() {
+        return None;
+    }
+    let handle = std::fs::File::open(&path).ok()?;
+    if !handle
+        .metadata()
+        .ok()?
+        .is_file()
+    {
+        return None;
+    }
+    Some(handle)
 }

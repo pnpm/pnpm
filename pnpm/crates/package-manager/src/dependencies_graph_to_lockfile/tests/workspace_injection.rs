@@ -32,8 +32,7 @@ fn injected_workspace_dep_flips_to_file_when_update_targets_it() {
     });
 
     let importer = lockfile.root_project().expect("root importer");
-    let entry = importer
-        .dependencies
+    let entry = importer.dependencies
         .as_ref()
         .and_then(|deps| deps.get(&PkgName::parse("n").unwrap()))
         .expect("n entry");
@@ -63,8 +62,7 @@ fn injected_workspace_dep_flips_to_file_when_specifier_changed() {
     });
 
     let importer = lockfile.root_project().expect("root importer");
-    let entry = importer
-        .dependencies
+    let entry = importer.dependencies
         .as_ref()
         .and_then(|deps| deps.get(&PkgName::parse("n").unwrap()))
         .expect("n entry");
@@ -101,8 +99,7 @@ fn injected_workspace_dep_flips_to_file_when_recursive_update_targets_it_per_imp
     });
 
     let importer = lockfile.root_project().expect("root importer");
-    let entry = importer
-        .dependencies
+    let entry = importer.dependencies
         .as_ref()
         .and_then(|deps| deps.get(&PkgName::parse("n").unwrap()))
         .expect("n entry");
@@ -140,8 +137,7 @@ fn injected_workspace_dep_keeps_link_when_recursive_update_targets_other_pkg() {
     });
 
     let importer = lockfile.root_project().expect("root importer");
-    let entry = importer
-        .dependencies
+    let entry = importer.dependencies
         .as_ref()
         .and_then(|deps| deps.get(&PkgName::parse("n").unwrap()))
         .expect("n entry");
@@ -169,8 +165,7 @@ fn injected_workspace_dep_flips_to_file_on_scope_wide_update() {
     });
 
     let importer = lockfile.root_project().expect("root importer");
-    let entry = importer
-        .dependencies
+    let entry = importer.dependencies
         .as_ref()
         .and_then(|deps| deps.get(&PkgName::parse("n").unwrap()))
         .expect("n entry");
@@ -206,15 +201,25 @@ fn every_importer_of_a_workspace_is_recorded() {
         })
         .collect();
     let direct: BTreeMap<String, DepPath> = BTreeMap::from([("dep".to_string(), dep_path)]);
-    let mut opts =
-        single_importer_opts(&manifests[0].1, &graph, direct.clone(), false, false, None, None);
+    let mut opts = single_importer_opts(
+        &manifests[0].1,
+        &graph,
+        direct.clone(),
+        false,
+        false,
+        None,
+        None,
+    );
     opts.importers = [".", "packages/a", "packages/b"]
         .into_iter()
         .zip(&manifests)
         .map(|(id, (_, manifest))| {
             (
                 id.to_string(),
-                ImporterLockfileInput { manifest, direct_dependencies_by_alias: direct.clone() },
+                ImporterLockfileInput {
+                    manifest,
+                    direct_dependencies_by_alias: direct.clone(),
+                },
             )
         })
         .collect();
@@ -222,8 +227,7 @@ fn every_importer_of_a_workspace_is_recorded() {
     let lockfile = dependencies_graph_to_lockfile(opts);
     for id in [".", "packages/a", "packages/b"] {
         let importer = lockfile.importers.get(id).expect("every importer must be recorded");
-        let recorded = importer
-            .dependencies
+        let recorded = importer.dependencies
             .as_ref()
             .and_then(|deps| deps.get(&PkgName::parse("dep").expect("parse alias")))
             .expect("the direct dependency must be recorded");

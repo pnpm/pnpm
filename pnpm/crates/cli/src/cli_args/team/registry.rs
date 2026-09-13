@@ -29,7 +29,11 @@ pub(super) fn team_user_url(registry_url: &str, scope: &str, team: &str) -> Stri
 }
 
 pub(super) fn org_team_url(registry_url: &str, scope: &str) -> String {
-    format!("{}-/org/{}/team", normalize_registry_url(registry_url), encode_uri_component(scope))
+    format!(
+        "{}-/org/{}/team",
+        normalize_registry_url(registry_url),
+        encode_uri_component(scope),
+    )
 }
 
 #[derive(Deserialize)]
@@ -61,7 +65,10 @@ pub(super) async fn fetch_teams(
         .map_err(|source| registry_operation_error("fetching teams", source))?;
 
     if response.status() == reqwest::StatusCode::NOT_FOUND {
-        return Err(TeamError::OrgNotFound { scope: scope.to_string() }.into());
+        return Err(TeamError::OrgNotFound {
+            scope: scope.to_string(),
+        }
+        .into());
     }
     if !response.status().is_success() {
         return Err(registry_error_from_response(
@@ -71,8 +78,7 @@ pub(super) async fn fetch_teams(
         .await);
     }
 
-    let body = read_limited_body(response, TEAM_BODY_LIMIT)
-        .await
+    let body = read_limited_body(response, TEAM_BODY_LIMIT).await
         .map_err(|source| registry_operation_error("reading teams response", source))?;
     serde_json::from_slice(&body.bytes)
         .into_diagnostic()
@@ -99,9 +105,11 @@ pub(super) async fn fetch_team_members(
         .map_err(|source| registry_operation_error("fetching team members", source))?;
 
     if response.status() == reqwest::StatusCode::NOT_FOUND {
-        return Err(
-            TeamError::TeamNotFound { scope: scope.to_string(), team: team.to_string() }.into()
-        );
+        return Err(TeamError::TeamNotFound {
+            scope: scope.to_string(),
+            team: team.to_string(),
+        }
+        .into());
     }
     if !response.status().is_success() {
         return Err(registry_error_from_response(
@@ -111,8 +119,7 @@ pub(super) async fn fetch_team_members(
         .await);
     }
 
-    let body = read_limited_body(response, TEAM_BODY_LIMIT)
-        .await
+    let body = read_limited_body(response, TEAM_BODY_LIMIT).await
         .map_err(|source| registry_operation_error("reading team members response", source))?;
     serde_json::from_slice(&body.bytes)
         .into_diagnostic()
@@ -130,9 +137,7 @@ pub(super) fn auth_header_for_registry(
 ) -> miette::Result<String> {
     let registry_url = registry_for_scope(context, scope);
     let pkg_name = format!("@{scope}/_");
-    context
-        .config
-        .auth_headers
+    context.config.auth_headers
         .for_url_with_package(&registry_url, Some(&pkg_name))
         .ok_or_else(|| TeamError::MissingAuthToken.into())
 }
@@ -167,7 +172,11 @@ pub(super) fn build_http_client(
 }
 
 pub(super) fn normalize_registry_url(registry_url: &str) -> String {
-    if registry_url.ends_with('/') { registry_url.to_string() } else { format!("{registry_url}/") }
+    if registry_url.ends_with('/') {
+        registry_url.to_string()
+    } else {
+        format!("{registry_url}/")
+    }
 }
 
 struct LimitedBody {
@@ -191,8 +200,9 @@ async fn read_limited_body(
     response: Response,
     limit: usize,
 ) -> Result<LimitedBody, reqwest::Error> {
-    let header_exceeds_limit =
-        response.content_length().is_some_and(|length| length > limit as u64);
+    let header_exceeds_limit = response
+        .content_length()
+        .is_some_and(|length| length > limit as u64);
     let mut bytes = Vec::new();
     let mut truncated = header_exceeds_limit;
     let mut stream = response.bytes_stream();
@@ -209,13 +219,22 @@ async fn read_limited_body(
     if truncated {
         let body = String::from_utf8_lossy(&bytes);
         let mut body = sanitize::sanitize(&body).into_owned();
-        if !body.is_empty() && !body.chars().next_back().is_some_and(char::is_whitespace) {
+        if !body.is_empty()
+            && !body
+                .chars()
+                .next_back()
+                .is_some_and(char::is_whitespace)
+        {
             body.push(' ');
         }
         body.push_str("(response body truncated)");
-        Ok(LimitedBody { bytes: body.into_bytes() })
+        Ok(LimitedBody {
+            bytes: body.into_bytes(),
+        })
     } else {
-        Ok(LimitedBody { bytes })
+        Ok(LimitedBody {
+            bytes,
+        })
     }
 }
 
@@ -238,23 +257,36 @@ pub(super) async fn registry_error_from_response(
     action: String,
 ) -> miette::Report {
     let status = response.status();
-    let status_text = status.canonical_reason().unwrap_or_default().to_string();
+    let status_text = status
+        .canonical_reason()
+        .unwrap_or_default()
+        .to_string();
     let body = match read_limited_body(response, TEAM_ERROR_BODY_LIMIT).await {
         Ok(body) => body.into_display_string(),
         Err(_) => String::new(),
     };
 
-    if status == reqwest::StatusCode::UNAUTHORIZED {
-        return TeamError::Unauthorized { action, body }.into();
+    match status {
+        reqwest::StatusCode::UNAUTHORIZED => TeamError::Unauthorized {
+            action,
+            body,
+        },
+        reqwest::StatusCode::FORBIDDEN => TeamError::Forbidden {
+            action,
+            body,
+        },
+        reqwest::StatusCode::NOT_FOUND => TeamError::NotFound {
+            body,
+        },
+        reqwest::StatusCode::CONFLICT => TeamError::Conflict {
+            body,
+        },
+        _ => TeamError::RegistryWriteFailed {
+            action,
+            status: status.as_u16(),
+            status_text,
+            body,
+        },
     }
-    if status == reqwest::StatusCode::FORBIDDEN {
-        return TeamError::Forbidden { action, body }.into();
-    }
-    if status == reqwest::StatusCode::NOT_FOUND {
-        return TeamError::NotFound { body }.into();
-    }
-    if status == reqwest::StatusCode::CONFLICT {
-        return TeamError::Conflict { body }.into();
-    }
-    TeamError::RegistryWriteFailed { action, status: status.as_u16(), status_text, body }.into()
+    .into()
 }

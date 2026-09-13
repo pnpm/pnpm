@@ -1,93 +1,13 @@
+pub(super) use workspace_links::{canonical_workspace_resolution, render_workspace_resolution};
+
+mod workspace_links;
+
 use super::{
     Arc, CurrentPkg, GitResolveError, NoMatchingVersionError, Path, PreferredVersionsOverlay,
     RegistryResponseError, ResolveDependencyTreeError, ResolveError, ResolveOptions, Resolver,
     SharedWorkspaceWantedKey, TreeCtx, WantedDependency, WantedKey, WorkspaceFinalWantedKey,
     lock_recoverable, render_specifier,
 };
-
-/// Convert a workspace directory resolution into the representation shared by
-/// every importer. A `link:` target is stored relative to the lockfile root;
-/// an injected `file:` target already has that representation.
-pub(super) fn canonical_workspace_resolution(
-    result: &pnpm_resolving_resolver_base::ResolveResult,
-    project_dir: &Path,
-    lockfile_dir: &Path,
-) -> Option<pnpm_resolving_resolver_base::ResolveResult> {
-    if result.resolved_via != "workspace" {
-        return None;
-    }
-    let pnpm_lockfile::LockfileResolution::Directory(directory_resolution) = &result.resolution
-    else {
-        return None;
-    };
-    if result.id.as_str().strip_prefix("file:") == Some(&directory_resolution.directory) {
-        return Some(result.clone());
-    }
-    if result.id.as_str().strip_prefix("link:") != Some(&directory_resolution.directory) {
-        return None;
-    }
-
-    let target = Path::new(&directory_resolution.directory);
-    let absolute_target = if target.is_absolute() {
-        pnpm_fs::lexical_normalize(target)
-    } else {
-        pnpm_fs::lexical_normalize(&project_dir.join(target))
-    };
-    let canonical_target = pathdiff::diff_paths(&absolute_target, lockfile_dir)
-        .unwrap_or(absolute_target)
-        .display()
-        .to_string()
-        .replace('\\', "/");
-    let mut canonical = result.clone();
-    canonical.id =
-        pnpm_resolving_resolver_base::PkgResolutionId::from(format!("link:{canonical_target}"));
-    let pnpm_lockfile::LockfileResolution::Directory(canonical_directory) =
-        &mut canonical.resolution
-    else {
-        unreachable!("the cloned workspace resolution remains a directory")
-    };
-    canonical_directory.directory = canonical_target;
-    Some(canonical)
-}
-
-/// Render a canonical workspace resolution for one consuming importer before
-/// its manifest hooks run.
-pub(super) fn render_workspace_resolution(
-    canonical: &pnpm_resolving_resolver_base::ResolveResult,
-    anchor: &crate::link_target::ImporterAnchor,
-    project_dir: &Path,
-    lockfile_dir: &Path,
-) -> pnpm_resolving_resolver_base::ResolveResult {
-    let mut rendered = canonical.clone();
-    let pnpm_lockfile::LockfileResolution::Directory(directory_resolution) =
-        &mut rendered.resolution
-    else {
-        unreachable!("the shared workspace cache contains only directory resolutions")
-    };
-    if canonical.id.as_str().starts_with("file:") {
-        return rendered;
-    }
-
-    let target = directory_resolution.directory.as_str();
-    let consumer_target = anchor.target_relative_to_importer(target).unwrap_or_else(|| {
-        let target = Path::new(target);
-        let absolute_target = if target.is_absolute() {
-            pnpm_fs::lexical_normalize(target)
-        } else {
-            pnpm_fs::lexical_normalize(&lockfile_dir.join(target))
-        };
-        let project_dir = pnpm_fs::lexical_normalize(project_dir);
-        pathdiff::diff_paths(&absolute_target, project_dir)
-            .unwrap_or(absolute_target)
-            .display()
-            .to_string()
-            .replace('\\', "/")
-    });
-    rendered.id =
-        pnpm_resolving_resolver_base::PkgResolutionId::from(format!("link:{consumer_target}"));
-    directory_resolution.directory = consumer_target;
-    rendered
-}
 
 /// Remove the consumer directory from a named `workspace:` request while
 /// retaining every other input the explicit workspace resolver reads.
@@ -151,11 +71,15 @@ where
     let owned_opts = per_wanted_opts(opts, pick_overlay, &cache_key);
     let opts = owned_opts.as_ref().unwrap_or(opts);
     let shared_workspace_key = shared_workspace_cache_key(ctx, &cache_key, wanted, opts);
-    let cached_workspace = shared_workspace_key.as_ref().and_then(|key| {
-        lock_recoverable(&ctx.workspace.cache.resolved_workspace_by_wanted).get(key).map(Arc::clone)
-    });
+    let cached_workspace = shared_workspace_key
+        .as_ref()
+        .and_then(|key| {
+            lock_recoverable(&ctx.workspace.cache.resolved_workspace_by_wanted)
+                .get(key)
+                .map(Arc::clone)
+        });
     let mut canonical_workspace = cached_workspace;
-    let mut result = resolve_or_reuse_workspace(
+    let result = resolve_or_reuse_workspace(
         ctx,
         resolver,
         wanted,
@@ -164,29 +88,12 @@ where
         &mut canonical_workspace,
     )
     .await?;
-    let workspace_final_key =
-        workspace_result_key(shared_workspace_key, canonical_workspace.as_deref(), &result.id);
-    if let Some(key) = workspace_final_key.as_ref()
-        && let Some(cached) =
-            lock_recoverable(&ctx.workspace.cache.resolved_workspace_final_by_wanted)
-                .get(key)
-                .map(Arc::clone)
-    {
-        // Both return paths record the project-scoped entry, so the lookup at
-        // the top of this function stays authoritative: a repeat of this edge
-        // costs one lookup rather than a shared-key rebuild and a re-render.
-        lock_recoverable(&ctx.workspace.cache.resolved_by_wanted)
-            .entry(cache_key)
-            .or_insert_with(|| Arc::clone(&cached));
-        return Ok(cached);
-    }
-    if result.package.manifest.is_none() {
-        result.package.manifest =
-            Some(Arc::new(fallback_manifest(wanted, opts.refresh.current_pkg.as_ref())));
-    }
-    apply_manifest_hooks(ctx, &mut result).await?;
-
-    Ok(cache_resolved_wanted(ctx, cache_key, workspace_final_key, result))
+    let workspace_final_key = workspace_result_key(
+        shared_workspace_key,
+        canonical_workspace.as_deref(),
+        &result.id,
+    );
+    finalize_wanted_result(ctx, wanted, opts, cache_key, workspace_final_key, result).await
 }
 
 /// Apply the configured manifest hooks to the resolved manifest fragment
@@ -208,7 +115,9 @@ pub(super) async fn apply_manifest_hooks(
     if let Some(pnpmfile_hook) = ctx.workspace.hooks.manifests.pnpmfile_hook.as_ref()
         && let Some(manifest) = result.package.manifest.take()
     {
-        let log = ctx.workspace.hooks.read_package_log.clone().unwrap_or_else(|| Arc::new(|_| {}));
+        let log = ctx.workspace.hooks.read_package_log
+            .clone()
+            .unwrap_or_else(|| Arc::new(|_| {}));
         // Directory resolutions carry their directory so the hook can tell a
         // workspace project's dependency instance apart from a registry
         // manifest — see `HookContext::dir`.
@@ -218,7 +127,10 @@ pub(super) async fn apply_manifest_hooks(
             }
             _ => None,
         };
-        let hook_ctx = pnpm_hooks::HookContext { log, dir };
+        let hook_ctx = pnpm_hooks::HookContext {
+            log,
+            dir,
+        };
 
         let updated = pnpmfile_hook
             .read_package((*manifest).clone(), hook_ctx)
@@ -254,15 +166,7 @@ where
         // override (that fires for `file:` specifiers only), so the
         // importer-wide anchor is exactly this edge's anchor.
         #[cfg(debug_assertions)]
-        {
-            let anchor_inputs_describe_this_edge = opts.project.project_dir
-                == ctx.options.base.project.project_dir
-                && opts.project.lockfile_dir == ctx.options.base.project.lockfile_dir;
-            debug_assert!(
-                anchor_inputs_describe_this_edge,
-                "the importer-wide link anchor must describe every workspace edge",
-            );
-        }
+        assert_workspace_anchor(ctx, opts);
         return Ok(render_workspace_resolution(
             canonical,
             &ctx.importer.base_link_anchor,
@@ -335,18 +239,24 @@ pub(super) fn fallback_manifest(
     current_pkg: Option<&CurrentPkg>,
 ) -> pnpm_resolving_resolver_base::DependencyManifest {
     if let Some(current) = current_pkg
-        && let Some(name) = current.name.as_deref().filter(|name| !name.is_empty())
-        && let Some(version) = current.version.as_deref().filter(|version| !version.is_empty())
+        && let Some(name) = current.name
+            .as_deref()
+            .filter(|name| !name.is_empty())
+        && let Some(version) = current.version
+            .as_deref()
+            .filter(|version| !version.is_empty())
     {
         return serde_json::json!({ "name": name, "version": version });
     }
-    let name = match wanted.alias.as_deref().filter(|alias| !alias.is_empty()) {
+    let name = match wanted.alias
+        .as_deref()
+        .filter(|alias| !alias.is_empty())
+    {
         Some(alias) => alias,
         // A specifier's last path segment is the closest thing to a name
         // an unaliased dep carries: `file:./no-manifest-1.0.0.tgz` and
         // `https://host/no-manifest-1.0.0.tgz` both name the archive.
-        None => wanted
-            .bare_specifier
+        None => wanted.bare_specifier
             .as_deref()
             .unwrap_or_default()
             .rsplit('/')
@@ -403,9 +313,7 @@ pub(super) fn shared_workspace_cache_key(
     wanted: &WantedDependency,
     opts: &ResolveOptions,
 ) -> Option<SharedWorkspaceWantedKey> {
-    ctx.workspace
-        .cache
-        .share_workspace_resolutions
+    ctx.workspace.cache.share_workspace_resolutions
         .then(|| shared_workspace_key(ctx, cache_key, wanted, opts))
         .flatten()
 }
@@ -416,9 +324,60 @@ pub(super) fn workspace_result_key(
     result_id: &pnpm_resolving_resolver_base::PkgResolutionId,
 ) -> Option<WorkspaceFinalWantedKey> {
     match (shared_workspace_key, canonical_workspace) {
-        (Some(shared_wanted), Some(canonical)) => {
-            Some(WorkspaceFinalWantedKey::new(shared_wanted, &canonical.id, result_id))
-        }
+        (Some(shared_wanted), Some(canonical)) => Some(WorkspaceFinalWantedKey::new(
+            shared_wanted,
+            &canonical.id,
+            result_id,
+        )),
         _ => None,
     }
+}
+
+async fn finalize_wanted_result(
+    ctx: &TreeCtx,
+    wanted: &WantedDependency,
+    opts: &ResolveOptions,
+    cache_key: WantedKey,
+    workspace_final_key: Option<WorkspaceFinalWantedKey>,
+    mut result: pnpm_resolving_resolver_base::ResolveResult,
+) -> Result<Arc<pnpm_resolving_resolver_base::ResolveResult>, ResolveDependencyTreeError> {
+    if let Some(key) = workspace_final_key.as_ref()
+        && let Some(cached) =
+            lock_recoverable(&ctx.workspace.cache.resolved_workspace_final_by_wanted)
+                .get(key)
+                .map(Arc::clone)
+    {
+        // Both return paths record the project-scoped entry, so the lookup at
+        // the top of this function stays authoritative: a repeat of this edge
+        // costs one lookup rather than a shared-key rebuild and a re-render.
+        lock_recoverable(&ctx.workspace.cache.resolved_by_wanted)
+            .entry(cache_key)
+            .or_insert_with(|| Arc::clone(&cached));
+        return Ok(cached);
+    }
+    if result.package.manifest.is_none() {
+        result.package.manifest = Some(Arc::new(fallback_manifest(
+            wanted,
+            opts.refresh.current_pkg.as_ref(),
+        )));
+    }
+    apply_manifest_hooks(ctx, &mut result).await?;
+
+    Ok(cache_resolved_wanted(
+        ctx,
+        cache_key,
+        workspace_final_key,
+        result,
+    ))
+}
+
+#[cfg(debug_assertions)]
+fn assert_workspace_anchor(ctx: &TreeCtx, opts: &ResolveOptions) {
+    let anchor_inputs_describe_this_edge = opts.project.project_dir
+        == ctx.options.base.project.project_dir
+        && opts.project.lockfile_dir == ctx.options.base.project.lockfile_dir;
+    debug_assert!(
+        anchor_inputs_describe_this_edge,
+        "the importer-wide link anchor must describe every workspace edge",
+    );
 }

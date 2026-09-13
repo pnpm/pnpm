@@ -153,8 +153,8 @@ impl CasPrefetch {
         // Install-scoped `verifiedFilesCache`: one `Arc<DashSet>` for
         // the duration of the install, so a CAFS path verified for one
         // snapshot is not re-stat'd for another.
-        let verified_files_cache = store_context
-            .map_or_else(SharedVerifiedFilesCache::default, |context| {
+        let verified_files_cache =
+            store_context.map_or_else(SharedVerifiedFilesCache::default, |context| {
                 Arc::clone(context.verified_files_cache)
             });
         let cache_keys = derive_cache_keys(config, entries, supported_architectures);
@@ -170,7 +170,12 @@ impl CasPrefetch {
             PrefetchIntegrityCheck::deferred_if(config.verify_store_integrity),
             SharedVerifiedFilesCache::clone(&verified_files_cache),
         ));
-        CasPrefetch { store_index, verified_files_cache, cache_keys, task }
+        CasPrefetch {
+            store_index,
+            verified_files_cache,
+            cache_keys,
+            task,
+        }
     }
 }
 
@@ -263,7 +268,10 @@ pub enum CreateVirtualStoreError {
         "Lockfile has a snapshot entry `{snapshot_key}` with no matching metadata entry (`{metadata_key}`) in `packages:`."
     )]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_MISSING_PACKAGE_METADATA))]
-    MissingPackageMetadata { snapshot_key: String, metadata_key: String },
+    MissingPackageMetadata {
+        snapshot_key: String,
+        metadata_key: String,
+    },
 
     #[display(
         "Lockfile has a `snapshots:` section but no `packages:` section; every entry in `snapshots:` must have a matching metadata entry. The lockfile is malformed."
@@ -360,7 +368,9 @@ fn removed_aliases_for<'a>(
     removed_aliases_by_key: &'a HashMap<PackageKey, Vec<PkgName>>,
     snapshot_key: &PackageKey,
 ) -> &'a [PkgName] {
-    removed_aliases_by_key.get(snapshot_key).map_or(&[], Vec::as_slice)
+    removed_aliases_by_key
+        .get(snapshot_key)
+        .map_or(&[], Vec::as_slice)
 }
 
 /// Child aliases linked by the previous install (`current`) that are
@@ -376,7 +386,9 @@ fn removed_child_aliases(
     fn child_aliases(snapshot: &SnapshotEntry) -> impl Iterator<Item = &PkgName> {
         let deps = snapshot.dependencies.iter().flatten();
         let opt_deps = snapshot.optional_dependencies.iter().flatten();
-        deps.chain(opt_deps).map(|(alias, _)| alias)
+        deps
+            .chain(opt_deps)
+            .map(|(alias, _)| alias)
     }
     let wanted_aliases: HashSet<&PkgName> = child_aliases(wanted).collect();
     let mut seen: HashSet<&PkgName> = HashSet::new();
@@ -418,9 +430,12 @@ fn create_build_marker_source(
     if config.frozen_store || !layout.enable_global_virtual_store() {
         return Ok(None);
     }
-    tempfile::NamedTempFile::new_in(store_dir.root()).map(Some).map_err(|error| {
-        CreateVirtualStoreError::CreateBuildMarker { path: store_dir.root().to_path_buf(), error }
-    })
+    tempfile::NamedTempFile::new_in(store_dir.root())
+        .map(Some)
+        .map_err(|error| CreateVirtualStoreError::CreateBuildMarker {
+            path: store_dir.root().to_path_buf(),
+            error,
+        })
 }
 
 /// Publish the cold-batch fetch plan for the concurrent verification fan-out:
@@ -435,7 +450,9 @@ fn publish_planned_canonical_fetches(
     packages: &HashMap<PackageKey, PackageMetadata>,
     has_custom_fetcher: bool,
 ) {
-    let Some(cell) = planned_canonical_fetches else { return };
+    let Some(cell) = planned_canonical_fetches else {
+        return;
+    };
     let mut planned = HashSet::with_capacity(cold.len());
     for (snapshot_key, _snapshot) in cold {
         if let Some(entry) = planned_canonical_fetch(snapshot_key, packages, has_custom_fetcher) {
@@ -485,7 +502,9 @@ fn removed_aliases_by_key(
     current_snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
     snapshot_entries: &[SnapshotWithCacheKey<'_>],
 ) -> HashMap<PackageKey, Vec<PkgName>> {
-    let Some(current_snapshots) = current_snapshots else { return HashMap::new() };
+    let Some(current_snapshots) = current_snapshots else {
+        return HashMap::new();
+    };
     snapshot_entries
         .iter()
         .filter_map(|(snapshot_key, snapshot, _)| {

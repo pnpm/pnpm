@@ -29,10 +29,7 @@ pub(super) async fn serve_publish_pipeline_run(
         return private_no_cache(error.into_response());
     }
     private_no_cache(
-        match state
-            .inner
-            .builds
-            .pipeline_runs
+        match state.inner.builds.pipeline_runs
             .as_ref()
             .expect("pipeline routes require a run store")
             .publish(&run)
@@ -60,16 +57,13 @@ pub(super) async fn serve_list_pipeline_runs(
     }
     let store =
         state.inner.builds.pipeline_runs.as_ref().expect("pipeline routes require a run store");
-    let visible: Vec<&str> = state
-        .inner
-        .config
-        .features
-        .pipeline
-        .workspaces
+    let visible: Vec<&str> = state.inner.config.features.pipeline.workspaces
         .iter()
         .filter(|(name, policy)| {
             policy.access.allows(&identity)
-                && workspace.as_ref().is_none_or(|requested| requested == *name)
+                && workspace
+                    .as_ref()
+                    .is_none_or(|requested| requested == *name)
         })
         .map(|(name, _)| name.as_str())
         .collect();

@@ -53,7 +53,10 @@ fn bin_cleanup_and_replacement_preserve_deletion_errors() {
     assert_eq!(error.raw_os_error(), expected);
 
     let error = link_bins_of_packages::<Host>(
-        &[PackageBinSource::new(pkg_dir, Arc::new(json!({"name": "node", "bin": "node.exe"})))],
+        &[PackageBinSource::new(
+            pkg_dir,
+            Arc::new(json!({"name": "node", "bin": "node.exe"})),
+        )],
         &bins_dir,
         &LinkBinsOptions::default(),
     )
@@ -98,7 +101,10 @@ fn writes_shim_flavors_matching_host_platform() {
         assert!(ps1.exists(), "missing .ps1 shim on Windows");
 
         let cmd_body = read_to_string(&cmd).unwrap();
-        assert!(cmd_body.starts_with("@SETLOCAL\r\n"), "cmd shim must use CRLF SETLOCAL");
+        assert!(
+            cmd_body.starts_with("@SETLOCAL\r\n"),
+            "cmd shim must use CRLF SETLOCAL",
+        );
         assert!(
             cmd_body.contains(r#""%~dp0\..\foo\cli.js""#),
             "cmd target should be windows-style",
@@ -108,8 +114,14 @@ fn writes_shim_flavors_matching_host_platform() {
         assert!(ps1_body.starts_with("#!/usr/bin/env pwsh\n"));
         assert!(ps1_body.contains(r#""$basedir/../foo/cli.js""#));
     } else {
-        assert!(!cmd.exists(), ".cmd shim must not be written on Unix (pnpm parity)");
-        assert!(!ps1.exists(), ".ps1 shim must not be written on Unix (pnpm parity)");
+        assert!(
+            !cmd.exists(),
+            ".cmd shim must not be written on Unix (pnpm parity)",
+        );
+        assert!(
+            !ps1.exists(),
+            ".ps1 shim must not be written on Unix (pnpm parity)",
+        );
     }
 }
 
@@ -129,7 +141,10 @@ fn writes_shim_for_bin_string() {
     let manifest_value: Value =
         serde_json::from_slice(&read_file(pkg_dir.join("package.json")).unwrap()).unwrap();
     link_bins_of_packages::<Host>(
-        &[PackageBinSource::new(pkg_dir.clone(), Arc::new(manifest_value))],
+        &[PackageBinSource::new(
+            pkg_dir.clone(),
+            Arc::new(manifest_value),
+        )],
         &bins_dir,
         &LinkBinsOptions::default(),
     )
@@ -139,19 +154,31 @@ fn writes_shim_for_bin_string() {
     assert!(shim_path.exists(), "shim should be created");
 
     let body = read_to_string(&shim_path).unwrap();
-    assert!(body.contains(r#""$basedir/../foo/bin/cli.js""#), "shim body: {body}");
+    assert!(
+        body.contains(r#""$basedir/../foo/bin/cli.js""#),
+        "shim body: {body}",
+    );
     assert!(is_shim_pointing_at(&body, &pkg_dir.join("bin/cli.js")));
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         assert_eq!(
-            metadata(&shim_path).unwrap().permissions().mode() & 0o777,
+            metadata(&shim_path)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
             0o755,
             "shim must be 0o755",
         );
         assert!(
-            metadata(pkg_dir.join("bin/cli.js")).unwrap().permissions().mode() & 0o111 != 0,
+            metadata(pkg_dir.join("bin/cli.js"))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o111
+                != 0,
             "target must have at least one executable bit",
         );
     }
@@ -162,8 +189,11 @@ fn link_bins_skips_existing_shim_with_matching_marker() {
     let tmp = tempdir().unwrap();
     let modules = tmp.path().join("node_modules");
     create_dir_all(modules.join("foo")).unwrap();
-    write_file(modules.join("foo/package.json"), json!({"name": "foo", "bin": "f.js"}).to_string())
-        .unwrap();
+    write_file(
+        modules.join("foo/package.json"),
+        json!({"name": "foo", "bin": "f.js"}).to_string(),
+    )
+    .unwrap();
     write_file(modules.join("foo/f.js"), "#!/usr/bin/env node\n").unwrap();
 
     let bins = modules.join(".bin");
@@ -475,8 +505,11 @@ fn ownership_breaks_bin_conflicts_when_existing_owns() {
         create_dir_all(d).unwrap();
         write_file(d.join("npx"), "#!/usr/bin/env node\n").unwrap();
     }
-    write_file(npm.join("package.json"), json!({"name": "npm", "bin": {"npx": "npx"}}).to_string())
-        .unwrap();
+    write_file(
+        npm.join("package.json"),
+        json!({"name": "npm", "bin": {"npx": "npx"}}).to_string(),
+    )
+    .unwrap();
     write_file(
         aaa_other.join("package.json"),
         json!({"name": "aaa-other", "bin": {"npx": "npx"}}).to_string(),
@@ -502,7 +535,10 @@ fn ownership_breaks_bin_conflicts_when_existing_owns() {
     .unwrap();
 
     let body = read_to_string(bins.join("npx")).unwrap();
-    assert!(body.contains("/npm/npx"), "existing-owns winner must be `npm`, body:\n{body}");
+    assert!(
+        body.contains("/npm/npx"),
+        "existing-owns winner must be `npm`, body:\n{body}",
+    );
 }
 
 /// Uses `aaa-other` (lexically less than `npm`) as the non-owner so the
@@ -519,8 +555,11 @@ fn ownership_breaks_bin_conflicts() {
         create_dir_all(d).unwrap();
         write_file(d.join("npx"), "#!/usr/bin/env node\n").unwrap();
     }
-    write_file(npm.join("package.json"), json!({"name": "npm", "bin": {"npx": "npx"}}).to_string())
-        .unwrap();
+    write_file(
+        npm.join("package.json"),
+        json!({"name": "npm", "bin": {"npx": "npx"}}).to_string(),
+    )
+    .unwrap();
     write_file(
         aaa_other.join("package.json"),
         json!({"name": "aaa-other", "bin": {"npx": "npx"}}).to_string(),
@@ -694,7 +733,11 @@ fn link_node_bin_falls_through_to_cmd_shim_when_source_is_not_exe() {
     let bin_target = tmp.path().join("bin_target");
     let node_dir = tmp.path().join("node_pkg");
     create_dir_all(node_dir.join("bin")).unwrap();
-    write_file(node_dir.join("bin/node"), "#!/usr/bin/env node\nconsole.log(1)\n").unwrap();
+    write_file(
+        node_dir.join("bin/node"),
+        "#!/usr/bin/env node\nconsole.log(1)\n",
+    )
+    .unwrap();
     write_file(
         node_dir.join("package.json"),
         json!({"name": "node", "version": "20.0.0", "bin": {"node": "bin/node"}}).to_string(),

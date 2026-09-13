@@ -56,13 +56,21 @@ fn tree_opts(always_print_root_package: bool, show_extraneous: bool) -> RenderTr
 }
 
 fn parseable_opts(long: bool) -> RenderParseableOptions {
-    RenderParseableOptions { long, always_print_root_package: false }
+    RenderParseableOptions {
+        long,
+        always_print_root_package: false,
+    }
 }
 
 // Port of upstream's 'print empty' (deps/inspection/list/test/index.ts).
 #[test]
 fn print_empty() {
-    let projects = vec![project("empty", "1.0.0", "/empty", DependenciesHierarchy::default())];
+    let projects = vec![project(
+        "empty",
+        "1.0.0",
+        "/empty",
+        DependenciesHierarchy::default(),
+    )];
 
     let output = render_tree(&projects, &tree_opts(true, false));
     assert_eq!(
@@ -74,7 +82,12 @@ fn print_empty() {
 // Port of upstream's "don't print empty" (deps/inspection/list/test/index.ts).
 #[test]
 fn dont_print_empty() {
-    let projects = vec![project("empty", "1.0.0", "/empty", DependenciesHierarchy::default())];
+    let projects = vec![project(
+        "empty",
+        "1.0.0",
+        "/empty",
+        DependenciesHierarchy::default(),
+    )];
 
     let output = render_tree(&projects, &tree_opts(false, false));
     assert_eq!(output, "");
@@ -156,7 +169,10 @@ fn sort_list_items() {
         "/fixture",
         DependenciesHierarchy {
             dependencies: vec![DependencyNode {
-                dependencies: vec![dep("qar", "qar", "1.0.0", ""), dep("bar", "bar", "1.0.0", "")],
+                dependencies: vec![
+                    dep("qar", "qar", "1.0.0", ""),
+                    dep("bar", "bar", "1.0.0", ""),
+                ],
                 ..dep("foo", "foo", "1.0.0", "")
             }],
             ..DependenciesHierarchy::default()
@@ -276,7 +292,14 @@ fn render_parseable_displays_file_protocol_correctly_for_aliased_packages() {
 // Port of upstream's 'renderParseable search: shared dep across packages is not duplicated' (deps/inspection/list/test/index.ts).
 #[test]
 fn render_parseable_search_shared_dep_across_packages_is_not_duplicated() {
-    let shared_dep = || dep("@org/shared", "@org/shared", "1.0.0", "/workspace/packages/shared");
+    let shared_dep = || {
+        dep(
+            "@org/shared",
+            "@org/shared",
+            "1.0.0",
+            "/workspace/packages/shared",
+        )
+    };
     let projects = vec![
         project(
             "pkg-a",
@@ -311,14 +334,25 @@ fn render_parseable_search_shared_dep_across_packages_is_not_duplicated() {
     assert!(lines.contains(&"/workspace/packages/pkg-a"));
     assert!(lines.contains(&"/workspace/packages/pkg-b"));
     assert!(lines.contains(&"/workspace/packages/shared"));
-    assert_eq!(lines.iter().filter(|line| **line == "/workspace/packages/shared").count(), 1);
+    assert_eq!(
+        lines
+            .iter()
+            .filter(|line| **line == "/workspace/packages/shared")
+            .count(),
+        1,
+    );
 }
 
 // Port of upstream's 'renderParseable search: packages unrelated to search are excluded' (deps/inspection/list/test/index.ts).
 #[test]
 fn render_parseable_search_packages_unrelated_to_search_are_excluded() {
     let projects = vec![
-        project("root", "1.0.0", "/workspace", DependenciesHierarchy::default()),
+        project(
+            "root",
+            "1.0.0",
+            "/workspace",
+            DependenciesHierarchy::default(),
+        ),
         project(
             "pkg-a",
             "1.0.0",
@@ -354,8 +388,14 @@ fn render_parseable_search_packages_unrelated_to_search_are_excluded() {
 // Port of upstream's 'renderParseable search long: shared dep across packages is not duplicated' (deps/inspection/list/test/index.ts).
 #[test]
 fn render_parseable_search_long_shared_dep_across_packages_is_not_duplicated() {
-    let shared_dep =
-        || dep("@org/shared", "@org/shared", "link:../shared", "/workspace/packages/shared");
+    let shared_dep = || {
+        dep(
+            "@org/shared",
+            "@org/shared",
+            "link:../shared",
+            "/workspace/packages/shared",
+        )
+    };
     let projects = vec![
         project(
             "pkg-a",
@@ -384,7 +424,10 @@ fn render_parseable_search_long_shared_dep_across_packages_is_not_duplicated() {
     assert!(lines.contains(&"/workspace/packages/pkg-a:pkg-a@1.0.0"));
     assert!(lines.contains(&"/workspace/packages/pkg-b:pkg-b@1.0.0"));
     assert_eq!(
-        lines.iter().filter(|line| line.starts_with("/workspace/packages/shared")).count(),
+        lines
+            .iter()
+            .filter(|line| line.starts_with("/workspace/packages/shared"))
+            .count(),
         1,
     );
 }

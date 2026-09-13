@@ -140,44 +140,40 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
     options: &mut InstallRunOptions<'install, '_>,
     take_frozen_path: bool,
 ) -> Result<Option<Dispatched<'install>>, InstallError> {
-    let Settled {
-        install,
-        owned,
-        mode,
-        loaded,
-        lockfiles,
-        verification,
-        projects: SettledProjects { workspace, scope, project_manifests },
-    } = settled;
-    let verification = verification.take_inputs(options);
-    Ok(prepare_modules_state::<Reporter>(PrepareModulesStateInputs {
-        tree: settled.modules_tree(),
-        lockfiles: crate::install::state_options::PreparedLockfiles {
-            wanted: lockfiles.wanted.get(),
-            current: loaded.current.as_ref(),
-            importer_ids: scope.importers.requested_importer_ids.as_ref(),
-        },
-        projects: crate::install::state_options::InstallProjectMetadata {
-            catalogs: &workspace.catalogs,
-            manifests: project_manifests,
-            prefix: &workspace.prefix,
-        },
-        repeat: crate::install::state_options::RepeatInstallPolicy {
-            frozen: take_frozen_path,
-            filtered: scope.importers.filtered_install,
-            disable_optimistic_check: install.lockfile_policy.disable_optimistic_repeat,
-            supported_architectures: owned.projects.supported_architectures.as_ref(),
-            rebuild: options.rebuild.as_ref(),
-            effective_node_version: mode.effective_node_version.as_deref(),
-        },
-        verification,
-        write: lockfiles.write_policy(options.save_lockfile),
-        resolve_only: mode.resolve_only,
+    let verification = settled.verification.take_inputs(options);
+    Ok(
+        prepare_modules_state::<Reporter>(PrepareModulesStateInputs {
+            tree: settled.modules_tree(),
+            lockfiles: crate::install::state_options::PreparedLockfiles {
+                wanted: settled.lockfiles.wanted.get(),
+                current: settled.loaded.current.as_ref(),
+                importer_ids: settled.projects.scope.importers.requested_importer_ids.as_ref(),
+            },
+            projects: crate::install::state_options::InstallProjectMetadata {
+                catalogs: &settled.projects.workspace.catalogs,
+                manifests: settled.projects.project_manifests,
+                prefix: &settled.projects.workspace.prefix,
+            },
+            repeat: crate::install::state_options::RepeatInstallPolicy {
+                frozen: take_frozen_path,
+                filtered: settled.projects.scope.importers.filtered_install,
+                disable_optimistic_check: settled.install.lockfile_policy.disable_optimistic_repeat,
+                supported_architectures: settled.owned.projects.supported_architectures.as_ref(),
+                rebuild: options.rebuild.as_ref(),
+                effective_node_version: settled.mode.effective_node_version.as_deref(),
+            },
+            verification,
+            write: settled.lockfiles.write_policy(options.save_lockfile),
+            resolve_only: settled.mode.resolve_only,
 
-        installs_only: install.execution.installs_only,
-    })
-    .await?
-    .map(|modules| Dispatched { take_frozen_path, modules }))
+            installs_only: settled.install.execution.installs_only,
+        })
+        .await?
+        .map(|modules| Dispatched {
+            take_frozen_path,
+            modules,
+        }),
+    )
 }
 pub(super) fn announce_import<Reporter: self::Reporter>(
     settled: Settled<'_, '_>,
@@ -196,9 +192,7 @@ pub(super) fn announce_import<Reporter: self::Reporter>(
         level: LogLevel::Debug,
         current_lockfile_exists: loaded.current.is_some(),
         store_dir: install.context.config.store_dir.display().to_string(),
-        virtual_store_dir: install
-            .context
-            .config
+        virtual_store_dir: install.context.config
             .effective_virtual_store_dir()
             .to_string_lossy()
             .into_owned(),
@@ -286,7 +280,9 @@ pub(super) async fn decide_frozen_path(
     if dispatch.update_checksums {
         return Ok(false);
     }
-    let Some(lockfile) = dispatch.lockfile else { return Ok(false) };
+    let Some(lockfile) = dispatch.lockfile else {
+        return Ok(false);
+    };
     // Auto-frozen via `preferFrozenLockfile`. Skip when the user opted out
     // (`--no-prefer-frozen-lockfile` / `preferFrozenLockfile: false`).
     if !dispatch.prefer_frozen_lockfile {

@@ -1,9 +1,9 @@
 use super::{
-    Arc, BTreeMap, ChildrenOwnerClaim, Cow, DirectDep, HashMap, HashSet, NodeId, ParentPkgAliases,
-    PeerDep, Pipe, PkgName, PkgNameVerPeer, RecordedChildrenContext, ResolveDependencyTreeError,
-    Resolver, ReuseSource, SnapshotDepRef, SnapshotEntry, TreeCtx, UpdateReuseScope,
-    WantedDependency, future, is_current_children_owner, lazy_children, record_children,
-    resolve_node,
+    Arc, BTreeMap, ChildEdge, ChildrenOwnerClaim, Cow, DirectDep, HashMap, HashSet, NodeId,
+    ParentPkgAliases, PeerDep, Pipe, PkgName, PkgNameVerPeer, RecordedChildrenContext,
+    ResolveDependencyTreeError, Resolver, ReuseSource, SnapshotDepRef, SnapshotEntry, TreeCtx,
+    UpdateReuseScope, WantedDependency, future, is_current_children_owner, lazy_children,
+    record_children, resolve_node,
 };
 
 /// The per-node context [`reused_children`] walks one reused node's snapshot
@@ -22,6 +22,22 @@ pub(super) struct ReusedNodeAncestry<'a> {
     pub(super) depth: i32,
     pub(super) current_is_optional: bool,
     pub(super) parent_pkg_aliases: &'a Arc<ParentPkgAliases>,
+}
+
+impl<'a> ReusedNodeAncestry<'a> {
+    pub(super) fn new(
+        edge: &ChildEdge<'a>,
+        next_ancestors: &'a Arc<Vec<String>>,
+        current_is_optional: bool,
+    ) -> Self {
+        Self {
+            ancestor_ids: edge.ancestor_ids,
+            next_ancestors,
+            depth: edge.depth,
+            current_is_optional,
+            parent_pkg_aliases: edge.parent_pkg_aliases,
+        }
+    }
 }
 
 /// Walk a reused node's children and record them, unless another occurrence
@@ -53,8 +69,7 @@ pub(super) async fn resolve_snapshot_children<Chain>(
 where
     Chain: Resolver + ?Sized,
 {
-    context
-        .child_refs
+    context.child_refs
         .iter()
         .map(|(child_alias, child_key)| {
             let child_wanted = WantedDependency {
@@ -76,7 +91,9 @@ where
                     &next_ancestors,
                     context.ancestry.depth + 1,
                     context.ancestry.current_is_optional,
-                    ReuseSource::Transitive { key: Some(child_key) },
+                    ReuseSource::Transitive {
+                        key: Some(child_key),
+                    },
                     context.ancestry.parent_pkg_aliases,
                 )
                 .await
@@ -94,13 +111,15 @@ pub(super) fn record_reused_children(
 ) -> (crate::resolved_tree::TreeChildren, bool) {
     let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
     let mut by_id: Vec<crate::resolved_tree::ChildEdge> = Vec::new();
-    let optional_by_alias: HashMap<&str, bool> = context
-        .child_refs
+    let optional_by_alias: HashMap<&str, bool> = context.child_refs
         .iter()
         .map(|(alias, _)| (alias.as_str(), is_optional_child(context.snapshot, alias)))
         .collect();
     for dep in child_results.into_iter().flatten() {
-        let optional = optional_by_alias.get(dep.alias.as_str()).copied().unwrap_or(false);
+        let optional = optional_by_alias
+            .get(dep.alias.as_str())
+            .copied()
+            .unwrap_or(false);
         by_id.push(crate::resolved_tree::ChildEdge {
             alias: dep.alias.clone(),
             pkg_id: Arc::from(dep.id),
@@ -144,13 +163,21 @@ pub(super) fn snapshot_child_refs(
     snapshot: Option<&SnapshotEntry>,
     peer_dependencies: &BTreeMap<String, PeerDep>,
 ) -> Vec<(String, PkgNameVerPeer)> {
-    let Some(snapshot) = snapshot else { return Vec::new() };
-    let transitive_peers: HashSet<&str> =
-        snapshot.transitive_peer_dependencies.iter().flatten().map(String::as_str).collect();
-    let mut out: Vec<(String, PkgNameVerPeer)> = Vec::new();
-    for dep_map in [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()]
-        .into_iter()
+    let Some(snapshot) = snapshot else {
+        return Vec::new();
+    };
+    let transitive_peers: HashSet<&str> = snapshot.transitive_peer_dependencies
+        .iter()
         .flatten()
+        .map(String::as_str)
+        .collect();
+    let mut out: Vec<(String, PkgNameVerPeer)> = Vec::new();
+    for dep_map in [
+        snapshot.dependencies.as_ref(),
+        snapshot.optional_dependencies.as_ref(),
+    ]
+    .into_iter()
+    .flatten()
     {
         push_snapshot_child_refs(dep_map, peer_dependencies, &transitive_peers, &mut out);
     }
@@ -184,7 +211,13 @@ pub(super) fn push_snapshot_child_refs(
 /// (as opposed to `dependencies`). Threads the right `optional` flag onto
 /// the reused child's [`crate::resolved_tree::ChildEdge`].
 pub(super) fn is_optional_child(snapshot: Option<&SnapshotEntry>, alias: &str) -> bool {
-    let Some(snapshot) = snapshot else { return false };
-    let Ok(name) = alias.parse::<pnpm_lockfile::PkgName>() else { return false };
-    snapshot.optional_dependencies.as_ref().is_some_and(|deps| deps.contains_key(&name))
+    let Some(snapshot) = snapshot else {
+        return false;
+    };
+    let Ok(name) = alias.parse::<pnpm_lockfile::PkgName>() else {
+        return false;
+    };
+    snapshot.optional_dependencies
+        .as_ref()
+        .is_some_and(|deps| deps.contains_key(&name))
 }

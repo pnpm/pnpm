@@ -105,8 +105,12 @@ impl PackageManager {
     pub(crate) fn channel(self, version_spec: &str) -> Channel {
         match self {
             PackageManager::Bun => Channel::Binary(BinaryChannel::Bun),
-            PackageManager::Npm => Channel::Registry { package: NPM_PACKAGES[0] },
-            PackageManager::Pnpm => Channel::Registry { package: "pnpm" },
+            PackageManager::Npm => Channel::Registry {
+                package: NPM_PACKAGES[0],
+            },
+            PackageManager::Pnpm => Channel::Registry {
+                package: "pnpm",
+            },
             PackageManager::Yarn => yarn_channel(version_spec),
         }
     }
@@ -138,16 +142,22 @@ impl PackageManager {
 }
 
 fn single_package(packages: &'static [&'static str; 1]) -> EnginePackages {
-    EnginePackages { wrapper: packages[0], pinned: packages, links_native_binary: false }
+    EnginePackages {
+        wrapper: packages[0],
+        pinned: packages,
+        links_native_binary: false,
+    }
 }
 
 fn yarn_channel(version_spec: &str) -> Channel {
     match committed_major(version_spec) {
         Some(major) if major >= YARN_NATIVE_MAJOR => Channel::Binary(BinaryChannel::Yarn),
-        Some(major) if major < YARN_BERRY_MAJOR => {
-            Channel::Registry { package: YARN_CLASSIC_PACKAGES[0] }
-        }
-        _ => Channel::Registry { package: YARN_BERRY_PACKAGES[0] },
+        Some(major) if major < YARN_BERRY_MAJOR => Channel::Registry {
+            package: YARN_CLASSIC_PACKAGES[0],
+        },
+        _ => Channel::Registry {
+            package: YARN_BERRY_PACKAGES[0],
+        },
     }
 }
 

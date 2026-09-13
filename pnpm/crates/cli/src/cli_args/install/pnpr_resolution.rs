@@ -46,7 +46,11 @@ pub(super) fn resolve_project(
 ) -> ResolveProject {
     ResolveProject {
         dir,
-        name: manifest.value().get("name").and_then(|value| value.as_str()).map(str::to_string),
+        name: manifest
+            .value()
+            .get("name")
+            .and_then(|value| value.as_str())
+            .map(str::to_string),
         version: manifest
             .value()
             .get("version")
@@ -90,7 +94,13 @@ pub(crate) async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     pnpr_server: &str,
     link: PnprLink<'_>,
 ) -> miette::Result<()> {
-    Box::pin(install_via_pnpr_inner::<Reporter>(state, pnpr_server, None, link)).await
+    Box::pin(install_via_pnpr_inner::<Reporter>(
+        state,
+        pnpr_server,
+        None,
+        link,
+    ))
+    .await
 }
 
 pub(crate) async fn install_selected_via_pnpr<Reporter: self::Reporter + 'static>(
@@ -99,7 +109,13 @@ pub(crate) async fn install_selected_via_pnpr<Reporter: self::Reporter + 'static
     selection: &InstallFamilySelection,
     link: PnprLink<'_>,
 ) -> miette::Result<()> {
-    Box::pin(install_via_pnpr_inner::<Reporter>(state, pnpr_server, Some(selection), link)).await
+    Box::pin(install_via_pnpr_inner::<Reporter>(
+        state,
+        pnpr_server,
+        Some(selection),
+        link,
+    ))
+    .await
 }
 
 pub(super) async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
@@ -162,12 +178,16 @@ pub(super) async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
 pub(super) struct PnprSession<'a> {
     pub(super) previous_wanted: Option<&'a Lockfile>,
     pub(super) merge_wanted: Option<&'a Lockfile>,
-    pub(super) selection_importer_ids:
-        Option<(std::collections::HashSet<String>, std::collections::HashSet<String>)>,
+    pub(super) selection_importer_ids: Option<(
+        std::collections::HashSet<String>,
+        std::collections::HashSet<String>,
+    )>,
     pub(super) partial_selection: bool,
     pub(super) projects: Vec<ResolveProject>,
-    pub(super) full_workspace_importer_ids:
-        Option<(std::collections::HashSet<String>, std::collections::HashSet<String>)>,
+    pub(super) full_workspace_importer_ids: Option<(
+        std::collections::HashSet<String>,
+        std::collections::HashSet<String>,
+    )>,
     pub(super) catalogs: Option<Catalogs>,
     pub(super) satisfied_without_server: bool,
 }
@@ -182,9 +202,11 @@ async fn prepare_pnpr_session<'a, Reporter: self::Reporter + 'static>(
     let merge_wanted = merge_source(state, link, previous_wanted)?;
 
     let selection_importer_ids = selection_importer_ids(state, selection);
-    let partial_selection = selection_importer_ids.as_ref().is_some_and(
-        |(real_importer_ids, selected_importer_ids)| real_importer_ids != selected_importer_ids,
-    );
+    let partial_selection = selection_importer_ids
+        .as_ref()
+        .is_some_and(|(real_importer_ids, selected_importer_ids)| {
+            real_importer_ids != selected_importer_ids
+        });
     let projects = resolve_projects_for_pnpr(state, selection, link.use_state_lockfile)?;
     let full_workspace_importer_ids =
         full_workspace_importer_ids(state, selection, link, &projects);
@@ -219,8 +241,13 @@ pub(super) async fn prefetch_allowed(
     let Some(hook) = pnpmfile_hook else {
         return Ok(true);
     };
-    let fetchers = hook.get_custom_fetchers().await.map_err(|error| miette::miette!("{error}"))?;
-    Ok(!fetchers.iter().any(|fetcher| fetcher.has_can_fetch() && fetcher.has_fetch()))
+    let fetchers = hook
+        .get_custom_fetchers()
+        .await
+        .map_err(|error| miette::miette!("{error}"))?;
+    Ok(!fetchers
+        .iter()
+        .any(|fetcher| fetcher.has_can_fetch() && fetcher.has_fetch()))
 }
 
 /// Whether the resolve streams its packages into a prefetcher, and what
@@ -255,22 +282,21 @@ async fn resolve_via_pnpr(
 
     let result = match prefetcher.as_ref() {
         Some(prefetcher) => {
-            client
-                .resolve_projects_streaming(opts, |pkg| {
-                    let tarball = benchmark_registry_override.map_or_else(
-                        || pkg.tarball.clone(),
-                        |registry| registry.client_tarball_url(&pkg.tarball),
-                    );
-                    prefetcher.prefetch(
-                        pkg.id,
-                        tarball,
-                        &pkg.integrity,
-                        pkg.unpacked_size,
-                        pkg.file_count,
-                        pkg.revision.is_some(),
-                    );
-                })
-                .await
+            client.resolve_projects_streaming(opts, |pkg| {
+                let tarball = benchmark_registry_override.map_or_else(
+                    || pkg.tarball.clone(),
+                    |registry| registry.client_tarball_url(&pkg.tarball),
+                );
+                prefetcher.prefetch(
+                    pkg.id,
+                    tarball,
+                    &pkg.integrity,
+                    pkg.unpacked_size,
+                    pkg.file_count,
+                    pkg.revision.is_some(),
+                );
+            })
+            .await
         }
         None => client.resolve_projects(opts).await,
     };
@@ -301,8 +327,11 @@ fn load_previous_wanted<'a, Reporter: self::Reporter + 'static>(
     if !link.use_state_lockfile {
         return Ok(None);
     }
-    let loaded =
-        if link.lockfile.fix { state.lockfile.get_for_fix() } else { state.lockfile.get() };
+    let loaded = if link.lockfile.fix {
+        state.lockfile.get_for_fix()
+    } else {
+        state.lockfile.get()
+    };
     match loaded {
         Ok(lockfile) => Ok(lockfile),
         Err(error) if !link.lockfile.frozen => {
@@ -415,8 +444,14 @@ async fn resolve_and_link_pnpr<Reporter: self::Reporter + 'static>(
         return Ok(());
     }
 
-    link_pnpr_lockfile::<Reporter>(state, selection, link, &outcome.lockfile, inputs.pnpmfile_hook)
-        .await?;
+    link_pnpr_lockfile::<Reporter>(
+        state,
+        selection,
+        link,
+        &outcome.lockfile,
+        inputs.pnpmfile_hook,
+    )
+    .await?;
 
     // The materialization install has awaited every tarball's mem-cache
     // slot, so all prefetch downloads have finished and queued their

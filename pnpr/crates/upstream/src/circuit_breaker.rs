@@ -35,7 +35,11 @@ pub(super) struct BreakerState {
 
 impl CircuitBreaker {
     pub(super) fn new(max_fails: u32, fail_timeout: Duration) -> Self {
-        Self { max_fails, fail_timeout, state: Mutex::new(BreakerState::default()) }
+        Self {
+            max_fails,
+            fail_timeout,
+            state: Mutex::new(BreakerState::default()),
+        }
     }
 
     /// Recover the guard from a poisoned lock instead of panicking: the

@@ -1,5 +1,8 @@
 //! Running one package's build scripts.
 
+mod script_policy;
+use script_policy::{rebuild_forces_build, snapshot_runs_scripts};
+
 mod side_effects;
 use side_effects::{
     FrozenStoreWrites, SideEffectsUpload, already_built, side_effects_cache_key,
@@ -31,7 +34,10 @@ pub(crate) struct BuildOneSnapshot<'a> {
 
 impl<'a> BuildOneSnapshot<'a> {
     fn pkg_roots(&self) -> PkgRoots<'a> {
-        PkgRoots { layout: self.directories.layout, by_key: self.directories.pkg_roots_by_key }
+        PkgRoots {
+            layout: self.directories.layout,
+            by_key: self.directories.pkg_roots_by_key,
+        }
     }
 }
 
@@ -45,13 +51,17 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     // Ancestors of a build/patch candidate are included in the
     // sequence (so the topo order stays correct) but only run
     // scripts / apply patches when they themselves are candidates.
-    let Some(candidate) = BuildCandidate::of(context, snapshot_key) else { return Ok(()) };
+    let Some(candidate) = BuildCandidate::of(context, snapshot_key) else {
+        return Ok(());
+    };
     let cache_key = side_effects_cache_key(context, snapshot_key, &candidate);
     if already_built::<Reporter>(context, snapshot_key, &candidate, cache_key.as_deref())? {
         return Ok(());
     }
 
-    let optional = context.graph.snapshots.get(snapshot_key).is_some_and(|entry| entry.optional);
+    let optional = context.graph.snapshots
+        .get(snapshot_key)
+        .is_some_and(|entry| entry.optional);
     if reject_frozen_store_build::<Reporter>(
         context,
         snapshot_key,
@@ -65,7 +75,13 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
         return Ok(());
     }
 
-    build_candidate::<Reporter>(context, snapshot_key, &candidate, cache_key.as_deref(), optional)
+    build_candidate::<Reporter>(
+        context,
+        snapshot_key,
+        &candidate,
+        cache_key.as_deref(),
+        optional,
+    )
 }
 
 /// Skipped hoisted snapshots have no package root, just as skipped isolated snapshots have no directory.
@@ -83,15 +99,7 @@ fn build_candidate<Reporter: self::Reporter>(
         return Ok(());
     }
 
-    // Per-snapshot `extra_bin_paths`. Isolated leaves it empty;
-    // hoisted gathers every ancestor's `node_modules/.bin` up to
-    // `lockfile_dir` so a lifecycle script invoked at a nested
-    // hoisted location can resolve bins added by parents.
-    let extra_bin_paths = if context.directories.gather_ancestor_bin_paths {
-        bin_dirs_in_all_parent_dirs(&pkg_dir, context.directories.lockfile_dir)
-    } else {
-        Vec::new()
-    };
+    let extra_bin_paths = ancestor_bin_paths(context, &pkg_dir);
 
     // Apply the patch before running postinstall hooks. A snapshot
     // with a patch entry but no resolved `patch_file_path` is a hard
@@ -105,7 +113,8 @@ fn build_candidate<Reporter: self::Reporter>(
         snapshot_key,
         &pkg_dir,
         &extra_bin_paths,
-        (candidate.should_run_scripts, optional, &candidate.name, &candidate.version),
+        candidate,
+        optional,
     )?
     else {
         return Ok(());
@@ -162,8 +171,10 @@ impl<'c> BuildCandidate<'c> {
     fn of(context: &BuildOneSnapshot<'c>, snapshot_key: &PackageKey) -> Option<Self> {
         let metadata_key = snapshot_key.without_peer();
         let patch = context.graph.patches.and_then(|patches| patches.get(&metadata_key));
-        let requires_build =
-            context.graph.requires_build_map.get(snapshot_key).copied().unwrap_or(false);
+        let requires_build = context.graph.requires_build_map
+            .get(snapshot_key)
+            .copied()
+            .unwrap_or(false);
         if !is_build_candidate(requires_build, patch.is_some()) {
             return None;
         }
@@ -176,7 +187,14 @@ impl<'c> BuildCandidate<'c> {
             &dep_path,
             (requires_build, force_rebuild),
         );
-        Some(Self { metadata_key, patch, name, version, force_rebuild, should_run_scripts })
+        Some(Self {
+            metadata_key,
+            patch,
+            name,
+            version,
+            force_rebuild,
+            should_run_scripts,
+        })
     }
 }
 
@@ -190,21 +208,26 @@ fn report_broken_slot<Reporter: self::Reporter>(
     error: BuildModulesError,
 ) -> Result<(), BuildModulesError> {
     let (name, version) = named;
-    if !context.graph.snapshots.get(snapshot_key).is_some_and(|entry| entry.optional) {
+    if !context.graph.snapshots
+        .get(snapshot_key)
+        .is_some_and(|entry| entry.optional)
+    {
         return Err(error);
     }
-    Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
-        level: LogLevel::Debug,
-        details: Some(error.to_string()),
-        package: SkippedOptionalPackage::Installed {
-            id: pkg_dir.to_string_lossy().into_owned(),
-            name: name.to_string(),
-            version: version.to_string(),
+    Reporter::emit(&LogEvent::SkippedOptionalDependency(
+        SkippedOptionalDependencyLog {
+            level: LogLevel::Debug,
+            details: Some(error.to_string()),
+            package: SkippedOptionalPackage::Installed {
+                id: pkg_dir.to_string_lossy().into_owned(),
+                name: name.to_string(),
+                version: version.to_string(),
+            },
+            parents: None,
+            prefix: context.directories.lockfile_dir.to_string_lossy().into_owned(),
+            reason: SkippedOptionalReason::BuildFailure,
         },
-        parents: None,
-        prefix: context.directories.lockfile_dir.to_string_lossy().into_owned(),
-        reason: SkippedOptionalReason::BuildFailure,
-    }));
+    ));
     Ok(())
 }
 
@@ -225,7 +248,11 @@ fn reject_frozen_store_build<Reporter: self::Reporter>(
     writes: &FrozenStoreWrites,
 ) -> Result<bool, BuildModulesError> {
     let (name, version) = named;
-    let &FrozenStoreWrites { optional, has_patch, should_run_scripts } = writes;
+    let &FrozenStoreWrites {
+        optional,
+        has_patch,
+        should_run_scripts,
+    } = writes;
     if !context.cache.frozen_store
         || !context.directories.layout.enable_global_virtual_store()
         || !(has_patch || should_run_scripts)
@@ -240,23 +267,22 @@ fn reject_frozen_store_build<Reporter: self::Reporter>(
     // A build/patch failure on an optional dependency is non-fatal (see the
     // lifecycle-script arm), so a seed missing an optional package's build
     // output skips that build instead of blocking the install.
-    Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
-        level: LogLevel::Debug,
-        details: Some(format!(
-            "The read-only store (frozenStore) is missing the build output of {name}@{version}.",
-        )),
-        package: SkippedOptionalPackage::Installed {
-            id: context
-                .pkg_roots()
-                .canonical(snapshot_key)
-                .map_or_else(|| snapshot_key.to_string(), |dir| dir.to_string_lossy().into_owned()),
-            name: name.to_string(),
-            version: version.to_string(),
+    Reporter::emit(&LogEvent::SkippedOptionalDependency(
+        SkippedOptionalDependencyLog {
+            level: LogLevel::Debug,
+            details: Some(format!(
+                "The read-only store (frozenStore) is missing the build output of {name}@{version}.",
+            )),
+            package: SkippedOptionalPackage::Installed {
+                id: snapshot_package_id(context, snapshot_key),
+                name: name.to_string(),
+                version: version.to_string(),
+            },
+            parents: None,
+            prefix: context.directories.lockfile_dir.to_string_lossy().into_owned(),
+            reason: SkippedOptionalReason::BuildFailure,
         },
-        parents: None,
-        prefix: context.directories.lockfile_dir.to_string_lossy().into_owned(),
-        reason: SkippedOptionalReason::BuildFailure,
-    }));
+    ));
     Ok(true)
 }
 
@@ -273,9 +299,11 @@ fn apply_configured_patch(
     patch: Option<&pnpm_patching::ExtendedPatchInfo>,
 ) -> Result<bool, BuildModulesError> {
     let Some(patch) = patch else { return Ok(false) };
-    let patch_file_path = patch.patch_file_path.as_deref().ok_or_else(|| {
-        BuildModulesError::PatchFilePathMissing { dep_path: snapshot_key.to_string() }
-    })?;
+    let patch_file_path = patch.patch_file_path
+        .as_deref()
+        .ok_or_else(|| BuildModulesError::PatchFilePathMissing {
+            dep_path: snapshot_key.to_string(),
+        })?;
     context.progress.slot_mutations.store(true, Ordering::Relaxed);
     for patched_dir in context.pkg_roots().all(snapshot_key) {
         if !patched_dir.exists() {
@@ -310,10 +338,10 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
     snapshot_key: &PackageKey,
     pkg_dir: &Path,
     extra_bin_paths: &[PathBuf],
-    run: (bool, bool, &str, &str),
+    candidate: &BuildCandidate<'_>,
+    optional: bool,
 ) -> Result<Option<bool>, BuildModulesError> {
-    let (should_run_scripts, optional, name, version) = run;
-    if !should_run_scripts {
+    if !candidate.should_run_scripts {
         return Ok(Some(false));
     }
     context.progress.slot_mutations.store(true, Ordering::Relaxed);
@@ -328,18 +356,20 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
             if !optional {
                 return Err(BuildModulesError::LifecycleScript(err));
             }
-            Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
-                level: LogLevel::Debug,
-                details: Some(err.to_string()),
-                package: SkippedOptionalPackage::Installed {
-                    id: pkg_dir.to_string_lossy().into_owned(),
-                    name: name.to_string(),
-                    version: version.to_string(),
+            Reporter::emit(&LogEvent::SkippedOptionalDependency(
+                SkippedOptionalDependencyLog {
+                    level: LogLevel::Debug,
+                    details: Some(err.to_string()),
+                    package: SkippedOptionalPackage::Installed {
+                        id: pkg_dir.to_string_lossy().into_owned(),
+                        name: candidate.name.clone(),
+                        version: candidate.version.clone(),
+                    },
+                    parents: None,
+                    prefix: context.directories.lockfile_dir.to_string_lossy().into_owned(),
+                    reason: SkippedOptionalReason::BuildFailure,
                 },
-                parents: None,
-                prefix: context.directories.lockfile_dir.to_string_lossy().into_owned(),
-                reason: SkippedOptionalReason::BuildFailure,
-            }));
+            ));
             Ok(None)
         }
     }
@@ -409,73 +439,24 @@ fn is_build_candidate(requires_build: bool, has_patch: bool) -> bool {
     requires_build || has_patch
 }
 
-/// An explicit `pacquet rebuild` re-runs the build scripts of the selected
-/// packages even when the side-effects cache reports them already built. The
-/// selection holds allow-build keys (the package name for registry deps, the
-/// full pkgId for git/tarball artifacts), so either form matches — a selected
-/// non-registry artifact is forced past the `is_built` gate too.
-fn rebuild_forces_build(rebuild: Option<&RebuildOptions>, name: &str, dep_path: &str) -> bool {
-    rebuild.is_some_and(|rebuild| {
-        rebuild.is_selected(name)
-            || rebuild.is_selected(&allow_build_key_from_ignored_build(dep_path))
-    })
-}
-
-/// Whether this snapshot's lifecycle scripts run at all.
-///
-/// The allow-policy gate still applies — a rebuild never builds a disallowed
-/// package. And a `pacquet rebuild <pkg>` runs scripts only for the selected
-/// packages: non-selected ones are still evaluated by the policy gate (so
-/// their `.modules.yaml` ignored-builds record stays intact), but their
-/// scripts are suppressed here. The side-effects `is_built` gate is only an
-/// optimization and is disabled by default, so this gate — not that
-/// short-circuit — is what bounds script execution to the selection.
-fn snapshot_runs_scripts(
-    context: &BuildOneSnapshot<'_>,
-    snapshot_key: &PackageKey,
-    dep_path: &str,
-    build: (bool, bool),
-) -> bool {
-    let (requires_build, force_rebuild) = build;
-    if !requires_build || context.scripts.ignore {
-        return false;
-    }
-    if context.rebuild.is_some() && !force_rebuild {
-        return false;
-    }
-    scripts_are_allowed(context, snapshot_key, dep_path)
-}
-
-/// The `allowBuilds` gate, which only applies when the node has scripts to
-/// run. A patched-only package skips this check entirely and proceeds to patch
-/// application; a refusal returns `false` rather than failing, so the patch
-/// still gets applied even when scripts are disallowed.
-fn scripts_are_allowed(
-    context: &BuildOneSnapshot<'_>,
-    snapshot_key: &PackageKey,
-    dep_path: &str,
-) -> bool {
-    if let Some(allowed) = context.allow_build_policy.check(dep_path) {
-        allowed
+fn ancestor_bin_paths(context: &BuildOneSnapshot<'_>, pkg_dir: &Path) -> Vec<PathBuf> {
+    // Per-snapshot `extra_bin_paths`. Isolated leaves it empty;
+    // hoisted gathers every ancestor's `node_modules/.bin` up to
+    // `lockfile_dir` so a lifecycle script invoked at a nested
+    // hoisted location can resolve bins added by parents.
+    if context.directories.gather_ancestor_bin_paths {
+        bin_dirs_in_all_parent_dirs(pkg_dir, context.directories.lockfile_dir)
     } else {
-        {
-            // Poison-recover: see the equivalent call site at the end of
-            // `BuildModules::run` for the safety argument (BTreeSet insertion
-            // is atomic from the data-structure's POV).
-            //
-            // The patch hash is kept: two copies of a package that differ only
-            // by an applied patch are different builds to approve, and pnpm's
-            // `dedupePackageNamesFromIgnoredBuilds` reports them apart for the
-            // same reason. `dep_path` has already lost it, so it is re-derived
-            // from the full key.
-            let ignored_key = get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string();
-            context
-                .progress
-                .ignored_builds
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .insert(ignored_key);
-            false
-        }
+        Vec::new()
     }
+}
+
+fn snapshot_package_id(context: &BuildOneSnapshot<'_>, snapshot_key: &PackageKey) -> String {
+    context
+        .pkg_roots()
+        .canonical(snapshot_key)
+        .map_or_else(
+            || snapshot_key.to_string(),
+            |dir| dir.to_string_lossy().into_owned(),
+        )
 }

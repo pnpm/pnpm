@@ -123,7 +123,11 @@ pub fn replace_workspace_protocol_peer_dependency(
 
     let installed = installed_modules_dir(dir, modules_dir);
     let manifest = read_and_check_manifest(dep_name, &installed.join(dep_name))?;
-    let token = if matched.range_group == "*" { "" } else { matched.range_group };
+    let token = if matched.range_group == "*" {
+        ""
+    } else {
+        matched.range_group
+    };
 
     let mut rewritten = String::with_capacity(dep_spec.len());
     rewritten.push_str(&dep_spec[..matched.start]);
@@ -144,7 +148,10 @@ enum ParsedPeer {
 fn parsed_peer_spec(dep_spec: &str) -> Option<ParsedPeer> {
     let workspace_spec = WorkspaceSpec::parse(dep_spec)?;
     if let Some(alias) = workspace_spec.alias.as_deref() {
-        return Some(ParsedPeer::Alias(aliased_peer_spec(alias, &workspace_spec.version)));
+        return Some(ParsedPeer::Alias(aliased_peer_spec(
+            alias,
+            &workspace_spec.version,
+        )));
     }
     let relative =
         workspace_spec.version.starts_with("./") || workspace_spec.version.starts_with("../");
@@ -164,14 +171,21 @@ fn published_spec(dep_name: &str, manifest: &DependencyManifest, token: &str) ->
     if manifest.name == dep_name {
         return format!("{token}{version}", version = manifest.version);
     }
-    format!("npm:{name}@{token}{version}", name = manifest.name, version = manifest.version)
+    format!(
+        "npm:{name}@{token}{version}",
+        name = manifest.name,
+        version = manifest.version,
+    )
 }
 
 /// An aliased peer keeps its alias; a range sentinel with no version behind it
 /// widens to `*`, which is what a peer range without a resolved version means.
 fn aliased_peer_spec(alias: &str, version: &str) -> String {
-    let version =
-        if version == "^" || version == "~" || version.is_empty() { "*" } else { version };
+    let version = if version == "^" || version == "~" || version.is_empty() {
+        "*"
+    } else {
+        version
+    };
     format!("npm:{alias}@{version}")
 }
 
@@ -187,22 +201,31 @@ fn read_and_check_manifest(
         Ok(Some(value)) => value,
         Ok(None) => {
             return Err(ReplaceWorkspaceProtocolError::CannotResolve(
-                CannotResolveWorkspaceProtocolError { dep_name: dep_name.to_string() },
+                CannotResolveWorkspaceProtocolError {
+                    dep_name: dep_name.to_string(),
+                },
             ));
         }
         Err(err) => return Err(ReplaceWorkspaceProtocolError::ReadManifest(err)),
     };
     let Some(name) = value.get("name").and_then(Value::as_str) else {
         return Err(ReplaceWorkspaceProtocolError::CannotResolve(
-            CannotResolveWorkspaceProtocolError { dep_name: dep_name.to_string() },
+            CannotResolveWorkspaceProtocolError {
+                dep_name: dep_name.to_string(),
+            },
         ));
     };
     let Some(version) = value.get("version").and_then(Value::as_str) else {
         return Err(ReplaceWorkspaceProtocolError::CannotResolve(
-            CannotResolveWorkspaceProtocolError { dep_name: dep_name.to_string() },
+            CannotResolveWorkspaceProtocolError {
+                dep_name: dep_name.to_string(),
+            },
         ));
     };
-    Ok(DependencyManifest { name: name.to_string(), version: version.to_string() })
+    Ok(DependencyManifest {
+        name: name.to_string(),
+        version: version.to_string(),
+    })
 }
 
 /// The two fields the rewriters consult on the dependency's manifest.
@@ -232,7 +255,10 @@ fn parse_version_alias_spec(after_protocol: &str) -> Option<VersionAliasMatch> {
     let sentinel = match after_alias.chars().count() {
         0 => None,
         1 => {
-            let first_char = after_alias.chars().next().expect("char count == 1");
+            let first_char = after_alias
+                .chars()
+                .next()
+                .expect("char count == 1");
             if matches!(first_char, '^' | '~' | '*') {
                 Some(first_char)
             } else {
@@ -241,7 +267,9 @@ fn parse_version_alias_spec(after_protocol: &str) -> Option<VersionAliasMatch> {
         }
         _ => return None,
     };
-    Some(VersionAliasMatch { sentinel })
+    Some(VersionAliasMatch {
+        sentinel,
+    })
 }
 
 /// Strip the `workspace:` prefix and return the path portion of a

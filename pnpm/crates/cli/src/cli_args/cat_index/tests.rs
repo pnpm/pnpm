@@ -9,9 +9,24 @@ fn request_does_not_reuse_lockfile_entry_for_different_exact_version() {
         version: "3.1.2".parse().expect("parse importer dep version"),
     };
 
-    assert!(request_matches_dependency("bytes", Some("^3.1.0"), &dependency, "bytes@3.1.2"));
-    assert!(request_matches_dependency("bytes", Some("3.1.2"), &dependency, "bytes@3.1.2"));
-    assert!(!request_matches_dependency("bytes", Some("3.1.1"), &dependency, "bytes@3.1.2"));
+    assert!(request_matches_dependency(
+        "bytes",
+        Some("^3.1.0"),
+        &dependency,
+        "bytes@3.1.2"
+    ));
+    assert!(request_matches_dependency(
+        "bytes",
+        Some("3.1.2"),
+        &dependency,
+        "bytes@3.1.2"
+    ));
+    assert!(!request_matches_dependency(
+        "bytes",
+        Some("3.1.1"),
+        &dependency,
+        "bytes@3.1.2"
+    ));
 }
 
 #[test]
@@ -64,5 +79,10 @@ fn sort_deep_keys_sorts_nested_objects_deterministically() {
 }
 
 fn object_keys(value: &serde_json::Value) -> Vec<&str> {
-    value.as_object().expect("value is an object").keys().map(String::as_str).collect()
+    value
+        .as_object()
+        .expect("value is an object")
+        .keys()
+        .map(String::as_str)
+        .collect()
 }

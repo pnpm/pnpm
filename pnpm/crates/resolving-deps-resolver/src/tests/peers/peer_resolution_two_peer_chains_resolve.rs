@@ -40,13 +40,24 @@ async fn two_peer_chains_resolve_against_their_own_sibling() {
     );
     table.insert(
         ("bar-a".to_string(), "1.0.0".to_string()),
-        fake_result("bar-a", "1.0.0", serde_json::json!({ "name": "bar-a", "version": "1.0.0" })),
+        fake_result(
+            "bar-a",
+            "1.0.0",
+            serde_json::json!({ "name": "bar-a", "version": "1.0.0" }),
+        ),
     );
     table.insert(
         ("bar-b".to_string(), "1.0.0".to_string()),
-        fake_result("bar-b", "1.0.0", serde_json::json!({ "name": "bar-b", "version": "1.0.0" })),
+        fake_result(
+            "bar-b",
+            "1.0.0",
+            serde_json::json!({ "name": "bar-b", "version": "1.0.0" }),
+        ),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let resolver = StubResolver {
+        table,
+        calls: Mutex::new(Vec::new()),
+    };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({
         "foo-a": "1.0.0", "bar-a": "1.0.0",
         "foo-b": "1.0.0", "bar-b": "1.0.0",
@@ -103,7 +114,11 @@ async fn bad_peer_inside_subtree_records_resolved_from_parent() {
     );
     table.insert(
         ("dep".to_string(), "1.0.0".to_string()),
-        fake_result("dep", "1.0.0", serde_json::json!({ "name": "dep", "version": "1.0.0" })),
+        fake_result(
+            "dep",
+            "1.0.0",
+            serde_json::json!({ "name": "dep", "version": "1.0.0" }),
+        ),
     );
     table.insert(
         ("bar".to_string(), "1.0.0".to_string()),
@@ -117,7 +132,10 @@ async fn bad_peer_inside_subtree_records_resolved_from_parent() {
             }),
         ),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let resolver = StubResolver {
+        table,
+        calls: Mutex::new(Vec::new()),
+    };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "1.0.0" }));
 
     let mut tree = resolve_dependency_tree(
@@ -223,9 +241,16 @@ async fn revisit_with_peer_only_child_keeps_per_occurrence_node_id() {
     );
     table.insert(
         ("peer".to_string(), "^1.0.0".to_string()),
-        fake_result("peer", "1.0.0", serde_json::json!({ "name": "peer", "version": "1.0.0" })),
+        fake_result(
+            "peer",
+            "1.0.0",
+            serde_json::json!({ "name": "peer", "version": "1.0.0" }),
+        ),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let resolver = StubResolver {
+        table,
+        calls: Mutex::new(Vec::new()),
+    };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({
         "p1": "^1.0.0",
         "p2": "^1.0.0",
@@ -264,13 +289,15 @@ async fn revisit_with_peer_only_child_keeps_per_occurrence_node_id() {
     // `realize_children` misclassified the package and collapsed
     // distinct occurrences, breaking per-call-site state for any
     // future visitor that descends through it.
-    let peer_only_node_ids: Vec<&NodeId> = tree
-        .dependencies_tree
+    let peer_only_node_ids: Vec<&NodeId> = tree.dependencies_tree
         .iter()
         .filter(|(_, node)| node.resolved_package_id == "peer-only@1.0.0".into())
         .map(|(id, _)| id)
         .collect();
-    assert!(!peer_only_node_ids.is_empty(), "expected at least one tree entry for peer-only");
+    assert!(
+        !peer_only_node_ids.is_empty(),
+        "expected at least one tree entry for peer-only",
+    );
     for id in &peer_only_node_ids {
         assert!(
             matches!(id, NodeId::Counter(_)),
@@ -326,7 +353,10 @@ async fn external_link_peer_remaps_to_node_modules_when_exclude_links_on() {
             },
         },
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let resolver = StubResolver {
+        table,
+        calls: Mutex::new(Vec::new()),
+    };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({
         "abc": "1.0.0",
         "peer-a": "link:/abs/external",
@@ -364,8 +394,10 @@ async fn external_link_peer_remaps_to_node_modules_when_exclude_links_on() {
         },
     );
 
-    let abc_dep_path =
-        result.direct_dependencies_by_alias.get("abc").cloned().expect("abc is a direct dep");
+    let abc_dep_path = result.direct_dependencies_by_alias
+        .get("abc")
+        .cloned()
+        .expect("abc is a direct dep");
     assert_eq!(
         abc_dep_path,
         DepPath::from("abc@1.0.0(peer-a@node_modules+peer-a)".to_string()),

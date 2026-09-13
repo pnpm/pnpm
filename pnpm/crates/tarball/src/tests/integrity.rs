@@ -119,7 +119,12 @@ async fn falls_through_when_digest_is_malformed() {
     let mut files = HashMap::new();
     files.insert(
         "package.json".to_string(),
-        CafsFileInfo { digest: String::new(), mode: 0o644, size: 0, checked_at: None },
+        CafsFileInfo {
+            digest: String::new(),
+            mode: 0o644,
+            size: 0,
+            checked_at: None,
+        },
     );
     let entry = PackageFilesIndex {
         manifest: None,
@@ -163,7 +168,9 @@ async fn falls_through_when_digest_is_malformed() {
         ignore_file_pattern: None,
 
         progress_reported: None,
-        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
+        store_projection: ArchiveStoreProjection::Package {
+            append_manifest: None,
+        },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -182,14 +189,19 @@ async fn read_local_tarball_metadata_reads_integrity_and_bundled_manifest() {
     let tarball_path = local_dir.path().join("pkg.tgz");
     std::fs::write(&tarball_path, FASTIFY_ERROR_TARBALL).unwrap();
 
-    let metadata = read_local_tarball_metadata(&tarball_path)
-        .await
+    let metadata = read_local_tarball_metadata(&tarball_path).await
         .expect("read the local tarball's metadata");
 
     assert_eq!(metadata.integrity.to_string(), FASTIFY_ERROR_INTEGRITY);
     let manifest = metadata.manifest.expect("bundled manifest");
-    assert_eq!(manifest.get("name").and_then(serde_json::Value::as_str), Some("@fastify/error"));
-    assert_eq!(manifest.get("version").and_then(serde_json::Value::as_str), Some("3.3.0"));
+    assert_eq!(
+        manifest.get("name").and_then(serde_json::Value::as_str),
+        Some("@fastify/error"),
+    );
+    assert_eq!(
+        manifest.get("version").and_then(serde_json::Value::as_str),
+        Some("3.3.0"),
+    );
 }
 
 #[tokio::test]
@@ -238,7 +250,9 @@ async fn fetch_and_extract_records_expected_or_computed_integrity() {
             ignore_file_pattern: None,
 
             progress_reported: None,
-            store_projection: ArchiveStoreProjection::Package { append_manifest: None },
+            store_projection: ArchiveStoreProjection::Package {
+                append_manifest: None,
+            },
         }
         .fetch_and_extract::<SilentReporter>()
         .await
@@ -256,7 +270,10 @@ async fn fetch_and_extract_records_expected_or_computed_integrity() {
         let index = StoreIndex::open_in(store_path).expect("open store index");
         let key = store_index_key(&expected.to_string(), package_id);
         assert_eq!(index.keys().expect("read index keys"), vec![key.clone()]);
-        let entry = index.get(&key).expect("read index entry").expect("archive is indexed");
+        let entry = index
+            .get(&key)
+            .expect("read index entry")
+            .expect("archive is indexed");
         assert_eq!(entry.manifest, Some(manifest));
         assert_eq!(entry.requires_build, Some(false));
         drop((index, store_dir));
@@ -301,7 +318,10 @@ async fn retries_integrity_mismatch_until_exhausted() {
     )
     .await
     .expect_err("integrity mismatch should exhaust the retry budget");
-    assert!(matches!(err, TarballError::Checksum(_)), "expected Checksum error, got {err:?}");
+    assert!(
+        matches!(err, TarballError::Checksum(_)),
+        "expected Checksum error, got {err:?}",
+    );
     mock.assert_async().await;
     drop(store_dir_keep);
 }
@@ -437,7 +457,10 @@ async fn streaming_download_integrity_mismatch_retries_and_fails() {
     )
     .await
     .expect_err("an integrity mismatch must exhaust the retry budget");
-    assert!(matches!(err, TarballError::Checksum(_)), "expected Checksum error, got {err:?}");
+    assert!(
+        matches!(err, TarballError::Checksum(_)),
+        "expected Checksum error, got {err:?}",
+    );
     mock.assert_async().await;
     drop(store_dir_keep);
 }

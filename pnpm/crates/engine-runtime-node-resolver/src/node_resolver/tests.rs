@@ -20,7 +20,10 @@ async fn declines_non_node_alias() {
         bare_specifier: Some("runtime:22.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let outcome = resolver().resolve(&wanted, &ResolveOptions::default()).await.unwrap();
+    let outcome = resolver()
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap();
     assert!(outcome.is_none());
 }
 
@@ -33,7 +36,10 @@ async fn declines_node_without_runtime_prefix() {
         bare_specifier: Some("^22".to_string()),
         ..WantedDependency::default()
     };
-    let outcome = resolver().resolve(&wanted, &ResolveOptions::default()).await.unwrap();
+    let outcome = resolver()
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap();
     assert!(outcome.is_none());
 }
 
@@ -46,11 +52,17 @@ async fn offline_raises_no_offline_nodejs_resolution() {
         bare_specifier: Some("runtime:22.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let err = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap_err();
+    let err = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap_err();
     let code: &dyn miette::Diagnostic =
         err.downcast_ref::<super::NodeResolverError>().expect("error is a NodeResolverError");
     assert_eq!(
-        code.code().map(|code| code.to_string()).as_deref(),
+        code
+            .code()
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_NO_OFFLINE_NODEJS_RESOLUTION"),
     );
 }
@@ -86,11 +98,17 @@ fn bin_spec_is_a_named_map() {
 
     assert_eq!(
         bin_spec_for_platform("linux"),
-        BinarySpec::Map(BTreeMap::from([("node".to_string(), "bin/node".to_string())])),
+        BinarySpec::Map(BTreeMap::from([(
+            "node".to_string(),
+            "bin/node".to_string()
+        )])),
     );
     assert_eq!(
         bin_spec_for_platform("win32"),
-        BinarySpec::Map(BTreeMap::from([("node".to_string(), "node.exe".to_string())])),
+        BinarySpec::Map(BTreeMap::from([(
+            "node".to_string(),
+            "node.exe".to_string()
+        )])),
     );
 }
 
@@ -112,7 +130,10 @@ fn normalized_runtime_spec_preserves_version_prefix() {
         );
     }
 
-    assert_eq!(normalize_node_runtime_version_specifier("^22", "22.0.0-rc.0", None), "22.0.0-rc.0");
+    assert_eq!(
+        normalize_node_runtime_version_specifier("^22", "22.0.0-rc.0", None),
+        "22.0.0-rc.0",
+    );
 }
 
 /// `add node@runtime:<spec>` saves the picked version, not the requested
@@ -134,9 +155,10 @@ async fn resolve_save_specifier_pins_the_picked_version() {
         .create_async()
         .await;
     let mut resolver = resolver();
-    resolver
-        .node_download_mirrors
-        .insert("release".to_string(), format!("{}/download/release/", server.url()));
+    resolver.node_download_mirrors.insert(
+        "release".to_string(),
+        format!("{}/download/release/", server.url()),
+    );
 
     let cases = [
         ("26", None, "runtime:26.5.0"),
@@ -165,14 +187,18 @@ async fn resolve_save_specifier_errors_when_no_version_satisfies() {
         .create_async()
         .await;
     let mut resolver = resolver();
-    resolver
-        .node_download_mirrors
-        .insert("release".to_string(), format!("{}/download/release/", server.url()));
+    resolver.node_download_mirrors.insert(
+        "release".to_string(),
+        format!("{}/download/release/", server.url()),
+    );
 
     let err = resolver.resolve_save_specifier("99", None).await.unwrap_err();
     let code: &dyn miette::Diagnostic = &err;
     assert_eq!(
-        code.code().map(|code| code.to_string()).as_deref(),
+        code
+            .code()
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_NODEJS_VERSION_NOT_FOUND"),
     );
 }
@@ -203,7 +229,10 @@ async fn release_asset_reader_requires_signature_when_requested() {
     .await
     .expect_err("stable release assets must require a SHASUMS signature");
 
-    assert!(matches!(err, NodeResolverError::FetchVerifiedNodeShasums(_)));
+    assert!(matches!(
+        err,
+        NodeResolverError::FetchVerifiedNodeShasums(_)
+    ));
 }
 
 #[tokio::test]
@@ -252,11 +281,15 @@ fn exact_release_versions_are_their_own_resolution() {
 #[tokio::test]
 async fn resolve_save_specifier_saves_an_exact_version_without_network() {
     let mut resolver = resolver();
-    resolver
-        .node_download_mirrors
-        .insert("release".to_string(), "http://127.0.0.1:9/download/release/".to_string());
+    resolver.node_download_mirrors.insert(
+        "release".to_string(),
+        "http://127.0.0.1:9/download/release/".to_string(),
+    );
 
-    assert_eq!(resolver.resolve_save_specifier("22.11.0", None).await.unwrap(), "runtime:22.11.0");
+    assert_eq!(
+        resolver.resolve_save_specifier("22.11.0", None).await.unwrap(),
+        "runtime:22.11.0",
+    );
 }
 
 /// An exact-version resolve skips the release index, so a nonexistent
@@ -279,20 +312,27 @@ async fn exact_resolve_of_a_nonexistent_version_raises_version_not_found() {
         .create_async()
         .await;
     let mut resolver = resolver();
-    resolver
-        .node_download_mirrors
-        .insert("release".to_string(), format!("{}/download/release/", server.url()));
+    resolver.node_download_mirrors.insert(
+        "release".to_string(),
+        format!("{}/download/release/", server.url()),
+    );
     let wanted = WantedDependency {
         alias: Some("node".to_string()),
         bare_specifier: Some("runtime:22.99.0".to_string()),
         ..WantedDependency::default()
     };
 
-    let err = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap_err();
+    let err = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap_err();
     let code: &dyn miette::Diagnostic =
         err.downcast_ref::<NodeResolverError>().expect("error is a NodeResolverError");
     assert_eq!(
-        code.code().map(|code| code.to_string()).as_deref(),
+        code
+            .code()
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_NODEJS_VERSION_NOT_FOUND"),
     );
     index.assert_async().await;
@@ -315,18 +355,25 @@ async fn exact_resolve_keeps_the_asset_error_when_the_version_exists() {
         .create_async()
         .await;
     let mut resolver = resolver();
-    resolver
-        .node_download_mirrors
-        .insert("release".to_string(), format!("{}/download/release/", server.url()));
+    resolver.node_download_mirrors.insert(
+        "release".to_string(),
+        format!("{}/download/release/", server.url()),
+    );
     let wanted = WantedDependency {
         alias: Some("node".to_string()),
         bare_specifier: Some("runtime:22.11.0".to_string()),
         ..WantedDependency::default()
     };
 
-    let err = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap_err();
+    let err = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap_err();
     let err = err.downcast_ref::<NodeResolverError>().expect("error is a NodeResolverError");
-    assert!(matches!(err, NodeResolverError::FetchVerifiedNodeShasums(_)));
+    assert!(matches!(
+        err,
+        NodeResolverError::FetchVerifiedNodeShasums(_)
+    ));
 }
 
 /// A SHASUMS body cached by an earlier resolve serves the next one

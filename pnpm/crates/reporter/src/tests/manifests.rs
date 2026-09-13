@@ -23,7 +23,12 @@ fn package_manifest_event_matches_pnpm_wire_shape() {
             initial: manifest.clone(),
         },
     });
-    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
+    let envelope = Envelope {
+        time: 1_700_000_000_000,
+        hostname: "host",
+        pid: 4242,
+        event: &event,
+    };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
@@ -33,7 +38,10 @@ fn package_manifest_event_matches_pnpm_wire_shape() {
     assert_eq!(json["level"], "debug");
     assert_eq!(json["prefix"], "/proj");
     assert_eq!(json["initial"], manifest);
-    assert!(json.get("updated").is_none(), "initial event must not carry updated");
+    assert!(
+        json.get("updated").is_none(),
+        "initial event must not carry updated",
+    );
 
     let event = LogEvent::PackageManifest(PackageManifestLog {
         level: LogLevel::Debug,
@@ -42,12 +50,20 @@ fn package_manifest_event_matches_pnpm_wire_shape() {
             updated: manifest.clone(),
         },
     });
-    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
+    let envelope = Envelope {
+        time: 1_700_000_000_000,
+        hostname: "host",
+        pid: 4242,
+        event: &event,
+    };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
         .pipe_as_ref(serde_json::from_str)
         .expect("parse JSON");
     assert_eq!(json["updated"], manifest);
-    assert!(json.get("initial").is_none(), "updated event must not carry initial");
+    assert!(
+        json.get("initial").is_none(),
+        "updated event must not carry initial",
+    );
 }

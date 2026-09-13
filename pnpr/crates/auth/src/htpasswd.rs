@@ -44,7 +44,9 @@ pub(super) fn parse_htpasswd_line(line: &str) -> std::result::Result<(&str, &str
         return Err(format!("invalid username {user:?}: {reason}"));
     }
     if !is_supported_hash(hash) {
-        return Err(format!("unsupported hash format for user {user:?} (only bcrypt is accepted)"));
+        return Err(format!(
+            "unsupported hash format for user {user:?} (only bcrypt is accepted)",
+        ));
     }
     Ok((user, hash))
 }
@@ -93,7 +95,10 @@ pub(super) fn unique_tmp_path(base: &Path) -> PathBuf {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
     let pid = std::process::id();
-    let mut name = base.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
+    let mut name = base
+        .file_name()
+        .map(std::ffi::OsStr::to_os_string)
+        .unwrap_or_default();
     name.push(format!(".tmp.{pid}.{counter}"));
     match base.parent() {
         Some(parent) => parent.join(name),
@@ -137,6 +142,8 @@ pub(super) async fn verify_returning_user(
     if verify_bcrypt(password.to_string(), stored).await? {
         Ok((UpsertOutcome::LoggedIn, username.to_string()))
     } else {
-        Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
+        Err(RegistryError::Unauthenticated {
+            resource: format!("user {username:?}"),
+        })
     }
 }

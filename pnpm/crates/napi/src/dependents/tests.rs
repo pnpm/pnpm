@@ -56,7 +56,10 @@ snapshots:
 fn options(dir: &Path, packages: &[&str]) -> DependentsOptions {
     DependentsOptions {
         dir: dir.to_string_lossy().into_owned(),
-        packages: packages.iter().map(|name| (*name).to_string()).collect(),
+        packages: packages
+            .iter()
+            .map(|name| (*name).to_string())
+            .collect(),
         project_dirs: None,
         exclude_project_patterns: None,
         modules_dir: None,
@@ -131,7 +134,9 @@ fn manifest_fields_are_projected_onto_the_matched_package() {
     let trees = build_trees(&opts).unwrap();
 
     assert_eq!(
-        trees[0].manifest.as_ref().and_then(|manifest| manifest.get("componentId")),
+        trees[0].manifest
+            .as_ref()
+            .and_then(|manifest| manifest.get("componentId")),
         Some(&json!({ "scope": "acme.utils", "name": "nested" })),
     );
 }
@@ -157,11 +162,18 @@ fn render_uses_the_display_name_the_caller_wrote_back() {
 
     let rendered = render_dependents(
         trees,
-        Some(RenderDependentsInput { format: None, depth: None, long: None }),
+        Some(RenderDependentsInput {
+            format: None,
+            depth: None,
+            long: None,
+        }),
     )
     .unwrap();
 
-    assert!(rendered.contains("acme.utils/nested@2.0.0"), "rendered: {rendered}");
+    assert!(
+        rendered.contains("acme.utils/nested@2.0.0"),
+        "rendered: {rendered}",
+    );
     assert!(rendered.contains("dep@1.0.0"), "rendered: {rendered}");
 }
 
@@ -171,7 +183,11 @@ fn render_round_trips_the_json_format() {
 
     let rendered = render_dependents(
         trees,
-        Some(RenderDependentsInput { format: Some("json".to_string()), depth: None, long: None }),
+        Some(RenderDependentsInput {
+            format: Some("json".to_string()),
+            depth: None,
+            long: None,
+        }),
     )
     .unwrap();
 
@@ -191,7 +207,11 @@ fn an_over_deep_tree_is_rejected_instead_of_recursed_into() {
 
     let error = render_dependents(json!([node]), None).unwrap_err();
 
-    assert!(error.reason.contains("nests dependents more than"), "{}", error.reason);
+    assert!(
+        error.reason.contains("nests dependents more than"),
+        "{}",
+        error.reason,
+    );
 }
 
 /// The boundary itself: a tree nested exactly as deep as the walk can go
@@ -212,9 +232,17 @@ fn a_tree_at_the_depth_limit_still_renders() {
 fn an_unknown_render_format_is_rejected() {
     let error = render_dependents(
         json!([]),
-        Some(RenderDependentsInput { format: Some("yaml".to_string()), depth: None, long: None }),
+        Some(RenderDependentsInput {
+            format: Some("yaml".to_string()),
+            depth: None,
+            long: None,
+        }),
     )
     .unwrap_err();
 
-    assert!(error.reason.contains("unknown dependents render format"), "{}", error.reason);
+    assert!(
+        error.reason.contains("unknown dependents render format"),
+        "{}",
+        error.reason,
+    );
 }

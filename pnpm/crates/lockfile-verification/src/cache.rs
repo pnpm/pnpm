@@ -158,16 +158,7 @@ pub fn try_lockfile_verification_cache(
     if let Some(record) = indexes.by_path.get(&path_key)
         && stat_matches(&stat, &record.lockfile)
     {
-        let hit = every_verifier_trusts_cached_run(record, verifiers);
-        return CacheLookupResult {
-            hit,
-            verified_at: (hit && !record.verified_at.is_empty())
-                .then(|| record.verified_at.clone()),
-            precomputed: CachePrecomputed {
-                stat: Some(stat),
-                hash: Some(record.lockfile.hash.clone()),
-            },
-        };
+        return cached_stat_result(record, verifiers, stat);
     }
 
     let hash = hash_lockfile();
@@ -175,7 +166,10 @@ pub fn try_lockfile_verification_cache(
         return CacheLookupResult {
             hit: false,
             verified_at: None,
-            precomputed: CachePrecomputed { stat: Some(stat), hash: Some(hash) },
+            precomputed: CachePrecomputed {
+                stat: Some(stat),
+                hash: Some(hash),
+            },
         };
     };
 
@@ -184,7 +178,10 @@ pub fn try_lockfile_verification_cache(
     CacheLookupResult {
         hit: true,
         verified_at: (!refreshed.verified_at.is_empty()).then(|| refreshed.verified_at.clone()),
-        precomputed: CachePrecomputed { stat: Some(stat), hash: Some(hash) },
+        precomputed: CachePrecomputed {
+            stat: Some(stat),
+            hash: Some(hash),
+        },
     }
 }
 
@@ -219,7 +216,9 @@ pub(crate) fn lockfile_verification_is_cached_by_hash(
     hash: &str,
     verifiers: &[Arc<dyn ResolutionVerifier>],
 ) -> bool {
-    let Ok(indexes) = read_cache(cache_dir) else { return false };
+    let Ok(indexes) = read_cache(cache_dir) else {
+        return false;
+    };
     trusted_record_by_hash(&indexes, hash, verifiers).is_some()
 }
 
@@ -239,7 +238,9 @@ pub fn record_verification(
     mut hash_lockfile: impl FnMut() -> String,
     precomputed: CachePrecomputed,
 ) {
-    let Some(stat) = precomputed.stat.or_else(|| stat_lockfile(lockfile_path)) else { return };
+    let Some(stat) = precomputed.stat.or_else(|| stat_lockfile(lockfile_path)) else {
+        return;
+    };
     let hash = precomputed.hash.unwrap_or_else(&mut hash_lockfile);
     let record = CacheRecord {
         lockfile: CacheLockfile {
@@ -283,7 +284,10 @@ fn read_cache(cache_dir: &Path) -> io::Result<CacheIndexes> {
     let contents = match fs::read_to_string(&cache_file_path) {
         Ok(contents) => contents,
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            return Ok(CacheIndexes { by_hash: HashMap::new(), by_path: HashMap::new() });
+            return Ok(CacheIndexes {
+                by_hash: HashMap::new(),
+                by_path: HashMap::new(),
+            });
         }
         Err(error) => return Err(error),
     };
@@ -303,7 +307,10 @@ fn read_cache(cache_dir: &Path) -> io::Result<CacheIndexes> {
         by_hash.insert(parsed.lockfile.hash.clone(), parsed.clone());
         by_path.insert(parsed.lockfile.path.clone(), parsed);
     }
-    Ok(CacheIndexes { by_hash, by_path })
+    Ok(CacheIndexes {
+        by_hash,
+        by_path,
+    })
 }
 
 fn stat_lockfile(lockfile_path: &Path) -> Option<LockfileStat> {
@@ -313,9 +320,16 @@ fn stat_lockfile(lockfile_path: &Path) -> Option<LockfileStat> {
         .modified()
         .ok()
         .and_then(|modified| modified.duration_since(SystemTime::UNIX_EPOCH).ok())
-        .map_or_else(|| "0".to_string(), |duration| duration.as_nanos().to_string());
+        .map_or_else(
+            || "0".to_string(),
+            |duration| duration.as_nanos().to_string(),
+        );
     let inode = inode_of(&metadata);
-    Some(LockfileStat { size, mtime_ns, inode })
+    Some(LockfileStat {
+        size,
+        mtime_ns,
+        inode,
+    })
 }
 
 #[cfg(unix)]
@@ -340,7 +354,9 @@ fn every_verifier_trusts_cached_run(
     record: &CacheRecord,
     verifiers: &[Arc<dyn ResolutionVerifier>],
 ) -> bool {
-    verifiers.iter().all(|verifier| verifier.can_trust_past_check(&record.policy))
+    verifiers
+        .iter()
+        .all(|verifier| verifier.can_trust_past_check(&record.policy))
 }
 
 fn merge_policies(verifiers: &[Arc<dyn ResolutionVerifier>]) -> serde_json::Map<String, JsonValue> {
@@ -362,9 +378,16 @@ fn now_rfc3339() -> String {
 /// write without coordination.
 fn append_record(cache_dir: &Path, record: &CacheRecord) -> io::Result<()> {
     fs::create_dir_all(cache_dir)?;
-    let line = format!("{}\n", serde_json::to_string(record).map_err(io::Error::other)?);
+    let line = format!(
+        "{}\n",
+        serde_json::to_string(record).map_err(io::Error::other)?,
+    );
     let cache_file_path = cache_dir.join(CACHE_FILE_NAME);
-    OpenOptions::new().create(true).append(true).open(&cache_file_path)?.write_all(line.as_bytes())
+    OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&cache_file_path)?
+        .write_all(line.as_bytes())
 }
 
 fn maybe_compact_cache(cache_dir: &Path) {
@@ -377,7 +400,9 @@ fn maybe_compact_cache(cache_dir: &Path) {
     if size <= COMPACT_TRIGGER_BYTES {
         return;
     }
-    let Ok(contents) = fs::read_to_string(&cache_file_path) else { return };
+    let Ok(contents) = fs::read_to_string(&cache_file_path) else {
+        return;
+    };
 
     let kept = newest_records(&contents);
     let start = kept.len().saturating_sub(MAX_CACHE_ENTRIES);
@@ -395,14 +420,21 @@ fn maybe_compact_cache(cache_dir: &Path) {
 fn newest_records(contents: &str) -> Vec<&str> {
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut newest: Vec<&str> = Vec::new();
-    for line in contents.lines().filter(|line| !line.is_empty()).rev() {
+    for line in contents
+        .lines()
+        .filter(|line| !line.is_empty())
+        .rev()
+    {
         let Ok(parsed) = serde_json::from_str::<CacheRecord>(line) else {
             continue;
         };
         if parsed.lockfile.hash.is_empty() || parsed.lockfile.path.is_empty() {
             continue;
         }
-        if !seen.insert(format!("{}\x00{}", parsed.lockfile.path, parsed.lockfile.hash)) {
+        if !seen.insert(format!(
+            "{}\x00{}",
+            parsed.lockfile.path, parsed.lockfile.hash,
+        )) {
             continue;
         }
         newest.push(line);
@@ -429,7 +461,10 @@ fn compact_temp_path(target: &Path) -> PathBuf {
     let counter = COMPACT_TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
     let pid = std::process::id();
     let suffix = format!(".{pid}.{counter}.tmp");
-    let mut name = match target.file_name().and_then(|n| n.to_str()) {
+    let mut name = match target
+        .file_name()
+        .and_then(|n| n.to_str())
+    {
         Some(name) => name.to_string(),
         None => "lockfile-verified".to_string(),
     };
@@ -439,3 +474,19 @@ fn compact_temp_path(target: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests;
+
+fn cached_stat_result(
+    record: &CacheRecord,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+    stat: LockfileStat,
+) -> CacheLookupResult {
+    let hit = every_verifier_trusts_cached_run(record, verifiers);
+    CacheLookupResult {
+        hit,
+        verified_at: (hit && !record.verified_at.is_empty()).then(|| record.verified_at.clone()),
+        precomputed: CachePrecomputed {
+            stat: Some(stat),
+            hash: Some(record.lockfile.hash.clone()),
+        },
+    }
+}

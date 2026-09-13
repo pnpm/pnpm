@@ -21,8 +21,11 @@ use std::fmt::Write as _;
 /// Compose the metadata-fetch URL: `<registry-with-trailing-slash><encoded-name>`.
 #[must_use]
 pub fn to_registry_url(registry: &str, pkg_name: &str) -> String {
-    let registry =
-        if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") };
+    let registry = if registry.ends_with('/') {
+        registry.to_string()
+    } else {
+        format!("{registry}/")
+    };
     let encoded = encode_pkg_name_path(pkg_name);
     format!("{registry}{encoded}")
 }

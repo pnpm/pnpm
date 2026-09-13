@@ -187,15 +187,23 @@ fn lockfile(source: &str) -> Lockfile {
 }
 
 fn snapshot_keys(lockfile: &Lockfile) -> Vec<String> {
-    let mut keys: Vec<_> =
-        lockfile.snapshots.as_ref().expect("snapshots").keys().map(ToString::to_string).collect();
+    let mut keys: Vec<_> = lockfile.snapshots
+        .as_ref()
+        .expect("snapshots")
+        .keys()
+        .map(ToString::to_string)
+        .collect();
     keys.sort();
     keys
 }
 
 fn package_keys(lockfile: &Lockfile) -> Vec<String> {
-    let mut keys: Vec<_> =
-        lockfile.packages.as_ref().expect("packages").keys().map(ToString::to_string).collect();
+    let mut keys: Vec<_> = lockfile.packages
+        .as_ref()
+        .expect("packages")
+        .keys()
+        .map(ToString::to_string)
+        .collect();
     keys.sort();
     keys
 }
@@ -227,7 +235,9 @@ fn workspace(patches: &[&str]) -> TempDir {
 }
 
 fn write_patch(workspace_dir: &Path, key: &str, contents: &str) {
-    let path = workspace_dir.join("patches").join(patch_file_name(key));
+    let path = workspace_dir
+        .join("patches")
+        .join(patch_file_name(key));
     fs::write(path, contents).expect("write patch file");
 }
 
@@ -240,7 +250,8 @@ fn config(workspace_dir: &Path, keys: &[&str], allow_unused_patches: bool) -> Co
         workspace_dir: Some(workspace_dir.to_path_buf()),
         allow_unused_patches,
         patched_dependencies: (!keys.is_empty()).then(|| {
-            keys.iter()
+            keys
+                .iter()
                 .map(|key| (key.to_string(), format!("patches/{}", patch_file_name(key))))
                 .collect::<IndexMap<_, _>>()
         }),
@@ -262,7 +273,10 @@ fn records_a_patch_that_matches_no_locked_package() {
     )
     .expect("a patch matching nothing in the lockfile cannot change the graph");
 
-    assert_eq!(recorded(&updated).keys().collect::<Vec<_>>(), vec!["bar@2.0.0"]);
+    assert_eq!(
+        recorded(&updated).keys().collect::<Vec<_>>(),
+        vec!["bar@2.0.0"],
+    );
 }
 
 #[test]
@@ -278,7 +292,10 @@ fn rekeys_a_locked_package_the_patch_matches() {
     let updated = try_fast_update_patched_dependencies(&lockfile(LOCKFILE), &config)
         .expect("the patch only renames the snapshot, it does not change the graph");
 
-    assert_eq!(snapshot_keys(&updated), vec![format!("foo@1.1.0(patch_hash={hash})")]);
+    assert_eq!(
+        snapshot_keys(&updated),
+        vec![format!("foo@1.1.0(patch_hash={hash})")],
+    );
     assert_eq!(
         importer_version(&updated, "foo"),
         format!("1.1.0(patch_hash={hash})"),
@@ -308,8 +325,10 @@ fn rekeys_a_locked_package_a_bare_name_patch_matches() {
 fn unpatches_a_locked_package_when_its_patch_is_removed() {
     let dir = workspace(&[]);
     let mut lockfile = lockfile(PATCHED_LOCKFILE);
-    lockfile.patched_dependencies =
-        Some(BTreeMap::from([("foo@1.1.0".to_string(), "deadbeef".to_string())]));
+    lockfile.patched_dependencies = Some(BTreeMap::from([(
+        "foo@1.1.0".to_string(),
+        "deadbeef".to_string(),
+    )]));
 
     let updated = try_fast_update_patched_dependencies(&lockfile, &config(dir.path(), &[], true))
         .expect("dropping the patch renames the snapshot back");
@@ -337,7 +356,11 @@ fn moves_a_dependents_reference_to_the_rekeyed_package() {
         format!("1.1.0(patch_hash={hash})"),
         "the dependent points at the renamed snapshot",
     );
-    assert_eq!(importer_version(&updated, "bar"), "2.0.0", "the dependent itself does not move");
+    assert_eq!(
+        importer_version(&updated, "bar"),
+        "2.0.0",
+        "the dependent itself does not move",
+    );
 }
 
 #[test]
@@ -378,7 +401,11 @@ fn rekeys_around_a_tarball_resolution_no_patch_reaches() {
     )
     .expect("an untouched tarball resolution does not block the rest");
 
-    assert!(snapshot_keys(&updated).iter().any(|key| key.starts_with("bar@2.0.0(patch_hash=")));
+    assert!(
+        snapshot_keys(&updated)
+            .iter()
+            .any(|key| key.starts_with("bar@2.0.0(patch_hash=")),
+    );
     assert!(snapshot_keys(&updated).contains(&"foo@https://example.test/foo.tgz".to_string()));
 }
 
@@ -439,8 +466,9 @@ fn recognizes_a_git_patch_while_absorbing_unrelated_settings_drift() {
     let hash = &patch_hashes["foo@1.0.0"];
     let mut subject = lockfile(&PATCHED_GIT_LOCKFILE.replace("PATCH_HASH", hash));
     subject.patched_dependencies = Some(patch_hashes.clone());
-    subject.settings =
-        Some(crate::fast_update_settings::lockfile_settings_from_config(&Config::default()));
+    subject.settings = Some(crate::fast_update_settings::lockfile_settings_from_config(
+        &Config::default(),
+    ));
 
     let updated = try_fast_update_patched_dependencies(&subject, &config)
         .expect("the git patch remains applied while the settings update is absorbed");
@@ -452,8 +480,10 @@ fn recognizes_a_git_patch_while_absorbing_unrelated_settings_drift() {
 fn removes_an_unused_patch_without_allowing_unused_patches() {
     let dir = workspace(&[]);
     let mut lockfile = lockfile(LOCKFILE);
-    lockfile.patched_dependencies =
-        Some(BTreeMap::from([("bar@2.0.0".to_string(), "deadbeef".to_string())]));
+    lockfile.patched_dependencies = Some(BTreeMap::from([(
+        "bar@2.0.0".to_string(),
+        "deadbeef".to_string(),
+    )]));
 
     let updated = try_fast_update_patched_dependencies(&lockfile, &config(dir.path(), &[], false))
         .expect("dropping a key that matched nothing leaves no unused patch behind");
@@ -465,8 +495,10 @@ fn removes_an_unused_patch_without_allowing_unused_patches() {
 fn rekeys_a_locked_package_whose_patch_file_was_edited() {
     let dir = workspace(&["foo@1.1.0"]);
     let mut lockfile = lockfile(PATCHED_LOCKFILE);
-    lockfile.patched_dependencies =
-        Some(BTreeMap::from([("foo@1.1.0".to_string(), "deadbeef".to_string())]));
+    lockfile.patched_dependencies = Some(BTreeMap::from([(
+        "foo@1.1.0".to_string(),
+        "deadbeef".to_string(),
+    )]));
 
     let updated =
         try_fast_update_patched_dependencies(&lockfile, &config(dir.path(), &["foo@1.1.0"], true))

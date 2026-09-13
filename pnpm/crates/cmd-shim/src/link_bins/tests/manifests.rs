@@ -38,7 +38,10 @@ fn link_bins_links_a_package_whose_manifest_starts_with_a_utf8_bom() {
     let bins = modules.join(".bin");
     link_bins::<Host>(&modules, &bins, &LinkBinsOptions::default()).unwrap();
 
-    assert!(bins.join("bom").exists(), "missing shim for the BOM-prefixed package");
+    assert!(
+        bins.join("bom").exists(),
+        "missing shim for the BOM-prefixed package",
+    );
 }
 
 #[test]

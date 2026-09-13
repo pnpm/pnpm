@@ -78,7 +78,10 @@ impl InstallabilityHost {
                 supported_architectures: None,
                 engine_strict,
             },
-            None => Self { engine_strict, ..Self::detect() },
+            None => Self {
+                engine_strict,
+                ..Self::detect()
+            },
         }
     }
 }
@@ -87,7 +90,10 @@ impl InstallabilityHost {
 /// copied from `process.version` / `node --version` parses as exact semver.
 pub(super) fn normalize_node_version(version: &str) -> String {
     let trimmed = version.trim();
-    trimmed.strip_prefix('v').unwrap_or(trimmed).to_string()
+    trimmed
+        .strip_prefix('v')
+        .unwrap_or(trimmed)
+        .to_string()
 }
 pub fn check_installability(
     package_id: &str,
@@ -131,9 +137,7 @@ pub fn platform_manifest_from_resolve_result(
 ) -> PackageInstallabilityManifest {
     let manifest = result.package.manifest.as_deref();
     PackageInstallabilityManifest {
-        name: result
-            .package
-            .name_ver
+        name: result.package.name_ver
             .as_ref()
             .map(|name_ver| name_ver.name.to_string())
             .or_else(|| {
@@ -155,9 +159,11 @@ pub(super) fn read_string_list(manifest: Option<&Value>, key: &str) -> Option<Ve
     let value = manifest?.get(key)?;
     let out: Vec<String> = match value {
         Value::String(value) => vec![value.clone()],
-        Value::Array(items) => {
-            items.iter().filter_map(Value::as_str).map(ToString::to_string).collect()
-        }
+        Value::Array(items) => items
+            .iter()
+            .filter_map(Value::as_str)
+            .map(ToString::to_string)
+            .collect(),
         _ => Vec::new(),
     };
     (!out.is_empty()).then_some(out)
@@ -180,52 +186,59 @@ pub fn any_installability_constraint(
     packages: &HashMap<PackageKey, PackageMetadata>,
 ) -> bool {
     packages.values().any(metadata_has_meaningful_constraint)
-        || snapshots.iter().any(|(snapshot_key, snapshot)| {
-            snapshot.optional && {
-                let metadata_key = snapshot_key.without_peer();
-                packages.get(&metadata_key).is_some_and(|metadata| {
-                    inferred_platform(
-                        metadata_key.name.bare.as_str(),
-                        WantedPlatformRef {
-                            os: metadata.os.as_deref(),
-                            cpu: metadata.cpu.as_deref(),
-                            libc: metadata.libc.as_deref(),
-                        },
-                    )
-                    .is_some()
-                })
-            }
-        })
+        || snapshots
+            .iter()
+            .any(|(snapshot_key, snapshot)| {
+                snapshot.optional && {
+                    let metadata_key = snapshot_key.without_peer();
+                    packages
+                        .get(&metadata_key)
+                        .is_some_and(|metadata| {
+                            inferred_platform(
+                                metadata_key.name.bare.as_str(),
+                                WantedPlatformRef {
+                                    os: metadata.os.as_deref(),
+                                    cpu: metadata.cpu.as_deref(),
+                                    libc: metadata.libc.as_deref(),
+                                },
+                            )
+                            .is_some()
+                        })
+                }
+            })
 }
 #[must_use]
 pub fn any_optional_installability_constraint(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     packages: &HashMap<PackageKey, PackageMetadata>,
 ) -> bool {
-    snapshots.iter().any(|(snapshot_key, snapshot)| {
-        if !snapshot.optional {
-            return false;
-        }
-        let metadata_key = snapshot_key.without_peer();
-        packages.get(&metadata_key).is_some_and(|metadata| {
-            metadata_has_meaningful_constraint(metadata)
-                || inferred_platform(
-                    metadata_key.name.bare.as_str(),
-                    WantedPlatformRef {
-                        os: metadata.os.as_deref(),
-                        cpu: metadata.cpu.as_deref(),
-                        libc: metadata.libc.as_deref(),
-                    },
-                )
-                .is_some()
+    snapshots
+        .iter()
+        .any(|(snapshot_key, snapshot)| {
+            if !snapshot.optional {
+                return false;
+            }
+            let metadata_key = snapshot_key.without_peer();
+            packages
+                .get(&metadata_key)
+                .is_some_and(|metadata| {
+                    metadata_has_meaningful_constraint(metadata)
+                        || inferred_platform(
+                            metadata_key.name.bare.as_str(),
+                            WantedPlatformRef {
+                                os: metadata.os.as_deref(),
+                                cpu: metadata.cpu.as_deref(),
+                                libc: metadata.libc.as_deref(),
+                            },
+                        )
+                        .is_some()
+                })
         })
-    })
 }
 /// True if a single metadata row carries a constraint pacquet would
 /// actually evaluate.
 pub(super) fn metadata_has_meaningful_constraint(metadata: &PackageMetadata) -> bool {
-    let engines_meaningful = metadata
-        .engines
+    let engines_meaningful = metadata.engines
         .as_ref()
         .is_some_and(|engines| engines.contains_key("node") || engines.contains_key("pnpm"));
     engines_meaningful
@@ -249,10 +262,12 @@ pub(super) fn manifest_from_metadata(
 ) -> PackageInstallabilityManifest {
     PackageInstallabilityManifest {
         name: metadata_key.name.to_string(),
-        engines: metadata.engines.as_ref().map(|map| WantedEngine {
-            node: map.get("node").cloned(),
-            pnpm: map.get("pnpm").cloned(),
-        }),
+        engines: metadata.engines
+            .as_ref()
+            .map(|map| WantedEngine {
+                node: map.get("node").cloned(),
+                pnpm: map.get("pnpm").cloned(),
+            }),
         cpu: metadata.cpu.clone(),
         os: metadata.os.clone(),
         libc: metadata.libc.as_deref().map(<[String]>::to_vec),

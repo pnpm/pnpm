@@ -43,10 +43,19 @@ fn make_env_preserves_user_config_and_strips_auth_and_package_leakage() {
     parent.insert("npm_config__auth".into(), "should-not-leak".into());
     parent.insert("npm_config__authToken".into(), "should-not-leak".into());
     parent.insert("npm_config__password".into(), "should-not-leak".into());
-    parent.insert("npm_config_//registry.npmjs.org/:_authToken".into(), "should-not-leak".into());
-    parent.insert("npm_config_@scope:registry".into(), "https://example.com".into());
+    parent.insert(
+        "npm_config_//registry.npmjs.org/:_authToken".into(),
+        "should-not-leak".into(),
+    );
+    parent.insert(
+        "npm_config_@scope:registry".into(),
+        "https://example.com".into(),
+    );
     parent.insert("pnpm_config__authToken".into(), "should-not-leak".into());
-    parent.insert("pnpm_config_//registry.npmjs.org/:_authToken".into(), "should-not-leak".into());
+    parent.insert(
+        "pnpm_config_//registry.npmjs.org/:_authToken".into(),
+        "should-not-leak".into(),
+    );
     parent.insert("npm_package_name".into(), "should-be-regenerated".into());
     parent.insert("PNPM_HOME".into(), "/opt/pnpm".into());
     parent.insert("HOME".into(), "/home/me".into());
@@ -63,9 +72,18 @@ fn make_env_preserves_user_config_and_strips_auth_and_package_leakage() {
     let extra = empty_extra();
     let built = build_env(&base_opts(pkg_root, pkg_root, &extra), &manifest, parent);
 
-    assert_eq!(built.env.get("npm_package_name").map(String::as_str), Some("@scope/pkg"));
-    assert_eq!(built.env.get("npm_package_version").map(String::as_str), Some("1.2.3"));
-    assert_eq!(built.env.get("npm_package_config_myKey").map(String::as_str), Some("myValue"));
+    assert_eq!(
+        built.env.get("npm_package_name").map(String::as_str),
+        Some("@scope/pkg"),
+    );
+    assert_eq!(
+        built.env.get("npm_package_version").map(String::as_str),
+        Some("1.2.3"),
+    );
+    assert_eq!(
+        built.env.get("npm_package_config_myKey").map(String::as_str),
+        Some("myValue"),
+    );
     assert!(
         !built.env.contains_key("npm_package__myPackage_secret"),
         "underscore-prefixed manifest keys must be ignored",
@@ -115,12 +133,21 @@ fn make_env_drops_non_keep_listed_top_level_keys() {
 
     let pkg_root = Path::new("/tmp/x");
     let extra = empty_extra();
-    let built = build_env(&base_opts(pkg_root, pkg_root, &extra), &manifest, HashMap::new());
+    let built = build_env(
+        &base_opts(pkg_root, pkg_root, &extra),
+        &manifest,
+        HashMap::new(),
+    );
 
-    for not_kept in
-        ["npm_package_scripts_postinstall", "npm_package_dependencies_foo", "npm_package_homepage"]
-    {
-        assert!(!built.env.contains_key(not_kept), "{not_kept} must be filtered out");
+    for not_kept in [
+        "npm_package_scripts_postinstall",
+        "npm_package_dependencies_foo",
+        "npm_package_homepage",
+    ] {
+        assert!(
+            !built.env.contains_key(not_kept),
+            "{not_kept} must be filtered out",
+        );
     }
 }
 
@@ -148,21 +175,40 @@ fn make_env_stamps_lifecycle_specific_keys() {
         unsafe_perm: true,
     };
 
-    let built = build_env(&opts, &json!({ "name": "y", "version": "1.0.0" }), HashMap::new());
+    let built = build_env(
+        &opts,
+        &json!({ "name": "y", "version": "1.0.0" }),
+        HashMap::new(),
+    );
 
     // Compute expected paths through the same `join` so the
     // assertions are correct on Windows (`\\` separator) as well as
     // POSIX. Path-separator handling itself is `std`'s job — these
     // tests verify build_env's mapping, not separator policy.
-    let expected_package_json = pkg_root.join("package.json").to_string_lossy().into_owned();
+    let expected_package_json = pkg_root
+        .join("package.json")
+        .to_string_lossy()
+        .into_owned();
     let expected_init_cwd = init_cwd.to_string_lossy().into_owned();
     let expected_src_dir = pkg_root.to_string_lossy().into_owned();
 
-    assert_eq!(built.env.get("npm_lifecycle_event").map(String::as_str), Some("preinstall"));
-    assert_eq!(built.env.get("npm_lifecycle_script").map(String::as_str), Some("node x.js"));
-    assert_eq!(built.env.get("npm_package_json"), Some(&expected_package_json));
+    assert_eq!(
+        built.env.get("npm_lifecycle_event").map(String::as_str),
+        Some("preinstall"),
+    );
+    assert_eq!(
+        built.env.get("npm_lifecycle_script").map(String::as_str),
+        Some("node x.js"),
+    );
+    assert_eq!(
+        built.env.get("npm_package_json"),
+        Some(&expected_package_json),
+    );
     assert_eq!(built.env.get("INIT_CWD"), Some(&expected_init_cwd));
-    assert_eq!(built.env.get("PNPM_SCRIPT_SRC_DIR"), Some(&expected_src_dir));
+    assert_eq!(
+        built.env.get("PNPM_SCRIPT_SRC_DIR"),
+        Some(&expected_src_dir),
+    );
 }
 
 #[test]
@@ -175,13 +221,19 @@ fn make_env_preserves_or_overrides_tmpdir_based_on_unsafe_perm() {
     opts.unsafe_perm = true;
     let built = build_env(&opts, &json!({"name":"z","version":"0"}), parent.clone());
     assert!(built.tmpdir.is_none());
-    assert_eq!(built.env.get("TMPDIR").map(String::as_str), Some("/alternate/tmp"));
+    assert_eq!(
+        built.env.get("TMPDIR").map(String::as_str),
+        Some("/alternate/tmp"),
+    );
 
     opts.unsafe_perm = false;
     let built = build_env(&opts, &json!({"name":"z","version":"0"}), parent);
     let expected_tmpdir = pkg_root.join("node_modules").join(".tmp");
     assert_eq!(built.tmpdir.as_deref(), Some(expected_tmpdir.as_path()));
-    assert_eq!(built.env.get("TMPDIR"), Some(&expected_tmpdir.to_string_lossy().into_owned()));
+    assert_eq!(
+        built.env.get("TMPDIR"),
+        Some(&expected_tmpdir.to_string_lossy().into_owned()),
+    );
 }
 
 #[test]
@@ -195,9 +247,14 @@ fn make_env_windows_tmpdir_override_removes_differently_cased_keys() {
     let built = build_env_for_platform(&opts, &json!({"name":"z","version":"0"}), parent, true);
     let expected_tmpdir = pkg_root.join("node_modules").join(".tmp");
 
-    assert_eq!(built.env.get("TMPDIR"), Some(&expected_tmpdir.to_string_lossy().into_owned()));
-    let tmpdir_key_count =
-        built.env.keys().filter(|key| key.eq_ignore_ascii_case("TMPDIR")).count();
+    assert_eq!(
+        built.env.get("TMPDIR"),
+        Some(&expected_tmpdir.to_string_lossy().into_owned()),
+    );
+    let tmpdir_key_count = built.env
+        .keys()
+        .filter(|key| key.eq_ignore_ascii_case("TMPDIR"))
+        .count();
     assert_eq!(tmpdir_key_count, 1);
 }
 
@@ -243,18 +300,36 @@ fn reserved_stamps_win_over_extra_env_but_custom_keys_apply() {
     let built = build_env(&opts, &json!({"name":"w","version":"0"}), HashMap::new());
 
     // Reserved pnpm keys win over the user's `extraEnv`.
-    assert_eq!(built.env.get("INIT_CWD").map(String::as_str), Some("/original"));
-    assert_eq!(built.env.get("npm_config_user_agent").map(String::as_str), Some("pnpm"));
-    assert_eq!(built.env.get(VERIFY_DEPS_BEFORE_RUN_ENV).map(String::as_str), Some("false"));
-    assert_eq!(built.env.get("npm_lifecycle_script").map(String::as_str), Some("REAL"));
+    assert_eq!(
+        built.env.get("INIT_CWD").map(String::as_str),
+        Some("/original"),
+    );
+    assert_eq!(
+        built.env.get("npm_config_user_agent").map(String::as_str),
+        Some("pnpm"),
+    );
+    assert_eq!(
+        built.env.get(VERIFY_DEPS_BEFORE_RUN_ENV).map(String::as_str),
+        Some("false"),
+    );
+    assert_eq!(
+        built.env.get("npm_lifecycle_script").map(String::as_str),
+        Some("REAL"),
+    );
     // Non-reserved stamps pnpm generates before `extra_env` stay
     // overridable, matching TS.
-    assert_eq!(built.env.get("npm_lifecycle_event").map(String::as_str), Some("from-hook"));
+    assert_eq!(
+        built.env.get("npm_lifecycle_event").map(String::as_str),
+        Some("from-hook"),
+    );
     assert_eq!(
         built.env.get("npm_config_node_gyp").map(String::as_str),
         Some("/from-hook/node-gyp"),
     );
-    assert_eq!(built.env.get("npm_package_name").map(String::as_str), Some("from-hook"));
+    assert_eq!(
+        built.env.get("npm_package_name").map(String::as_str),
+        Some("from-hook"),
+    );
     // A brand-new key from `extraEnv` also applies.
     assert_eq!(built.env.get("CUSTOM").map(String::as_str), Some("hello"));
 }
@@ -273,28 +348,50 @@ fn stamp_package_recurses_into_kept_buckets() {
         }),
     );
     assert_eq!(env.get("npm_package_name").map(String::as_str), Some("pkg"));
-    assert_eq!(env.get("npm_package_config_port").map(String::as_str), Some("3000"));
+    assert_eq!(
+        env.get("npm_package_config_port").map(String::as_str),
+        Some("3000"),
+    );
     assert_eq!(
         env.get("npm_package_config_deep_nested").map(String::as_str),
         Some("value"),
         "recursion must keep going beneath config/* — only the top-level filter restricts",
     );
-    assert_eq!(env.get("npm_package_engines_node").map(String::as_str), Some(">=18"));
-    assert_eq!(env.get("npm_package_bin_foo").map(String::as_str), Some("./bin/foo.js"));
+    assert_eq!(
+        env.get("npm_package_engines_node").map(String::as_str),
+        Some(">=18"),
+    );
+    assert_eq!(
+        env.get("npm_package_bin_foo").map(String::as_str),
+        Some("./bin/foo.js"),
+    );
 }
 
 #[test]
 fn stamp_package_handles_arrays() {
     let mut env = HashMap::new();
-    stamp_package(&mut env, "npm_package_", &json!({"name":"a","bin":["./a","./b"]}));
-    assert_eq!(env.get("npm_package_bin_0").map(String::as_str), Some("./a"));
-    assert_eq!(env.get("npm_package_bin_1").map(String::as_str), Some("./b"));
+    stamp_package(
+        &mut env,
+        "npm_package_",
+        &json!({"name":"a","bin":["./a","./b"]}),
+    );
+    assert_eq!(
+        env.get("npm_package_bin_0").map(String::as_str),
+        Some("./a"),
+    );
+    assert_eq!(
+        env.get("npm_package_bin_1").map(String::as_str),
+        Some("./b"),
+    );
 }
 
 #[test]
 fn sanitize_env_key_matches_upstream_regex() {
     assert_eq!(sanitize_env_key("npm_package_name"), "npm_package_name");
-    assert_eq!(sanitize_env_key("npm_package_@scope/foo"), "npm_package__scope_foo");
+    assert_eq!(
+        sanitize_env_key("npm_package_@scope/foo"),
+        "npm_package__scope_foo",
+    );
     assert_eq!(sanitize_env_key("npm_package_a-b.c"), "npm_package_a_b_c");
     assert_eq!(sanitize_env_key("npm_package_já"), "npm_package_j_");
 }
@@ -309,7 +406,10 @@ fn is_stamping_key_is_case_sensitive_on_posix() {
     assert!(is_stamping_key("npm_config__auth", false));
     assert!(is_stamping_key("npm_config__authToken", false));
     assert!(is_stamping_key("npm_config_@scope:registry", false));
-    assert!(is_stamping_key("npm_config_//registry.npmjs.org/:_authToken", false));
+    assert!(is_stamping_key(
+        "npm_config_//registry.npmjs.org/:_authToken",
+        false
+    ));
     assert!(is_stamping_key("npm_config_foo:_bar", false));
     assert!(is_stamping_key("pnpm_config__authToken", false));
     assert!(!is_stamping_key("NPM_CONFIG__AUTH", false));
@@ -323,8 +423,14 @@ fn is_stamping_key_is_case_sensitive_on_posix() {
     assert!(is_stamping_key("PNPM_SCRIPT_SRC_DIR", false));
     assert!(!is_stamping_key("PNPM_HOME", false));
     assert!(is_stamping_key(DEV_PREINSTALL_ALREADY_RAN_ENV, false));
-    assert!(!is_stamping_key(&DEV_PREINSTALL_ALREADY_RAN_ENV.to_lowercase(), false));
-    assert!(is_stamping_key(&DEV_PREINSTALL_ALREADY_RAN_ENV.to_lowercase(), true));
+    assert!(!is_stamping_key(
+        &DEV_PREINSTALL_ALREADY_RAN_ENV.to_lowercase(),
+        false
+    ));
+    assert!(is_stamping_key(
+        &DEV_PREINSTALL_ALREADY_RAN_ENV.to_lowercase(),
+        true
+    ));
 }
 
 /// The marker describes the install currently running. Leaving it in a
@@ -353,10 +459,22 @@ fn the_dev_preinstall_delegation_marker_never_reaches_a_script() {
 /// `extraEnv` naming it that way must be dropped too.
 #[test]
 fn a_differently_cased_delegation_marker_is_dropped_on_windows() {
-    assert!(is_dev_preinstall_marker(DEV_PREINSTALL_ALREADY_RAN_ENV, false));
-    assert!(!is_dev_preinstall_marker(&DEV_PREINSTALL_ALREADY_RAN_ENV.to_lowercase(), false));
-    assert!(is_dev_preinstall_marker(&DEV_PREINSTALL_ALREADY_RAN_ENV.to_lowercase(), true));
-    assert!(!is_dev_preinstall_marker("PNPM_INTERNAL_SOMETHING_ELSE", true));
+    assert!(is_dev_preinstall_marker(
+        DEV_PREINSTALL_ALREADY_RAN_ENV,
+        false
+    ));
+    assert!(!is_dev_preinstall_marker(
+        &DEV_PREINSTALL_ALREADY_RAN_ENV.to_lowercase(),
+        false
+    ));
+    assert!(is_dev_preinstall_marker(
+        &DEV_PREINSTALL_ALREADY_RAN_ENV.to_lowercase(),
+        true
+    ));
+    assert!(!is_dev_preinstall_marker(
+        "PNPM_INTERNAL_SOMETHING_ELSE",
+        true
+    ));
 }
 
 /// Regression: the byte-level prefix check inside the Windows

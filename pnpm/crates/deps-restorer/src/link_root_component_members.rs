@@ -120,12 +120,18 @@ fn collect_injected_members(
 ) -> Vec<Member> {
     let mut seen: HashSet<&PkgName> = HashSet::new();
     let mut members = Vec::new();
-    for group in
-        dependency_groups.iter().copied().filter(|group| !matches!(group, DependencyGroup::Peer))
+    for group in dependency_groups
+        .iter()
+        .copied()
+        .filter(|group| !matches!(group, DependencyGroup::Peer))
     {
-        let Some(deps) = importer.get_map_by_group(group) else { continue };
+        let Some(deps) = importer.get_map_by_group(group) else {
+            continue;
+        };
         for (name, spec) in deps {
-            let Some((dir_name, key)) = injected_member_key(name, spec) else { continue };
+            let Some((dir_name, key)) = injected_member_key(name, spec) else {
+                continue;
+            };
             // First-wins across groups, matching the symlink stage's
             // dedup so a member listed in more than one group is only
             // materialized once. A member the installability pass
@@ -136,7 +142,12 @@ fn collect_injected_members(
             }
             let slot_modules_dir = layout.slot_dir(&key).join("node_modules");
             let package_dir = slot_modules_dir.join(&dir_name);
-            members.push(Member { name: dir_name, key, slot_modules_dir, package_dir });
+            members.push(Member {
+                name: dir_name,
+                key,
+                slot_modules_dir,
+                package_dir,
+            });
         }
     }
     members
@@ -154,9 +165,9 @@ fn injected_member_key(
     match &spec.version {
         // Bare `file:<path>` — the resolved key reuses the importer-map
         // key as both the snapshot name and the `node_modules/` dir.
-        ImporterDepVersion::File(_) => {
-            spec.version.resolved_key(name).map(|key| (name.to_string(), key))
-        }
+        ImporterDepVersion::File(_) => spec.version
+            .resolved_key(name)
+            .map(|key| (name.to_string(), key)),
         // `@scope/name@file:<path>(peers)` parses to `Alias`; it is an
         // injected member only when its version is a `file:` spec. The
         // alias's own name is the `node_modules/` dir siblings import.
@@ -203,8 +214,10 @@ fn link_declared_siblings(
     // Within one root importer each member name is unique (one peer
     // context per root), so a declared name identifies at most one
     // sibling slot.
-    let by_name: HashMap<&str, &Member> =
-        members.iter().map(|member| (member.name.as_str(), member)).collect();
+    let by_name: HashMap<&str, &Member> = members
+        .iter()
+        .map(|member| (member.name.as_str(), member))
+        .collect();
 
     for host in members {
         for sibling in declared_siblings(host, members, &by_name, snapshots)? {
@@ -224,7 +237,11 @@ fn declared_siblings<'a>(
 ) -> Result<Vec<&'a Member>, LinkRootComponentMembersError> {
     if let Some(manifest) = host_manifest(host)? {
         return Ok(manifest
-            .dependencies([DependencyGroup::Prod, DependencyGroup::Optional, DependencyGroup::Peer])
+            .dependencies([
+                DependencyGroup::Prod,
+                DependencyGroup::Optional,
+                DependencyGroup::Peer,
+            ])
             // Only siblings that belong to this root; a member's own
             // package dir already lives in its slot.
             .filter_map(|(dep_name, _)| by_name.get(dep_name).copied())
@@ -238,7 +255,9 @@ fn declared_siblings<'a>(
         .flatten()
         .flatten()
         .filter_map(|(alias, dep_ref)| {
-            let sibling = by_name.get(alias.to_string().as_str()).copied()?;
+            let sibling = by_name
+                .get(alias.to_string().as_str())
+                .copied()?;
             // Only an edge that resolves to this sibling's own
             // peer-variant slot: a registry, `link:`, or other-variant
             // reference that merely shares the alias is not this member.
@@ -275,13 +294,12 @@ fn link_sibling(host: &Member, sibling: &Member) -> Result<(), LinkRootComponent
     if std::fs::symlink_metadata(&symlink_path).is_ok() {
         return Ok(());
     }
-    symlink_package(&sibling.package_dir, &symlink_path).map_err(|source| {
-        LinkRootComponentMembersError::Symlink {
+    symlink_package(&sibling.package_dir, &symlink_path)
+        .map_err(|source| LinkRootComponentMembersError::Symlink {
             member: host.name.clone(),
             sibling: sibling.name.clone(),
             source,
-        }
-    })?;
+        })?;
     Ok(())
 }
 

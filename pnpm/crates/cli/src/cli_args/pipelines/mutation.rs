@@ -1,8 +1,8 @@
 use super::{
     AddArgs, Arc, BTreeMap, Config, Context, DedicatedProjectRuns, DeployArgs, InstallFamilyPlan,
     Path, PathBuf, RemoveArgs, Reporter, State, UpdateArgs, UpdateChangesetContext,
-    anchor_active_project, config_deps, dedicated_project_name, ecosystem_add, ecosystem_install,
-    init_shared_state, select_install_family_plan,
+    anchor_active_project, config_deps, ecosystem_add, ecosystem_install, init_shared_state,
+    select_install_family_plan,
 };
 
 pub(crate) struct AddPipeline {
@@ -65,11 +65,15 @@ impl AddPipeline {
                     http_client: None,
                 }
                 .run(|state| {
-                    Box::pin(self.args.clone().run_with_link_targets::<Reporter>(
-                        state,
-                        None,
-                        workspace_packages.as_ref(),
-                    ))
+                    Box::pin(
+                        self.args
+                            .clone()
+                            .run_with_link_targets::<Reporter>(
+                                state,
+                                None,
+                                workspace_packages.as_ref(),
+                            ),
+                    )
                 })
                 .await
             }
@@ -82,23 +86,23 @@ impl AddPipeline {
                     State::init(self.manifest_path, cfg, false).wrap_err("initialize the state")?;
                 Box::pin(self.args.run_selected::<Reporter>(state, *selection)).await
             }
-            InstallFamilyPlan::Single => {
-                // Dedicated per-project lockfiles: `add` mutates only the
-                // active project, whose outputs anchor at the project dir.
-                // `--config` targets the workspace's configuration
-                // dependencies, which stay workspace-anchored.
-                if self.config_dependencies.is_none()
-                    && !self.cfg.shares_one_lockfile()
-                    && self.cfg.workspace_dir.is_some()
-                {
-                    anchor_active_project(self.cfg, &self.manifest_path);
-                }
-                let cfg: &'static Config = self.cfg;
-                let state =
-                    State::init(self.manifest_path, cfg, false).wrap_err("initialize the state")?;
-                Box::pin(self.args.run::<Reporter>(state, self.config_dependencies)).await
-            }
+            InstallFamilyPlan::Single => self.run_single::<Reporter>().await,
         }
+    }
+    async fn run_single<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
+        // Dedicated per-project lockfiles: `add` mutates only the
+        // active project, whose outputs anchor at the project dir.
+        // `--config` targets the workspace's configuration
+        // dependencies, which stay workspace-anchored.
+        if self.config_dependencies.is_none()
+            && !self.cfg.shares_one_lockfile()
+            && self.cfg.workspace_dir.is_some()
+        {
+            anchor_active_project(self.cfg, &self.manifest_path);
+        }
+        let cfg: &'static Config = self.cfg;
+        let state = State::init(self.manifest_path, cfg, false).wrap_err("initialize the state")?;
+        Box::pin(self.args.run::<Reporter>(state, self.config_dependencies)).await
     }
 }
 
@@ -111,10 +115,7 @@ async fn run_add_with_ecosystems<Reporter: self::Reporter + 'static>(
 ) -> miette::Result<()> {
     let has_node_packages = !package_specifier_plan.node_packages.is_empty();
     if !cfg.shares_one_lockfile() && cfg.workspace_dir.is_some() && has_node_packages {
-        let manifest_dir =
-            manifest_path.parent().expect("manifest path always has a parent dir").to_path_buf();
-        let name = dedicated_project_name(cfg, &manifest_dir);
-        cfg.anchor_dedicated_project(&manifest_dir, name.as_deref());
+        anchor_active_project(cfg, &manifest_path);
     }
     let http_client = State::new_http_client(cfg).wrap_err("initialize the add network")?;
     let cfg: &'static Config = cfg;
@@ -141,7 +142,11 @@ async fn run_add_with_ecosystems<Reporter: self::Reporter + 'static>(
         let state = init_shared_state(manifest_path, cfg, false, None, http_client)?;
         Box::pin(node_args.run::<Reporter>(state, None)).await
     };
-    plan.with_task(pnpm_install_coordinator::InstallTask::in_place(metadata, node_install))
+    plan
+        .with_task(pnpm_install_coordinator::InstallTask::in_place(
+            metadata,
+            node_install,
+        ))
         .run()
         .await
 }
@@ -150,7 +155,9 @@ pub(super) fn node_add_metadata_paths(config: &Config, manifest_path: &Path) -> 
     let project_dir = manifest_path.parent().expect("manifest path always has a parent dir");
     let mut paths = vec![
         manifest_path.to_path_buf(),
-        config.lockfile_dir_for(project_dir).join(config.wanted_lockfile_name()),
+        config
+            .lockfile_dir_for(project_dir)
+            .join(config.wanted_lockfile_name()),
         // The current lockfile remains project-local even with a global virtual store.
         config.virtual_store_dir.join(pnpm_lockfile::Lockfile::CURRENT_FILE_NAME),
         config.modules_dir.join(pnpm_modules_yaml::MODULES_FILENAME),
@@ -264,16 +271,23 @@ pub(crate) struct RemovePipeline {
 
 impl RemovePipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        let RemovePipeline { args, cfg, config_root, prefix, manifest_path, recursive_sort } = self;
-        config_deps::prepare::<Reporter>(cfg, &config_root, false).await?;
+        config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false).await?;
         let plan = select_install_family_plan::<Reporter>(
-            cfg,
-            &prefix,
-            &manifest_path,
-            recursive_sort,
+            self.cfg,
+            &self.prefix,
+            &self.manifest_path,
+            self.recursive_sort,
             false,
             false,
         )?;
+        self.run_plan::<Reporter>(plan).await
+    }
+
+    async fn run_plan<Reporter: self::Reporter + 'static>(
+        self,
+        plan: InstallFamilyPlan,
+    ) -> miette::Result<()> {
+        let Self { args, cfg, manifest_path, .. } = self;
         match plan {
             InstallFamilyPlan::PerProject(projects) => {
                 // Dedicated per-project lockfiles: remove the packages from

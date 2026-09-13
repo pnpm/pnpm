@@ -21,13 +21,17 @@ pub fn sequence_tasks(
     graph: &mut TaskGraph,
     options: &SequenceTasksOptions<'_>,
 ) -> Result<Vec<TaskKey>, TaskCycle> {
-    let edges: HashMap<TaskKey, Vec<TaskKey>> =
-        graph.iter().map(|(key, node)| (key.clone(), node.dependencies.clone())).collect();
-    let included: Vec<TaskKey> = graph.keys().cloned().collect();
+    let edges: HashMap<TaskKey, Vec<TaskKey>> = graph
+        .iter()
+        .map(|(key, node)| (key.clone(), node.dependencies.clone()))
+        .collect();
+    let included: Vec<TaskKey> = graph
+        .keys()
+        .cloned()
+        .collect();
     let result = graph_sequencer(&edges, &included);
     if !result.cycles.is_empty() {
-        let cycles = result
-            .cycles
+        let cycles = result.cycles
             .iter()
             .map(|cycle| {
                 cycle
@@ -40,7 +44,9 @@ pub fn sequence_tasks(
             .collect::<Vec<_>>()
             .join("; ");
         if !options.ignore_cycles {
-            return Err(TaskCycle { cycles });
+            return Err(TaskCycle {
+                cycles,
+            });
         }
         (options.emit)(&LogEvent::Pnpm(PnpmLog {
             level: LogLevel::Warn,
@@ -57,8 +63,11 @@ pub fn sequence_tasks(
 /// Keep only dependencies that point backward in the sequencer's order,
 /// making an ignored cyclic graph deterministic and runnable.
 fn drop_cyclic_dependencies(graph: &mut TaskGraph, order: &[TaskKey]) {
-    let order_index: HashMap<&TaskKey, usize> =
-        order.iter().enumerate().map(|(index, key)| (key, index)).collect();
+    let order_index: HashMap<&TaskKey, usize> = order
+        .iter()
+        .enumerate()
+        .map(|(index, key)| (key, index))
+        .collect();
     let filtered: Vec<(TaskKey, Vec<TaskKey>)> = graph
         .iter()
         .map(|(key, node)| {
@@ -81,7 +90,11 @@ fn drop_cyclic_dependencies(graph: &mut TaskGraph, order: &[TaskKey]) {
 /// platform — the rendering of a task in cycle errors and dry-run output.
 #[must_use]
 pub fn format_task(key: &TaskKey, workspace_dir: &Path) -> String {
-    format!("{}#{}", relative_project_dir(&key.project, workspace_dir), key.task_name)
+    format!(
+        "{}#{}",
+        relative_project_dir(&key.project, workspace_dir),
+        key.task_name,
+    )
 }
 
 fn relative_project_dir(project: &Path, workspace_dir: &Path) -> String {
@@ -103,7 +116,15 @@ fn relative_project_dir(project: &Path, workspace_dir: &Path) -> String {
 pub fn reverse_task_graph(graph: &TaskGraph) -> TaskGraph {
     let mut reversed: TaskGraph = graph
         .iter()
-        .map(|(key, node)| (key.clone(), TaskNode { dependencies: Vec::new(), ..node.clone() }))
+        .map(|(key, node)| {
+            (
+                key.clone(),
+                TaskNode {
+                    dependencies: Vec::new(),
+                    ..node.clone()
+                },
+            )
+        })
         .collect();
     for (key, node) in graph {
         for dependency in &node.dependencies {
@@ -124,8 +145,10 @@ pub fn resume_task_graph_from(
     task_name: &str,
     completed_tasks: Option<&HashSet<TaskKey>>,
 ) -> TaskGraph {
-    let anchor =
-        TaskKey { project: anchor_project.to_path_buf(), task_name: task_name.to_string() };
+    let anchor = TaskKey {
+        project: anchor_project.to_path_buf(),
+        task_name: task_name.to_string(),
+    };
     let Some(anchor_node) = graph.get(&anchor) else {
         // The anchor exists but its task is not in this graph: there is
         // nothing to skip.
@@ -187,14 +210,21 @@ pub fn is_serial_task_graph(graph: &TaskGraph, sequenced_tasks: &[TaskKey]) -> b
     let mut longest_chain = 0_usize;
     for key in sequenced_tasks {
         let node = &graph[key];
-        let via_dependencies = node
-            .dependencies
+        let via_dependencies = node.dependencies
             .iter()
-            .map(|dependency| chain_length.get(dependency).copied().unwrap_or(0))
+            .map(|dependency| {
+                chain_length
+                    .get(dependency)
+                    .copied()
+                    .unwrap_or(0)
+            })
             .max()
             .unwrap_or(0);
         let length = via_dependencies + node.scripts.len();
-        chain_length.insert(graph.get_key_value(key).expect("sequenced key is in graph").0, length);
+        chain_length.insert(
+            graph.get_key_value(key).expect("sequenced key is in graph").0,
+            length,
+        );
         longest_chain = longest_chain.max(length);
     }
     longest_chain == script_task_count
@@ -205,7 +235,10 @@ pub fn is_serial_task_graph(graph: &TaskGraph, sequenced_tasks: &[TaskKey]) -> b
 /// — the group is the task name — and that group admits one task at a time.
 fn serialized_by_one_task_limit(graph: &TaskGraph) -> bool {
     let mut limited_group: Option<&str> = None;
-    for node in graph.values().filter(|node| !node.scripts.is_empty()) {
+    for node in graph
+        .values()
+        .filter(|node| !node.scripts.is_empty())
+    {
         // `schedule_tasks` floors the declared limit at 1.
         if node.concurrency.map(|limit| limit.max(1)) != Some(1) {
             return false;
@@ -263,8 +296,7 @@ pub fn task_graph_to_json(graph: &TaskGraph, workspace_dir: &Path) -> DryRunDocu
     let mut tasks: Vec<DryRunTask> = graph
         .values()
         .map(|node| {
-            let mut depends_on: Vec<DryRunTaskDependency> = node
-                .dependencies
+            let mut depends_on: Vec<DryRunTaskDependency> = node.dependencies
                 .iter()
                 .map(|dependency| DryRunTaskDependency {
                     project: relative_project_dir(&dependency.project, workspace_dir),
@@ -281,9 +313,13 @@ pub fn task_graph_to_json(graph: &TaskGraph, workspace_dir: &Path) -> DryRunDocu
         })
         .collect();
     tasks.sort_by(|left, right| {
-        left.project.cmp(&right.project).then_with(|| left.script.cmp(&right.script))
+        left.project
+            .cmp(&right.project)
+            .then_with(|| left.script.cmp(&right.script))
     });
-    DryRunDocument { tasks }
+    DryRunDocument {
+        tasks,
+    }
 }
 
 /// What plain `--dry-run` prints: one valid linearization of the graph —

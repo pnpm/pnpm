@@ -8,7 +8,11 @@ fn configured_environment_changes_invalidate_task_outputs() {
     pnpm_testing_utils::git_repo::init_isolated_repo(project.path());
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(project.path().join("src/input"), "source").unwrap();
-    fs::write(project.path().join(".gitignore"), "out/\nnode_modules/\nhook-count\n").unwrap();
+    fs::write(
+        project.path().join(".gitignore"),
+        "out/\nnode_modules/\nhook-count\n",
+    )
+    .unwrap();
     fs::write(project.path().join("package.json"), serde_json::json!({
         "name": "probe", "version": "1.0.0", "scripts": {
             "build": r#"node -e "require('fs').mkdirSync('out',{recursive:true});require('fs').writeFileSync('out/result',process.env.BUILD_MODE)""#
@@ -42,9 +46,19 @@ fn configured_environment_changes_invalidate_task_outputs() {
             .assert()
             .success();
         let output = String::from_utf8_lossy(&result.get_output().stdout);
-        assert_eq!(output.contains("restored from cache"), index == 2, "{output}");
-        assert_eq!(fs::read_to_string(project.path().join("out/result")).unwrap(), value);
-        assert_eq!(fs::read_to_string(project.path().join("hook-count")).unwrap(), "called\n");
+        assert_eq!(
+            output.contains("restored from cache"),
+            index == 2,
+            "{output}",
+        );
+        assert_eq!(
+            fs::read_to_string(project.path().join("out/result")).unwrap(),
+            value,
+        );
+        assert_eq!(
+            fs::read_to_string(project.path().join("hook-count")).unwrap(),
+            "called\n",
+        );
     }
     for reporter in ["ndjson", "silent"] {
         let result = command()
@@ -53,7 +67,10 @@ fn configured_environment_changes_invalidate_task_outputs() {
             .assert()
             .success();
         let output = String::from_utf8_lossy(&result.get_output().stdout);
-        assert!(output.is_empty(), "pipeline must not print human output: {output}");
+        assert!(
+            output.is_empty(),
+            "pipeline must not print human output: {output}",
+        );
         let events = String::from_utf8_lossy(&result.get_output().stderr);
         if reporter == "silent" {
             assert!(events.is_empty(), "silent pipeline events: {events}");
@@ -159,10 +176,22 @@ fn dry_run_prints_the_graph_without_executing_workspace_code() {
         .assert()
         .success();
     let document: serde_json::Value = serde_json::from_slice(&result.get_output().stdout).unwrap();
-    assert_eq!(document["tasks"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        document["tasks"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1,
+    );
     assert_eq!(document["tasks"][0]["script"], "build");
     for path in ["node_modules", "pnpm-lock.yaml", "pnpm-lock.env.yaml"] {
-        assert!(!project.path().join(path).exists(), "dry-run must not create {path}");
+        assert!(
+            !project
+                .path()
+                .join(path)
+                .exists(),
+            "dry-run must not create {path}",
+        );
     }
 }
 
@@ -190,7 +219,10 @@ fn submodule_projects_and_their_dependents_bypass_task_caching() {
         if name == "consumer" {
             manifest["dependencies"] = serde_json::json!({"producer":"workspace:*"});
         }
-        repo.write_file(&format!("packages/{name}/package.json"), &manifest.to_string());
+        repo.write_file(
+            &format!("packages/{name}/package.json"),
+            &manifest.to_string(),
+        );
     }
     repo.write_file("packages/independent/input", "independent");
     repo.write_file("packages/producer/a-unreadable-input", "source");
@@ -219,20 +251,32 @@ fn submodule_projects_and_their_dependents_bypass_task_caching() {
             .env("XDG_CONFIG_HOME", root.path().join("config"));
         command
     };
-    command().arg("install").assert().success();
+    command()
+        .arg("install")
+        .assert()
+        .success();
     for (index, value) in ["one", "two", "two", "absent", "absent"].into_iter().enumerate() {
         if index == 4 {
             fs::remove_dir(workspace.join("packages/producer/vendor")).unwrap();
         } else if value == "absent" {
             Command::new("git")
                 .current_dir(&workspace)
-                .args(["submodule", "deinit", "-f", "--", "packages/producer/vendor"])
+                .args([
+                    "submodule",
+                    "deinit",
+                    "-f",
+                    "--",
+                    "packages/producer/vendor",
+                ])
                 .assert()
                 .success();
         } else {
             fs::write(workspace.join("packages/producer/vendor/input"), value).unwrap();
         }
-        command().args(["pipeline", "--full"]).assert().success();
+        command()
+            .args(["pipeline", "--full"])
+            .assert()
+            .success();
         for name in ["producer", "consumer"] {
             assert_eq!(
                 fs::read_to_string(workspace.join(format!("packages/{name}/out/result"))).unwrap(),
@@ -243,7 +287,10 @@ fn submodule_projects_and_their_dependents_bypass_task_caching() {
                 "x".repeat(index + 1),
             );
         }
-        assert_eq!(fs::read_to_string(workspace.join("packages/independent/runs")).unwrap(), "x");
+        assert_eq!(
+            fs::read_to_string(workspace.join("packages/independent/runs")).unwrap(),
+            "x",
+        );
     }
 }
 
@@ -289,10 +336,16 @@ fn projects_rooted_in_submodules_bypass_task_caching() {
             .env("XDG_CONFIG_HOME", root.path().join("config"));
         command
     };
-    command().arg("install").assert().success();
+    command()
+        .arg("install")
+        .assert()
+        .success();
     for (index, value) in ["one", "one", "two", "two"].into_iter().enumerate() {
         fs::write(workspace.join("packages/producer/input"), value).unwrap();
-        command().args(["pipeline", "--full"]).assert().success();
+        command()
+            .args(["pipeline", "--full"])
+            .assert()
+            .success();
         for name in ["producer", "consumer"] {
             assert_eq!(
                 fs::read_to_string(workspace.join(format!("packages/{name}/out/result"))).unwrap(),
@@ -328,10 +381,16 @@ fn symlinked_input_project(project: &std::path::Path, task_settings: &str) {
         ),
     )
     .unwrap();
-    Command::new("git").current_dir(project).args(["add", "-A"]).assert().success();
+    Command::new("git")
+        .current_dir(project)
+        .args(["add", "-A"])
+        .assert()
+        .success();
     let inputs = pnpm_testing_utils::git_repo::unignored_files(project);
     assert!(
-        inputs.iter().any(|path| path == "CLAUDE.md"),
+        inputs
+            .iter()
+            .any(|path| path == "CLAUDE.md"),
         "the link the task reads must be one of the files pnpm hashes, or nothing below tests \
          what it claims to; git reported: {inputs:?}",
     );
@@ -347,7 +406,11 @@ fn no_cache_runs_tasks_without_hashing_their_inputs() {
     let outside = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("dir")).unwrap();
     fs::write(project.path().join("dir/input"), "source").unwrap();
-    Command::new("git").current_dir(project.path()).args(["add", "-A"]).assert().success();
+    Command::new("git")
+        .current_dir(project.path())
+        .args(["add", "-A"])
+        .assert()
+        .success();
     fs::remove_file(project.path().join("dir/input")).unwrap();
     fs::remove_dir(project.path().join("dir")).unwrap();
     symlink(outside.path(), project.path().join("dir")).unwrap();
@@ -360,14 +423,32 @@ fn no_cache_runs_tasks_without_hashing_their_inputs() {
             .env("XDG_CONFIG_HOME", storage.path().join("config"));
         command
     };
-    command().arg("install").assert().success();
-    command().args(["pipeline", "--full", "--no-cache"]).assert().success();
-    assert_eq!(fs::read_to_string(project.path().join("out/result")).unwrap(), "shared text");
-    assert_eq!(fs::read_to_string(project.path().join("runs")).unwrap(), "x");
+    command()
+        .arg("install")
+        .assert()
+        .success();
+    command()
+        .args(["pipeline", "--full", "--no-cache"])
+        .assert()
+        .success();
+    assert_eq!(
+        fs::read_to_string(project.path().join("out/result")).unwrap(),
+        "shared text",
+    );
+    assert_eq!(
+        fs::read_to_string(project.path().join("runs")).unwrap(),
+        "x",
+    );
     // The symlinked directory a tracked input sits under is still refused,
     // which is what makes the run above evidence that nothing was hashed.
-    command().args(["pipeline", "--full"]).assert().failure();
-    assert_eq!(fs::read_to_string(project.path().join("runs")).unwrap(), "x");
+    command()
+        .args(["pipeline", "--full"])
+        .assert()
+        .failure();
+    assert_eq!(
+        fs::read_to_string(project.path().join("runs")).unwrap(),
+        "x",
+    );
 }
 
 #[cfg(unix)]
@@ -386,12 +467,25 @@ fn symlinked_inputs_are_hashed_as_link_targets() {
             .env("XDG_CONFIG_HOME", storage.path().join("config"));
         command
     };
-    command().arg("install").assert().success();
+    command()
+        .arg("install")
+        .assert()
+        .success();
     let run = |expected_runs: &str, expected_hit: bool| {
-        let result = command().args(["pipeline", "--full"]).assert().success();
+        let result = command()
+            .args(["pipeline", "--full"])
+            .assert()
+            .success();
         let output = String::from_utf8_lossy(&result.get_output().stdout).into_owned();
-        assert_eq!(output.contains("restored from cache"), expected_hit, "{output}");
-        assert_eq!(fs::read_to_string(project.path().join("runs")).unwrap(), expected_runs);
+        assert_eq!(
+            output.contains("restored from cache"),
+            expected_hit,
+            "{output}",
+        );
+        assert_eq!(
+            fs::read_to_string(project.path().join("runs")).unwrap(),
+            expected_runs,
+        );
     };
     run("x", false);
     run("x", true);
@@ -404,5 +498,8 @@ fn symlinked_inputs_are_hashed_as_link_targets() {
     // editing it still invalidates the task that reads it through the link.
     fs::write(project.path().join("NOTES.md"), "edited text").unwrap();
     run("xxx", false);
-    assert_eq!(fs::read_to_string(project.path().join("out/result")).unwrap(), "edited text");
+    assert_eq!(
+        fs::read_to_string(project.path().join("out/result")).unwrap(),
+        "edited text",
+    );
 }

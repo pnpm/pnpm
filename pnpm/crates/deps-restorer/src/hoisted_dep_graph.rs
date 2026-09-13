@@ -292,7 +292,11 @@ pub fn lockfile_to_hoisted_dep_graph(
         // consider". Pacquet collapses both absent and empty into
         // `prev_graph: None` so the API contract is unambiguous
         // and the empty case skips the (no-op) second walk.
-        Some(current) if current.packages.as_ref().is_some_and(|packages| !packages.is_empty()) => {
+        Some(current)
+            if current.packages
+                .as_ref()
+                .is_some_and(|packages| !packages.is_empty()) =>
+        {
             let prev_opts = LockfileToHoistedDepGraphOptions {
                 force: true,
                 skipped: BTreeSet::new(),
@@ -327,7 +331,10 @@ fn build_dep_graph<'a>(
 
     let modules_dir = opts.lockfile_dir.join("node_modules");
     let mut state = WalkState {
-        result: LockfileToDepGraphResult { skipped: opts.skipped.clone(), ..Default::default() },
+        result: LockfileToDepGraphResult {
+            skipped: opts.skipped.clone(),
+            ..Default::default()
+        },
         lockfile,
         lockfile_dir: &opts.lockfile_dir,
         opts,

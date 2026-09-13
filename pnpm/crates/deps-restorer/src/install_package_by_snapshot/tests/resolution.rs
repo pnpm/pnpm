@@ -24,5 +24,8 @@ fn tarball_resolution_without_integrity_resolves_to_an_unverified_download() {
         .expect("a git-host archive is fetchable without an integrity");
 
     assert_eq!(tarball_url.as_ref(), tarball);
-    assert!(integrity.is_none(), "an integrity-less resolution must not invent one");
+    assert!(
+        integrity.is_none(),
+        "an integrity-less resolution must not invent one",
+    );
 }

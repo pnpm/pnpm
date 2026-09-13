@@ -125,7 +125,13 @@ impl From<ProjectConfigMultiMatch> for ProjectConfig {
             save_exact,
             save_prefix,
         } = entry;
-        ProjectConfig { hoist, modules_dir, overrides, save_exact, save_prefix }
+        ProjectConfig {
+            hoist,
+            modules_dir,
+            overrides,
+            save_exact,
+            save_prefix,
+        }
     }
 }
 
@@ -152,7 +158,9 @@ impl PackageConfigsSetting {
                 .flat_map(|mut entry| {
                     let names = std::mem::take(&mut entry.r#match);
                     let config = ProjectConfig::from(entry);
-                    names.into_iter().map(move |name| (name, config.clone()))
+                    names
+                        .into_iter()
+                        .map(move |name| (name, config.clone()))
                 })
                 .collect(),
         }

@@ -34,7 +34,10 @@ pub struct HostNode {
 
 impl From<&InstallabilityHost> for HostNode {
     fn from(host: &InstallabilityHost) -> Self {
-        HostNode { version: host.node_version.clone(), detected: host.node_detected }
+        HostNode {
+            version: host.node_version.clone(),
+            detected: host.node_detected,
+        }
     }
 }
 
@@ -92,18 +95,20 @@ impl HostDetection {
     pub async fn resolve(self) -> Option<InstallabilityHost> {
         match self {
             HostDetection::Resolved(host) => host,
-            HostDetection::Pending { task, engine_strict, supported_architectures } => {
-                task.await.unwrap_or_else(|error| {
-                    tracing::warn!(
-                        target: "pacquet::install",
-                        ?error,
-                        "host detection task failed; falling back to the synthetic host",
-                    );
-                    let mut host = synthetic_installability_host(engine_strict);
-                    host.supported_architectures = supported_architectures;
-                    Some(host)
-                })
-            }
+            HostDetection::Pending {
+                task,
+                engine_strict,
+                supported_architectures,
+            } => task.await.unwrap_or_else(|error| {
+                tracing::warn!(
+                    target: "pacquet::install",
+                    ?error,
+                    "host detection task failed; falling back to the synthetic host",
+                );
+                let mut host = synthetic_installability_host(engine_strict);
+                host.supported_architectures = supported_architectures;
+                Some(host)
+            }),
         }
     }
 }
@@ -204,21 +209,24 @@ pub struct SkipSetInputs<'a> {
 pub fn compute_skip_set<Reporter: pnpm_reporter::Reporter>(
     inputs: SkipSetInputs<'_>,
 ) -> Result<SkippedSnapshots, Box<InstallabilityError>> {
-    let mut skipped =
-        match (inputs.entries.snapshots, inputs.entries.packages, inputs.installability_host) {
-            (Some(snapshots), Some(packages), Some(host)) => compute_skipped_snapshots::<Reporter>(
-                inputs.importers,
-                snapshots,
-                packages,
-                host,
-                inputs.requester,
-                inputs.seed,
-            )?,
-            // Constraint-free lockfile: keep the seed verbatim, so a
-            // snapshot recorded as skipped previously survives the
-            // constraint having since been removed from the lockfile.
-            _ => inputs.seed,
-        };
+    let mut skipped = match (
+        inputs.entries.snapshots,
+        inputs.entries.packages,
+        inputs.installability_host,
+    ) {
+        (Some(snapshots), Some(packages), Some(host)) => compute_skipped_snapshots::<Reporter>(
+            inputs.importers,
+            snapshots,
+            packages,
+            host,
+            inputs.requester,
+            inputs.seed,
+        )?,
+        // Constraint-free lockfile: keep the seed verbatim, so a
+        // snapshot recorded as skipped previously survives the
+        // constraint having since been removed from the lockfile.
+        _ => inputs.seed,
+    };
 
     // The lockfile's `optional` flag is set only when a snapshot is
     // reachable *exclusively* through optional edges, so a dependency
@@ -294,7 +302,10 @@ impl DeferredEngineName {
                 name
             }
         });
-        DeferredEngineName { handle, shared }
+        DeferredEngineName {
+            handle,
+            shared,
+        }
     }
 
     /// The slot the probe fills on completion. Blocking on it via
@@ -358,9 +369,10 @@ pub async fn resolve_engine_name(
             (engine_name_from_host(host_node), None)
         }
         Some(HostNode { detected: false, .. }) => (None, None),
-        None if enable_global_virtual_store => {
-            (tokio::task::spawn_blocking(probe_engine_name).await.ok().flatten(), None)
-        }
+        None if enable_global_virtual_store => (
+            tokio::task::spawn_blocking(probe_engine_name).await.ok().flatten(),
+            None,
+        ),
         None => (None, Some(DeferredEngineName::spawn())),
     }
 }

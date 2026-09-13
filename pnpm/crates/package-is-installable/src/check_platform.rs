@@ -71,7 +71,13 @@ impl UnsupportedPlatformError {
     fn new(package_id: String, wanted: WantedPlatform, current: Platform) -> Self {
         let wanted_json = wanted_json(&wanted);
         let current_json = current_json(&current);
-        Self { package_id, wanted, current, wanted_json, current_json }
+        Self {
+            package_id,
+            wanted,
+            current,
+            wanted_json,
+            current_json,
+        }
     }
 }
 
@@ -95,7 +101,10 @@ fn current_json(current: &Platform) -> String {
     // The current platform is `{ os, cpu, libc }` with single strings,
     // not arrays.
     fn single(values: &[String]) -> String {
-        values.first().cloned().unwrap_or_default()
+        values
+            .first()
+            .cloned()
+            .unwrap_or_default()
     }
     format!(
         r#"{{"os":{:?},"cpu":{:?},"libc":{:?}}}"#,
@@ -106,7 +115,10 @@ fn current_json(current: &Platform) -> String {
 }
 
 fn json_string_array(values: &[String]) -> String {
-    let joined: Vec<String> = values.iter().map(|s| format!("{s:?}")).collect();
+    let joined: Vec<String> = values
+        .iter()
+        .map(|s| format!("{s:?}"))
+        .collect();
     format!("[{}]", joined.join(","))
 }
 
@@ -151,7 +163,11 @@ pub fn check_platform(
         cpu: vec![current_cpu.to_string()],
         libc: vec![current_libc.to_string()],
     };
-    Some(UnsupportedPlatformError::new(package_id.to_string(), owned_wanted, real_current))
+    Some(UnsupportedPlatformError::new(
+        package_id.to_string(),
+        owned_wanted,
+        real_current,
+    ))
 }
 
 #[must_use]
@@ -191,7 +207,10 @@ fn axis_is_supported(current: &str, supported: Option<&[String]>, wanted: &[Stri
     let Some(matched) = axis_match(current, supported, wanted) else {
         return false;
     };
-    matched || wanted.iter().all(|entry| entry.starts_with('!'))
+    matched
+        || wanted
+            .iter()
+            .all(|entry| entry.starts_with('!'))
 }
 
 /// Whether any value the package declares for this axis matched what is

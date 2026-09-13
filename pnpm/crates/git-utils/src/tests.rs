@@ -23,7 +23,11 @@ struct GitFails;
 
 impl RunCommand for GitFails {
     fn run(_: &str, _: &[&str], _: Option<&Path>) -> io::Result<CommandOutput> {
-        Ok(CommandOutput { success: false, stdout: String::new(), stderr: String::new() })
+        Ok(CommandOutput {
+            success: false,
+            stdout: String::new(),
+            stderr: String::new(),
+        })
     }
 }
 
@@ -37,7 +41,10 @@ fn repo_with_head(head: &str) -> TempDir {
 #[test]
 fn reads_the_branch_from_the_head_file() {
     let repo = repo_with_head("ref: refs/heads/feature/a-b\n");
-    assert_eq!(get_current_branch::<NoGit>(repo.path()).as_deref(), Some("feature/a-b"));
+    assert_eq!(
+        get_current_branch::<NoGit>(repo.path()).as_deref(),
+        Some("feature/a-b"),
+    );
 }
 
 #[test]
@@ -58,7 +65,10 @@ fn follows_the_gitdir_indirection_of_a_worktree() {
     fs::create_dir(&worktree).unwrap();
     fs::write(worktree.join(".git"), "gitdir: ../real-git-dir\n").unwrap();
 
-    assert_eq!(get_current_branch::<NoGit>(&worktree).as_deref(), Some("linked"));
+    assert_eq!(
+        get_current_branch::<NoGit>(&worktree).as_deref(),
+        Some("linked"),
+    );
 }
 
 /// Without a readable `.git/HEAD` the answer comes from `git
@@ -70,11 +80,18 @@ fn falls_back_to_the_git_subprocess() {
         fn run(program: &str, args: &[&str], _: Option<&Path>) -> io::Result<CommandOutput> {
             assert_eq!(program, "git");
             assert_eq!(args, ["symbolic-ref", "--short", "HEAD"]);
-            Ok(CommandOutput { success: true, stdout: "main\n".to_string(), stderr: String::new() })
+            Ok(CommandOutput {
+                success: true,
+                stdout: "main\n".to_string(),
+                stderr: String::new(),
+            })
         }
     }
     let dir = TempDir::new().unwrap();
-    assert_eq!(get_current_branch::<GitSaysMain>(dir.path()).as_deref(), Some("main"));
+    assert_eq!(
+        get_current_branch::<GitSaysMain>(dir.path()).as_deref(),
+        Some("main"),
+    );
     assert_eq!(get_current_branch::<GitFails>(dir.path()), None);
 }
 
@@ -92,7 +109,11 @@ fn oversized_git_metadata_is_not_read() {
     fs::write(git_dir.join("HEAD"), "ref: refs/heads/linked\n").unwrap();
     let worktree = dir.path().join("worktree");
     fs::create_dir(&worktree).unwrap();
-    fs::write(worktree.join(".git"), format!("gitdir: {}\n", "x".repeat(9000))).unwrap();
+    fs::write(
+        worktree.join(".git"),
+        format!("gitdir: {}\n", "x".repeat(9000)),
+    )
+    .unwrap();
     assert_eq!(get_current_branch::<GitFails>(&worktree), None);
 }
 
@@ -154,6 +175,9 @@ fn repo_with_fifo_head() -> TempDir {
 
 #[cfg(unix)]
 fn make_fifo(path: &std::path::Path) {
-    let status = std::process::Command::new("mkfifo").arg(path).status().expect("run mkfifo");
+    let status = std::process::Command::new("mkfifo")
+        .arg(path)
+        .status()
+        .expect("run mkfifo");
     assert!(status.success(), "mkfifo failed");
 }

@@ -19,7 +19,10 @@ use std::{
 fn secure_transport_restricts_all_credential_lookups_and_survives_cloning() {
     let mut headers = AuthHeaders::default().with_secure_transport();
     for host in ["registry.example", "127.0.0.1", "localhost", "[::1]"] {
-        headers.insert_url_header(&format!("https://{host}/simple/"), "Basic secret".to_string());
+        headers.insert_url_header(
+            &format!("https://{host}/simple/"),
+            "Basic secret".to_string(),
+        );
     }
     for headers in [headers.clone(), headers] {
         for (url, allowed) in [
@@ -32,7 +35,12 @@ fn secure_transport_restricts_all_credential_lookups_and_survives_cloning() {
         ] {
             eprintln!("url={url}, allowed={allowed}");
             assert_eq!(headers.for_url(url).is_some(), allowed);
-            assert_eq!(headers.for_url_with_package(url, Some("python:alpha")).is_some(), allowed);
+            assert_eq!(
+                headers
+                    .for_url_with_package(url, Some("python:alpha"))
+                    .is_some(),
+                allowed,
+            );
         }
     }
 }
@@ -40,7 +48,10 @@ fn secure_transport_restricts_all_credential_lookups_and_survives_cloning() {
 fn token_helper_by_uri(uri: &str, command: &[&str]) -> HashMap<String, Vec<String>> {
     std::iter::once((
         uri.to_owned(),
-        command.iter().map(|part| (*part).to_owned()).collect::<Vec<String>>(),
+        command
+            .iter()
+            .map(|part| (*part).to_owned())
+            .collect::<Vec<String>>(),
     ))
     .collect()
 }
@@ -70,9 +81,15 @@ fn token_helper_is_executed_lazily_and_memoized() {
 
     // Constructing the map never runs the helper.
     assert_eq!(CALLS.load(Ordering::Relaxed), 0);
-    assert_eq!(auth.for_url("https://reg.com/pkg"), Some("Bearer s3cr3t".to_owned()));
+    assert_eq!(
+        auth.for_url("https://reg.com/pkg"),
+        Some("Bearer s3cr3t".to_owned()),
+    );
     // A second matching lookup reuses the memoized token.
-    assert_eq!(auth.for_url("https://reg.com/other"), Some("Bearer s3cr3t".to_owned()));
+    assert_eq!(
+        auth.for_url("https://reg.com/other"),
+        Some("Bearer s3cr3t".to_owned()),
+    );
     assert_eq!(CALLS.load(Ordering::Relaxed), 1);
 }
 
@@ -120,14 +137,24 @@ fn a_slow_token_helper_does_not_block_a_second_registry_lookup() {
     FAST_DONE.store(true, Ordering::Release);
 
     assert_eq!(fast, Some("Bearer fast-token".to_owned()));
-    assert!(fast_elapsed < Duration::from_secs(5), "fast lookup blocked for {fast_elapsed:?}");
-    assert_eq!(slow.join().expect("slow thread"), Some("Bearer slow-token".to_owned()));
+    assert!(
+        fast_elapsed < Duration::from_secs(5),
+        "fast lookup blocked for {fast_elapsed:?}",
+    );
+    assert_eq!(
+        slow.join().expect("slow thread"),
+        Some("Bearer slow-token".to_owned()),
+    );
 }
 
 #[test]
 fn a_failing_token_helper_sends_no_credential_and_does_not_fall_back() {
     fn runner(_: &[String]) -> std::io::Result<TokenHelperOutput> {
-        Ok(TokenHelperOutput { success: false, stdout: String::new(), stderr: "boom".to_owned() })
+        Ok(TokenHelperOutput {
+            success: false,
+            stdout: String::new(),
+            stderr: "boom".to_owned(),
+        })
     }
 
     // A static token sits at the host root; a failing helper at the deeper
@@ -143,21 +170,36 @@ fn a_failing_token_helper_sends_no_credential_and_does_not_fall_back() {
 
     assert_eq!(auth.for_url("https://reg.com/path/pkg"), None);
     // A request that doesn't match the helper prefix still gets the static token.
-    assert_eq!(auth.for_url("https://reg.com/pkg"), Some("Bearer root-token".to_owned()));
+    assert_eq!(
+        auth.for_url("https://reg.com/pkg"),
+        Some("Bearer root-token".to_owned()),
+    );
 }
 
 #[test]
 fn a_url_header_overlays_only_its_request_route() {
     let mut auth = AuthHeaders::from_creds_map([
-        ("//cargo.example/".to_string(), "Bearer npm-token".to_string()),
+        (
+            "//cargo.example/".to_string(),
+            "Bearer npm-token".to_string(),
+        ),
         ("//npm.example/".to_string(), "Bearer keep-me".to_string()),
     ]);
 
     auth.insert_url_header("https://cargo.example/index", "cargo-token".to_string());
 
-    assert_eq!(auth.for_url("https://cargo.example/index/crate"), Some("cargo-token".to_string()));
-    assert_eq!(auth.for_url("https://cargo.example/other"), Some("Bearer npm-token".to_string()));
-    assert_eq!(auth.for_url("https://npm.example/package"), Some("Bearer keep-me".to_string()));
+    assert_eq!(
+        auth.for_url("https://cargo.example/index/crate"),
+        Some("cargo-token".to_string()),
+    );
+    assert_eq!(
+        auth.for_url("https://cargo.example/other"),
+        Some("Bearer npm-token".to_string()),
+    );
+    assert_eq!(
+        auth.for_url("https://npm.example/package"),
+        Some("Bearer keep-me".to_string()),
+    );
 }
 
 /// Records every `(url, package)` it is asked about and answers with a
@@ -187,18 +229,25 @@ fn route_hook_overrides_client_credentials() {
         Some("Bearer client-token".to_string()),
     );
 
-    let hook =
-        Arc::new(RecordingHook { answer: Some("Bearer alias".to_string()), ..Default::default() });
+    let hook = Arc::new(RecordingHook {
+        answer: Some("Bearer alias".to_string()),
+        ..Default::default()
+    });
     let hooked = client_creds.with_route_hook(Arc::clone(&hook) as Arc<dyn UpstreamRouteHook>);
     // With a hook the client token is ignored and the hook decides.
-    assert_eq!(hooked.for_url("https://reg.com/pkg"), Some("Bearer alias".to_string()));
+    assert_eq!(
+        hooked.for_url("https://reg.com/pkg"),
+        Some("Bearer alias".to_string()),
+    );
     assert_eq!(hook.calls.load(Ordering::Relaxed), 1);
 }
 
 #[test]
 fn record_route_drives_the_hook_without_a_fetch() {
-    let hook =
-        Arc::new(RecordingHook { answer: Some("Bearer alias".to_string()), ..Default::default() });
+    let hook = Arc::new(RecordingHook {
+        answer: Some("Bearer alias".to_string()),
+        ..Default::default()
+    });
     let hooked =
         AuthHeaders::default().with_route_hook(Arc::clone(&hook) as Arc<dyn UpstreamRouteHook>);
     // A cache-served metadata pick records its route through the hook so a
@@ -262,12 +311,18 @@ fn redact_url_credentials_strips_embedded_basic_auth() {
 
 #[test]
 fn redact_and_sanitize_strips_credentials_and_control_chars() {
-    assert_eq!(redact_and_sanitize("https://user:pass@host/pkg\u{7}\r\n"), "https://host/pkg");
+    assert_eq!(
+        redact_and_sanitize("https://user:pass@host/pkg\u{7}\r\n"),
+        "https://host/pkg",
+    );
     // A clean URL is returned unchanged.
     assert_eq!(redact_and_sanitize("https://host/pkg"), "https://host/pkg");
     // A control character inside the userinfo must not break the redaction:
     // controls are stripped first, then credentials are redacted.
-    assert_eq!(redact_and_sanitize("https://user:pass\r@host/x"), "https://host/x");
+    assert_eq!(
+        redact_and_sanitize("https://user:pass\r@host/x"),
+        "https://host/x",
+    );
 }
 
 #[test]
@@ -276,19 +331,40 @@ fn redact_url_for_display_strips_secrets_and_control_chars() {
         redact_url_for_display("https://user:pass@host/pkg?token=secret#fragment\u{1b}"),
         "https://host/pkg",
     );
-    assert_eq!(redact_url_for_display("https://host/pkg#secret"), "https://host/pkg");
-    assert_eq!(redact_url_for_display("https://host/pkg"), "https://host/pkg");
-    assert_eq!(redact_url_for_display("https://user:pa?ss@host/pkg"), "[hidden]");
-    assert_eq!(redact_url_for_display("https://user:pa#ss@host/pkg"), "[hidden]");
+    assert_eq!(
+        redact_url_for_display("https://host/pkg#secret"),
+        "https://host/pkg",
+    );
+    assert_eq!(
+        redact_url_for_display("https://host/pkg"),
+        "https://host/pkg",
+    );
+    assert_eq!(
+        redact_url_for_display("https://user:pa?ss@host/pkg"),
+        "[hidden]",
+    );
+    assert_eq!(
+        redact_url_for_display("https://user:pa#ss@host/pkg"),
+        "[hidden]",
+    );
 }
 
 #[test]
 fn hide_auth_information_keeps_the_scheme_and_masks_the_credential() {
     // A token long enough to recognize keeps four characters.
-    assert_eq!(hide_auth_information("Bearer npm_0123456789abcdefghij"), "Bearer npm_[hidden]");
+    assert_eq!(
+        hide_auth_information("Bearer npm_0123456789abcdefghij"),
+        "Bearer npm_[hidden]",
+    );
     // A short token could be guessed from a prefix, so none of it survives.
-    assert_eq!(hide_auth_information("Bearer short-token"), "Bearer [hidden]");
-    assert_eq!(hide_auth_information("Basic Zm9vOmJhcg=="), "Basic [hidden]");
+    assert_eq!(
+        hide_auth_information("Bearer short-token"),
+        "Bearer [hidden]",
+    );
+    assert_eq!(
+        hide_auth_information("Basic Zm9vOmJhcg=="),
+        "Basic [hidden]",
+    );
     // No scheme to report — the whole value is a credential.
     assert_eq!(hide_auth_information("bare-token"), "[hidden]");
 }
@@ -307,7 +383,9 @@ fn hide_auth_information_strips_control_characters() {
 
 fn build(entries: &[(&str, &str)]) -> AuthHeaders {
     AuthHeaders::from_creds_map(
-        entries.iter().map(|(uri, value)| ((*uri).to_string(), (*value).to_string())),
+        entries
+            .iter()
+            .map(|(uri, value)| ((*uri).to_string(), (*value).to_string())),
     )
 }
 
@@ -315,12 +393,18 @@ fn build(entries: &[(&str, &str)]) -> AuthHeaders {
 fn nerf_dart_strips_protocol_query_fragment_and_filename() {
     assert_eq!(nerf_dart("https://reg.com/"), "//reg.com/");
     assert_eq!(nerf_dart("https://reg.com:8080/"), "//reg.com:8080/");
-    assert_eq!(nerf_dart("https://reg.com/foo/-/foo-1.tgz"), "//reg.com/foo/-/");
+    assert_eq!(
+        nerf_dart("https://reg.com/foo/-/foo-1.tgz"),
+        "//reg.com/foo/-/",
+    );
     assert_eq!(
         nerf_dart("https://npm.pkg.github.com/pnpm/foo?token=x"),
         "//npm.pkg.github.com/pnpm/",
     );
-    assert_eq!(nerf_dart("https://user:pw@reg.com/scoped/pkg"), "//reg.com/scoped/");
+    assert_eq!(
+        nerf_dart("https://user:pw@reg.com/scoped/pkg"),
+        "//reg.com/scoped/",
+    );
 }
 
 #[test]
@@ -333,7 +417,10 @@ fn base64_round_trip_matches_known_vectors() {
 #[test]
 fn matches_host_only_token() {
     let headers = build(&[("//reg.com/", "Bearer abc123")]);
-    assert_eq!(headers.for_url("https://reg.com/").as_deref(), Some("Bearer abc123"));
+    assert_eq!(
+        headers.for_url("https://reg.com/").as_deref(),
+        Some("Bearer abc123"),
+    );
     assert_eq!(
         headers.for_url("https://reg.com/foo/-/foo-1.0.0.tgz").as_deref(),
         Some("Bearer abc123"),
@@ -343,7 +430,10 @@ fn matches_host_only_token() {
 
 #[test]
 fn matches_path_scoped_token() {
-    let headers = build(&[("//reg.com/", "Bearer abc123"), ("//reg.co/tarballs/", "Bearer xxx")]);
+    let headers = build(&[
+        ("//reg.com/", "Bearer abc123"),
+        ("//reg.co/tarballs/", "Bearer xxx"),
+    ]);
     assert_eq!(
         headers.for_url("https://reg.co/tarballs/foo/-/foo-1.0.0.tgz").as_deref(),
         Some("Bearer xxx"),
@@ -362,14 +452,23 @@ fn matches_explicit_port_token() {
 #[test]
 fn default_https_port_strips_for_lookup() {
     let headers = build(&[("//reg.com/", "Bearer abc123")]);
-    assert_eq!(headers.for_url("https://reg.com:443/").as_deref(), Some("Bearer abc123"));
-    assert_eq!(headers.for_url("http://reg.com:80/").as_deref(), Some("Bearer abc123"));
+    assert_eq!(
+        headers.for_url("https://reg.com:443/").as_deref(),
+        Some("Bearer abc123"),
+    );
+    assert_eq!(
+        headers.for_url("http://reg.com:80/").as_deref(),
+        Some("Bearer abc123"),
+    );
 }
 
 #[test]
 fn non_default_port_strips_for_fallback_lookup() {
     let headers = build(&[("//reg.com/", "Bearer abc123")]);
-    assert_eq!(headers.for_url("https://reg.com:8080/").as_deref(), Some("Bearer abc123"));
+    assert_eq!(
+        headers.for_url("https://reg.com:8080/").as_deref(),
+        Some("Bearer abc123"),
+    );
 }
 
 #[test]
@@ -429,24 +528,35 @@ fn package_scope_auth_wins_over_registry_auth() {
         ("//npm.pkg.github.com/:@orgB", "Bearer org-b-token"),
     ]);
     assert_eq!(
-        headers.for_url_with_package("https://npm.pkg.github.com/", Some("@orgA/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://npm.pkg.github.com/", Some("@orgA/pkg"))
+            .as_deref(),
         Some("Bearer org-a-token"),
     );
     assert_eq!(
-        headers.for_url_with_package("https://npm.pkg.github.com/", Some("@orgB/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://npm.pkg.github.com/", Some("@orgB/pkg"))
+            .as_deref(),
         Some("Bearer org-b-token"),
     );
     assert_eq!(
-        headers.for_url_with_package("https://npm.pkg.github.com/", Some("@orgC/pkg")).as_deref(),
-        Some("Bearer registry-token"),
-    );
-    assert_eq!(
-        headers.for_url_with_package("https://npm.pkg.github.com/", Some("pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://npm.pkg.github.com/", Some("@orgC/pkg"))
+            .as_deref(),
         Some("Bearer registry-token"),
     );
     assert_eq!(
         headers
-            .for_url_with_package("https://npm.pkg.github.com/download/pkg.tgz", Some("@orgA/pkg"))
+            .for_url_with_package("https://npm.pkg.github.com/", Some("pkg"))
+            .as_deref(),
+        Some("Bearer registry-token"),
+    );
+    assert_eq!(
+        headers
+            .for_url_with_package(
+                "https://npm.pkg.github.com/download/pkg.tgz",
+                Some("@orgA/pkg")
+            )
             .as_deref(),
         Some("Bearer org-a-token"),
     );
@@ -460,11 +570,15 @@ fn slash_package_scope_auth_wins_over_registry_auth() {
         ("//npm.pkg.github.com/@orgB/", "Bearer org-b-token"),
     ]);
     assert_eq!(
-        headers.for_url_with_package("https://npm.pkg.github.com/", Some("@orgA/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://npm.pkg.github.com/", Some("@orgA/pkg"))
+            .as_deref(),
         Some("Bearer org-a-token"),
     );
     assert_eq!(
-        headers.for_url_with_package("https://npm.pkg.github.com/", Some("@orgB/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://npm.pkg.github.com/", Some("@orgB/pkg"))
+            .as_deref(),
         Some("Bearer org-b-token"),
     );
 }
@@ -476,7 +590,9 @@ fn package_scope_auth_keeps_registry_path() {
         ("//reg.com/npm/:@orgA", "Bearer org-a-token"),
     ]);
     assert_eq!(
-        headers.for_url_with_package("https://reg.com/npm/", Some("@orgA/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://reg.com/npm/", Some("@orgA/pkg"))
+            .as_deref(),
         Some("Bearer org-a-token"),
     );
     assert_eq!(
@@ -486,7 +602,9 @@ fn package_scope_auth_keeps_registry_path() {
         Some("Bearer org-a-token"),
     );
     assert_eq!(
-        headers.for_url_with_package("https://reg.com/npm/", Some("@orgB/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://reg.com/npm/", Some("@orgB/pkg"))
+            .as_deref(),
         Some("Bearer registry-token"),
     );
 }
@@ -533,8 +651,9 @@ fn entries_round_trip_package_scope_auth() {
 #[test]
 fn basic_auth_in_url_wins_over_package_scope_auth() {
     let headers = build(&[("//reg.com/:@orgA", "Bearer org-a-token")]);
-    let header =
-        headers.for_url_with_package("https://user:secret@reg.com/", Some("@orgA/pkg")).unwrap();
+    let header = headers
+        .for_url_with_package("https://user:secret@reg.com/", Some("@orgA/pkg"))
+        .unwrap();
     assert_eq!(header, format!("Basic {}", base64_encode("user:secret")));
 }
 
@@ -543,9 +662,15 @@ fn basic_auth_in_url_wins_over_package_scope_auth() {
 /// happens to resolve to — repository config can move that registry.
 #[test]
 fn unkeyed_creds_are_dropped_rather_than_bound_to_the_default_registry() {
-    let headers = build(&[("", "Bearer default-token"), ("//reg.com/", "Bearer scoped-token")]);
+    let headers = build(&[
+        ("", "Bearer default-token"),
+        ("//reg.com/", "Bearer scoped-token"),
+    ]);
     assert_eq!(headers.for_url("https://registry.npmjs.org/"), None);
-    assert_eq!(headers.for_url("https://reg.com/pkg").as_deref(), Some("Bearer scoped-token"));
+    assert_eq!(
+        headers.for_url("https://reg.com/pkg").as_deref(),
+        Some("Bearer scoped-token"),
+    );
 }
 
 /// Keys are canonicalized as they are collected, so a caller's
@@ -554,12 +679,18 @@ fn unkeyed_creds_are_dropped_rather_than_bound_to_the_default_registry() {
 #[test]
 fn a_key_without_its_trailing_slash_lands_on_the_canonical_uri() {
     let headers = build(&[("//reg.com", "Bearer token")]);
-    assert_eq!(headers.for_url("https://reg.com/pkg").as_deref(), Some("Bearer token"));
+    assert_eq!(
+        headers.for_url("https://reg.com/pkg").as_deref(),
+        Some("Bearer token"),
+    );
 }
 
 #[test]
 fn registry_with_pathname_matches_with_explicit_port() {
-    let headers = build(&[("//custom.domain.com/artifactory/api/npm/npm-virtual/", "Bearer xyz")]);
+    let headers = build(&[(
+        "//custom.domain.com/artifactory/api/npm/npm-virtual/",
+        "Bearer xyz",
+    )]);
     assert_eq!(
         headers
             .for_url("https://custom.domain.com:443/artifactory/api/npm/npm-virtual/")
@@ -606,10 +737,16 @@ fn secure_lookup_rejects_plain_http_but_allows_loopback() {
 
 #[test]
 fn classifies_urls_that_are_secure_for_credentials() {
-    assert!(super::is_url_secure_for_credentials("https://reg.example/pkg"));
-    assert!(super::is_url_secure_for_credentials("http://localhost:4873/pkg"));
+    assert!(super::is_url_secure_for_credentials(
+        "https://reg.example/pkg"
+    ));
+    assert!(super::is_url_secure_for_credentials(
+        "http://localhost:4873/pkg"
+    ));
     assert!(super::is_url_secure_for_credentials("http://127.0.0.1/pkg"));
-    assert!(!super::is_url_secure_for_credentials("http://reg.example/pkg"));
+    assert!(!super::is_url_secure_for_credentials(
+        "http://reg.example/pkg"
+    ));
     assert!(!super::is_url_secure_for_credentials("ftp://localhost/pkg"));
     assert!(!super::is_url_secure_for_credentials("ws://127.0.0.1/pkg"));
     assert!(!super::is_url_secure_for_credentials("not a url"));
@@ -627,7 +764,10 @@ fn classifies_urls_that_are_secure_for_credentials() {
 #[test]
 fn slash_append_branch_lets_path_segment_match() {
     let headers = build(&[("//reg.com/scope/", "Bearer scoped")]);
-    assert_eq!(headers.for_url("https://reg.com/scope").as_deref(), Some("Bearer scoped"));
+    assert_eq!(
+        headers.for_url("https://reg.com/scope").as_deref(),
+        Some("Bearer scoped"),
+    );
 }
 
 /// Hits the `None => return String::new()` branch of [`nerf_dart`]
@@ -674,5 +814,8 @@ fn redact_and_sanitize_multiline_collapses_when_a_newline_splits_credentials() {
     let redacted = redact_and_sanitize_multiline("url: https://user:pass\n@host/x.git\nfailed");
     dbg!(&redacted);
     assert!(!redacted.contains("user:pass"), "{redacted}");
-    assert_eq!(redacted, redact_and_sanitize("url: https://user:pass\n@host/x.git\nfailed"));
+    assert_eq!(
+        redacted,
+        redact_and_sanitize("url: https://user:pass\n@host/x.git\nfailed"),
+    );
 }

@@ -143,12 +143,13 @@ impl PatchArgs {
         dir: &Path,
         state: State,
     ) -> Result<(), PatchError> {
-        let PatchArgs { package_name, edit_dir, ignore_existing } = self;
+        let PatchArgs {
+            package_name,
+            edit_dir,
+            ignore_existing,
+        } = self;
         let package_name = package_name.ok_or(PatchError::MissingPackageName)?;
-        if let Some(edit_dir) = edit_dir.as_ref().map(|path| resolve_path(dir, path)) {
-            reject_edit_dir_symlink_components_under(dir, &edit_dir)?;
-            reject_non_empty_custom_edit_dir(&edit_dir)?;
-        }
+        validate_custom_edit_dir(dir, edit_dir.as_deref())?;
         let current_lockfile =
             Lockfile::load_current_from_virtual_store_dir(&state.config.virtual_store_dir)
                 .map_err(PatchError::LoadLockfile)?
@@ -238,7 +239,11 @@ fn select_patch_target_with_prompt(
 ) -> Result<PatchTarget, PatchError> {
     let selected = prompt.select_version(&set.preferred_versions)?;
     let apply_to_all = prompt.confirm_apply_to_all()?;
-    Ok(target_from_candidate(set, &set.preferred_versions[selected], apply_to_all))
+    Ok(target_from_candidate(
+        set,
+        &set.preferred_versions[selected],
+        apply_to_all,
+    ))
 }
 
 fn target_from_candidate(
@@ -246,8 +251,9 @@ fn target_from_candidate(
     candidate: &PatchCandidate,
     apply_to_all: bool,
 ) -> PatchTarget {
-    let bare_specifier =
-        candidate.git_tarball_url.clone().unwrap_or_else(|| candidate.version.clone());
+    let bare_specifier = candidate.git_tarball_url
+        .clone()
+        .unwrap_or_else(|| candidate.version.clone());
     PatchTarget {
         alias: set.alias.clone(),
         version: candidate.version.clone(),
@@ -265,8 +271,16 @@ fn print_success(edit_dir: &Path) {
 fn render_success(edit_dir: &Path, colors_enabled: bool) -> String {
     let edit_dir = edit_dir.display().to_string();
     let command = format!("pnpm patch-commit {}", shell_quote(&edit_dir));
-    let edit_dir = if colors_enabled { edit_dir.blue().to_string() } else { edit_dir };
-    let command = if colors_enabled { command.green().to_string() } else { command };
+    let edit_dir = if colors_enabled {
+        edit_dir.blue().to_string()
+    } else {
+        edit_dir
+    };
+    let command = if colors_enabled {
+        command.green().to_string()
+    } else {
+        command
+    };
     render_success_parts(&edit_dir, &command)
 }
 
@@ -325,3 +339,11 @@ fn record_edit_target(
 }
 
 mod paths;
+
+fn validate_custom_edit_dir(dir: &Path, edit_dir: Option<&Path>) -> Result<(), PatchError> {
+    if let Some(edit_dir) = edit_dir.map(|path| resolve_path(dir, path)) {
+        reject_edit_dir_symlink_components_under(dir, &edit_dir)?;
+        reject_non_empty_custom_edit_dir(&edit_dir)?;
+    }
+    Ok(())
+}

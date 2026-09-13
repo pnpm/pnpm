@@ -13,8 +13,9 @@ pub(super) fn collect_dependencies(
     let mut belongs_to: HashMap<PackageKey, BelongsTo> = HashMap::new();
     let mut stack: Vec<(PackageKey, BelongsTo)> = Vec::new();
     for id in importer_ids {
-        let Some(importer) =
-            lockfile.importers.get(id.as_ref()).or_else(|| lockfile.root_project())
+        let Some(importer) = lockfile.importers
+            .get(id.as_ref())
+            .or_else(|| lockfile.root_project())
         else {
             continue;
         };
@@ -98,7 +99,11 @@ fn queue_snapshot_children(
     stack: &mut Vec<(PackageKey, BelongsTo)>,
 ) {
     let optional = include.optional_dependencies.then_some(snapshot.optional_dependencies.as_ref());
-    for deps in [Some(snapshot.dependencies.as_ref()), optional].into_iter().flatten().flatten() {
+    for deps in [Some(snapshot.dependencies.as_ref()), optional]
+        .into_iter()
+        .flatten()
+        .flatten()
+    {
         for (name, dep_ref) in deps {
             if let Some(child_key) = dep_ref.resolve(name) {
                 stack.push((child_key, kind));
@@ -118,7 +123,9 @@ fn snapshot_is_unsupported_optional(
     if !snapshot.is_some_and(|snapshot| snapshot.optional) {
         return false;
     }
-    let package = lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()));
+    let package = lockfile.packages
+        .as_ref()
+        .and_then(|packages| packages.get(&key.without_peer()));
     package.is_some_and(|package| {
         !platform_is_supported_with_inference(
             &key.name.bare,
@@ -137,18 +144,23 @@ fn version_is_newer(candidate: &str, selected: &str) -> bool {
 }
 
 pub(super) fn compare_versions(left: &str, right: &str) -> std::cmp::Ordering {
-    match (node_semver::Version::parse(left), node_semver::Version::parse(right)) {
+    match (
+        node_semver::Version::parse(left),
+        node_semver::Version::parse(right),
+    ) {
         (Ok(left), Ok(right)) => left.cmp(&right),
         _ => left.cmp(right),
     }
 }
 
 pub(super) fn compare_package_names(left: &str, right: &str) -> Ordering {
-    left.bytes()
+    left
+        .bytes()
         .map(package_name_collation_weight)
         .cmp(right.bytes().map(package_name_collation_weight))
         .then_with(|| {
-            left.bytes()
+            left
+                .bytes()
                 .zip(right.bytes())
                 .find_map(|(left, right)| {
                     if left == right || !left.eq_ignore_ascii_case(&right) {

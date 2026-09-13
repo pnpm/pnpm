@@ -8,8 +8,11 @@ use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
 #[test]
 fn add_to_multi_pattern_workspace_root_requires_workspace_root_flag() {
     let root = TempDir::new().unwrap();
-    std::fs::write(root.path().join("package.json"), r#"{"name":"root","version":"1.0.0"}"#)
-        .unwrap();
+    std::fs::write(
+        root.path().join("package.json"),
+        r#"{"name":"root","version":"1.0.0"}"#,
+    )
+    .unwrap();
     std::fs::write(
         root.path().join("pnpm-workspace.yaml"),
         "packages:\n  - packages/*\n  - tools/*\n",
@@ -23,12 +26,22 @@ fn add_to_multi_pattern_workspace_root_requires_workspace_root_flag() {
         .output()
         .expect("run pnpm add");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(!output.status.success(), "adding to the workspace root must fail");
-    assert!(stderr.contains("ERR_PNPM_ADDING_TO_ROOT"), "unexpected stderr: {stderr}");
+    assert!(
+        !output.status.success(),
+        "adding to the workspace root must fail",
+    );
+    assert!(
+        stderr.contains("ERR_PNPM_ADDING_TO_ROOT"),
+        "unexpected stderr: {stderr}",
+    );
 
     let local = root.path().join("local");
     std::fs::create_dir(&local).unwrap();
-    std::fs::write(local.join("package.json"), r#"{"name":"local","version":"1.0.0"}"#).unwrap();
+    std::fs::write(
+        local.join("package.json"),
+        r#"{"name":"local","version":"1.0.0"}"#,
+    )
+    .unwrap();
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(root.path())
@@ -52,7 +65,11 @@ fn add_accepts_multiple_local_package_selectors() {
     }
 
     pacquet
-        .with_args(["add", "local-a@file:./fixtures/local-a", "local-b@file:./fixtures/local-b"])
+        .with_args([
+            "add",
+            "local-a@file:./fixtures/local-a",
+            "local-b@file:./fixtures/local-b",
+        ])
         .assert()
         .success();
 
@@ -63,16 +80,22 @@ fn add_accepts_multiple_local_package_selectors() {
         std::fs::read_to_string(workspace.join(Lockfile::FILE_NAME)).expect("read pnpm-lock.yaml");
     let lockfile: Lockfile = serde_saphyr::from_str(&lockfile_text)
         .unwrap_or_else(|error| panic!("parse pnpm-lock.yaml: {error}\n{lockfile_text}"));
-    let dependencies = lockfile
-        .importers
+    let dependencies = lockfile.importers
         .get(Lockfile::ROOT_IMPORTER_KEY)
         .and_then(|importer| importer.dependencies.as_ref())
         .expect("root importer dependencies");
     for package_name in ["local-a", "local-b"] {
         let parsed_name: PkgName = package_name.parse().expect("parse local package name");
-        assert!(dependencies.contains_key(&parsed_name), "lockfile contains {package_name}");
         assert!(
-            workspace.join("node_modules").join(package_name).join("package.json").exists(),
+            dependencies.contains_key(&parsed_name),
+            "lockfile contains {package_name}",
+        );
+        assert!(
+            workspace
+                .join("node_modules")
+                .join(package_name)
+                .join("package.json")
+                .exists(),
             "{package_name} is installed",
         );
     }
@@ -97,7 +120,10 @@ fn add_installs_a_local_package_reached_through_a_symlinked_directory() {
     pnpm_fs::symlink_dir(&real_dir, &workspace.join("fixtures/linked-local"))
         .expect("link the local package directory");
 
-    pacquet.with_args(["add", "file:./fixtures/linked-local"]).assert().success();
+    pacquet
+        .with_args(["add", "file:./fixtures/linked-local"])
+        .assert()
+        .success();
 
     assert_eq!(prod_spec(&workspace, "local"), "file:fixtures/linked-local");
     assert!(workspace.join("node_modules/local/index.js").is_file());
@@ -129,7 +155,9 @@ fn add_workspace_root_tolerates_a_dir_that_does_not_exist() {
         .pipe(PackageManifest::from_path)
         .expect("read root manifest");
     assert!(
-        root_manifest.dependencies([DependencyGroup::Dev]).any(|(key, _)| key == "local-a"),
+        root_manifest
+            .dependencies([DependencyGroup::Dev])
+            .any(|(key, _)| key == "local-a"),
         "a nonexistent --dir must still redirect the add to the root manifest",
     );
 
@@ -191,7 +219,9 @@ fn add_workspace_root_saves_to_the_root_manifest_from_a_subdir() {
         .expect("read root manifest");
     for package_name in ["local-a", "local-b"] {
         assert!(
-            root_manifest.dependencies([DependencyGroup::Dev]).any(|(key, _)| key == package_name),
+            root_manifest
+                .dependencies([DependencyGroup::Dev])
+                .any(|(key, _)| key == package_name),
             "--workspace-root must save {package_name} to the root manifest",
         );
     }
@@ -218,8 +248,13 @@ fn add_workspace_root_saves_to_the_root_manifest_from_a_subdir() {
 
 #[test]
 fn add_lockfile_only_from_workspace_subdir_prints_manifest_summary() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
 
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut workspace_yaml =
@@ -251,13 +286,19 @@ fn add_lockfile_only_from_workspace_subdir_prints_manifest_summary() {
         .expect("run pacquet add");
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(output.status.success(), "add failed\nstdout:\n{stdout}\nstderr:\n{stderr}");
+    assert!(
+        output.status.success(),
+        "add failed\nstdout:\n{stdout}\nstderr:\n{stderr}",
+    );
     assert!(
         stdout.contains("dependencies:\n+ @pnpm.e2e/hello-world-js-bin ^1.0.0"),
         "add --lockfile-only should print the manifest diff summary for the selected importer\nstdout:\n{stdout}",
     );
 
-    assert_eq!(prod_spec(&package_dir, "@pnpm.e2e/hello-world-js-bin"), "^1.0.0");
+    assert_eq!(
+        prod_spec(&package_dir, "@pnpm.e2e/hello-world-js-bin"),
+        "^1.0.0",
+    );
 
     let package_dir = workspace.join("packages/b");
     std::fs::create_dir_all(&package_dir).expect("mkdir packages/b");
@@ -289,7 +330,10 @@ fn add_lockfile_only_from_workspace_subdir_prints_manifest_summary() {
     let initial_manifest_count = records
         .iter()
         .filter(|record| {
-            record.get("name").and_then(|name| name.as_str()) == Some("pnpm:package-manifest")
+            record
+                .get("name")
+                .and_then(|name| name.as_str())
+                == Some("pnpm:package-manifest")
                 && record.get("initial").is_some()
         })
         .count();
@@ -299,11 +343,22 @@ fn add_lockfile_only_from_workspace_subdir_prints_manifest_summary() {
     );
     let summary_count = records
         .iter()
-        .filter(|record| record.get("name").and_then(|name| name.as_str()) == Some("pnpm:summary"))
+        .filter(|record| {
+            record
+                .get("name")
+                .and_then(|name| name.as_str())
+                == Some("pnpm:summary")
+        })
         .count();
-    assert_eq!(summary_count, 1, "ndjson should emit one pnpm:summary\nstderr:\n{stderr}");
+    assert_eq!(
+        summary_count, 1,
+        "ndjson should emit one pnpm:summary\nstderr:\n{stderr}",
+    );
 
-    assert_eq!(prod_spec(&package_dir, "@pnpm.e2e/hello-world-js-bin"), "^1.0.0");
+    assert_eq!(
+        prod_spec(&package_dir, "@pnpm.e2e/hello-world-js-bin"),
+        "^1.0.0",
+    );
     drop((root, npmrc_info)); // cleanup
 }
 
@@ -323,15 +378,45 @@ fn save_workspace_protocol_decides_the_saved_workspace_range() {
         (None, "workspace:~1.2.3", "1.2.3", true, "workspace:~"),
         (None, "workspace:1.2.3", "1.2.3", true, "workspace:*"),
         (None, "workspace:*", "1.2.3", true, "workspace:*"),
-        (Some("true"), "workspace:^1.2.3", "1.2.3", true, "workspace:^1.2.3"),
+        (
+            Some("true"),
+            "workspace:^1.2.3",
+            "1.2.3",
+            true,
+            "workspace:^1.2.3",
+        ),
         // The typed `~` loses to the default `^`: the pinned form reads
         // its operator off the previous entry, and there is none here.
-        (Some("true"), "workspace:~1.2.3", "1.2.3", true, "workspace:^1.2.3"),
+        (
+            Some("true"),
+            "workspace:~1.2.3",
+            "1.2.3",
+            true,
+            "workspace:^1.2.3",
+        ),
         // The local version wins over the typed range.
-        (Some("true"), "workspace:^1.0.0", "2.5.0", true, "workspace:^2.5.0"),
+        (
+            Some("true"),
+            "workspace:^1.0.0",
+            "2.5.0",
+            true,
+            "workspace:^2.5.0",
+        ),
         // A range over a prerelease would not match it, so it is exact.
-        (Some("true"), "workspace:^1.0.0", "2.0.0-beta.1", true, "workspace:2.0.0-beta.1"),
-        (Some("false"), "workspace:^1.2.3", "1.2.3", true, "workspace:^1.2.3"),
+        (
+            Some("true"),
+            "workspace:^1.0.0",
+            "2.0.0-beta.1",
+            true,
+            "workspace:2.0.0-beta.1",
+        ),
+        (
+            Some("false"),
+            "workspace:^1.2.3",
+            "1.2.3",
+            true,
+            "workspace:^1.2.3",
+        ),
     ];
 
     for (setting, requested, lib_version, link_workspace_packages, expected) in cases {
@@ -343,10 +428,19 @@ fn save_workspace_protocol_decides_the_saved_workspace_range() {
             "{HERMETIC_STORE_YAML}packages:\n  - packages/*\nlinkWorkspacePackages: {link_workspace_packages}\n{protocol_line}",
         );
         std::fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write workspace yaml");
-        write_json(&workspace.join("package.json"), &serde_json::json!({ "name": "root" }));
+        write_json(
+            &workspace.join("package.json"),
+            &serde_json::json!({ "name": "root" }),
+        );
         for (dir, manifest) in [
-            ("lib", serde_json::json!({ "name": LIB, "version": lib_version })),
-            ("app", serde_json::json!({ "name": "ws-app", "version": "1.0.0" })),
+            (
+                "lib",
+                serde_json::json!({ "name": LIB, "version": lib_version }),
+            ),
+            (
+                "app",
+                serde_json::json!({ "name": "ws-app", "version": "1.0.0" }),
+            ),
         ] {
             let package_dir = workspace.join("packages").join(dir);
             std::fs::create_dir_all(&package_dir).expect("create package dir");
@@ -376,9 +470,11 @@ fn save_workspace_protocol_decides_the_saved_workspace_range() {
 #[test]
 fn a_bare_workspace_add_uses_the_local_package_and_saved_protocol_setting() {
     const LIB: &str = "@pnpm.e2e/ws-bare";
-    for (setting, expected) in
-        [(None, "workspace:^"), (Some("true"), "workspace:^1.2.3"), (Some("false"), "^1.2.3")]
-    {
+    for (setting, expected) in [
+        (None, "workspace:^"),
+        (Some("true"), "workspace:^1.2.3"),
+        (Some("false"), "^1.2.3"),
+    ] {
         let (root, app_dir) = workspace_with_lib(
             &linking_settings(setting),
             &[(LIB, "1.2.3")],
@@ -431,7 +527,10 @@ fn the_pinned_form_picks_the_highest_workspace_version_by_semver() {
     );
     add_in(&app_dir, &format!("{LIB}@workspace:*"));
 
-    assert_eq!(saved_spec(&app_dir, LIB).as_deref(), Some("workspace:^10.0.0"));
+    assert_eq!(
+        saved_spec(&app_dir, LIB).as_deref(),
+        Some("workspace:^10.0.0"),
+    );
     drop(root);
 }
 
@@ -441,9 +540,11 @@ fn the_pinned_form_picks_the_highest_workspace_version_by_semver() {
 #[test]
 fn the_env_var_drives_the_saved_workspace_range() {
     const LIB: &str = "@pnpm.e2e/ws-env";
-    for (value, expected) in
-        [("true", "workspace:^1.2.3"), ("rolling", "workspace:^"), ("false", "workspace:^1.2.3")]
-    {
+    for (value, expected) in [
+        ("true", "workspace:^1.2.3"),
+        ("rolling", "workspace:^"),
+        ("false", "workspace:^1.2.3"),
+    ] {
         let (root, app_dir) = workspace_with_lib(
             &linking_settings(None),
             &[(LIB, "1.2.3")],
@@ -457,7 +558,10 @@ fn the_env_var_drives_the_saved_workspace_range() {
             .assert()
             .success();
 
-        eprintln!("PNPM_CONFIG_SAVE_WORKSPACE_PROTOCOL={value} -> {:?}", saved_spec(&app_dir, LIB));
+        eprintln!(
+            "PNPM_CONFIG_SAVE_WORKSPACE_PROTOCOL={value} -> {:?}",
+            saved_spec(&app_dir, LIB),
+        );
         assert_eq!(saved_spec(&app_dir, LIB).as_deref(), Some(expected));
         drop(root);
     }

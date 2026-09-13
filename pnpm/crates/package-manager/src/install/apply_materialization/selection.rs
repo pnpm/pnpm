@@ -37,9 +37,7 @@ pub(super) fn select_materialized_state<'a>(
     let current_lockfile =
         wanted_lockfile.map(|wanted| materialized_current_lockfile(inputs, wanted));
     let project_anchor_importer_ids = project_anchor_importers(inputs, wanted_lockfile);
-    let project_manifests = inputs
-        .projects
-        .manifests
+    let project_manifests = inputs.projects.manifests
         .iter()
         .filter(|(project_dir, _)| {
             let importer_id =
@@ -136,9 +134,7 @@ pub(super) async fn link_materialized_projects<Reporter: self::Reporter + 'stati
             }),
             // Honor a `modulesDir` override the same way the
             // lockfile-driven symlink pass does.
-            inputs
-                .config
-                .modules_dir
+            inputs.config.modules_dir
                 .file_name()
                 .unwrap_or_else(|| std::ffi::OsStr::new("node_modules")),
             &crate::shim_link_options(inputs.config, inputs.node_linker),
@@ -183,8 +179,7 @@ pub(super) async fn package_map_engine_name(
 ) -> Option<String> {
     let runtime_major =
         crate::install_frozen_lockfile::find_runtime_node_major(current.snapshots.as_ref());
-    let configured_major = config
-        .node_version
+    let configured_major = config.node_version
         .as_deref()
         .and_then(crate::install_frozen_lockfile::parse_major_from_version);
     match runtime_major.or(configured_major) {

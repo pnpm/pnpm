@@ -73,11 +73,26 @@ struct StoredImageDocument {
 
 impl From<StoredImageDocument> for ImageDocument {
     fn from(stored: StoredImageDocument) -> Self {
-        let StoredImageDocument { name, mut manifests, mut tags, generation, deleting_blob } =
-            stored;
-        manifests.sort_by(|left, right| left.digest.hex().cmp(right.digest.hex()));
+        let StoredImageDocument {
+            name,
+            mut manifests,
+            mut tags,
+            generation,
+            deleting_blob,
+        } = stored;
+        manifests.sort_by(|left, right| {
+            left.digest
+                .hex()
+                .cmp(right.digest.hex())
+        });
         tags.sort_by(|left, right| left.tag.cmp(&right.tag));
-        Self { name, manifests, tags, generation, deleting_blob }
+        Self {
+            name,
+            manifests,
+            tags,
+            generation,
+            deleting_blob,
+        }
     }
 }
 
@@ -110,7 +125,10 @@ pub struct ImageDocument {
 impl ImageDocument {
     #[must_use]
     pub fn new(name: &str) -> Self {
-        Self { name: name.to_string(), ..Self::default() }
+        Self {
+            name: name.to_string(),
+            ..Self::default()
+        }
     }
 
     pub fn parse(bytes: &[u8]) -> Result<Self, serde_json::Error> {
@@ -137,7 +155,11 @@ impl ImageDocument {
     #[must_use]
     pub fn manifest(&self, digest: &Digest) -> Option<&ManifestEntry> {
         self.manifests
-            .binary_search_by(|entry| entry.digest.hex().cmp(digest.hex()))
+            .binary_search_by(|entry| {
+                entry.digest
+                    .hex()
+                    .cmp(digest.hex())
+            })
             .ok()
             .map(|index| &self.manifests[index])
     }
@@ -156,18 +178,27 @@ impl ImageDocument {
     pub fn resolve(&self, reference: &str) -> Option<&ManifestEntry> {
         match Digest::parse(reference) {
             Ok(digest) => self.manifest(&digest),
-            Err(_) => self.tag(reference).and_then(|tag| self.manifest(&tag.digest)),
+            Err(_) => self
+                .tag(reference)
+                .and_then(|tag| self.manifest(&tag.digest)),
         }
     }
 
     /// Tag names in lexical order, as `GET /v2/<name>/tags/list` serves them.
     #[must_use]
     pub fn tag_names(&self) -> Vec<&str> {
-        self.tags.iter().map(|entry| entry.tag.as_str()).collect()
+        self.tags
+            .iter()
+            .map(|entry| entry.tag.as_str())
+            .collect()
     }
 
     pub fn insert_manifest(&mut self, entry: ManifestEntry) {
-        match self.manifests.binary_search_by(|held| held.digest.hex().cmp(entry.digest.hex())) {
+        match self.manifests.binary_search_by(|held| {
+            held.digest
+                .hex()
+                .cmp(entry.digest.hex())
+        }) {
             Ok(index) => self.manifests[index] = entry,
             Err(index) => self.manifests.insert(index, entry),
         }
@@ -183,8 +214,11 @@ impl ImageDocument {
     /// Every tag that named the manifest goes with it. `false` when the
     /// repository held no such manifest.
     pub fn remove_manifest(&mut self, digest: &Digest) -> bool {
-        let Ok(index) = self.manifests.binary_search_by(|held| held.digest.hex().cmp(digest.hex()))
-        else {
+        let Ok(index) = self.manifests.binary_search_by(|held| {
+            held.digest
+                .hex()
+                .cmp(digest.hex())
+        }) else {
             return false;
         };
         self.manifests.remove(index);
@@ -272,10 +306,12 @@ impl ImageDocument {
     /// change, so re-applying the mapping already held costs no document
     /// write.
     fn tag_supersedes(&self, entry: &TagEntry) -> bool {
-        self.tag(&entry.tag).is_none_or(|held| match held.updated.cmp(&entry.updated) {
-            Ordering::Less => true,
-            Ordering::Equal => held.digest != entry.digest,
-            Ordering::Greater => false,
-        })
+        self
+            .tag(&entry.tag)
+            .is_none_or(|held| match held.updated.cmp(&entry.updated) {
+                Ordering::Less => true,
+                Ordering::Equal => held.digest != entry.digest,
+                Ordering::Greater => false,
+            })
     }
 }

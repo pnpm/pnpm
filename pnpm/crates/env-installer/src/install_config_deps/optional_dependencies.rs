@@ -86,25 +86,27 @@ fn is_compatible<Reporter: self::Reporter>(
     match check_package(&id, &manifest, &opts.platform) {
         Ok(None) => true,
         Ok(Some(error)) => {
-            Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
-                level: LogLevel::Debug,
-                details: Some(error.to_string()),
-                package: SkippedOptionalPackage::Installed {
-                    id,
-                    name: subdep.name.clone(),
-                    version: subdep.version.clone(),
+            Reporter::emit(&LogEvent::SkippedOptionalDependency(
+                SkippedOptionalDependencyLog {
+                    level: LogLevel::Debug,
+                    details: Some(error.to_string()),
+                    package: SkippedOptionalPackage::Installed {
+                        id,
+                        name: subdep.name.clone(),
+                        version: subdep.version.clone(),
+                    },
+                    parents: None,
+                    prefix: opts.root_dir.to_string_lossy().into_owned(),
+                    reason: match error.skip_reason() {
+                        pnpm_package_is_installable::SkipReason::UnsupportedEngine => {
+                            SkippedOptionalReason::UnsupportedEngine
+                        }
+                        pnpm_package_is_installable::SkipReason::UnsupportedPlatform => {
+                            SkippedOptionalReason::UnsupportedPlatform
+                        }
+                    },
                 },
-                parents: None,
-                prefix: opts.root_dir.to_string_lossy().into_owned(),
-                reason: match error.skip_reason() {
-                    pnpm_package_is_installable::SkipReason::UnsupportedEngine => {
-                        SkippedOptionalReason::UnsupportedEngine
-                    }
-                    pnpm_package_is_installable::SkipReason::UnsupportedPlatform => {
-                        SkippedOptionalReason::UnsupportedPlatform
-                    }
-                },
-            }));
+            ));
             let _ = (parent_name, parent_version);
             false
         }
@@ -153,8 +155,7 @@ pub(super) fn normalize_from_lockfile(
             ),
         })?;
 
-        let optional_subdeps = env_lockfile
-            .snapshots
+        let optional_subdeps = env_lockfile.snapshots
             .get(&key)
             .and_then(|snapshot| snapshot.optional_dependencies.as_ref())
             .map(|optionals| read_optional_subdeps(name, optionals, env_lockfile, opts))
@@ -177,12 +178,23 @@ pub(super) fn normalize_from_lockfile(
 fn required_config_package<'a>(
     env_lockfile: &'a EnvLockfile,
     pkg_key: &str,
-) -> Result<(pnpm_lockfile::PackageKey, &'a pnpm_lockfile::PackageMetadata), ConfigDepError> {
-    let key = pkg_key.parse().map_err(|_| ConfigDepError::EnvLockfileCorrupted {
-        message: format!(r#"pnpm-lock.yaml has an unparsable config-dependency key "{pkg_key}""#),
-    })?;
-    let pkg =
-        env_lockfile.packages.get(&key).ok_or_else(|| ConfigDepError::EnvLockfileCorrupted {
+) -> Result<
+    (
+        pnpm_lockfile::PackageKey,
+        &'a pnpm_lockfile::PackageMetadata,
+    ),
+    ConfigDepError,
+> {
+    let key = pkg_key
+        .parse()
+        .map_err(|_| ConfigDepError::EnvLockfileCorrupted {
+            message: format!(
+                r#"pnpm-lock.yaml has an unparsable config-dependency key "{pkg_key}""#,
+            ),
+        })?;
+    let pkg = env_lockfile.packages
+        .get(&key)
+        .ok_or_else(|| ConfigDepError::EnvLockfileCorrupted {
             message: format!(
                 "pnpm-lock.yaml is corrupted or incomplete: missing packages entry for \
                  \"{pkg_key}\" referenced from importers['.'].configDependencies",
@@ -199,21 +211,13 @@ fn read_optional_subdeps(
 ) -> Result<Vec<NormalizedSubdep>, ConfigDepError> {
     let mut subdeps = Vec::new();
     for (subdep_name, dep_ref) in optionals {
-        let version = dep_ref.ver_peer().map(std::string::ToString::to_string).unwrap_or_default();
+        let version = dep_ref
+            .ver_peer()
+            .map(std::string::ToString::to_string)
+            .unwrap_or_default();
         let subdep_name = subdep_name.to_string();
         let subdep_key = format!("{subdep_name}@{version}");
-        let key = subdep_key.parse().map_err(|_| ConfigDepError::EnvLockfileCorrupted {
-            message: format!(r#"pnpm-lock.yaml has an unparsable subdep key "{subdep_key}""#),
-        })?;
-        let pkg = env_lockfile.packages.get(&key).ok_or_else(|| {
-            ConfigDepError::EnvLockfileCorrupted {
-                message: format!(
-                    "pnpm-lock.yaml is corrupted or incomplete: missing packages entry for \
-                     \"{subdep_key}\" referenced from optionalDependencies of config dependency \
-                     \"{parent_name}\"",
-                ),
-            }
-        })?;
+        let pkg = optional_package_metadata(env_lockfile, parent_name, &subdep_key)?;
         let (integrity, tarball) = integrity_and_tarball(
             &pkg.resolution,
             &subdep_name,
@@ -251,7 +255,14 @@ fn integrity_and_tarball(
     match resolution {
         LockfileResolution::Registry(registry_resolution) => Some((
             registry_resolution.integrity.clone(),
-            npm_tarball_url(name, version, TarballUrlOptions { registry, server_type: None }),
+            npm_tarball_url(
+                name,
+                version,
+                TarballUrlOptions {
+                    registry,
+                    server_type: None,
+                },
+            ),
         )),
         LockfileResolution::Tarball(tarball) => {
             let integrity = tarball.integrity.clone()?;
@@ -259,4 +270,25 @@ fn integrity_and_tarball(
         }
         _ => None,
     }
+}
+
+fn optional_package_metadata<'lockfile>(
+    env_lockfile: &'lockfile EnvLockfile,
+    parent_name: &str,
+    subdep_key: &str,
+) -> Result<&'lockfile pnpm_lockfile::PackageMetadata, ConfigDepError> {
+    let key = subdep_key
+        .parse()
+        .map_err(|_| ConfigDepError::EnvLockfileCorrupted {
+            message: format!(r#"pnpm-lock.yaml has an unparsable subdep key "{subdep_key}""#),
+        })?;
+    env_lockfile.packages
+        .get(&key)
+        .ok_or_else(|| ConfigDepError::EnvLockfileCorrupted {
+            message: format!(
+                "pnpm-lock.yaml is corrupted or incomplete: missing packages entry for \
+                     \"{subdep_key}\" referenced from optionalDependencies of config dependency \
+                     \"{parent_name}\"",
+            ),
+        })
 }

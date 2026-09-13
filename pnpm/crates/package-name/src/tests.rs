@@ -2,7 +2,15 @@ use super::is_valid_old_npm_package_name;
 
 #[test]
 fn is_valid_old_npm_package_name_accepts_common_shapes() {
-    for ok in ["foo", "foo-bar", "foo.bar", "foo_bar", "@scope/foo", "Foo", "1.2.3"] {
+    for ok in [
+        "foo",
+        "foo-bar",
+        "foo.bar",
+        "foo_bar",
+        "@scope/foo",
+        "Foo",
+        "1.2.3",
+    ] {
         assert!(is_valid_old_npm_package_name(ok), "{ok} should be valid");
     }
 }
@@ -28,6 +36,9 @@ fn is_valid_old_npm_package_name_rejects_error_cases() {
         "@/foo",            // scoped shape with empty user
         "@scope/",          // scoped shape with empty pkg
     ] {
-        assert!(!is_valid_old_npm_package_name(bad), "{bad:?} should be invalid");
+        assert!(
+            !is_valid_old_npm_package_name(bad),
+            "{bad:?} should be invalid",
+        );
     }
 }

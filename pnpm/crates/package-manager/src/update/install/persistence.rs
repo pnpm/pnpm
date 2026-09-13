@@ -62,7 +62,9 @@ pub(in super::super) fn settle_selected_update<Reporter: self::Reporter>(
     persist_selected_manifests::<Reporter>(projects, &persist_indices)?;
     let workspace_dir = site.catalogs_dir(prepared.workspace_dir_for_catalogs.as_deref());
     if update.version.save
-        && let Some(applied) = applied.as_ref().filter(|applied| !applied.catalogs.is_empty())
+        && let Some(applied) = applied
+            .as_ref()
+            .filter(|applied| !applied.catalogs.is_empty())
     {
         write_workspace_catalogs_selected(
             update.config,
@@ -94,8 +96,7 @@ pub(in super::super) fn settle_update_manifest<Reporter: self::Reporter>(
     config: &Config,
     settle: SettleUpdate<'_>,
 ) -> Result<(), UpdateError> {
-    let bumped_manifest = settle
-        .applied
+    let bumped_manifest = settle.applied
         .and_then(|applied| applied.manifests.get(settle.importer_id))
         .is_some_and(|bumped| {
             apply_bumped_manifest_specs::<Reporter>(
@@ -132,11 +133,15 @@ pub(in super::super) fn bumped_persist_indices<Reporter: self::Reporter>(
     applied: Option<&crate::AppliedSpecBumps>,
     mut persist_indices: Vec<usize>,
 ) -> Vec<usize> {
-    let Some(applied) = applied else { return persist_indices };
+    let Some(applied) = applied else {
+        return persist_indices;
+    };
     for (index, project) in projects.iter_mut().enumerate() {
         let importer_id =
             pnpm_workspace::importer_id_from_root_dir(workspace_root, &project.root_dir);
-        let Some(bumped) = applied.manifests.get(&importer_id) else { continue };
+        let Some(bumped) = applied.manifests.get(&importer_id) else {
+            continue;
+        };
         let already_persisting = persist_indices.contains(&index);
         if apply_bumped_manifest_specs::<Reporter>(
             &mut project.manifest,
@@ -165,7 +170,9 @@ pub(in super::super) fn apply_bumped_manifest_specs<Reporter: self::Reporter>(
     let declared = bumped
         .iter()
         .filter(|(alias, (group, _))| {
-            manifest.dependencies([*group]).any(|(name, _)| name == alias.as_str())
+            manifest
+                .dependencies([*group])
+                .any(|(name, _)| name == alias.as_str())
         })
         .collect::<Vec<_>>();
     if declared.is_empty() {
@@ -199,7 +206,10 @@ pub(in super::super) fn persist_manifest<Reporter: self::Reporter>(
     let prefix = package_manifest_prefix(manifest);
     Reporter::emit(&LogEvent::PackageManifest(PackageManifestLog {
         level: LogLevel::Debug,
-        message: PackageManifestMessage::Updated { prefix, updated },
+        message: PackageManifestMessage::Updated {
+            prefix,
+            updated,
+        },
     }));
     Ok(())
 }

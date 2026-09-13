@@ -20,7 +20,11 @@ fn save_preserves_the_existing_package_json_permissions() {
 
     // The atomic temp-file-then-rename must keep the original mode, not leave
     // the NamedTempFile's default 0o600 behind.
-    let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+    let mode = std::fs::metadata(&path)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
     assert_eq!(mode, 0o640);
 }
 
@@ -54,7 +58,11 @@ fn init_should_create_package_json_if_not_exist() {
     let dir = tempdir().unwrap();
     let tmp = dir.path().join("package.json");
     PackageManifest::init(&tmp, InitOptions::default()).unwrap();
-    eprintln!("tmp={tmp:?} exists={} is_file={}", tmp.exists(), tmp.is_file());
+    eprintln!(
+        "tmp={tmp:?} exists={} is_file={}",
+        tmp.exists(),
+        tmp.is_file(),
+    );
     assert!(tmp.exists());
     assert!(tmp.is_file());
     assert_eq!(PackageManifest::from_path(tmp.clone()).unwrap().path, tmp);
@@ -67,7 +75,11 @@ fn bundle_dependencies() {
         List: IntoIterator,
         List::Item: Into<String>,
     {
-        list.into_iter().map(Into::into).collect::<Vec<_>>().pipe(BundleDependencies::List)
+        list
+            .into_iter()
+            .map(Into::into)
+            .collect::<Vec<_>>()
+            .pipe(BundleDependencies::List)
     }
 
     macro_rules! case {
@@ -117,7 +129,10 @@ fn save_and_get_written_value_returns_saved_manifest() {
     // and is dropped from the written file, while the in-memory manifest
     // keeps the reified entry.
     assert_eq!(saved.get("devDependencies"), None);
-    assert_eq!(manifest.value().get("devDependencies"), Some(&json!({ "node": "runtime:22" })));
+    assert_eq!(
+        manifest.value().get("devDependencies"),
+        Some(&json!({ "node": "runtime:22" })),
+    );
 }
 
 /// A manifest scaffolded for a project with no `package.json` ends with a
@@ -140,12 +155,27 @@ fn new_manifests_end_with_a_final_newline() {
 fn from_path_reads_a_manifest_that_starts_with_a_utf8_bom() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("package.json");
-    std::fs::write(&path, "\u{feff}{\n  \"name\": \"fixture\",\n  \"version\": \"1.0.0\"\n}\n")
-        .unwrap();
+    std::fs::write(
+        &path,
+        "\u{feff}{\n  \"name\": \"fixture\",\n  \"version\": \"1.0.0\"\n}\n",
+    )
+    .unwrap();
 
     let manifest = PackageManifest::from_path(path).unwrap();
-    assert_eq!(manifest.value().get("name").unwrap(), &json!("fixture"));
-    assert_eq!(manifest.value().get("version").unwrap(), &json!("1.0.0"));
+    assert_eq!(
+        manifest
+            .value()
+            .get("name")
+            .unwrap(),
+        &json!("fixture"),
+    );
+    assert_eq!(
+        manifest
+            .value()
+            .get("version")
+            .unwrap(),
+        &json!("1.0.0"),
+    );
 }
 
 /// The BOM belongs to the file, not to the manifest, so reading one never
@@ -173,7 +203,11 @@ fn saving_a_bom_prefixed_manifest_keeps_the_bom_until_something_changes() {
 #[test]
 fn safe_read_package_json_from_dir_reads_a_manifest_that_starts_with_a_utf8_bom() {
     let dir = tempdir().unwrap();
-    std::fs::write(dir.path().join("package.json"), "\u{feff}{\"name\":\"fixture\"}").unwrap();
+    std::fs::write(
+        dir.path().join("package.json"),
+        "\u{feff}{\"name\":\"fixture\"}",
+    )
+    .unwrap();
 
     let manifest = safe_read_package_json_from_dir(dir.path()).unwrap().unwrap();
     assert_eq!(manifest.get("name").unwrap(), &json!("fixture"));
@@ -181,7 +215,10 @@ fn safe_read_package_json_from_dir_reads_a_manifest_that_starts_with_a_utf8_bom(
 
 #[test]
 fn extracts_license_from_modern_and_legacy_manifest_fields() {
-    assert_eq!(extract_license(&json!({ "license": "MIT" })), Some("MIT".to_string()));
+    assert_eq!(
+        extract_license(&json!({ "license": "MIT" })),
+        Some("MIT".to_string()),
+    );
     assert_eq!(
         extract_license(&json!({ "license": { "type": "Apache-2.0" } })),
         Some("Apache-2.0".to_string()),
@@ -214,7 +251,10 @@ fn modern_license_takes_priority_and_invalid_values_fall_back() {
         })),
         Some("MIT".to_string()),
     );
-    assert_eq!(extract_license(&json!({ "license": 42, "licenses": [] })), None);
+    assert_eq!(
+        extract_license(&json!({ "license": 42, "licenses": [] })),
+        None,
+    );
 }
 
 /// A BOM is only stripped where a document may legitimately start, so a
@@ -233,7 +273,11 @@ fn a_bom_after_the_start_of_the_manifest_is_still_a_parse_error() {
         matches!(&err, PackageManifestError::Parse { path: reported, .. } if reported == &path),
         "the offending manifest path must be reported, got {err:?}",
     );
-    assert!(err.to_string().contains(&path.display().to_string()));
+    assert!(
+        err
+            .to_string()
+            .contains(&path.display().to_string()),
+    );
 }
 
 #[test]

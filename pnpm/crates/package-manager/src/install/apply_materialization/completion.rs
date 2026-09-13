@@ -98,8 +98,7 @@ pub(super) fn materialized_script_projects<'a>(
     if inputs.config.ignore_scripts || inputs.config.virtual_store_only {
         Vec::new()
     } else if let Some(rebuild) = inputs.request.rebuild {
-        inputs
-            .materialized_project_manifests
+        inputs.materialized_project_manifests
             .iter()
             .filter(|(project_dir, _)| {
                 let importer_id =
@@ -161,10 +160,9 @@ pub(super) fn report_install_completion<Reporter: self::Reporter>(
     // throwaway per-group directory, and the approval prompt that
     // follows it records the ignored builds against the stable global
     // packages dir instead.
-    let is_global_install =
-        inputs.workspace.config.global_pkg_dir.as_deref().is_some_and(|global_pkg_dir| {
-            inputs.workspace.workspace_root.starts_with(global_pkg_dir)
-        });
+    let is_global_install = inputs.workspace.config.global_pkg_dir
+        .as_deref()
+        .is_some_and(|global_pkg_dir| inputs.workspace.workspace_root.starts_with(global_pkg_dir));
     // Leave the user a line to edit in `pnpm-workspace.yaml` for every
     // build this install blocked, so approving one is an edit rather
     // than recalling the `allowBuilds` shape. Written before the strict
@@ -175,8 +173,7 @@ pub(super) fn report_install_completion<Reporter: self::Reporter>(
         && !is_global_install
         && !inputs.workspace.config.ignore_workspace
     {
-        let allow_build_keys: BTreeSet<String> = inputs
-            .ignored_builds
+        let allow_build_keys: BTreeSet<String> = inputs.ignored_builds
             .iter()
             .map(|dep_path| crate::allow_build_key_from_ignored_build(dep_path))
             .collect();
@@ -193,7 +190,9 @@ pub(super) fn report_install_completion<Reporter: self::Reporter>(
     // the package is still added/installed and the user approves the
     // builds and reinstalls.
     if inputs.workspace.config.strict_dep_builds && !inputs.ignored_builds.is_empty() {
-        return Err(InstallError::IgnoredBuilds { package_names: inputs.ignored_builds });
+        return Err(InstallError::IgnoredBuilds {
+            package_names: inputs.ignored_builds,
+        });
     }
 
     Ok(())
@@ -227,7 +226,11 @@ pub(in super::super) fn report_verified_file_integrity<Reporter: self::Reporter>
     let files = verified.files;
     let message = if verified.duration > VERIFIED_FILE_INTEGRITY_SLOW {
         let tenths = (verified.duration.as_millis() + 50) / 100;
-        format!("The integrity of {files} files was checked in {}.{}s.", tenths / 10, tenths % 10)
+        format!(
+            "The integrity of {files} files was checked in {}.{}s.",
+            tenths / 10,
+            tenths % 10,
+        )
     } else if files > VERIFIED_FILE_INTEGRITY_MANY {
         format!(
             "The integrity of {files} files was checked, because their timestamps changed since the store recorded them. A backup tool, an antivirus scan, or a copied store can cause this.",
@@ -235,5 +238,8 @@ pub(in super::super) fn report_verified_file_integrity<Reporter: self::Reporter>
     } else {
         return;
     };
-    Reporter::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Info, message }));
+    Reporter::emit(&LogEvent::Global(GlobalLog {
+        level: LogLevel::Info,
+        message,
+    }));
 }

@@ -9,7 +9,10 @@ use std::fmt::Write;
 /// `tarball` attached. Scoped names take their filename from the last
 /// segment, as npm does.
 pub fn publish_doc(name: &str, version: &str, tarball: &[u8]) -> Value {
-    let basename = name.rsplit('/').next().unwrap_or(name);
+    let basename = name
+        .rsplit('/')
+        .next()
+        .unwrap_or(name);
     let filename = format!("{basename}-{version}.tgz");
     json!({
         "_id": name,
@@ -49,9 +52,13 @@ pub fn sha1_hex(bytes: &[u8]) -> String {
     let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha1);
     opts.input(bytes);
     let integrity = opts.result();
-    let digest_bytes = BASE64.decode(&integrity.hashes[0].digest).unwrap();
-    digest_bytes.iter().fold(String::with_capacity(40), |mut hex, byte| {
-        write!(hex, "{byte:02x}").unwrap();
-        hex
-    })
+    let digest_bytes = BASE64
+        .decode(&integrity.hashes[0].digest)
+        .unwrap();
+    digest_bytes
+        .iter()
+        .fold(String::with_capacity(40), |mut hex, byte| {
+            write!(hex, "{byte:02x}").unwrap();
+            hex
+        })
 }

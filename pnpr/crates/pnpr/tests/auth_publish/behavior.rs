@@ -11,7 +11,11 @@ async fn anonymous_request_to_protected_package_returns_401() {
     // policy still requires auth for it because the package name
     // matches the `@pnpm.e2e/needs-auth` policy rule.
     let response = app
-        .oneshot(Request::get("/@pnpm.e2e/needs-auth").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/@pnpm.e2e/needs-auth")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -27,12 +31,29 @@ async fn update_packument_rejects_a_non_string_dist_integrity() {
     let publish = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
-        .body(Body::from(serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"real")).unwrap()))
+        .body(Body::from(
+            serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"real")).unwrap(),
+        ))
         .unwrap();
-    assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app
+            .clone()
+            .oneshot(publish)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
 
-    let get =
-        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let get = app
+        .clone()
+        .oneshot(
+            Request::get("/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     let mut packument = body_json(get.into_body()).await;
     // A present-but-non-string integrity must be rejected — otherwise it slips
     // past the string-only immutability check and breaks tarball serving.
@@ -42,7 +63,14 @@ async fn update_packument_rejects_a_non_string_dist_integrity() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&packument).unwrap()))
         .unwrap();
-    assert_eq!(app.oneshot(request).await.unwrap().status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        app
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::BAD_REQUEST,
+    );
 }
 
 #[tokio::test]
@@ -58,16 +86,36 @@ async fn deprecating_an_existing_version_without_an_attachment_is_allowed() {
     let first = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
-        .body(Body::from(serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"original")).unwrap()))
+        .body(Body::from(
+            serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"original")).unwrap(),
+        ))
         .unwrap();
-    assert_eq!(app.clone().oneshot(first).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app
+            .clone()
+            .oneshot(first)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
 
-    let get =
-        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let get = app
+        .clone()
+        .oneshot(
+            Request::get("/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     let hosted = body_json(get.into_body()).await;
     let hosted_dist = hosted["versions"]["1.0.0"]["dist"].clone();
     // Baseline so the dist-preservation assertion below isn't vacuous.
-    assert_eq!(hosted_dist["integrity"].as_str(), Some(sri_sha512(b"original").as_str()));
+    assert_eq!(
+        hosted_dist["integrity"].as_str(),
+        Some(sri_sha512(b"original").as_str()),
+    );
     let body = json!({
         "_id": "mypkg",
         "name": "mypkg",
@@ -86,14 +134,36 @@ async fn deprecating_an_existing_version_without_an_attachment_is_allowed() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    assert_eq!(app.clone().oneshot(deprecate).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app
+            .clone()
+            .oneshot(deprecate)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
 
     let after = body_json(
-        app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap().into_body(),
+        app
+            .oneshot(
+                Request::get("/mypkg")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
+            .into_body(),
     )
     .await;
-    assert_eq!(after["versions"]["1.0.0"]["deprecated"], "use 2.0.0 instead");
-    assert_eq!(after["versions"]["1.0.0"]["dist"], hosted["versions"]["1.0.0"]["dist"]);
+    assert_eq!(
+        after["versions"]["1.0.0"]["deprecated"],
+        "use 2.0.0 instead",
+    );
+    assert_eq!(
+        after["versions"]["1.0.0"]["dist"],
+        hosted["versions"]["1.0.0"]["dist"],
+    );
 }
 
 #[tokio::test]
@@ -109,13 +179,28 @@ async fn malformed_version_entry_cannot_corrupt_a_hosted_version() {
     let first = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
-        .body(Body::from(serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"original")).unwrap()))
+        .body(Body::from(
+            serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"original")).unwrap(),
+        ))
         .unwrap();
-    assert_eq!(app.clone().oneshot(first).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app
+            .clone()
+            .oneshot(first)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
 
     let before = body_json(
-        app.clone()
-            .oneshot(Request::get("/mypkg").body(Body::empty()).unwrap())
+        app
+            .clone()
+            .oneshot(
+                Request::get("/mypkg")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap()
             .into_body(),
@@ -129,11 +214,27 @@ async fn malformed_version_entry_cannot_corrupt_a_hosted_version() {
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
     // Accepted (no integrity change to reject) but the malformed entry is ignored.
-    assert_eq!(app.clone().oneshot(malformed).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app
+            .clone()
+            .oneshot(malformed)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
 
     // The hosted version is intact — its `dist` was not erased.
     let after = body_json(
-        app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap().into_body(),
+        app
+            .oneshot(
+                Request::get("/mypkg")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
+            .into_body(),
     )
     .await;
     assert_eq!(after["versions"]["1.0.0"], before["versions"]["1.0.0"]);
@@ -153,9 +254,19 @@ async fn metadata_put_cannot_inject_a_tarball_less_version() {
     let first = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
-        .body(Body::from(serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"original")).unwrap()))
+        .body(Body::from(
+            serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"original")).unwrap(),
+        ))
         .unwrap();
-    assert_eq!(app.clone().oneshot(first).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app
+            .clone()
+            .oneshot(first)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
 
     let body = json!({
         "_id": "mypkg",
@@ -177,11 +288,27 @@ async fn metadata_put_cannot_inject_a_tarball_less_version() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    assert_eq!(app.clone().oneshot(squat).await.unwrap().status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        app
+            .clone()
+            .oneshot(squat)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::BAD_REQUEST,
+    );
 
     // 9.9.9 was never added.
     let after = body_json(
-        app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap().into_body(),
+        app
+            .oneshot(
+                Request::get("/mypkg")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
+            .into_body(),
     )
     .await;
     assert!(after["versions"].get("9.9.9").is_none());
@@ -203,7 +330,15 @@ async fn hosted_tarball_is_preferred_over_a_cached_copy() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
 
     // Plant a divergent proxied copy with the same filename.
     let cached = storage.join(".pnpr-cache").join("pref-pkg");
@@ -211,7 +346,11 @@ async fn hosted_tarball_is_preferred_over_a_cached_copy() {
     std::fs::write(cached.join("pref-pkg-1.0.0.tgz"), b"stale-proxied-bytes").unwrap();
 
     let response = app
-        .oneshot(Request::get("/pref-pkg/-/pref-pkg-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/pref-pkg/-/pref-pkg-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -223,16 +362,30 @@ async fn search_finds_packages_by_substring_in_local_storage() {
     let storage = common::build_storage();
     let app = router(static_config(storage.path().to_path_buf()));
     let response = app
-        .oneshot(Request::get("/-/v1/search?text=no-deps&size=20").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/v1/search?text=no-deps&size=20")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let body = body_json(response.into_body()).await;
     let objects = body["objects"].as_array().expect("objects is array");
-    assert!(!objects.is_empty(), "expected no-deps to match the storage fixture");
-    let names: Vec<&str> =
-        objects.iter().map(|object| object["package"]["name"].as_str().unwrap()).collect();
-    assert!(names.iter().any(|n| n.contains("no-deps")), "got names: {names:?}");
+    assert!(
+        !objects.is_empty(),
+        "expected no-deps to match the storage fixture",
+    );
+    let names: Vec<&str> = objects
+        .iter()
+        .map(|object| object["package"]["name"].as_str().unwrap())
+        .collect();
+    assert!(
+        names
+            .iter()
+            .any(|n| n.contains("no-deps")),
+        "got names: {names:?}",
+    );
 }
 
 #[tokio::test]
@@ -244,7 +397,11 @@ async fn search_filters_protected_packages_for_anonymous_callers() {
     // for $authenticated, so search shouldn't surface it.
     let response = app
         .clone()
-        .oneshot(Request::get("/-/v1/search?text=needs-auth&size=20").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/v1/search?text=needs-auth&size=20")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -259,7 +416,11 @@ async fn search_filters_protected_packages_for_anonymous_callers() {
         !names.contains(&"@pnpm.e2e/needs-auth"),
         "anonymous search must not enumerate @pnpm.e2e/needs-auth; got {names:?}",
     );
-    assert_eq!(body["total"], names.len(), "total must reflect post-filter count");
+    assert_eq!(
+        body["total"],
+        names.len(),
+        "total must reflect post-filter count",
+    );
 
     // Authenticated: same query should return the package.
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
@@ -300,7 +461,13 @@ async fn search_returns_empty_for_made_up_query() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let body = body_json(response.into_body()).await;
-    assert_eq!(body["objects"].as_array().unwrap().len(), 0);
+    assert_eq!(
+        body["objects"]
+            .as_array()
+            .unwrap()
+            .len(),
+        0,
+    );
     assert_eq!(body["total"], 0);
 }
 
@@ -339,7 +506,13 @@ async fn search_augment_skips_when_upstream_404s() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let body = body_json(response.into_body()).await;
-    assert_eq!(body["objects"].as_array().unwrap().len(), 0);
+    assert_eq!(
+        body["objects"]
+            .as_array()
+            .unwrap()
+            .len(),
+        0,
+    );
     assert_eq!(body["total"], 0);
 }
 
@@ -348,11 +521,21 @@ async fn search_returns_empty_objects_in_static_mode() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
     let response = app
-        .oneshot(Request::get("/-/v1/search?text=anything&size=20").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/v1/search?text=anything&size=20")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let body = body_json(response.into_body()).await;
-    assert_eq!(body["objects"].as_array().unwrap().len(), 0);
+    assert_eq!(
+        body["objects"]
+            .as_array()
+            .unwrap()
+            .len(),
+        0,
+    );
     assert_eq!(body["total"], 0);
 }

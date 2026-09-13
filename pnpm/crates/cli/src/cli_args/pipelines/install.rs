@@ -22,7 +22,10 @@ pub(crate) struct InstallPipeline {
 
 impl InstallPipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        self.run_with_config::<Reporter>().await.map(|_| ())
+        self
+            .run_with_config::<Reporter>()
+            .await
+            .map(|_| ())
     }
 
     pub(crate) async fn run_with_config<Reporter: self::Reporter + 'static>(
@@ -40,8 +43,7 @@ impl InstallPipeline {
         // through the separate repair loader, which this prefetch does
         // not feed. Only the shared-lockfile arms consume this
         // lockfile; the per-project arms load their own.
-        let lockfile = self
-            .cfg
+        let lockfile = self.cfg
             .shares_one_lockfile()
             .then(|| State::lazy_lockfile(self.cfg, &self.manifest_path, self.require_lockfile));
         let certain_full_install = self.certain_full_install();
@@ -78,30 +80,23 @@ impl InstallPipeline {
     ) -> miette::Result<&'static Config> {
         let http_client =
             State::new_http_client(self.cfg).wrap_err("initialize the install network")?;
-        if !ecosystem_install::is_enabled(self.cfg) {
-            run_node_install::<Reporter>(
-                plan,
-                self.args,
-                self.cfg,
-                self.manifest_path,
-                self.require_lockfile,
-                lockfile,
-                http_client,
+        let ecosystem_plan = if ecosystem_install::is_enabled(self.cfg) {
+            Some(
+                ecosystem_install::plan::<Reporter>(
+                    ecosystem_install::InstallContext {
+                        config: self.cfg,
+                        http_client: Arc::clone(&http_client),
+                        lockfile_only: self.args.lockfile.only,
+                        frozen_lockfile: self.frozen_lockfile,
+                    },
+                    self.config_root,
+                    &self.args.dependency_options,
+                )
+                .await?,
             )
-            .await?;
-            return Ok(self.cfg);
-        }
-        let ecosystem_plan = ecosystem_install::plan::<Reporter>(
-            ecosystem_install::InstallContext {
-                config: self.cfg,
-                http_client: Arc::clone(&http_client),
-                lockfile_only: self.args.lockfile.only,
-                frozen_lockfile: self.frozen_lockfile,
-            },
-            self.config_root,
-            &self.args.dependency_options,
-        )
-        .await?;
+        } else {
+            None
+        };
         let node_install = run_node_install::<Reporter>(
             plan,
             self.args,
@@ -111,10 +106,17 @@ impl InstallPipeline {
             lockfile,
             http_client,
         );
-        ecosystem_plan
-            .with_task(pnpm_install_coordinator::InstallTask::in_place(Vec::new(), node_install))
-            .run()
-            .await?;
+        if let Some(ecosystem_plan) = ecosystem_plan {
+            ecosystem_plan
+                .with_task(pnpm_install_coordinator::InstallTask::in_place(
+                    Vec::new(),
+                    node_install,
+                ))
+                .run()
+                .await?;
+        } else {
+            node_install.await?;
+        }
         Ok(self.cfg)
     }
 
@@ -223,7 +225,11 @@ pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Rep
             names.insert(workspace_root.to_path_buf(), name);
         }
     }
-    project_dirs.extend(projects.into_iter().map(|project| project.root_dir));
+    project_dirs.extend(
+        projects
+            .into_iter()
+            .map(|project| project.root_dir),
+    );
     // One `Config::leak` per project: `State::init` needs a
     // `&'static Config`, and a leaked shared reference can't be
     // reclaimed for the next iteration. The leak is bounded by the

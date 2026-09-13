@@ -31,19 +31,24 @@ pub(super) fn reject_off_allowlist_fetches(
     if let Some(registry) = request.registry.as_deref() {
         registries.push(registry);
     }
-    if let Some(off) = registries.into_iter().find(|registry| !context.allows_registry(registry)) {
+    if let Some(off) = registries
+        .into_iter()
+        .find(|registry| !context.allows_registry(registry))
+    {
         return Some(forbidden_off_allowlist(off));
     }
 
     let projects = request.projects_normalized();
     let url_specs = fetchable_specs(request, &projects);
-    if let Some(off) = url_specs.into_iter().find(|spec| fetch_is_off_allowlist(spec, context)) {
+    if let Some(off) = url_specs
+        .into_iter()
+        .find(|spec| fetch_is_off_allowlist(spec, context))
+    {
         return Some(forbidden_off_allowlist(off));
     }
 
     // Override leaves can themselves be direct-URL specs.
-    if let Some(off) = request
-        .overrides
+    if let Some(off) = request.overrides
         .as_ref()
         .and_then(|overrides| first_off_allowlist_override(overrides, context))
     {
@@ -60,19 +65,26 @@ pub(super) fn reject_off_allowlist_fetches(
 fn fetchable_specs<'a>(request: &'a ResolveRequest, projects: &'a [ProjectDeps]) -> Vec<&'a str> {
     let mut url_specs: Vec<&str> = Vec::new();
     for project in projects {
-        for map in
-            [&project.dependencies, &project.dev_dependencies, &project.optional_dependencies]
-        {
+        for map in [
+            &project.dependencies,
+            &project.dev_dependencies,
+            &project.optional_dependencies,
+        ] {
             url_specs.extend(map.values().map(String::as_str));
         }
     }
     if let Some(catalogs) = request.catalogs.as_ref() {
-        url_specs
-            .extend(catalogs.values().flat_map(|catalog| catalog.values()).map(String::as_str));
+        url_specs.extend(
+            catalogs
+                .values()
+                .flat_map(|catalog| catalog.values())
+                .map(String::as_str),
+        );
     }
     extend_package_extension_specs(request, &mut url_specs);
-    if let Some(packages) =
-        request.lockfile.as_ref().and_then(|lockfile| lockfile.packages.as_ref())
+    if let Some(packages) = request.lockfile
+        .as_ref()
+        .and_then(|lockfile| lockfile.packages.as_ref())
     {
         for package in packages.values() {
             if let LockfileResolution::Tarball(resolution) = &package.resolution {
@@ -132,12 +144,12 @@ fn first_off_allowlist_override(
         serde_json::Value::String(spec) => {
             fetch_is_off_allowlist(spec, context).then(|| spec.clone())
         }
-        serde_json::Value::Array(items) => {
-            items.iter().find_map(|item| first_off_allowlist_override(item, context))
-        }
-        serde_json::Value::Object(map) => {
-            map.values().find_map(|item| first_off_allowlist_override(item, context))
-        }
+        serde_json::Value::Array(items) => items
+            .iter()
+            .find_map(|item| first_off_allowlist_override(item, context)),
+        serde_json::Value::Object(map) => map
+            .values()
+            .find_map(|item| first_off_allowlist_override(item, context)),
         _ => None,
     }
 }
@@ -168,10 +180,15 @@ pub(super) fn reject_invalid_registries(request: &ResolveRequest) -> Option<Resp
 }
 
 pub(super) fn reject_invalid_patch_hashes(request: &ResolveRequest) -> Option<Response> {
-    let (selector, _) = request.patched_dependencies.as_ref()?.iter().find(|(_, hash)| {
-        hash.len() != 64
-            || !hash.bytes().all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
-    })?;
+    let (selector, _) = request.patched_dependencies
+        .as_ref()?
+        .iter()
+        .find(|(_, hash)| {
+            hash.len() != 64
+                || !hash
+                    .bytes()
+                    .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+        })?;
     Some(json_error(
         StatusCode::BAD_REQUEST,
         &format!("patchedDependencies entry {selector:?} does not contain a SHA-256 hex digest"),
@@ -193,7 +210,9 @@ pub(super) fn reject_inline_url_auth(request: &ResolveRequest) -> Option<Respons
     specs.extend(request.registries.keys().map(String::as_str));
     let projects = request.projects_normalized();
     specs.extend(fetchable_specs(request, &projects));
-    let inline = specs.iter().any(|spec| pnpr_route::url_has_inline_credentials(spec))
+    let inline = specs
+        .iter()
+        .any(|spec| pnpr_route::url_has_inline_credentials(spec))
         || request.overrides.as_ref().is_some_and(overrides_have_inline_url_auth);
     inline.then(|| {
         json_error(

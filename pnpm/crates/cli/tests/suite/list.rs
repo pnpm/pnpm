@@ -7,8 +7,11 @@ use serde_json::{Value, json};
 use std::{collections::BTreeSet, fs, path::Path, process::Command};
 
 fn write_workspace(workspace: &Path, manifests: &[(&str, Value)]) {
-    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
-        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\n",
+    )
+    .expect("write pnpm-workspace.yaml");
     fs::write(
         workspace.join("package.json"),
         json!({
@@ -43,7 +46,15 @@ fn recursive_project_names(pacquet: Command, extra_args: &[&str]) -> BTreeSet<St
         String::from_utf8_lossy(&output.stderr),
     );
     let packages: Vec<Value> = serde_json::from_slice(&output.stdout).expect("parse list JSON");
-    packages.iter().map(|pkg| pkg["name"].as_str().expect("package name").to_string()).collect()
+    packages
+        .iter()
+        .map(|pkg| {
+            pkg["name"]
+                .as_str()
+                .expect("package name")
+                .to_string()
+        })
+        .collect()
 }
 
 /// Scaffold a project whose lockfile records exactly one dependency
@@ -111,7 +122,11 @@ fn list_json_reports_extraneous_packages_as_unsaved() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_project_with_extraneous_dep(&workspace);
 
-    let output = pacquet.with_arg("list").with_arg("--json").output().expect("spawn pacquet list");
+    let output = pacquet
+        .with_arg("list")
+        .with_arg("--json")
+        .output()
+        .expect("spawn pacquet list");
     assert!(
         output.status.success(),
         "list should succeed:\n{}",
@@ -172,8 +187,11 @@ const PKG: &str = "@pnpm.e2e/pkg-with-1-dep";
 
 const LEGEND: &str = "Legend: production dependency, optional only, dev only";
 
-fn setup_registry()
--> (tempfile::TempDir, std::path::PathBuf, pnpm_testing_utils::bin::AddMockedRegistry) {
+fn setup_registry() -> (
+    tempfile::TempDir,
+    std::path::PathBuf,
+    pnpm_testing_utils::bin::AddMockedRegistry,
+) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     (root, workspace, npmrc_info)
@@ -198,7 +216,10 @@ fn run_ok(dir: &Path, args: &[&str]) -> String {
 }
 
 fn canonical(dir: &Path) -> String {
-    dunce::canonicalize(dir).expect("canonicalize dir").to_string_lossy().into_owned()
+    dunce::canonicalize(dir)
+        .expect("canonicalize dir")
+        .to_string_lossy()
+        .into_owned()
 }
 
 /// Port of upstream's `listing packages`
@@ -254,8 +275,11 @@ fn listing_packages_prints_tree_with_legend_and_summary() {
 #[test]
 fn listing_packages_of_a_project_with_an_external_lockfile() {
     let (_root, workspace, _registry) = setup_registry();
-    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - pkg\n")
-        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - pkg\n",
+    )
+    .expect("write pnpm-workspace.yaml");
     fs::write(
         workspace.join("package.json"),
         json!({ "name": "root", "version": "1.0.0" }).to_string(),
@@ -298,8 +322,11 @@ fn listing_packages_with_local_file_directory_dependency() {
     let pkg = workspace.join("pkg");
     fs::create_dir_all(&dep).expect("create dep");
     fs::create_dir_all(&pkg).expect("create pkg");
-    fs::write(dep.join("package.json"), json!({ "name": "dep", "version": "1.0.0" }).to_string())
-        .expect("write dep package.json");
+    fs::write(
+        dep.join("package.json"),
+        json!({ "name": "dep", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write dep package.json");
     fs::write(
         pkg.join("package.json"),
         json!({
@@ -442,7 +469,10 @@ fn list_styles_the_tree_without_corrupting_it() {
     let colored = with_colors(pacquet_in(&workspace, ["list", "--lockfile-only", PKG]))
         .output()
         .expect("run pacquet list with colors");
-    assert!(colored.status.success(), "colored list should succeed: {colored:?}");
+    assert!(
+        colored.status.success(),
+        "colored list should succeed: {colored:?}",
+    );
 
     let plain_stdout = String::from_utf8_lossy(&plain.stdout);
     let colored_stdout = String::from_utf8_lossy(&colored.stdout);
@@ -470,7 +500,11 @@ fn list_json_reports_private_field_when_arguments_are_provided() {
         let parsed: Vec<Value> = serde_json::from_str(&output).expect("parse list JSON");
         assert_eq!(parsed.len(), 1, "private_field={private_field:?}");
         assert_eq!(parsed[0]["name"], "root");
-        assert_eq!(parsed[0]["private"], json!(expected), "private_field={private_field:?}");
+        assert_eq!(
+            parsed[0]["private"],
+            json!(expected),
+            "private_field={private_field:?}",
+        );
         assert!(parsed[0]["path"].is_string());
     }
 }
@@ -507,8 +541,14 @@ function hasPeerA (context) {
     run_ok(&workspace, &["install"]);
 
     let output = run_ok(&workspace, &["list", "--find-by=hasPeerA"]);
-    assert!(output.contains("@pnpm.e2e/abc@1.0.0"), "finder match missing: {output}");
-    assert!(output.contains("@pnpm.e2e/peer-a@^1.0.0"), "finder message missing: {output}");
+    assert!(
+        output.contains("@pnpm.e2e/abc@1.0.0"),
+        "finder match missing: {output}",
+    );
+    assert!(
+        output.contains("@pnpm.e2e/peer-a@^1.0.0"),
+        "finder message missing: {output}",
+    );
     assert!(
         !output.contains(&format!("{HELLO}@1.0.0")),
         "packages the finder rejected must be pruned: {output}",
@@ -528,8 +568,14 @@ function hasPeerA (context) {
         pacquet_in(&workspace, ["list", "--find-by=hasPeerA"]).output().expect("run pacquet list");
     assert!(!output.status.success(), "duplicate finder should fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_DUPLICATE_FINDER"), "stderr: {stderr}");
-    assert!(stderr.contains(r#"Finder "hasPeerA" defined in both"#), "stderr: {stderr}");
+    assert!(
+        stderr.contains("ERR_PNPM_DUPLICATE_FINDER"),
+        "stderr: {stderr}",
+    );
+    assert!(
+        stderr.contains(r#"Finder "hasPeerA" defined in both"#),
+        "stderr: {stderr}",
+    );
     assert!(stderr.contains(".pnpmfile.cjs"), "stderr: {stderr}");
     assert!(stderr.contains("duplicate.cjs"), "stderr: {stderr}");
 }
@@ -552,7 +598,10 @@ fn ls_with_unknown_finder_fails() {
         .expect("run pacquet list");
     assert!(!output.status.success(), "unknown finder should fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("No finder with name no-such-finder is found"), "stderr: {stderr}");
+    assert!(
+        stderr.contains("No finder with name no-such-finder is found"),
+        "stderr: {stderr}",
+    );
 }
 
 /// Port of upstream's `pnpm list returns correct paths with global
@@ -572,7 +621,10 @@ fn list_returns_correct_paths_with_global_virtual_store() {
     .expect("write package.json");
     let mut yaml =
         fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace yaml");
-    yaml = yaml.replace("enableGlobalVirtualStore: false", "enableGlobalVirtualStore: true");
+    yaml = yaml.replace(
+        "enableGlobalVirtualStore: false",
+        "enableGlobalVirtualStore: true",
+    );
     yaml.push_str("privateHoistPattern: '*'\n");
     fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write workspace yaml");
     run_ok(&workspace, &["install"]);
@@ -587,7 +639,10 @@ fn list_returns_correct_paths_with_global_virtual_store() {
 
     let sub_dep_path =
         parsed[0]["dependencies"][PKG]["dependencies"][DEP]["path"].as_str().expect("subdep path");
-    assert!(Path::new(sub_dep_path).exists(), "subdep path should exist: {sub_dep_path}");
+    assert!(
+        Path::new(sub_dep_path).exists(),
+        "subdep path should exist: {sub_dep_path}",
+    );
     assert!(
         Path::new(sub_dep_path).join("package.json").exists(),
         "subdep package.json should exist: {sub_dep_path}",
@@ -613,7 +668,10 @@ fn list_in_long_format_appends_manifest_details() {
     run_ok(&workspace, &["install"]);
 
     let output = run_ok(&workspace, &["list", "--long"]);
-    assert!(output.contains(&format!("{HELLO}@1.0.0")), "long output: {output}");
+    assert!(
+        output.contains(&format!("{HELLO}@1.0.0")),
+        "long output: {output}",
+    );
     assert!(
         output.contains("A package with a hello world js bin"),
         "description line missing: {output}",

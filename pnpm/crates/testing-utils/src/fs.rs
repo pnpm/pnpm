@@ -11,7 +11,13 @@ use walkdir::WalkDir;
 pub fn get_filenames_in_folder(path: &Path) -> Vec<String> {
     let mut files = fs::read_dir(path)
         .unwrap()
-        .map(|entry| entry.unwrap().file_name().to_string_lossy().to_string())
+        .map(|entry| {
+            entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .to_string()
+        })
         .collect::<Vec<_>>();
 
     files.sort();
@@ -19,7 +25,8 @@ pub fn get_filenames_in_folder(path: &Path) -> Vec<String> {
 }
 
 fn normalized_suffix(path: &Path, prefix: &Path) -> String {
-    path.strip_prefix(prefix)
+    path
+        .strip_prefix(prefix)
         .expect("strip prefix from path")
         .to_str()
         .expect("convert suffix to UTF-8")
@@ -83,15 +90,17 @@ pub fn mtime_ms(path: &Path) -> i64 {
         .pipe(fs::metadata)
         .and_then(|metadata| metadata.modified())
         .unwrap_or_else(|error| panic!("stat {path:?}: {error}"));
-    modified.duration_since(SystemTime::UNIX_EPOCH).map_or_else(
-        |error| panic!("mtime of {path:?} predates the Unix epoch: {error}"),
-        |elapsed| {
-            let millis = elapsed.as_millis();
-            millis.pipe(i64::try_from).unwrap_or_else(|_| {
+    modified
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map_or_else(
+            |error| panic!("mtime of {path:?} predates the Unix epoch: {error}"),
+            |elapsed| {
+                let millis = elapsed.as_millis();
+                millis.pipe(i64::try_from).unwrap_or_else(|_| {
                 panic!("mtime of {path:?} is {millis} ms past the epoch, beyond an i64 timestamp")
             })
-        },
-    )
+            },
+        )
 }
 
 /// Set `path`'s mtime to `ms` milliseconds since the Unix epoch.
@@ -174,7 +183,8 @@ pub fn bump_mtime(path: &Path) {
 /// baseline to push past, and a test that carried on would assert against a
 /// freshness verdict reached for the wrong reason.
 fn recorded_validation_timestamp(path: &Path) -> i64 {
-    path.ancestors()
+    path
+        .ancestors()
         .skip(1)
         .find_map(|dir| load_workspace_state(dir).expect("read the workspace state"))
         .unwrap_or_else(|| panic!("no workspace state above {path:?} to bump the mtime past"))

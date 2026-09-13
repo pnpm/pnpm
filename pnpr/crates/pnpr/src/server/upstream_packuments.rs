@@ -24,7 +24,13 @@ pub(super) async fn read_source_packument(
 ) -> Result<Option<Vec<u8>>, RegistryError> {
     match resolved_source {
         RegistrySource::Upstream(source) => {
-            authorize(state, identity, resolved_source, name.as_str(), Action::Access)?;
+            authorize(
+                state,
+                identity,
+                resolved_source,
+                name.as_str(),
+                Action::Access,
+            )?;
             load_upstream_packument_for(state, identity, source, name).await
         }
         RegistrySource::Hosted(source) => {
@@ -81,11 +87,9 @@ pub(super) async fn cache_upstream_packument(
     match fetched {
         PackumentFetch::Modified(fetched) => {
             if upstream.caches()
-                && let Err(err) = state
-                    .inner
-                    .storage
-                    .write_upstream_document(namespace, name, &fetched.bytes)
-                    .await
+                && let Err(err) =
+                    state.inner.storage.write_upstream_document(namespace, name, &fetched.bytes)
+                        .await
             {
                 tracing::warn!(?err, package = %name.as_str(), "upstream packument cache write failed");
             }
@@ -189,7 +193,13 @@ pub(super) async fn load_packument_for_read(
     let resolved_source = resolve_registry_source(state, &target, name.as_str());
     match &resolved_source {
         RegistrySource::Upstream(source) => {
-            authorize(state, identity, &resolved_source, name.as_str(), Action::Access)?;
+            authorize(
+                state,
+                identity,
+                &resolved_source,
+                name.as_str(),
+                Action::Access,
+            )?;
             load_upstream_packument_for(state, identity, source, name).await
         }
         RegistrySource::Hosted(source) => {

@@ -39,5 +39,8 @@ fn summary_keeps_manifest_diffs_separate_when_including_all_prefixes() {
             summary(),
         ],
     );
-    assert_eq!(frame, "\ndependencies:\n+ a 1.0.0\n\ndevDependencies:\n+ b 2.0.0\n");
+    assert_eq!(
+        frame,
+        "\ndependencies:\n+ a 1.0.0\n\ndevDependencies:\n+ b 2.0.0\n",
+    );
 }

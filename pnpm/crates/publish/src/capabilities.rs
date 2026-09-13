@@ -105,7 +105,9 @@ impl Clock for Host {
     fn now_ms() -> u64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .map_or(0, |elapsed| u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX))
+            .map_or(0, |elapsed| {
+                u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX)
+            })
     }
 }
 
@@ -116,7 +118,10 @@ impl OidcFetch for Host {
 
         let mut builder = match request.method {
             OidcMethod::Get => CLIENT.get(request.url),
-            OidcMethod::Post => CLIENT.post(request.url).header("content-length", "0").body(""),
+            OidcMethod::Post => CLIENT
+                .post(request.url)
+                .header("content-length", "0")
+                .body(""),
         };
         builder = builder
             .header("accept", "application/json")
@@ -124,18 +129,29 @@ impl OidcFetch for Host {
         if let Some(timeout) = request.timeout_ms {
             builder = builder.timeout(Duration::from_millis(timeout));
         }
-        let response =
-            builder.send().await.map_err(|error| OidcFetchError { reason: error.to_string() })?;
+        let response = builder
+            .send()
+            .await
+            .map_err(|error| OidcFetchError {
+                reason: error.to_string(),
+            })?;
         let ok = response.status().is_success();
         let status = response.status().as_u16();
         let body = response.text().await.unwrap_or_default();
-        Ok(OidcResponse { ok, status, body })
+        Ok(OidcResponse {
+            ok,
+            status,
+            body,
+        })
     }
 }
 
 impl ConfirmPrompt for Host {
     fn confirm(message: &str) -> bool {
-        dialoguer::Confirm::new().with_prompt(message).interact().unwrap_or(false)
+        dialoguer::Confirm::new()
+            .with_prompt(message)
+            .interact()
+            .unwrap_or(false)
     }
 }
 

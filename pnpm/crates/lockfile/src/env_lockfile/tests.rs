@@ -27,10 +27,16 @@ fn pkg_metadata(integrity_source: &[u8]) -> PackageMetadata {
 
 fn sample_env_lockfile() -> EnvLockfile {
     let mut env = EnvLockfile::create();
-    env.root_importer_mut().config_dependencies.insert(
-        "@pnpm.e2e/foo".to_string(),
-        SpecifierAndResolution { specifier: "100.0.0".to_string(), version: "100.0.0".to_string() },
-    );
+    env
+        .root_importer_mut()
+        .config_dependencies
+        .insert(
+            "@pnpm.e2e/foo".to_string(),
+            SpecifierAndResolution {
+                specifier: "100.0.0".to_string(),
+                version: "100.0.0".to_string(),
+            },
+        );
     let key: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
     env.packages.insert(key.clone(), pkg_metadata(b"foo-tarball"));
     env.snapshots.insert(key, SnapshotEntry::default());
@@ -41,12 +47,17 @@ fn sample_env_lockfile() -> EnvLockfile {
 fn write_then_read_round_trips() {
     let dir = TempDir::new().unwrap();
     let env = sample_env_lockfile();
-    env.write(dir.path()).unwrap();
+    env
+        .write(dir.path())
+        .unwrap();
 
     let raw = std::fs::read_to_string(dir.path().join(Lockfile::FILE_NAME)).unwrap();
     eprintln!("combined lockfile:\n{raw}");
     assert!(raw.starts_with("---\n"), "env document must lead the file");
-    assert!(raw.contains("\n---\n"), "document separator must be present");
+    assert!(
+        raw.contains("\n---\n"),
+        "document separator must be present",
+    );
     assert!(raw.contains("configDependencies:"));
     assert!(raw.contains("@pnpm.e2e/foo"));
 
@@ -72,7 +83,9 @@ fn reads_non_numeric_lockfile_version() {
 fn reads_a_crlf_combined_lockfile() {
     let dir = TempDir::new().unwrap();
     let env = sample_env_lockfile();
-    env.write(dir.path()).unwrap();
+    env
+        .write(dir.path())
+        .unwrap();
     let path = dir.path().join(Lockfile::FILE_NAME);
     let crlf = std::fs::read_to_string(&path).unwrap().replace('\n', "\r\n");
     std::fs::write(&path, crlf).unwrap();
@@ -87,11 +100,16 @@ fn write_preserves_existing_main_document() {
     let main = "lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      is-odd:\n        specifier: 1.0.0\n        version: 1.0.0\n";
     std::fs::write(dir.path().join(Lockfile::FILE_NAME), main).unwrap();
 
-    sample_env_lockfile().write(dir.path()).unwrap();
+    sample_env_lockfile()
+        .write(dir.path())
+        .unwrap();
 
     let raw = std::fs::read_to_string(dir.path().join(Lockfile::FILE_NAME)).unwrap();
     assert!(extract_env_document(&raw).is_some());
-    assert!(raw.contains("is-odd:"), "main document content must survive the env write");
+    assert!(
+        raw.contains("is-odd:"),
+        "main document content must survive the env write",
+    );
 
     let loaded =
         Lockfile::load_wanted_from_dir(dir.path()).unwrap().expect("main lockfile present");
@@ -120,7 +138,9 @@ fn read_symlinked_lockfile() {
 fn write_accepts_symlinked_lockfile_when_unchanged() {
     let source = TempDir::new().unwrap();
     let env = sample_env_lockfile();
-    env.write(source.path()).unwrap();
+    env
+        .write(source.path())
+        .unwrap();
     let content = std::fs::read_to_string(source.path().join(Lockfile::FILE_NAME)).unwrap();
 
     let dir = TempDir::new().unwrap();
@@ -129,9 +149,16 @@ fn write_accepts_symlinked_lockfile_when_unchanged() {
     let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
     std::os::unix::fs::symlink(&real_lockfile, &lockfile_path).unwrap();
 
-    env.write(dir.path()).expect("an unchanged env document must not need a write");
+    env
+        .write(dir.path())
+        .expect("an unchanged env document must not need a write");
 
-    assert!(std::fs::symlink_metadata(&lockfile_path).unwrap().file_type().is_symlink());
+    assert!(
+        std::fs::symlink_metadata(&lockfile_path)
+            .unwrap()
+            .file_type()
+            .is_symlink(),
+    );
     assert_eq!(std::fs::read_to_string(real_lockfile).unwrap(), content);
 }
 
@@ -140,15 +167,28 @@ fn write_leaves_an_unchanged_crlf_lockfile_untouched() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().join(Lockfile::FILE_NAME);
     let env = sample_env_lockfile();
-    env.write(dir.path()).unwrap();
+    env
+        .write(dir.path())
+        .unwrap();
     let crlf_content = std::fs::read_to_string(&path).unwrap().replace('\n', "\r\n");
     std::fs::write(&path, &crlf_content).unwrap();
-    let mtime_before = std::fs::metadata(&path).unwrap().modified().unwrap();
+    let mtime_before = std::fs::metadata(&path)
+        .unwrap()
+        .modified()
+        .unwrap();
 
-    env.write(dir.path()).unwrap();
+    env
+        .write(dir.path())
+        .unwrap();
 
     assert_eq!(std::fs::read_to_string(&path).unwrap(), crlf_content);
-    assert_eq!(std::fs::metadata(&path).unwrap().modified().unwrap(), mtime_before);
+    assert_eq!(
+        std::fs::metadata(&path)
+            .unwrap()
+            .modified()
+            .unwrap(),
+        mtime_before,
+    );
 }
 
 #[test]
@@ -157,12 +197,21 @@ fn write_replaces_the_env_document_of_a_lockfile_carrying_a_bom() {
     let path = dir.path().join(Lockfile::FILE_NAME);
     let main_doc = "lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      is-odd:\n        specifier: 1.0.0\n        version: 1.0.0\n";
     let old_env_doc = "lockfileVersion: '9.0'\nimporters:\n  .:\n    configDependencies: {}\npackages: {}\nsnapshots: {}\n";
-    std::fs::write(&path, format!("\u{feff}---\n{old_env_doc}\n---\n{main_doc}")).unwrap();
+    std::fs::write(
+        &path,
+        format!("\u{feff}---\n{old_env_doc}\n---\n{main_doc}"),
+    )
+    .unwrap();
 
-    sample_env_lockfile().write(dir.path()).unwrap();
+    sample_env_lockfile()
+        .write(dir.path())
+        .unwrap();
 
     let raw = std::fs::read_to_string(&path).unwrap();
-    assert!(raw.starts_with("---\n"), "the BOM must not survive into the written lockfile");
+    assert!(
+        raw.starts_with("---\n"),
+        "the BOM must not survive into the written lockfile",
+    );
     assert_eq!(extract_main_document(&raw), main_doc);
     assert_eq!(
         EnvLockfile::read(dir.path()).unwrap(),
@@ -180,11 +229,24 @@ fn write_rejects_symlinked_lockfile_without_touching_target() {
     let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
     std::os::unix::fs::symlink(&real_lockfile, &lockfile_path).unwrap();
 
-    let error = sample_env_lockfile().write(dir.path()).expect_err("symlinked lockfile must fail");
+    let error = sample_env_lockfile()
+        .write(dir.path())
+        .expect_err("symlinked lockfile must fail");
 
-    assert!(error.to_string().contains("symlinked lockfile"), "unexpected error: {error:?}");
-    assert!(std::fs::symlink_metadata(&lockfile_path).unwrap().file_type().is_symlink());
-    assert_eq!(std::fs::read_to_string(real_lockfile).unwrap(), "target content");
+    assert!(
+        error.to_string().contains("symlinked lockfile"),
+        "unexpected error: {error:?}",
+    );
+    assert!(
+        std::fs::symlink_metadata(&lockfile_path)
+            .unwrap()
+            .file_type()
+            .is_symlink(),
+    );
+    assert_eq!(
+        std::fs::read_to_string(real_lockfile).unwrap(),
+        "target content",
+    );
 }
 
 #[test]
@@ -197,7 +259,9 @@ fn saving_main_lockfile_preserves_env_document() {
     // a `Lockfile` literal — keeps the test robust as the `Lockfile`
     // struct gains fields.
     let env = sample_env_lockfile();
-    env.write(dir.path()).unwrap();
+    env
+        .write(dir.path())
+        .unwrap();
     let combined = std::fs::read_to_string(&path).unwrap();
     let main_doc = "lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      is-odd:\n        specifier: 1.0.0\n        version: 1.0.0\n";
     std::fs::write(&path, format!("{combined}{main_doc}")).unwrap();
@@ -208,6 +272,9 @@ fn saving_main_lockfile_preserves_env_document() {
     main.save_to_path(&path).unwrap();
 
     let read_back = EnvLockfile::read(dir.path()).unwrap();
-    assert!(read_back.is_some(), "env document must survive a main-lockfile re-save");
+    assert!(
+        read_back.is_some(),
+        "env document must survive a main-lockfile re-save",
+    );
     assert_eq!(read_back.unwrap(), env);
 }

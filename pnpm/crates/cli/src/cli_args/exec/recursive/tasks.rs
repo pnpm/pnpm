@@ -84,30 +84,18 @@ pub(super) fn build_exec_task_graph(
             &selection.prod_only_selected,
         )
     } else {
-        graph.keys().cloned().map(|root| (root, Vec::new())).collect()
+        graph
+            .keys()
+            .cloned()
+            .map(|root| (root, Vec::new()))
+            .collect()
     };
-    let task_graph: TaskGraph = project_dependencies
-        .iter()
-        .map(|(project, dependencies)| {
-            let key = TaskKey { project: project.clone(), task_name: command_name.to_owned() };
-            let node = TaskNode {
-                project: project.clone(),
-                task_name: command_name.to_owned(),
-                concurrency: None,
-                scripts: vec![command_name.to_owned()],
-                requested: true,
-                dependencies: dependencies
-                    .iter()
-                    .map(|dependency| TaskKey {
-                        project: dependency.clone(),
-                        task_name: command_name.to_owned(),
-                    })
-                    .collect(),
-            };
-            (key, node)
-        })
-        .collect();
-    if args.workspace.reverse { reverse_task_graph(&task_graph) } else { task_graph }
+    let task_graph = task_graph_from_dependencies(&project_dependencies, command_name);
+    if args.workspace.reverse {
+        reverse_task_graph(&task_graph)
+    } else {
+        task_graph
+    }
 }
 
 /// `--parallel` runs every task at once; otherwise the workspace
@@ -129,7 +117,10 @@ fn record_task_passed(
     node: &TaskNode,
     workspace_root: &Path,
 ) -> TaskCompletion {
-    let key = TaskKey { project: node.project.clone(), task_name: node.task_name.clone() };
+    let key = TaskKey {
+        project: node.project.clone(),
+        task_name: node.task_name.clone(),
+    };
     let Err(error) = task_run_state.record_passed(&key, node, workspace_root) else {
         return TaskCompletion::Passed;
     };
@@ -164,29 +155,39 @@ pub(super) fn report_recursive_outcome(
         write_recursive_summary(workspace_root, result)?;
     }
     if let Some(prefix) = bail_prefix {
-        return Err(RecursiveExecError::RecursiveExecFirstFail { prefix }.into());
+        return Err(RecursiveExecError::RecursiveExecFirstFail {
+            prefix,
+        }
+        .into());
     }
     let failures = count_failures(result);
     if failures > 0 {
-        return Err(RecursiveExecError::RecursiveFail { count: failures }.into());
+        return Err(RecursiveExecError::RecursiveFail {
+            count: failures,
+        }
+        .into());
     }
     Ok(())
 }
 
 pub(super) fn project_dep_path(root: &Path, dir: &Path, show_prefix: bool) -> Option<String> {
     show_prefix.then(|| {
-        pnpm_workspace::read_project_name(root).unwrap_or_else(|| {
-            pathdiff::diff_paths(root, dir)
-                .unwrap_or_else(|| root.to_path_buf())
-                .to_string_lossy()
-                .into_owned()
-        })
+        pnpm_workspace::read_project_name(root)
+            .unwrap_or_else(|| {
+                pathdiff::diff_paths(root, dir)
+                    .unwrap_or_else(|| root.to_path_buf())
+                    .to_string_lossy()
+                    .into_owned()
+            })
     })
 }
 
 pub(super) fn project_output(dep_path: Option<&str>, emit: fn(&LogEvent)) -> ScriptOutput<'_> {
     match dep_path {
-        Some(dep_path) => ScriptOutput::Streamed { dep_path, emit },
+        Some(dep_path) => ScriptOutput::Streamed {
+            dep_path,
+            emit,
+        },
         None => ScriptOutput::Inherit,
     }
 }
@@ -198,8 +199,44 @@ fn project_execution(
     let duration = start.elapsed().as_secs_f64() * 1e3;
     let message = match outcome {
         Ok(status) if status.success() => None,
-        Ok(status) => Some(format!("command failed with exit code {}", status.code().unwrap_or(1))),
+        Ok(status) => Some(format!(
+            "command failed with exit code {}",
+            status.code().unwrap_or(1),
+        )),
         Err(error) => Some(error.to_string()),
     };
-    ProjectExecution { duration, message }
+    ProjectExecution {
+        duration,
+        message,
+    }
+}
+
+fn task_graph_from_dependencies(
+    project_dependencies: &IndexMap<PathBuf, Vec<PathBuf>>,
+    command_name: &str,
+) -> TaskGraph {
+    project_dependencies
+        .iter()
+        .map(|(project, dependencies)| {
+            let key = TaskKey {
+                project: project.clone(),
+                task_name: command_name.to_owned(),
+            };
+            let node = TaskNode {
+                project: project.clone(),
+                task_name: command_name.to_owned(),
+                concurrency: None,
+                scripts: vec![command_name.to_owned()],
+                requested: true,
+                dependencies: dependencies
+                    .iter()
+                    .map(|dependency| TaskKey {
+                        project: dependency.clone(),
+                        task_name: command_name.to_owned(),
+                    })
+                    .collect(),
+            };
+            (key, node)
+        })
+        .collect()
 }

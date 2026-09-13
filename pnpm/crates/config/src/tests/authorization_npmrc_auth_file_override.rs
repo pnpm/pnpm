@@ -17,9 +17,12 @@ pub fn npmrc_auth_file_override_supplies_auth() {
     )
     .expect("write auth file");
 
-    let config = Config { npmrc_auth_file: Some(auth_file), ..Config::default() }
-        .current::<HostNoHome>(project.path())
-        .expect("load config");
+    let config = Config {
+        npmrc_auth_file: Some(auth_file),
+        ..Config::default()
+    }
+    .current::<HostNoHome>(project.path())
+    .expect("load config");
 
     assert_eq!(config.registry, "https://registry.example.com/");
     assert_eq!(
@@ -46,15 +49,19 @@ pub fn npmrc_auth_file_override_supplies_basic_auth_to_bootstrap() {
     )
     .expect("write auth file");
 
-    let config = Config { npmrc_auth_file: Some(auth_file), ..Config::default() }
-        .current::<HostNoHome>(project.path())
-        .expect("load config");
+    let config = Config {
+        npmrc_auth_file: Some(auth_file),
+        ..Config::default()
+    }
+    .current::<HostNoHome>(project.path())
+    .expect("load config");
 
     assert_eq!(
-        config
-            .package_manager_bootstrap
-            .auth_headers
-            .for_url_with_package("https://registry.example.com/@pnpm%2Fexe", Some("@pnpm/exe"))
+        config.package_manager_bootstrap.auth_headers
+            .for_url_with_package(
+                "https://registry.example.com/@pnpm%2Fexe",
+                Some("@pnpm/exe")
+            )
             .as_deref(),
         Some(format!("Basic {pair}").as_str()),
     );
@@ -122,8 +129,16 @@ pub fn npmrc_auth_file_outranks_userconfig() {
     let auth = tempdir().expect("auth tempdir");
     let auth_file = auth.path().join("auth-file");
     let userconfig = auth.path().join("userconfig");
-    write_registry_auth_file(&auth_file, "https://authfile.example.com/", "authfile-token");
-    write_registry_auth_file(&userconfig, "https://userconfig.example.com/", "userconfig-token");
+    write_registry_auth_file(
+        &auth_file,
+        "https://authfile.example.com/",
+        "authfile-token",
+    );
+    write_registry_auth_file(
+        &userconfig,
+        "https://userconfig.example.com/",
+        "userconfig-token",
+    );
 
     set_fake_env(&[
         ("PNPM_CONFIG_NPMRC_AUTH_FILE", auth_file.to_str().unwrap()),
@@ -175,14 +190,27 @@ pub fn global_config_npmrc_auth_file_expands_env() {
 
     let auth = tempdir().expect("auth tempdir");
     let auth_file = auth.path().join("global-npmrc");
-    write_registry_auth_file(&auth_file, "https://global-auth.example.com/", "global-token");
-    fs::write(config_dir.join("config.yaml"), "npmrcAuthFile: ${AUTH_FILE}\n")
-        .expect("write global config.yaml");
+    write_registry_auth_file(
+        &auth_file,
+        "https://global-auth.example.com/",
+        "global-token",
+    );
+    fs::write(
+        config_dir.join("config.yaml"),
+        "npmrcAuthFile: ${AUTH_FILE}\n",
+    )
+    .expect("write global config.yaml");
 
     let project = tempdir().expect("project tempdir");
     set_fake_env(&[
         ("AUTH_FILE", auth_file.to_str().unwrap()),
-        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        (
+            "XDG_CONFIG_HOME",
+            xdg
+                .path()
+                .to_str()
+                .unwrap(),
+        ),
     ]);
     let config = load_with_fake_env(project.path());
 
@@ -200,23 +228,35 @@ pub fn global_config_npmrc_auth_file_expands_env() {
 pub fn user_auth_token_pins_to_its_own_file_registry() {
     let auth = tempdir().expect("auth tempdir");
     let user_file = auth.path().join("user-npmrc");
-    write_file(&user_file, "registry=https://trusted.example.com/\n_authToken=user-secret\n");
+    write_file(
+        &user_file,
+        "registry=https://trusted.example.com/\n_authToken=user-secret\n",
+    );
 
     let config = load_with_project_and_user("registry=https://attacker.example.com/\n", user_file);
 
-    assert_eq!(config.registry, "https://attacker.example.com/", "project registry wins");
+    assert_eq!(
+        config.registry, "https://attacker.example.com/",
+        "project registry wins",
+    );
     assert_eq!(
         config.auth_headers.for_url("https://trusted.example.com/pkg").as_deref(),
         Some("Bearer user-secret"),
     );
-    assert_eq!(config.auth_headers.for_url("https://attacker.example.com/pkg"), None);
+    assert_eq!(
+        config.auth_headers.for_url("https://attacker.example.com/pkg"),
+        None,
+    );
 }
 
 #[test]
 pub fn url_scoped_env_auth_is_used_and_outranks_project_npmrc() {
     fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
-    write_file(&project.path().join(".npmrc"), "//env2e.example.com/:_authToken=project-token\n");
+    write_file(
+        &project.path().join(".npmrc"),
+        "//env2e.example.com/:_authToken=project-token\n",
+    );
     set_fake_env(&[("npm_config_//env2e.example.com/:_authToken", "env-token")]);
 
     let config = load_with_fake_env(project.path());
@@ -245,7 +285,10 @@ pub fn url_scoped_env_auth_prefix_is_case_insensitive_end_to_end() {
 pub fn json_env_host_keyed_token_is_used_and_outranks_project_npmrc() {
     fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
-    write_file(&project.path().join(".npmrc"), "//json2e.example.com/:_authToken=project-token\n");
+    write_file(
+        &project.path().join(".npmrc"),
+        "//json2e.example.com/:_authToken=project-token\n",
+    );
     set_fake_env(&[(
         "pnpm_config__auth",
         r#"{"https://json2e.example.com":{"@":{"authToken":"env-token"}}}"#,
@@ -275,8 +318,7 @@ pub fn json_env_repo_registry_cannot_redirect_token() {
     let config = load_with_fake_env(project.path());
 
     assert_eq!(
-        config
-            .auth_headers
+        config.auth_headers
             .for_url_with_package("https://npm.pkg.github.com/org-a/foo", Some("@org-a/foo"))
             .as_deref(),
         Some("Bearer org-a-token"),
@@ -285,8 +327,7 @@ pub fn json_env_repo_registry_cannot_redirect_token() {
     // only checks the default/unscoped path and would pass even if the
     // `@org-a` token had been rebound to the attacker host.
     assert!(
-        config
-            .auth_headers
+        config.auth_headers
             .for_url_with_package("https://attacker.example/org-a/foo", Some("@org-a/foo"))
             .is_none(),
         "repo-controlled registry URL must not receive the env token",
@@ -305,15 +346,13 @@ pub fn json_env_per_scope_token_on_shared_host() {
     let config = load_with_fake_env(project.path());
 
     assert_eq!(
-        config
-            .auth_headers
+        config.auth_headers
             .for_url_with_package("https://npm.pkg.github.com/org-a/foo", Some("@org-a/foo"))
             .as_deref(),
         Some("Bearer a-tok"),
     );
     assert_eq!(
-        config
-            .auth_headers
+        config.auth_headers
             .for_url_with_package("https://npm.pkg.github.com/org-b/foo", Some("@org-b/foo"))
             .as_deref(),
         Some("Bearer b-tok"),
@@ -340,7 +379,13 @@ pub fn global_config_yaml_registries_cannot_redirect_json_env_token() {
 
     let project = tempdir().expect("project tempdir");
     set_fake_env(&[
-        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        (
+            "XDG_CONFIG_HOME",
+            xdg
+                .path()
+                .to_str()
+                .unwrap(),
+        ),
         (
             "pnpm_config__auth",
             r#"{"https://npm.pkg.github.com":{"@victim-scope":{"authToken":"secret-token"}}}"#,
@@ -353,8 +398,7 @@ pub fn global_config_yaml_registries_cannot_redirect_json_env_token() {
         Some("https://npm.pkg.github.com/"),
     );
     assert_eq!(
-        config
-            .auth_headers
+        config.auth_headers
             .for_url_with_package(
                 "https://npm.pkg.github.com/victim-scope/foo",
                 Some("@victim-scope/foo")
@@ -363,8 +407,7 @@ pub fn global_config_yaml_registries_cannot_redirect_json_env_token() {
         Some("Bearer secret-token"),
     );
     assert!(
-        config
-            .auth_headers
+        config.auth_headers
             .for_url_with_package(
                 "https://attacker.example/victim-scope/foo",
                 Some("@victim-scope/foo")
@@ -390,7 +433,13 @@ pub fn global_config_yaml_auth_configures_registry_auth() {
     .expect("write global config.yaml");
 
     let project = tempdir().expect("project tempdir");
-    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    set_fake_env(&[(
+        "XDG_CONFIG_HOME",
+        xdg
+            .path()
+            .to_str()
+            .unwrap(),
+    )]);
     let config = load_with_fake_env(project.path());
 
     assert_eq!(
@@ -420,8 +469,17 @@ pub fn json_env_auth_wins_over_global_config_yaml_auth() {
 
     let project = tempdir().expect("project tempdir");
     set_fake_env(&[
-        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
-        ("pnpm_config__auth", r#"{"https://shared.example.com":{"@":{"authToken":"env-token"}}}"#),
+        (
+            "XDG_CONFIG_HOME",
+            xdg
+                .path()
+                .to_str()
+                .unwrap(),
+        ),
+        (
+            "pnpm_config__auth",
+            r#"{"https://shared.example.com":{"@":{"authToken":"env-token"}}}"#,
+        ),
     ]);
     let config = load_with_fake_env(project.path());
 
@@ -464,7 +522,10 @@ pub fn json_env_invalid_auth_aborts_the_load() {
     )]);
 
     let result = Config::default().current::<FakeEnv>(project.path());
-    assert!(matches!(result, Err(LoadWorkspaceYamlError::InvalidJsonAuth { .. })));
+    assert!(matches!(
+        result,
+        Err(LoadWorkspaceYamlError::InvalidJsonAuth { .. })
+    ));
 }
 
 #[test]
@@ -472,7 +533,10 @@ pub fn user_basic_auth_pins_to_its_own_file_registry() {
     let auth = tempdir().expect("auth tempdir");
     let user_file = auth.path().join("user-npmrc");
     // base64("user:pass")
-    write_file(&user_file, "registry=https://trusted.example.com/\n_auth=dXNlcjpwYXNz\n");
+    write_file(
+        &user_file,
+        "registry=https://trusted.example.com/\n_auth=dXNlcjpwYXNz\n",
+    );
 
     let config = load_with_project_and_user("registry=https://attacker.example.com/\n", user_file);
 
@@ -480,23 +544,38 @@ pub fn user_basic_auth_pins_to_its_own_file_registry() {
         config.auth_headers.for_url("https://trusted.example.com/pkg").as_deref(),
         Some("Basic dXNlcjpwYXNz"),
     );
-    assert_eq!(config.auth_headers.for_url("https://attacker.example.com/pkg"), None);
+    assert_eq!(
+        config.auth_headers.for_url("https://attacker.example.com/pkg"),
+        None,
+    );
 }
 
 #[test]
 pub fn workspace_npmrc_overrides_global_auth_file() {
     fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
-    fs::write(project.path().join(".npmrc"), "//registry.npmjs.org/:_authToken=workspace-token\n")
-        .expect("write workspace .npmrc");
+    fs::write(
+        project.path().join(".npmrc"),
+        "//registry.npmjs.org/:_authToken=workspace-token\n",
+    )
+    .expect("write workspace .npmrc");
 
     let xdg = tempdir().expect("config tempdir");
     let config_dir = xdg.path().join("pnpm");
     fs::create_dir_all(&config_dir).expect("create global config dir");
-    fs::write(config_dir.join("auth.ini"), "//registry.npmjs.org/:_authToken=global-token\n")
-        .expect("write global auth file");
+    fs::write(
+        config_dir.join("auth.ini"),
+        "//registry.npmjs.org/:_authToken=global-token\n",
+    )
+    .expect("write global auth file");
 
-    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    set_fake_env(&[(
+        "XDG_CONFIG_HOME",
+        xdg
+            .path()
+            .to_str()
+            .unwrap(),
+    )]);
     let config = load_with_fake_env(project.path());
 
     assert_eq!(
@@ -512,11 +591,17 @@ pub fn workspace_npmrc_overrides_global_auth_file() {
 pub fn user_cert_key_pin_to_its_own_file_registry() {
     let auth = tempdir().expect("auth tempdir");
     let user_file = auth.path().join("user-npmrc");
-    write_file(&user_file, "registry=https://trusted.example.com/\ncert=cert-pem\nkey=key-pem\n");
+    write_file(
+        &user_file,
+        "registry=https://trusted.example.com/\ncert=cert-pem\nkey=key-pem\n",
+    );
 
     let config = load_with_project_and_user("registry=https://attacker.example.com/\n", user_file);
 
-    assert_eq!(config.tls.cert, None, "cert is rescoped, not a global identity");
+    assert_eq!(
+        config.tls.cert, None,
+        "cert is rescoped, not a global identity",
+    );
     assert_eq!(config.tls.key, None);
     let scoped =
         config.tls_by_uri.get("//trusted.example.com/").expect("cert/key pinned to trusted");
@@ -548,7 +633,10 @@ pub fn late_registry_override_does_not_pull_an_unscoped_user_token_along() {
         config.auth_headers.for_url("https://registry.npmjs.org/pkg").as_deref(),
         Some("Bearer user-secret"),
     );
-    assert_eq!(config.auth_headers.for_url("https://attacker.example.com/pkg"), None);
+    assert_eq!(
+        config.auth_headers.for_url("https://attacker.example.com/pkg"),
+        None,
+    );
 }
 
 /// An unscoped `tokenHelper` is honored but has no INI-readable spelling
@@ -559,7 +647,10 @@ pub fn late_registry_override_does_not_pull_an_unscoped_user_token_along() {
 pub fn rescoped_token_helper_is_reported_under_its_pinned_key() {
     let auth = tempdir().expect("auth tempdir");
     let user_file = auth.path().join("user-npmrc");
-    write_file(&user_file, "registry=https://trusted.example.com/\ntokenHelper=/bin/echo\n");
+    write_file(
+        &user_file,
+        "registry=https://trusted.example.com/\ntokenHelper=/bin/echo\n",
+    );
 
     let config = load_with_project_and_user("", user_file);
 
@@ -576,7 +667,10 @@ pub fn rescoped_token_helper_is_reported_under_its_pinned_key() {
 pub fn auth_ini_without_registry_falls_back_to_npmjs_default() {
     fake_env!();
     let project = tempdir().expect("project tempdir");
-    write_file(&project.path().join(".npmrc"), "registry=https://attacker.example.com/\n");
+    write_file(
+        &project.path().join(".npmrc"),
+        "registry=https://attacker.example.com/\n",
+    );
     let config_home = tempdir().expect("config-home tempdir");
     let pnpm_dir = config_home.path().join("pnpm");
     fs::create_dir_all(&pnpm_dir).expect("create pnpm config dir");
@@ -585,17 +679,32 @@ pub fn auth_ini_without_registry_falls_back_to_npmjs_default() {
     let user_file = auth.path().join("user-npmrc");
     write_file(&user_file, "registry=https://trusted.example.com/\n");
 
-    set_fake_env(&[("XDG_CONFIG_HOME", config_home.path().to_str().unwrap())]);
-    let config = Config { npmrc_auth_file: Some(user_file), ..Config::default() }
-        .current::<FakeEnv>(project.path())
-        .expect("load config");
+    set_fake_env(&[(
+        "XDG_CONFIG_HOME",
+        config_home
+            .path()
+            .to_str()
+            .unwrap(),
+    )]);
+    let config = Config {
+        npmrc_auth_file: Some(user_file),
+        ..Config::default()
+    }
+    .current::<FakeEnv>(project.path())
+    .expect("load config");
 
     assert_eq!(
         config.auth_headers.for_url("https://registry.npmjs.org/pkg").as_deref(),
         Some("Bearer auth-ini-secret"),
     );
-    assert_eq!(config.auth_headers.for_url("https://attacker.example.com/pkg"), None);
-    assert_eq!(config.auth_headers.for_url("https://trusted.example.com/pkg"), None);
+    assert_eq!(
+        config.auth_headers.for_url("https://attacker.example.com/pkg"),
+        None,
+    );
+    assert_eq!(
+        config.auth_headers.for_url("https://trusted.example.com/pkg"),
+        None,
+    );
 }
 
 /// A `tokenHelper` set in the global pnpm `auth.ini` (a trusted, non-repo
@@ -615,9 +724,16 @@ pub fn token_helper_in_global_auth_ini_is_honored() {
         "//registry.example.com/:tokenHelper=/bin/echo s3cr3t\n",
     );
 
-    set_fake_env(&[("XDG_CONFIG_HOME", config_home.path().to_str().unwrap())]);
-    let config =
-        Config::default().current::<FakeEnv>(project.path()).expect("load config with tokenHelper");
+    set_fake_env(&[(
+        "XDG_CONFIG_HOME",
+        config_home
+            .path()
+            .to_str()
+            .unwrap(),
+    )]);
+    let config = Config::default()
+        .current::<FakeEnv>(project.path())
+        .expect("load config with tokenHelper");
 
     assert_eq!(
         config.auth_headers.for_url("https://registry.example.com/pkg").as_deref(),
@@ -641,7 +757,10 @@ pub fn token_helper_in_project_npmrc_is_rejected() {
         .current::<FakeEnv>(project.path())
         .expect_err("project tokenHelper must be rejected");
     assert!(
-        matches!(error, LoadWorkspaceYamlError::TokenHelperInProjectConfig { .. }),
+        matches!(
+            error,
+            LoadWorkspaceYamlError::TokenHelperInProjectConfig { .. }
+        ),
         "got {error:?}",
     );
 }
@@ -655,14 +774,28 @@ pub fn token_helper_with_reserved_character_is_rejected() {
     let config_home = tempdir().expect("config-home tempdir");
     let pnpm_dir = config_home.path().join("pnpm");
     fs::create_dir_all(&pnpm_dir).expect("create pnpm config dir");
-    write_file(&pnpm_dir.join("auth.ini"), "//registry.example.com/:tokenHelper=echo $SECRET\n");
+    write_file(
+        &pnpm_dir.join("auth.ini"),
+        "//registry.example.com/:tokenHelper=echo $SECRET\n",
+    );
 
-    set_fake_env(&[("XDG_CONFIG_HOME", config_home.path().to_str().unwrap())]);
+    set_fake_env(&[(
+        "XDG_CONFIG_HOME",
+        config_home
+            .path()
+            .to_str()
+            .unwrap(),
+    )]);
     let error = Config::default()
         .current::<FakeEnv>(project.path())
         .expect_err("reserved character must be rejected");
     assert!(
-        matches!(error, LoadWorkspaceYamlError::TokenHelperUnsupportedCharacter { character: '$' }),
+        matches!(
+            error,
+            LoadWorkspaceYamlError::TokenHelperUnsupportedCharacter {
+                character: '$'
+            }
+        ),
         "got {error:?}",
     );
 }
@@ -675,12 +808,18 @@ pub fn token_helper_from_url_scoped_env_is_not_honored() {
     fake_env!();
     let project = tempdir().expect("project tempdir");
 
-    set_fake_env(&[("npm_config_//registry.example.com/:tokenHelper", "/bin/echo s3cr3t")]);
+    set_fake_env(&[(
+        "npm_config_//registry.example.com/:tokenHelper",
+        "/bin/echo s3cr3t",
+    )]);
     let config = Config::default()
         .current::<FakeEnv>(project.path())
         .expect("env tokenHelper is dropped, not an error");
 
-    assert_eq!(config.auth_headers.for_url("https://registry.example.com/pkg"), None);
+    assert_eq!(
+        config.auth_headers.for_url("https://registry.example.com/pkg"),
+        None,
+    );
 }
 
 #[test]
@@ -692,8 +831,9 @@ pub fn non_auth_keys_in_npmrc_are_ignored() {
     let non_auth_ini = "symlink=false\nlockfile=true\nhoist=false\nnode-linker=hoisted\n";
     fs::write(tmp.path().join(".npmrc"), non_auth_ini).expect("write to .npmrc");
     let defaults = Config::new();
-    let config =
-        Config::new().current::<HostNoHome>(tmp.path()).expect("workspace yaml absent => no error");
+    let config = Config::new()
+        .current::<HostNoHome>(tmp.path())
+        .expect("workspace yaml absent => no error");
     assert_eq!(config.symlink, defaults.symlink);
     assert_eq!(config.lockfile, defaults.lockfile);
     assert_eq!(config.hoist, defaults.hoist);
@@ -707,20 +847,28 @@ pub fn npmrc_auth_file_pointing_at_project_npmrc_suppresses_warning() {
     fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     let project_npmrc = project.path().join(".npmrc");
-    fs::write(&project_npmrc, "//registry.npmjs.org/:_authToken=${MY_TOKEN}\n")
-        .expect("write project .npmrc");
+    fs::write(
+        &project_npmrc,
+        "//registry.npmjs.org/:_authToken=${MY_TOKEN}\n",
+    )
+    .expect("write project .npmrc");
 
     set_fake_env(&[
         ("MY_TOKEN", "secret-token"),
-        ("PNPM_CONFIG_NPMRC_AUTH_FILE", project_npmrc.to_str().unwrap()),
+        (
+            "PNPM_CONFIG_NPMRC_AUTH_FILE",
+            project_npmrc.to_str().unwrap(),
+        ),
     ]);
 
     let warnings = capture_warnings(|| {
         load_with_fake_env(project.path());
     });
 
-    let auth_warnings: Vec<_> =
-        warnings.iter().filter(|w| w.contains("Ignored project-level auth setting")).collect();
+    let auth_warnings: Vec<_> = warnings
+        .iter()
+        .filter(|w| w.contains("Ignored project-level auth setting"))
+        .collect();
     assert!(
         auth_warnings.is_empty(),
         "expected no auth warning when PNPM_CONFIG_NPMRC_AUTH_FILE points at project .npmrc, got: {auth_warnings:?}",
@@ -733,10 +881,16 @@ pub fn npmrc_auth_file_pointing_at_project_npmrc_suppresses_warning() {
 pub fn npmrc_auth_file_relative_to_cwd_pointing_at_project_npmrc_suppresses_warning() {
     fake_env!(set_fake_cwd, load_with_fake_env);
     let project = tempdir().expect("project tempdir");
-    fs::write(project.path().join(".npmrc"), "//registry.npmjs.org/:_authToken=${MY_TOKEN}\n")
-        .expect("write project .npmrc");
+    fs::write(
+        project.path().join(".npmrc"),
+        "//registry.npmjs.org/:_authToken=${MY_TOKEN}\n",
+    )
+    .expect("write project .npmrc");
 
-    set_fake_env(&[("MY_TOKEN", "secret-token"), ("PNPM_CONFIG_NPMRC_AUTH_FILE", ".npmrc")]);
+    set_fake_env(&[
+        ("MY_TOKEN", "secret-token"),
+        ("PNPM_CONFIG_NPMRC_AUTH_FILE", ".npmrc"),
+    ]);
     set_fake_cwd(project.path());
 
     let mut config = None;
@@ -744,14 +898,20 @@ pub fn npmrc_auth_file_relative_to_cwd_pointing_at_project_npmrc_suppresses_warn
         config = Some(load_with_fake_env(project.path()));
     });
 
-    let auth_warnings: Vec<_> =
-        warnings.iter().filter(|w| w.contains("Ignored project-level auth setting")).collect();
+    let auth_warnings: Vec<_> = warnings
+        .iter()
+        .filter(|w| w.contains("Ignored project-level auth setting"))
+        .collect();
     assert!(
         auth_warnings.is_empty(),
         "expected no auth warning for a relative npmrcAuthFile that resolves to the project .npmrc, got: {auth_warnings:?}",
     );
     assert_eq!(
-        config.unwrap().auth_headers.for_url("https://registry.npmjs.org/pkg").as_deref(),
+        config
+            .unwrap()
+            .auth_headers
+            .for_url("https://registry.npmjs.org/pkg")
+            .as_deref(),
         Some("Bearer secret-token"),
         "the trusted project .npmrc must expand the auth env placeholder",
     );
@@ -764,10 +924,16 @@ pub fn npmrc_auth_file_relative_resolving_elsewhere_keeps_warning() {
     fake_env!(set_fake_cwd, load_with_fake_env);
     let project = tempdir().expect("project tempdir");
     let elsewhere = tempdir().expect("elsewhere tempdir");
-    fs::write(project.path().join(".npmrc"), "//registry.npmjs.org/:_authToken=${MY_TOKEN}\n")
-        .expect("write project .npmrc");
+    fs::write(
+        project.path().join(".npmrc"),
+        "//registry.npmjs.org/:_authToken=${MY_TOKEN}\n",
+    )
+    .expect("write project .npmrc");
 
-    set_fake_env(&[("MY_TOKEN", "secret-token"), ("PNPM_CONFIG_NPMRC_AUTH_FILE", ".npmrc")]);
+    set_fake_env(&[
+        ("MY_TOKEN", "secret-token"),
+        ("PNPM_CONFIG_NPMRC_AUTH_FILE", ".npmrc"),
+    ]);
     set_fake_cwd(elsewhere.path());
 
     let warnings = capture_warnings(|| {
@@ -775,7 +941,9 @@ pub fn npmrc_auth_file_relative_resolving_elsewhere_keeps_warning() {
     });
 
     assert!(
-        warnings.iter().any(|w| w.contains("Ignored project-level auth setting")),
+        warnings
+            .iter()
+            .any(|w| w.contains("Ignored project-level auth setting")),
         "expected the auth warning when the relative npmrcAuthFile does not resolve to the project .npmrc, got: {warnings:?}",
     );
 }
@@ -786,8 +954,10 @@ pub fn npmrc_auth_file_relative_resolving_elsewhere_keeps_warning() {
 /// it.
 #[test]
 pub fn a_declared_registry_beats_the_global_auth_file() {
-    let config =
-        load_with_auth_file(STORED_LOGIN, Some("registry: https://project-choice.example/\n"));
+    let config = load_with_auth_file(
+        STORED_LOGIN,
+        Some("registry: https://project-choice.example/\n"),
+    );
 
     assert_eq!(config.registry, "https://project-choice.example/");
     // The credential still reaches the registry it was written for.

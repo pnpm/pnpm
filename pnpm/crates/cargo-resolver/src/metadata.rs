@@ -17,8 +17,16 @@ const PACKAGE_KEYS: [&str; 3] = ["name", "version", "features"];
 /// The keys of a package's dependency that resolution reads. Mirrors
 /// [`crate::model::MetadataDependency`], so a field read there is listed
 /// here too.
-const DEPENDENCY_KEYS: [&str; 8] =
-    ["name", "source", "req", "kind", "rename", "optional", "uses_default_features", "features"];
+const DEPENDENCY_KEYS: [&str; 8] = [
+    "name",
+    "source",
+    "req",
+    "kind",
+    "rename",
+    "optional",
+    "uses_default_features",
+    "features",
+];
 
 /// Reduce a `cargo metadata` document to what resolution reads, replacing
 /// each package id with its position.
@@ -42,17 +50,11 @@ pub fn resolve_inputs(metadata: &str) -> Result<String> {
             Some((package.get("id")?.as_str()?, position.to_string()))
         })
         .collect();
-    let packages = packages.iter().map(|package| reduce_package(package, &ids)).collect::<Vec<_>>();
-    let workspace_members = document
-        .get("workspace_members")
-        .and_then(serde_json::Value::as_array)
-        .map(|members| {
-            members
-                .iter()
-                .filter_map(|member| ids.get(member.as_str()?).map(String::as_str))
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
+    let packages = packages
+        .iter()
+        .map(|package| reduce_package(package, &ids))
+        .collect::<Vec<_>>();
+    let workspace_members = reduced_workspace_members(&document, &ids);
     serde_json::to_string(&serde_json::json!({
         "packages": packages,
         "workspace_members": workspace_members,
@@ -89,12 +91,14 @@ fn retained_keys(
     value: &serde_json::Value,
     keys: &[&str],
 ) -> serde_json::Map<String, serde_json::Value> {
-    keys.iter().filter_map(|key| Some(((*key).to_string(), value.get(key)?.clone()))).collect()
+    keys
+        .iter()
+        .filter_map(|key| Some(((*key).to_string(), value.get(key)?.clone())))
+        .collect()
 }
 
 pub(crate) fn root_dependencies(metadata: &CargoMetadata) -> Result<Vec<RegistryDependency>> {
-    metadata
-        .packages
+    metadata.packages
         .iter()
         .filter(|package| metadata.workspace_members.contains(&package.id))
         .map(active_metadata_dependencies)
@@ -111,18 +115,22 @@ pub(crate) fn root_dependencies(metadata: &CargoMetadata) -> Result<Vec<Registry
 pub(crate) fn active_metadata_dependencies(
     package: &MetadataPackage,
 ) -> Result<Vec<RegistryDependency>> {
-    let dependencies = package
-        .dependencies
+    let dependencies = package.dependencies
         .iter()
         .map(|dependency| RegistryDependency {
-            alias: dependency.rename.clone().unwrap_or_else(|| dependency.name.clone()),
+            alias: dependency.rename
+                .clone()
+                .unwrap_or_else(|| dependency.name.clone()),
             name: dependency.name.clone(),
             requirement: dependency.req.clone(),
             kind: dependency.kind,
             registry: dependency.source.clone(),
             optional: dependency.optional,
             default_features: dependency.uses_default_features,
-            features: dependency.features.iter().cloned().collect(),
+            features: dependency.features
+                .iter()
+                .cloned()
+                .collect(),
         })
         .collect::<Vec<_>>();
     active_dependencies_from_parts(
@@ -130,8 +138,31 @@ pub(crate) fn active_metadata_dependencies(
         &package.features,
         &FeatureSelection {
             default_features: true,
-            features: package.features.keys().cloned().collect(),
+            features: package.features
+                .keys()
+                .cloned()
+                .collect(),
         },
         true,
     )
+}
+
+fn reduced_workspace_members<'ids>(
+    document: &serde_json::Value,
+    ids: &'ids BTreeMap<&str, String>,
+) -> Vec<&'ids str> {
+    document
+        .get("workspace_members")
+        .and_then(serde_json::Value::as_array)
+        .map(|members| {
+            members
+                .iter()
+                .filter_map(|member| {
+                    ids
+                        .get(member.as_str()?)
+                        .map(String::as_str)
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
 }

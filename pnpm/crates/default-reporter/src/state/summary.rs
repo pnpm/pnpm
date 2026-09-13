@@ -20,19 +20,7 @@ impl ReporterState {
             RootMessage::Added { added, .. } => added_diff(added),
             RootMessage::Removed { removed, .. } => removed_diff(removed),
         };
-        let key = diff_key(kind);
-        let opposite_key = format!("{}{}", if entry.added { '-' } else { '+' }, entry.name);
-        if let Some(prev) = self.summary.diff.get(key).and_then(|b| b.get(&opposite_key))
-            && prev.version == entry.version
-        {
-            self.summary.diff.get_mut(key).unwrap().remove(&opposite_key);
-            return;
-        }
-        self.summary
-            .diff
-            .get_mut(key)
-            .unwrap()
-            .insert(format!("{}{}", if entry.added { '+' } else { '-' }, entry.name), entry);
+        self.summary.record_root_diff(kind, entry);
     }
 
     pub(super) fn on_manifest(&mut self, message: &PackageManifestMessage) {
@@ -46,7 +34,9 @@ impl ReporterState {
         let should_render_after_update =
             matches!(message, PackageManifestMessage::Updated { .. }) && self.summary.seen;
         {
-            let diff = self.summary.manifest_diffs.entry(prefix.clone()).or_default();
+            let diff = self.summary.manifest_diffs
+                .entry(prefix.clone())
+                .or_default();
             match message {
                 PackageManifestMessage::Initial { initial, .. } => {
                     diff.initial.get_or_insert_with(|| initial.clone());
@@ -100,18 +90,25 @@ impl ReporterState {
             if bucket.is_empty() {
                 continue;
             }
-            let mut diffs: Vec<&PackageDiff> =
-                bucket.values().filter(|diff| !self.is_hidden_linked(diff)).collect();
+            let mut diffs: Vec<&PackageDiff> = bucket
+                .values()
+                .filter(|diff| !self.is_hidden_linked(diff))
+                .collect();
             if diffs.is_empty() {
                 continue;
             }
             diffs.sort_by(|a, b| {
-                a.name.cmp(&b.name).then(u8::from(a.added).cmp(&u8::from(b.added)))
+                a.name
+                    .cmp(&b.name)
+                    .then(u8::from(a.added).cmp(&u8::from(b.added)))
             });
             msg.push('\n');
             msg.push_str(&self.rendering.colors.cyan_bright(&format!("{}:", kind.header())));
             msg.push('\n');
-            let lines: Vec<String> = diffs.iter().map(|diff| self.diff_line(diff)).collect();
+            let lines: Vec<String> = diffs
+                .iter()
+                .map(|diff| self.diff_line(diff))
+                .collect();
             msg.push_str(&lines.join("\n"));
             msg.push('\n');
         }
@@ -167,17 +164,22 @@ impl ReporterState {
         if latest == version || !is_strictly_newer(latest, version) {
             return String::new();
         }
-        format!(" {}", self.rendering.colors.grey(&format!("({latest} is available)")))
+        format!(
+            " {}",
+            self.rendering.colors.grey(&format!("({latest} is available)")),
+        )
     }
 }
 
 impl SummaryState {
     pub(super) fn apply_manifest_diff(&mut self) {
-        let manifest_diffs: Vec<(Value, Value)> = self
-            .manifest_diffs
+        let manifest_diffs: Vec<(Value, Value)> = self.manifest_diffs
             .values()
             .filter_map(|diff| {
-                Some((diff.initial.as_ref()?.clone(), diff.updated.as_ref()?.clone()))
+                Some((
+                    diff.initial.as_ref()?.clone(),
+                    diff.updated.as_ref()?.clone(),
+                ))
             })
             .collect();
         for (initial, updated) in manifest_diffs {
@@ -190,13 +192,45 @@ impl SummaryState {
     pub(super) fn apply_manifest_pair_diff(&mut self, initial: &Value, updated: &Value) {
         let initial = remove_optional_from_prod(initial);
         let updated = remove_optional_from_prod(updated);
-        for kind in [DepKind::Peer, DepKind::Prod, DepKind::Optional, DepKind::Dev] {
+        for kind in [
+            DepKind::Peer,
+            DepKind::Prod,
+            DepKind::Optional,
+            DepKind::Dev,
+        ] {
             let prop = kind.header();
             let initial_deps = manifest_dep_versions(&initial, prop);
             let updated_deps = manifest_dep_versions(&updated, prop);
-            let bucket = self.diff.get_mut(diff_key(kind)).unwrap();
+            let bucket = self.diff
+                .get_mut(diff_key(kind))
+                .unwrap();
             record_missing(bucket, &initial_deps, &updated_deps, false);
             record_missing(bucket, &updated_deps, &initial_deps, true);
         }
+    }
+}
+
+impl SummaryState {
+    fn record_root_diff(&mut self, kind: DepKind, entry: PackageDiff) {
+        let key = diff_key(kind);
+        let opposite_key = format!("{}{}", if entry.added { '-' } else { '+' }, entry.name);
+        if let Some(prev) = self.diff
+            .get(key)
+            .and_then(|b| b.get(&opposite_key))
+            && prev.version == entry.version
+        {
+            self.diff
+                .get_mut(key)
+                .unwrap()
+                .remove(&opposite_key);
+            return;
+        }
+        self.diff
+            .get_mut(key)
+            .unwrap()
+            .insert(
+                format!("{}{}", if entry.added { '+' } else { '-' }, entry.name),
+                entry,
+            );
     }
 }

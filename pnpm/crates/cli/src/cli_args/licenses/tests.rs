@@ -1,6 +1,7 @@
 use super::{
     BelongsTo, Config, Include, LicenseInfo, LicensesArgs, LicensesDependencyOptions,
-    collect_dependencies, compare_package_names, extract_license_author, extract_license_homepage,
+    collect_dependencies, compare_package_names,
+    metadata::{extract_license_author, extract_license_homepage},
     render_package_name, select_newer_version,
 };
 use pnpm_lockfile::Lockfile;
@@ -10,22 +11,34 @@ use tempfile::TempDir;
 
 #[test]
 fn test_include_logic() {
-    let opts =
-        LicensesDependencyOptions { prod: false, dev: false, no_optional: false, optional: false };
+    let opts = LicensesDependencyOptions {
+        prod: false,
+        dev: false,
+        no_optional: false,
+        optional: false,
+    };
     let include = opts.include(true);
     assert!(include.dependencies);
     assert!(include.dev_dependencies);
     assert!(include.optional_dependencies);
 
-    let opts_prod =
-        LicensesDependencyOptions { prod: true, dev: false, no_optional: false, optional: false };
+    let opts_prod = LicensesDependencyOptions {
+        prod: true,
+        dev: false,
+        no_optional: false,
+        optional: false,
+    };
     let include_prod = opts_prod.include(true);
     assert!(include_prod.dependencies);
     assert!(!include_prod.dev_dependencies);
     assert!(!include_prod.optional_dependencies);
 
-    let opts_no_optional =
-        LicensesDependencyOptions { prod: false, dev: false, no_optional: true, optional: false };
+    let opts_no_optional = LicensesDependencyOptions {
+        prod: false,
+        dev: false,
+        no_optional: true,
+        optional: false,
+    };
     let include_no_optional = opts_no_optional.include(true);
     assert!(include_no_optional.dependencies);
     assert!(include_no_optional.dev_dependencies);
@@ -69,7 +82,10 @@ async fn test_no_subcommand_matches_pnpm_error_code() {
         params: vec![],
     };
 
-    let err = args.run(&config, dir.path(), false).await.unwrap_err();
+    let err = args
+        .run(&config, dir.path(), false)
+        .await
+        .unwrap_err();
     assert!(format!("{err:?}").contains("ERR_PNPM_LICENCES_NO_SUBCOMMAND"));
 }
 
@@ -146,8 +162,11 @@ snapshots:
 ",
     )
     .unwrap();
-    let include =
-        Include { dependencies: true, dev_dependencies: true, optional_dependencies: true };
+    let include = Include {
+        dependencies: true,
+        dev_dependencies: true,
+        optional_dependencies: true,
+    };
 
     let dependencies = collect_dependencies(
         &lockfile,
@@ -162,14 +181,32 @@ snapshots:
     );
 
     assert_eq!(dependencies.len(), 6);
-    assert_eq!(dependencies[&"dev-only@1.0.0".parse().unwrap()], BelongsTo::Dev);
+    assert_eq!(
+        dependencies[&"dev-only@1.0.0".parse().unwrap()],
+        BelongsTo::Dev,
+    );
     // An optional dependency the host does support is kept, classified by
     // `detect_dep_types` like any other reachable package.
-    assert_eq!(dependencies[&"linux-only@1.0.0".parse().unwrap()], BelongsTo::Prod);
-    assert_eq!(dependencies[&"prod-only@1.0.0".parse().unwrap()], BelongsTo::Prod);
-    assert_eq!(dependencies[&"required-child@1.0.0".parse().unwrap()], BelongsTo::Prod);
-    assert_eq!(dependencies[&"required-darwin@1.0.0".parse().unwrap()], BelongsTo::Prod);
-    assert_eq!(dependencies[&"visible-child@1.0.0".parse().unwrap()], BelongsTo::Prod);
+    assert_eq!(
+        dependencies[&"linux-only@1.0.0".parse().unwrap()],
+        BelongsTo::Prod,
+    );
+    assert_eq!(
+        dependencies[&"prod-only@1.0.0".parse().unwrap()],
+        BelongsTo::Prod,
+    );
+    assert_eq!(
+        dependencies[&"required-child@1.0.0".parse().unwrap()],
+        BelongsTo::Prod,
+    );
+    assert_eq!(
+        dependencies[&"required-darwin@1.0.0".parse().unwrap()],
+        BelongsTo::Prod,
+    );
+    assert_eq!(
+        dependencies[&"visible-child@1.0.0".parse().unwrap()],
+        BelongsTo::Prod,
+    );
 }
 
 #[test]
@@ -258,7 +295,10 @@ fn normalizes_author_for_license_reports() {
         extract_license_author(&json!({ "author": { "name": "The Babel Team" } })),
         Some("The Babel Team".to_string()),
     );
-    assert_eq!(extract_license_author(&json!({ "author": "" })), Some(String::new()));
+    assert_eq!(
+        extract_license_author(&json!({ "author": "" })),
+        Some(String::new()),
+    );
 }
 
 #[test]

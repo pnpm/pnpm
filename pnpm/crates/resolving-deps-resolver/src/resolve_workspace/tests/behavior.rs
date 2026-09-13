@@ -19,11 +19,22 @@ async fn lowest_direct_applies_no_publish_cutoff() {
     );
     table.insert(
         ("sub".to_string(), "^2.0.0".to_string()),
-        fake_result("sub", "2.0.0", None, serde_json::json!({ "name": "sub", "version": "2.0.0" })),
+        fake_result(
+            "sub",
+            "2.0.0",
+            None,
+            serde_json::json!({ "name": "sub", "version": "2.0.0" }),
+        ),
     );
-    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
+    let resolver = RecordingResolver {
+        table,
+        seen: Mutex::new(HashMap::default()),
+    };
     let (tmp, manifest) = fake_manifest(serde_json::json!({ "a": "^1.0.0" }));
-    let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+    let importers = [WorkspaceImporter {
+        id: ".".to_string(),
+        manifest: &manifest,
+    }];
 
     resolve_workspace(
         &resolver,
@@ -101,25 +112,40 @@ async fn shared_subtree_miss_unsatisfied_by_first_importer_still_hoists() {
             serde_json::json!({ "name": "opt", "version": "25.0.0" }),
         ),
     );
-    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
+    let resolver = RecordingResolver {
+        table,
+        seen: Mutex::new(HashMap::default()),
+    };
     let (tmp_root, root_manifest) = fake_manifest(serde_json::json!({ "top": "1.0.0" }));
     let (tmp_a, a_manifest) = fake_manifest(serde_json::json!({ "top": "1.0.0" }));
     let importers = [
-        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
-        WorkspaceImporter { id: "pkg-a".to_string(), manifest: &a_manifest },
+        WorkspaceImporter {
+            id: ".".to_string(),
+            manifest: &root_manifest,
+        },
+        WorkspaceImporter {
+            id: "pkg-a".to_string(),
+            manifest: &a_manifest,
+        },
     ];
     let dirs = [tmp_root.path(), tmp_a.path()];
 
     let mut opts = workspace_opts(false, false);
     opts.peers.auto_install_peers = true;
     let mut next = 0;
-    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
-        let dir = dirs[next].to_path_buf();
-        next += 1;
-        let mut opts = importer_opts(dir, None);
-        opts.peers.auto_install_peers = true;
-        opts
-    })
+    let result = resolve_workspace(
+        &resolver,
+        &importers,
+        &[DependencyGroup::Prod],
+        opts,
+        |_| {
+            let dir = dirs[next].to_path_buf();
+            next += 1;
+            let mut opts = importer_opts(dir, None);
+            opts.peers.auto_install_peers = true;
+            opts
+        },
+    )
     .await
     .unwrap();
 
@@ -139,11 +165,16 @@ async fn shared_subtree_miss_unsatisfied_by_first_importer_still_hoists() {
 /// suppresses the notification.
 #[tokio::test]
 async fn deprecated_manifests_notify_the_deprecation_sink_unless_allowed() {
-    for (allowed_range, expect_notification) in
-        [(None, true), (Some("^1.0.0"), false), (Some("^2.0.0"), true)]
-    {
+    for (allowed_range, expect_notification) in [
+        (None, true),
+        (Some("^1.0.0"), false),
+        (Some("^2.0.0"), true),
+    ] {
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "old": "^1.0.0" }));
-        let importers = [WorkspaceImporter { id: "root".to_string(), manifest: &manifest }];
+        let importers = [WorkspaceImporter {
+            id: "root".to_string(),
+            manifest: &manifest,
+        }];
         let resolver = RecordingResolver {
             table: HashMap::from_iter([(
                 ("old".to_string(), "^1.0.0".to_string()),
@@ -167,13 +198,21 @@ async fn deprecated_manifests_notify_the_deprecation_sink_unless_allowed() {
             opts.allowed_deprecated_versions =
                 BTreeMap::from([("old".to_string(), range.to_string())]);
         }
-        opts.hooks.deprecation_log =
-            Some(std::sync::Arc::new(move |deprecation: crate::Deprecation| {
-                sink.lock().unwrap().push(deprecation);
-            }));
-        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
-            importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
-        })
+        opts.hooks.deprecation_log = Some(std::sync::Arc::new(
+            move |deprecation: crate::Deprecation| {
+                sink
+                    .lock()
+                    .unwrap()
+                    .push(deprecation);
+            },
+        ));
+        resolve_workspace(
+            &resolver,
+            &importers,
+            &[DependencyGroup::Prod],
+            opts,
+            |importer| importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None),
+        )
         .await
         .expect("resolve workspace with a deprecated dependency");
 
@@ -194,7 +233,10 @@ async fn deprecated_manifests_notify_the_deprecation_sink_unless_allowed() {
         assert_eq!(deprecation.depth, 0);
         assert_eq!(
             deprecation.prefix,
-            std::path::PathBuf::from("/repo").join("root").display().to_string(),
+            std::path::PathBuf::from("/repo")
+                .join("root")
+                .display()
+                .to_string(),
         );
     }
 }
@@ -207,8 +249,14 @@ async fn deprecated_package_is_reported_only_on_its_first_occurrence() {
     // Ids chosen so the transitive importer is walked first under the
     // resolver's id-ordered importer processing.
     let importers = [
-        WorkspaceImporter { id: "a-transitive".to_string(), manifest: &transitive_manifest },
-        WorkspaceImporter { id: "b-direct".to_string(), manifest: &direct_manifest },
+        WorkspaceImporter {
+            id: "a-transitive".to_string(),
+            manifest: &transitive_manifest,
+        },
+        WorkspaceImporter {
+            id: "b-direct".to_string(),
+            manifest: &direct_manifest,
+        },
     ];
     let resolver = RecordingResolver {
         table: HashMap::from_iter([
@@ -244,14 +292,22 @@ async fn deprecated_package_is_reported_only_on_its_first_occurrence() {
     let notifications = std::sync::Arc::new(Mutex::new(Vec::new()));
     let sink = std::sync::Arc::clone(&notifications);
     let mut opts = workspace_opts(false, false);
-    opts.hooks.deprecation_log =
-        Some(std::sync::Arc::new(move |deprecation: crate::Deprecation| {
-            sink.lock().unwrap().push(deprecation);
-        }));
+    opts.hooks.deprecation_log = Some(std::sync::Arc::new(
+        move |deprecation: crate::Deprecation| {
+            sink
+                .lock()
+                .unwrap()
+                .push(deprecation);
+        },
+    ));
 
-    resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
-        importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
-    })
+    resolve_workspace(
+        &resolver,
+        &importers,
+        &[DependencyGroup::Prod],
+        opts,
+        |importer| importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None),
+    )
     .await
     .expect("resolve a deprecated package reached at two depths");
 
@@ -262,7 +318,10 @@ async fn deprecated_package_is_reported_only_on_its_first_occurrence() {
     assert_eq!(deprecation.depth, 1);
     assert_eq!(
         deprecation.prefix,
-        std::path::PathBuf::from("/repo").join("a-transitive").display().to_string(),
+        std::path::PathBuf::from("/repo")
+            .join("a-transitive")
+            .display()
+            .to_string(),
     );
 }
 
@@ -279,9 +338,18 @@ async fn importer_waves_do_not_overlap() {
     let (_c_tmp, c_manifest) = fake_manifest(serde_json::json!({ "shared": "^1.0.0" }));
     let resolver = OverlapRecordingResolver::new();
     let importers = vec![
-        WorkspaceImporter { id: "packages/a".to_string(), manifest: &a_manifest },
-        WorkspaceImporter { id: "packages/b".to_string(), manifest: &b_manifest },
-        WorkspaceImporter { id: "packages/c".to_string(), manifest: &c_manifest },
+        WorkspaceImporter {
+            id: "packages/a".to_string(),
+            manifest: &a_manifest,
+        },
+        WorkspaceImporter {
+            id: "packages/b".to_string(),
+            manifest: &b_manifest,
+        },
+        WorkspaceImporter {
+            id: "packages/c".to_string(),
+            manifest: &c_manifest,
+        },
     ];
 
     resolve_workspace(

@@ -44,9 +44,17 @@ fn returns_skipped_when_patched_dependencies_drift() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+        },
     );
-    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
+    write_state(
+        workspace_root,
+        backdate_existing_files(workspace_root),
+        stale_settings,
+        projects,
+    );
 
     let decision = check(
         workspace_root,
@@ -81,15 +89,27 @@ fn returns_skipped_when_patch_file_modified_after_validation() {
     config.patched_dependencies = Some(patched);
     let config = config.leak();
 
-    let settings =
-        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
+    let settings = current_settings(
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        isolated_included(),
+        None,
+    );
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+        },
     );
     // Validate everything on disk, then bump the patch past that timestamp.
-    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
+    write_state(
+        workspace_root,
+        backdate_existing_files(workspace_root),
+        settings,
+        projects,
+    );
     fs::write(&patch_path, "--- a\n+++ b\n+edited\n").unwrap();
 
     let decision = check(
@@ -124,15 +144,27 @@ fn returns_up_to_date_when_patch_file_unchanged() {
     config.patched_dependencies = Some(patched);
     let config = config.leak();
 
-    let settings =
-        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
+    let settings = current_settings(
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        isolated_included(),
+        None,
+    );
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+        },
     );
     // Both the manifest and patch were written before this timestamp.
-    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
+    write_state(
+        workspace_root,
+        backdate_existing_files(workspace_root),
+        settings,
+        projects,
+    );
 
     let decision = check(
         workspace_root,
@@ -170,9 +202,17 @@ fn returns_skipped_when_allow_builds_drift() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+        },
     );
-    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
+    write_state(
+        workspace_root,
+        backdate_existing_files(workspace_root),
+        stale_settings,
+        projects,
+    );
 
     let decision = check(
         workspace_root,
@@ -221,8 +261,12 @@ fn returns_up_to_date_when_state_has_empty_allow_builds_and_current_has_none() {
     fs::create_dir_all(&config.modules_dir).unwrap();
     let config = config.leak();
 
-    let mut settings =
-        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
+    let mut settings = current_settings(
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        isolated_included(),
+        None,
+    );
     // Simulate a pnpm-written state: empty `allowBuilds` map
     // serialized as `{}`, where pacquet would have written `None`.
     settings.allow_builds = Some(BTreeMap::new());
@@ -230,9 +274,17 @@ fn returns_up_to_date_when_state_has_empty_allow_builds_and_current_has_none() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+        },
     );
-    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
+    write_state(
+        workspace_root,
+        backdate_existing_files(workspace_root),
+        settings,
+        projects,
+    );
 
     let decision = check(
         workspace_root,

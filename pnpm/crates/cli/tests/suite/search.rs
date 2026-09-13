@@ -28,8 +28,11 @@ fn run_search(
     args: &[&str],
 ) -> std::process::Output {
     // Write fetchRetries=0 and fetchRetryMintimeout=0 to project pnpm-workspace.yaml
-    fs::write(workspace.join("pnpm-workspace.yaml"), "fetchRetries: 0\nfetchRetryMintimeout: 0\n")
-        .expect("write project pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "fetchRetries: 0\nfetchRetryMintimeout: 0\n",
+    )
+    .expect("write project pnpm-workspace.yaml");
 
     pacquet_at(workspace)
         .with_arg("--npmrc-auth-file")
@@ -44,7 +47,10 @@ fn run_search(
 
 fn unreachable_registry() -> String {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind a probe socket");
-    let port = listener.local_addr().expect("read the probe socket address").port();
+    let port = listener
+        .local_addr()
+        .expect("read the probe socket address")
+        .port();
     drop(listener);
     format!("http://127.0.0.1:{port}/")
 }
@@ -99,7 +105,12 @@ fn returns_formatted_output_with_package_name_and_npmx_dev_url() {
 
     let auth_file = empty_auth_file(root.path());
 
-    let output = run_search(&workspace, &auth_file, &registry, &["create-touch-file-one-bin"]);
+    let output = run_search(
+        &workspace,
+        &auth_file,
+        &registry,
+        &["create-touch-file-one-bin"],
+    );
 
     mock.assert();
     assert!(

@@ -38,8 +38,10 @@ fn existing_target_with_wrong_content_is_overwritten_atomically() {
     ensure_file(&path, b"fresh", None).expect("torn blob should be rewritten");
 
     assert_eq!(fs::read(&path).unwrap(), b"fresh");
-    let siblings: Vec<_> =
-        fs::read_dir(tmp.path()).unwrap().map(|entry| entry.unwrap().file_name()).collect();
+    let siblings: Vec<_> = fs::read_dir(tmp.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect();
     assert_eq!(siblings, vec![std::ffi::OsString::from("torn.txt")]);
 }
 
@@ -79,15 +81,26 @@ fn unix_mode_is_applied_on_new_files() {
 
     ensure_file(&path, b"#!/bin/sh\n", Some(0o755)).expect("mode-honouring write");
 
-    let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o700;
-    assert_eq!(mode, 0o700, "owner rwx bits of 0o755 must survive any reasonable umask");
+    let mode = fs::metadata(&path)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o700;
+    assert_eq!(
+        mode, 0o700,
+        "owner rwx bits of 0o755 must survive any reasonable umask",
+    );
 }
 
 #[test]
 fn temp_path_strips_exec_suffix() {
     let shard_dir = Path::new("/tmp/store/v11/files/ab");
     let tmp = temp_path_in(shard_dir, &strip_dash_suffix("cdef-exec"));
-    let name = tmp.file_name().unwrap().to_string_lossy().into_owned();
+    let name = tmp
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
     assert!(name.starts_with("cdefx"), "got {name}");
 }
 
@@ -95,7 +108,11 @@ fn temp_path_strips_exec_suffix() {
 fn temp_path_passes_plain_basename_through() {
     let shard_dir = Path::new("/tmp/store/v11/files/ab");
     let tmp = temp_path_in(shard_dir, &strip_dash_suffix("cdef"));
-    let name = tmp.file_name().unwrap().to_string_lossy().into_owned();
+    let name = tmp
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
     assert!(name.starts_with("cdef"), "got {name}");
     assert_ne!(name, "cdef", "must include pid + counter suffix");
 }
@@ -158,7 +175,10 @@ fn dangling_symlink_at_cas_path_is_scrubbed_to_a_regular_file() {
     ensure_file(&cas_path, b"fresh", None).expect("dangling link should be scrubbed");
 
     let meta = fs::symlink_metadata(&cas_path).unwrap();
-    assert!(meta.file_type().is_file(), "cas_path must end as a regular file");
+    assert!(
+        meta.file_type().is_file(),
+        "cas_path must end as a regular file",
+    );
     assert_eq!(fs::read(&cas_path).unwrap(), b"fresh");
 }
 
@@ -193,7 +213,9 @@ fn file_equals_bytes_handles_multi_chunk_files() {
     let path = tmp.path().join("big");
 
     // 20 KB: at least three 8 KB chunks.
-    let content: Vec<u8> = (0..20_000).map(|index| (index % 251) as u8).collect();
+    let content: Vec<u8> = (0..20_000)
+        .map(|index| (index % 251) as u8)
+        .collect();
     fs::write(&path, &content).unwrap();
 
     assert!(file_equals_bytes(&path, &content).unwrap());
@@ -211,10 +233,18 @@ fn retry_on_fd_pressure_retries_emfile_and_enfile_until_success() {
         let result = retry_on_fd_pressure(|| {
             let attempt = attempts.get();
             attempts.set(attempt + 1);
-            if attempt < 2 { Err(io::Error::from_raw_os_error(errno)) } else { Ok("ok") }
+            if attempt < 2 {
+                Err(io::Error::from_raw_os_error(errno))
+            } else {
+                Ok("ok")
+            }
         });
         assert_eq!(result.unwrap(), "ok");
-        assert_eq!(attempts.get(), 3, "errno {errno} should have been retried twice");
+        assert_eq!(
+            attempts.get(),
+            3,
+            "errno {errno} should have been retried twice",
+        );
     }
 }
 
@@ -259,7 +289,10 @@ fn concurrent_writers_of_same_path_do_not_swap_the_inode() {
                 barrier.wait();
                 ensure_file(&path, &content, None).expect("each writer should succeed");
                 let ino = fs::metadata(&*path).unwrap().ino();
-                observed.lock().unwrap().push(ino);
+                observed
+                    .lock()
+                    .unwrap()
+                    .push(ino);
             })
         })
         .collect();
@@ -274,7 +307,9 @@ fn concurrent_writers_of_same_path_do_not_swap_the_inode() {
     let observed = observed.lock().unwrap();
     let first = observed[0];
     assert!(
-        observed.iter().all(|ino| *ino == first),
+        observed
+            .iter()
+            .all(|ino| *ino == first),
         "inode changed during concurrent writes: {observed:?}",
     );
     assert_eq!(final_meta.ino(), first);

@@ -26,21 +26,21 @@ fn an_object_marker_keeps_its_body() {
         r#"{ "provenance": { "predicateType": "https://slsa.dev/provenance/v1" } }"#,
     );
 
-    let publisher = version
-        .npm_user
+    let publisher = version.npm_user
         .as_ref()
         .and_then(|user| user.trusted_publisher.as_ref())
         .expect("trustedPublisher present");
     assert_eq!(publisher.id.as_deref(), Some("github"));
     assert_eq!(publisher.oidc_config_id.as_deref(), Some("release"));
 
-    let provenance = version
-        .dist
-        .attestations
+    let provenance = version.dist.attestations
         .as_ref()
         .and_then(|att| att.provenance.as_ref())
         .expect("provenance present");
-    assert_eq!(provenance.predicate_type.as_deref(), Some("https://slsa.dev/provenance/v1"));
+    assert_eq!(
+        provenance.predicate_type.as_deref(),
+        Some("https://slsa.dev/provenance/v1"),
+    );
 }
 
 /// A registry may abbreviate either marker to a bare `1`
@@ -50,17 +50,14 @@ fn an_object_marker_keeps_its_body() {
 fn a_numeric_marker_still_counts_as_present() {
     let version = parse(r#"{ "trustedPublisher": 1 }"#, r#"{ "provenance": 1 }"#);
 
-    let publisher = version
-        .npm_user
+    let publisher = version.npm_user
         .as_ref()
         .and_then(|user| user.trusted_publisher.as_ref())
         .expect("trustedPublisher present");
     assert_eq!(publisher.id, None);
     assert_eq!(publisher.oidc_config_id, None);
 
-    let provenance = version
-        .dist
-        .attestations
+    let provenance = version.dist.attestations
         .as_ref()
         .and_then(|att| att.provenance.as_ref())
         .expect("provenance present");
@@ -75,11 +72,15 @@ fn a_marker_body_of_any_other_shape_still_counts_as_present() {
             &format!(r#"{{ "provenance": {marker} }}"#),
         );
         assert!(
-            version.npm_user.as_ref().is_some_and(|user| user.trusted_publisher.is_some()),
+            version.npm_user
+                .as_ref()
+                .is_some_and(|user| user.trusted_publisher.is_some()),
             "trustedPublisher marked with {marker} should count as present",
         );
         assert!(
-            version.dist.attestations.as_ref().is_some_and(|att| att.provenance.is_some()),
+            version.dist.attestations
+                .as_ref()
+                .is_some_and(|att| att.provenance.is_some()),
             "provenance marked with {marker} should count as present",
         );
     }
@@ -107,7 +108,9 @@ fn a_falsy_marker_grants_no_evidence() {
             "approver of {marker} is not an approver",
         );
         assert!(
-            version.dist.attestations.as_ref().is_none_or(|att| att.provenance.is_none()),
+            version.dist.attestations
+                .as_ref()
+                .is_none_or(|att| att.provenance.is_none()),
             "provenance of {marker} is not a provenance attestation",
         );
     }
@@ -118,8 +121,10 @@ fn a_falsy_marker_grants_no_evidence() {
 /// registry named the field to say it holds nothing.
 #[test]
 fn a_null_marker_stays_absent() {
-    let version =
-        parse(r#"{ "trustedPublisher": null, "approver": null }"#, r#"{ "provenance": null }"#);
+    let version = parse(
+        r#"{ "trustedPublisher": null, "approver": null }"#,
+        r#"{ "provenance": null }"#,
+    );
 
     let npm_user = version.npm_user.as_ref();
     assert!(
@@ -131,7 +136,9 @@ fn a_null_marker_stays_absent() {
         "a null approver is not an approver",
     );
     assert!(
-        version.dist.attestations.as_ref().is_none_or(|att| att.provenance.is_none()),
+        version.dist.attestations
+            .as_ref()
+            .is_none_or(|att| att.provenance.is_none()),
         "a null provenance is not a provenance attestation",
     );
 }
@@ -141,11 +148,15 @@ fn an_absent_or_null_container_leaves_every_marker_absent() {
     for container in ["null", "{}"] {
         let version = parse(container, container);
         assert!(
-            version.npm_user.as_ref().is_none_or(|user| user.trusted_publisher.is_none()),
+            version.npm_user
+                .as_ref()
+                .is_none_or(|user| user.trusted_publisher.is_none()),
             "trustedPublisher should be absent for _npmUser {container}",
         );
         assert!(
-            version.dist.attestations.as_ref().is_none_or(|att| att.provenance.is_none()),
+            version.dist.attestations
+                .as_ref()
+                .is_none_or(|att| att.provenance.is_none()),
             "provenance should be absent for attestations {container}",
         );
     }
@@ -157,7 +168,11 @@ fn an_absent_or_null_container_leaves_every_marker_absent() {
 #[test]
 fn the_approver_marker_is_equally_tolerant() {
     let version = parse(r#"{ "approver": 1 }"#, "{}");
-    assert!(version.npm_user.as_ref().is_some_and(|user| user.approver.is_some()));
+    assert!(
+        version.npm_user
+            .as_ref()
+            .is_some_and(|user| user.approver.is_some()),
+    );
 }
 
 /// A manifest with arbitrary fragments spliced into `dist` and the top level.
@@ -186,7 +201,10 @@ fn an_advisory_count_accepts_every_numeric_encoding() {
         ("0", Some(0)),
     ] {
         let version = parse_with(&format!(r#", "unpackedSize": {encoded}"#), "");
-        assert_eq!(version.dist.unpacked_size, expected, "unpackedSize {encoded}");
+        assert_eq!(
+            version.dist.unpacked_size, expected,
+            "unpackedSize {encoded}",
+        );
         let version = parse_with(&format!(r#", "fileCount": {encoded}"#), "");
         assert_eq!(version.dist.file_count, expected, "fileCount {encoded}");
     }
@@ -197,12 +215,23 @@ fn an_advisory_count_accepts_every_numeric_encoding() {
 /// costing the version. Only the extractor's allocation hint reads it.
 #[test]
 fn an_unusable_advisory_count_degrades_to_absent() {
-    for encoded in ["-1", "12.5", r#""not a number""#, "true", "null", "{}", "[]"] {
+    for encoded in [
+        "-1",
+        "12.5",
+        r#""not a number""#,
+        "true",
+        "null",
+        "{}",
+        "[]",
+    ] {
         let version = parse_with(&format!(r#", "unpackedSize": {encoded}"#), "");
         assert_eq!(version.dist.unpacked_size, None, "unpackedSize {encoded}");
     }
     let version = parse_with("", "");
-    assert_eq!(version.dist.unpacked_size, None, "an omitted unpackedSize is absent");
+    assert_eq!(
+        version.dist.unpacked_size, None,
+        "an omitted unpackedSize is absent",
+    );
 }
 
 /// A count too large for a `usize`, or a float the parser has already
@@ -220,9 +249,15 @@ fn an_out_of_range_advisory_count_does_not_clamp() {
         "9007199254740992.0",
     ] {
         let version = parse_with(&format!(r#", "unpackedSize": {encoded}"#), "");
-        assert_eq!(version.dist.unpacked_size, None, "unpackedSize {encoded} is out of range");
+        assert_eq!(
+            version.dist.unpacked_size, None,
+            "unpackedSize {encoded} is out of range",
+        );
         let version = parse_with(&format!(r#", "fileCount": {encoded}"#), "");
-        assert_eq!(version.dist.file_count, None, "fileCount {encoded} is out of range");
+        assert_eq!(
+            version.dist.file_count, None,
+            "fileCount {encoded} is out of range",
+        );
     }
 
     let version = parse_with(r#", "unpackedSize": 1099511627776.0"#, "");
@@ -259,7 +294,11 @@ fn a_peer_optional_flag_counts_only_when_it_is_a_real_boolean() {
     assert_eq!(peer_meta("true"), Some(true));
     assert_eq!(peer_meta("false"), Some(false));
     for encoded in [r#""true""#, "1", "null", "{}"] {
-        assert_eq!(peer_meta(encoded), None, "optional {encoded} is not a boolean `true`");
+        assert_eq!(
+            peer_meta(encoded),
+            None,
+            "optional {encoded} is not a boolean `true`",
+        );
     }
 }
 
@@ -270,7 +309,10 @@ fn a_peer_optional_flag_counts_only_when_it_is_a_real_boolean() {
 fn a_non_object_npm_user_decodes_as_absent() {
     for encoded in ["1", r#""alice <alice@example.com>""#, "[]", "true"] {
         let version = parse_with("", &format!(r#", "_npmUser": {encoded}"#));
-        assert!(version.npm_user.is_none(), "_npmUser {encoded} carries no metadata");
+        assert!(
+            version.npm_user.is_none(),
+            "_npmUser {encoded} carries no metadata",
+        );
     }
 
     let version = parse_with("", r#", "_npmUser": { "name": "alice", "approver": {} }"#);
@@ -296,7 +338,9 @@ fn a_mistyped_publisher_name_keeps_the_trust_markers() {
     assert_eq!(user.email, None, "a non-string email reads as absent");
     assert!(user.approver.is_some(), "the approver marker survives");
     assert_eq!(
-        user.trusted_publisher.as_ref().and_then(|publisher| publisher.id.as_deref()),
+        user.trusted_publisher
+            .as_ref()
+            .and_then(|publisher| publisher.id.as_deref()),
         Some("github"),
         "the trusted publisher survives with its body intact",
     );
@@ -309,13 +353,19 @@ fn a_mistyped_publisher_name_keeps_the_trust_markers() {
 fn an_off_shape_attestations_container_or_url_keeps_the_version() {
     for encoded in ["1", r#""signed""#, "[]", "true"] {
         let version = parse_with(&format!(r#", "attestations": {encoded}"#), "");
-        assert!(version.dist.attestations.is_none(), "attestations {encoded} carries no metadata");
+        assert!(
+            version.dist.attestations.is_none(),
+            "attestations {encoded} carries no metadata",
+        );
     }
 
     let version = parse_with(r#", "attestations": { "provenance": {}, "url": 7 }"#, "");
     let attestations = version.dist.attestations.as_ref().expect("an object attestations decodes");
     assert_eq!(attestations.url, None, "a non-string url reads as absent");
-    assert!(attestations.provenance.is_some(), "the provenance marker survives a mistyped url");
+    assert!(
+        attestations.provenance.is_some(),
+        "the provenance marker survives a mistyped url",
+    );
 }
 
 /// A `peerDependenciesMeta` entry names a peer even when its value is not
@@ -331,9 +381,17 @@ fn an_off_shape_peer_meta_entry_keeps_its_name_with_optional_unset() {
             ),
         );
         let meta = version.peer_dependencies_meta.as_ref().expect("the map decodes");
-        assert_eq!(meta.get("react").map(|entry| entry.optional), Some(None), "react: {encoded}");
         assert_eq!(
-            meta.get("vue").map(|entry| entry.optional),
+            meta
+                .get("react")
+                .map(|entry| entry.optional),
+            Some(None),
+            "react: {encoded}",
+        );
+        assert_eq!(
+            meta
+                .get("vue")
+                .map(|entry| entry.optional),
             Some(Some(true)),
             "vue keeps its flag beside react: {encoded}",
         );

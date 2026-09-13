@@ -58,12 +58,18 @@ impl LazyLockfile {
     #[must_use]
     pub fn preloaded(lockfile: Option<Lockfile>) -> Self {
         let cell = OnceLock::new();
-        cell.set(LoadedWantedLockfile {
-            lockfile: lockfile.map(Arc::new),
-            pre_merge_importers: None,
-        })
-        .expect("a fresh OnceLock accepts the first set");
-        LazyLockfile { source: None, cell, fix_cell: OnceLock::new(), prefetch: Mutex::new(None) }
+        cell
+            .set(LoadedWantedLockfile {
+                lockfile: lockfile.map(Arc::new),
+                pre_merge_importers: None,
+            })
+            .expect("a fresh OnceLock accepts the first set");
+        LazyLockfile {
+            source: None,
+            cell,
+            fix_cell: OnceLock::new(),
+            prefetch: Mutex::new(None),
+        }
     }
 
     /// Start the read + parse on a background thread, so a later
@@ -79,7 +85,9 @@ impl LazyLockfile {
         if self.cell.get().is_some() {
             return;
         }
-        let Some((dir, selection)) = self.source.clone() else { return };
+        let Some((dir, selection)) = self.source.clone() else {
+            return;
+        };
         let mut slot = match self.prefetch.lock() {
             Ok(slot) => slot,
             Err(poisoned) => poisoned.into_inner(),
@@ -87,7 +95,9 @@ impl LazyLockfile {
         if slot.is_some() {
             return;
         }
-        *slot = Some(std::thread::spawn(move || Lockfile::load_wanted_detailed(&dir, &selection)));
+        *slot = Some(std::thread::spawn(move || {
+            Lockfile::load_wanted_detailed(&dir, &selection)
+        }));
     }
 
     /// The parsed wanted lockfile, loading it on first call. `None`
@@ -153,7 +163,12 @@ impl LazyLockfile {
         let loaded = if let Some((dir, selection)) = self.source.as_ref() {
             Lockfile::load_wanted_detailed_for_fix(dir, selection)?
         } else {
-            LoadedRepairLockfile::from_loaded(self.cell.get().cloned().unwrap_or_default())
+            LoadedRepairLockfile::from_loaded(
+                self.cell
+                    .get()
+                    .cloned()
+                    .unwrap_or_default(),
+            )
         };
         Ok(self.fix_cell.get_or_init(|| loaded))
     }

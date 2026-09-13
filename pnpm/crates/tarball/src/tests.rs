@@ -74,7 +74,10 @@ fn fast_fail_client() -> ThrottledClient {
 /// timeouts; tests that specifically want to *prove* the retry
 /// loop runs should construct their own [`RetryOpts`].
 fn test_retry_opts() -> RetryOpts {
-    RetryOpts { retries: 0, ..RetryOpts::default() }
+    RetryOpts {
+        retries: 0,
+        ..RetryOpts::default()
+    }
 }
 
 /// **Problem:**
@@ -89,8 +92,12 @@ fn test_retry_opts() -> RetryOpts {
 /// The `'static` path becomes dangling outside the scope of [`TempDir`].
 fn tempdir_with_leaked_path() -> (TempDir, &'static StoreDir) {
     let tempdir = tempdir().unwrap();
-    let leaked_path =
-        tempdir.path().to_path_buf().pipe(StoreDir::from).pipe(Box::new).pipe(Box::leak);
+    let leaked_path = tempdir
+        .path()
+        .to_path_buf()
+        .pipe(StoreDir::from)
+        .pipe(Box::new)
+        .pipe(Box::leak);
     (tempdir, leaked_path)
 }
 
@@ -100,7 +107,12 @@ fn seed_row_holding_another_package(store_path: &StoreDir, index_key: &str) {
     let mut files = HashMap::new();
     files.insert(
         "package.json".to_string(),
-        CafsFileInfo { digest: "0".repeat(128), mode: 0o644, size: 0, checked_at: None },
+        CafsFileInfo {
+            digest: "0".repeat(128),
+            mode: 0o644,
+            size: 0,
+            checked_at: None,
+        },
     );
     let entry = PackageFilesIndex {
         manifest: Some(serde_json::json!({ "name": "other-package", "version": "9.9.9" })),
@@ -146,7 +158,11 @@ fn gzip_bomb_tarball(generated: &[(&str, u64)], verbatim: &[(&str, &[u8])]) -> V
             .append_data(&mut header(bytes.len() as u64), path, bytes)
             .expect("append verbatim entry");
     }
-    builder.into_inner().expect("finish tar").finish().expect("finish gzip")
+    builder
+        .into_inner()
+        .expect("finish tar")
+        .finish()
+        .expect("finish gzip")
 }
 
 /// Build a tar archive spanning every entry shape the streaming
@@ -155,8 +171,9 @@ fn gzip_bomb_tarball(generated: &[(&str, u64)], verbatim: &[(&str, &[u8])]) -> V
 /// [`STREAM_ENTRY_BUFFER_MAX`] that must take the
 /// direct-to-store streaming branch.
 fn mixed_size_tar() -> (Vec<u8>, Vec<u8>) {
-    let large_payload: Vec<u8> =
-        (0..=STREAM_ENTRY_BUFFER_MAX).map(|index| (index % 251) as u8).collect();
+    let large_payload: Vec<u8> = (0..=STREAM_ENTRY_BUFFER_MAX)
+        .map(|index| (index % 251) as u8)
+        .collect();
 
     let mut builder = tar::Builder::new(Vec::new());
     let mut dir_header = tar::Header::new_gnu();
@@ -164,7 +181,9 @@ fn mixed_size_tar() -> (Vec<u8>, Vec<u8>) {
     dir_header.set_mode(0o755);
     dir_header.set_entry_type(tar::EntryType::Directory);
     dir_header.set_cksum();
-    builder.append_data(&mut dir_header, "package/lib/", &b""[..]).expect("append dir entry");
+    builder
+        .append_data(&mut dir_header, "package/lib/", &b""[..])
+        .expect("append dir entry");
     for (path, mode, body) in [
         (
             "package/package.json",
@@ -247,7 +266,11 @@ fn gzipped_archive(entries: &[(&str, &str)]) -> Vec<u8> {
             header.set_entry_type(tar::EntryType::Regular);
             header.set_cksum();
             builder
-                .append_data(&mut header, format!("repo-abc123/{path}"), contents.as_bytes())
+                .append_data(
+                    &mut header,
+                    format!("repo-abc123/{path}"),
+                    contents.as_bytes(),
+                )
                 .expect("append entry");
         }
         builder.finish().expect("finalize tar");
@@ -294,7 +317,9 @@ impl Read for EndlessReader {
         if self.bytes_read >= self.cap {
             return Err(std::io::Error::other("test reader ran past its safety cap"));
         }
-        let take = buf.len().min(usize::try_from(self.cap - self.bytes_read).unwrap_or(usize::MAX));
+        let take = buf
+            .len()
+            .min(usize::try_from(self.cap - self.bytes_read).unwrap_or(usize::MAX));
         buf[..take].fill(b'x');
         self.bytes_read += take as u64;
         Ok(take)
@@ -362,17 +387,36 @@ mod normalize_bundled_manifest_tests {
         }))
         .expect("non-empty pick");
         let map = result.as_object().expect("object");
-        assert_eq!(map.get("name").and_then(|v| v.as_str()), Some("foo"));
-        assert_eq!(map.get("version").and_then(|v| v.as_str()), Some("1.0.0"));
+        assert_eq!(
+            map
+                .get("name")
+                .and_then(|v| v.as_str()),
+            Some("foo"),
+        );
+        assert_eq!(
+            map
+                .get("version")
+                .and_then(|v| v.as_str()),
+            Some("1.0.0"),
+        );
         assert_eq!(map.get("bin"), Some(&json!({ "foo": "./bin/foo.js" })));
         assert_eq!(map.get("engines"), Some(&json!({ "node": ">=18" })));
         assert_eq!(map.get("cpu"), Some(&json!(["x64"])));
         assert_eq!(map.get("os"), Some(&json!(["linux"])));
         assert_eq!(map.get("libc"), Some(&json!(["glibc"])));
         assert_eq!(map.get("dependencies"), Some(&json!({ "bar": "^1.0.0" })));
-        assert_eq!(map.get("devDependencies"), Some(&json!({ "qux": "^3.0.0" })));
-        assert_eq!(map.get("optionalDependencies"), Some(&json!({ "baz": "^2.0.0" })));
-        assert_eq!(map.get("peerDependencies"), Some(&json!({ "react": "^18" })));
+        assert_eq!(
+            map.get("devDependencies"),
+            Some(&json!({ "qux": "^3.0.0" })),
+        );
+        assert_eq!(
+            map.get("optionalDependencies"),
+            Some(&json!({ "baz": "^2.0.0" })),
+        );
+        assert_eq!(
+            map.get("peerDependencies"),
+            Some(&json!({ "react": "^18" })),
+        );
         assert_eq!(
             map.get("peerDependenciesMeta"),
             Some(&json!({ "react": { "optional": true } })),
@@ -442,9 +486,22 @@ mod normalize_bundled_manifest_tests {
         }))
         .expect("non-empty pick");
         assert!(result.get("bin").is_none(), "null `bin` must be dropped");
-        assert!(result.get("engines").is_none(), "null `engines` must be dropped");
-        assert_eq!(result.get("name").and_then(|v| v.as_str()), Some("foo"));
-        assert_eq!(result.get("version").and_then(|v| v.as_str()), Some("1.0.0"));
+        assert!(
+            result.get("engines").is_none(),
+            "null `engines` must be dropped",
+        );
+        assert_eq!(
+            result
+                .get("name")
+                .and_then(|v| v.as_str()),
+            Some("foo"),
+        );
+        assert_eq!(
+            result
+                .get("version")
+                .and_then(|v| v.as_str()),
+            Some("1.0.0"),
+        );
     }
 
     /// The bundled manifest is downstream-fed into
@@ -464,7 +521,10 @@ mod normalize_bundled_manifest_tests {
             },
         }))
         .expect("non-empty pick");
-        assert_eq!(result.get("optionalDependencies"), Some(&json!({ "sharp": "^0.34.0" })));
+        assert_eq!(
+            result.get("optionalDependencies"),
+            Some(&json!({ "sharp": "^0.34.0" })),
+        );
         assert_eq!(
             result.get("peerDependenciesMeta"),
             Some(&json!({
@@ -496,7 +556,9 @@ fn incompressible_tarball(min_bytes: usize) -> Vec<u8> {
         header.set_entry_type(tar::EntryType::Regular);
         header.set_path("package/noise.bin").expect("set entry path");
         header.set_cksum();
-        builder.append(&header, payload.as_slice()).expect("append entry");
+        builder
+            .append(&header, payload.as_slice())
+            .expect("append entry");
         builder.finish().expect("finalize tar");
     }
 
@@ -541,7 +603,10 @@ fn tar_with_root_level_entries() -> Vec<u8> {
     tar_with_entries(&[
         ("._package", b""),
         ("README", b"a file that sits at the archive root\n"),
-        ("package/package.json", br#"{"name":"pkg-root-entry","version":"1.0.0"}"#),
+        (
+            "package/package.json",
+            br#"{"name":"pkg-root-entry","version":"1.0.0"}"#,
+        ),
         ("package/index.js", b"module.exports = 'hello'\n"),
     ])
 }

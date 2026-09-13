@@ -129,7 +129,10 @@ impl RunOutcome<'_> {
         if recursion_guarded {
             return TaskCompletion::Passed;
         }
-        let key = TaskKey { project: node.project.clone(), task_name: node.task_name.clone() };
+        let key = TaskKey {
+            project: node.project.clone(),
+            task_name: node.task_name.clone(),
+        };
         match self.task_run_state.record_passed(&key, node, self.workspace_root) {
             Ok(()) => TaskCompletion::Passed,
             Err(error) => self.abort(error),
@@ -298,8 +301,10 @@ fn project_extra_env(
     let mut extra_env = extra_env.clone();
     if let Some(pnp_path) = pnp_path_for_execution(config, root) {
         let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
-        extra_env
-            .insert("NODE_OPTIONS".to_string(), make_node_require_option(&pnp_path, node_options));
+        extra_env.insert(
+            "NODE_OPTIONS".to_string(),
+            make_node_require_option(&pnp_path, node_options),
+        );
     }
     if let Some(package_map_path) = package_map_path_for_execution(config, root) {
         let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
@@ -326,7 +331,10 @@ fn script_output(inherit_output: bool, root_str: &str, emit: fn(&LogEvent)) -> S
     if inherit_output {
         ScriptOutput::Inherit
     } else {
-        ScriptOutput::Streamed { dep_path: root_str, emit }
+        ScriptOutput::Streamed {
+            dep_path: root_str,
+            emit,
+        }
     }
 }
 
@@ -343,8 +351,10 @@ fn record_script_failure(
 ) {
     status_entry.status = Status::Failure;
     status_entry.duration = Some(duration);
-    status_entry.message =
-        Some(format!("command failed with exit code {}", status.code().unwrap_or(1)));
+    status_entry.message = Some(format!(
+        "command failed with exit code {}",
+        status.code().unwrap_or(1),
+    ));
     status_entry.prefix = Some(root.to_string_lossy().into_owned());
 }
 

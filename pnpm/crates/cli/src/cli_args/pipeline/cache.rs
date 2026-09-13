@@ -124,7 +124,11 @@ impl TaskCache {
 
     pub fn lookup(&self, key: &str) -> Option<StoredTask> {
         let entry_dir = self.entry_dir(key);
-        check_ancestors(&self.tasks_dir, entry_dir.strip_prefix(&self.tasks_dir).ok()?).ok()?;
+        check_ancestors(
+            &self.tasks_dir,
+            entry_dir.strip_prefix(&self.tasks_dir).ok()?,
+        )
+        .ok()?;
         let meta = fs::read_to_string(entry_dir.join("meta.json")).ok()?;
         let mut stored: StoredTask = serde_json::from_str(&meta).ok()?;
         if stored.version != 2 {
@@ -151,11 +155,14 @@ impl TaskCache {
         task_id: &str,
     ) -> Result<(), String> {
         let previous = self.read_output_record(task_id);
-        for relative in stored
-            .files
+        for relative in stored.files
             .iter()
             .map(String::as_str)
-            .chain(previous.iter().map(|record| record.path.as_str()))
+            .chain(
+                previous
+                    .iter()
+                    .map(|record| record.path.as_str()),
+            )
         {
             validate_output_path(project_dir, relative)?;
         }
@@ -163,7 +170,9 @@ impl TaskCache {
         check_working_tree_is_ours(stored, project_dir, &previous)?;
         remove_stale_outputs(stored, project_dir, &previous)?;
         let record = copy_cached_outputs(stored, project_dir)?;
-        self.write_output_record(task_id, &record).map_err(|error| error.to_string())
+        self
+            .write_output_record(task_id, &record)
+            .map_err(|error| error.to_string())
     }
 
     /// Store a successful task: its declared outputs and captured logs.
@@ -184,13 +193,19 @@ impl TaskCache {
         let record = stage_output_files(project_dir, staging_dir, &files)?;
         let meta = StoredTask {
             version: 2,
-            hashes: record.iter().map(|file| (file.path.clone(), file.hash.clone())).collect(),
+            hashes: record
+                .iter()
+                .map(|file| (file.path.clone(), file.hash.clone()))
+                .collect(),
             task: task_id.to_string(),
             files,
             scripts,
             entry_dir: PathBuf::new(),
         };
-        fs::write(staging_dir.join("meta.json"), serde_json::to_vec_pretty(&meta)?)?;
+        fs::write(
+            staging_dir.join("meta.json"),
+            serde_json::to_vec_pretty(&meta)?,
+        )?;
         match fs::rename(staging_dir, &entry_dir) {
             Ok(()) => {}
             Err(error) => {
@@ -227,7 +242,9 @@ impl TaskCache {
     }
 
     fn entry_dir(&self, key: &str) -> PathBuf {
-        self.tasks_dir.join(&key[..2]).join(key)
+        self.tasks_dir
+            .join(&key[..2])
+            .join(key)
     }
 
     fn output_record_path(&self, task_id: &str) -> PathBuf {

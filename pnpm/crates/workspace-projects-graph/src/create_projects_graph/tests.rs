@@ -56,13 +56,15 @@ fn project(root: &str, name: &str, version: &str, prod: &[(&str, &str)]) -> Test
         peer: Vec::new(),
         dev: Vec::new(),
         optional: Vec::new(),
-        prod: prod.iter().map(|(name, spec)| (name.to_string(), spec.to_string())).collect(),
+        prod: prod
+            .iter()
+            .map(|(name, spec)| (name.to_string(), spec.to_string()))
+            .collect(),
     }
 }
 
 fn edges(graph: &crate::ProjectGraph<TestProject>, key: &str) -> Vec<String> {
-    graph[Path::new(key)]
-        .dependencies
+    graph[Path::new(key)].dependencies
         .iter()
         .map(|path| path.to_string_lossy().into_owned())
         .collect()
@@ -105,7 +107,10 @@ fn exact_version_string_matches_before_range() {
 fn workspace_spec_links_versionless_sibling() {
     let mut versionless = project("/ws/b", "b", "0.0.0", &[]);
     versionless.version = None;
-    let projects = vec![project("/ws/a", "a", "1.0.0", &[("b", "workspace:*")]), versionless];
+    let projects = vec![
+        project("/ws/a", "a", "1.0.0", &[("b", "workspace:*")]),
+        versionless,
+    ];
     let result = create_projects_graph(projects, &CreateProjectsGraphOptions::default());
     assert_eq!(edges(&result.graph, "/ws/a"), vec!["/ws/b".to_string()]);
 }
@@ -117,7 +122,10 @@ fn link_path_resolves_by_directory() {
         project("/ws/packages/b", "b", "2.0.0", &[]),
     ];
     let result = create_projects_graph(projects, &CreateProjectsGraphOptions::default());
-    assert_eq!(edges(&result.graph, "/ws/packages/a"), vec!["/ws/packages/b".to_string()]);
+    assert_eq!(
+        edges(&result.graph, "/ws/packages/a"),
+        vec!["/ws/packages/b".to_string()],
+    );
 }
 
 #[test]
@@ -127,7 +135,10 @@ fn path_style_workspace_spec_resolves_by_directory() {
         project("/ws/packages/b", "b", "2.0.0", &[]),
     ];
     let result = create_projects_graph(projects, &CreateProjectsGraphOptions::default());
-    assert_eq!(edges(&result.graph, "/ws/packages/a"), vec!["/ws/packages/b".to_string()]);
+    assert_eq!(
+        edges(&result.graph, "/ws/packages/a"),
+        vec!["/ws/packages/b".to_string()],
+    );
     assert!(result.unmatched.is_empty());
 }
 
@@ -157,13 +168,18 @@ fn strict_link_workspace_packages_rejects_plain_version() {
         project("/ws/a", "a", "1.0.0", &[("b", "2.0.0")]),
         project("/ws/b", "b", "2.0.0", &[]),
     ];
-    let opts =
-        CreateProjectsGraphOptions { ignore_dev_deps: false, link_workspace_packages: Some(false) };
+    let opts = CreateProjectsGraphOptions {
+        ignore_dev_deps: false,
+        link_workspace_packages: Some(false),
+    };
     let result = create_projects_graph(projects, &opts);
     assert_eq!(edges(&result.graph, "/ws/a"), Vec::<String>::new());
     assert_eq!(
         result.unmatched,
-        vec![Unmatched { pkg_name: "b".to_string(), range: "2.0.0".to_string() }],
+        vec![Unmatched {
+            pkg_name: "b".to_string(),
+            range: "2.0.0".to_string()
+        }],
     );
 }
 
@@ -173,8 +189,10 @@ fn strict_link_workspace_packages_still_links_workspace_specs() {
         project("/ws/a", "a", "1.0.0", &[("b", "workspace:*")]),
         project("/ws/b", "b", "2.0.0", &[]),
     ];
-    let opts =
-        CreateProjectsGraphOptions { ignore_dev_deps: false, link_workspace_packages: Some(false) };
+    let opts = CreateProjectsGraphOptions {
+        ignore_dev_deps: false,
+        link_workspace_packages: Some(false),
+    };
     let result = create_projects_graph(projects, &opts);
     assert_eq!(edges(&result.graph, "/ws/a"), vec!["/ws/b".to_string()]);
     assert!(result.unmatched.is_empty());
@@ -183,7 +201,12 @@ fn strict_link_workspace_packages_still_links_workspace_specs() {
 #[test]
 fn registry_protocols_contribute_no_edge() {
     let projects = vec![
-        project("/ws/a", "a", "1.0.0", &[("b", "npm:other@1.0.0"), ("c", "github:o/r")]),
+        project(
+            "/ws/a",
+            "a",
+            "1.0.0",
+            &[("b", "npm:other@1.0.0"), ("c", "github:o/r")],
+        ),
         project("/ws/b", "b", "2.0.0", &[]),
     ];
     let result = create_projects_graph(projects, &CreateProjectsGraphOptions::default());
@@ -199,13 +222,19 @@ fn ignore_dev_deps_drops_dev_only_edges() {
 
     let with_dev = create_projects_graph(
         vec_clone(&projects),
-        &CreateProjectsGraphOptions { ignore_dev_deps: false, link_workspace_packages: None },
+        &CreateProjectsGraphOptions {
+            ignore_dev_deps: false,
+            link_workspace_packages: None,
+        },
     );
     assert_eq!(edges(&with_dev.graph, "/ws/a"), vec!["/ws/b".to_string()]);
 
     let without_dev = create_projects_graph(
         projects,
-        &CreateProjectsGraphOptions { ignore_dev_deps: true, link_workspace_packages: None },
+        &CreateProjectsGraphOptions {
+            ignore_dev_deps: true,
+            link_workspace_packages: None,
+        },
     );
     assert_eq!(edges(&without_dev.graph, "/ws/a"), Vec::<String>::new());
 }
@@ -220,7 +249,10 @@ fn unsatisfiable_range_is_reported_unmatched() {
     assert_eq!(edges(&result.graph, "/ws/a"), Vec::<String>::new());
     assert_eq!(
         result.unmatched,
-        vec![Unmatched { pkg_name: "b".to_string(), range: "^9.0.0".to_string() }],
+        vec![Unmatched {
+            pkg_name: "b".to_string(),
+            range: "^9.0.0".to_string()
+        }],
     );
 }
 

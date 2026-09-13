@@ -75,15 +75,20 @@ pub(super) fn rewrite_dist_tarball(
     if let Some(source_registry) = source_registry {
         rewrite_upstream_revision_tarball_urls(dist, source_registry, public_url);
     }
-    let revision_url = source_registry
-        .and_then(|source_registry| unique_revision_url(dist, source_registry, public_url));
+    let revision_url = source_registry.and_then(|source_registry| {
+        unique_revision_url(dist, source_registry, public_url)
+    });
     if let Some(revision_url) = revision_url {
-        let Some(tarball_value) = dist.get_mut("tarball") else { return };
+        let Some(tarball_value) = dist.get_mut("tarball") else {
+            return;
+        };
         *tarball_value = Value::String(revision_url);
         return;
     }
     dist.remove("revision");
-    let Some(tarball_value) = dist.get_mut("tarball") else { return };
+    let Some(tarball_value) = dist.get_mut("tarball") else {
+        return;
+    };
     if !tarball_value.is_string() {
         return;
     }
@@ -105,7 +110,11 @@ pub(super) fn unique_revision_url(
 ) -> Option<String> {
     let revision = dist.get("revision")?.as_u64()?;
     TarballRevision::try_from(revision).ok()?;
-    let integrity: Integrity = dist.get("integrity")?.as_str()?.parse().ok()?;
+    let integrity: Integrity = dist
+        .get("integrity")?
+        .as_str()?
+        .parse()
+        .ok()?;
     let tarball = dist.get("tarball")?.as_str()?;
     if !is_integrity_addressed_registry_tarball_url(tarball, &integrity, source_registry) {
         return None;
@@ -115,17 +124,24 @@ pub(super) fn unique_revision_url(
         .get("revisions")?
         .as_array()?
         .iter()
-        .filter(|entry| {
-            entry.get("revision").and_then(Value::as_u64) == Some(revision)
-                && entry
-                    .get("integrity")
-                    .and_then(Value::as_str)
-                    .and_then(|integrity| integrity.parse::<Integrity>().ok())
-                    .is_some_and(|candidate| candidate == integrity)
-                && entry.get("tarball").and_then(Value::as_str) == Some(revision_url.as_str())
-        })
+        .filter(|entry| matches_revision(entry, revision, &integrity, &revision_url))
         .count();
     (matches == 1).then_some(revision_url)
+}
+
+fn matches_revision(
+    entry: &Value,
+    revision: u64,
+    integrity: &Integrity,
+    revision_url: &str,
+) -> bool {
+    entry.get("revision").and_then(Value::as_u64) == Some(revision)
+        && entry
+            .get("integrity")
+            .and_then(Value::as_str)
+            .and_then(|integrity| integrity.parse::<Integrity>().ok())
+            .is_some_and(|candidate| candidate == *integrity)
+        && entry.get("tarball").and_then(Value::as_str) == Some(revision_url)
 }
 
 pub(super) fn rewrite_upstream_revision_tarball_urls(
@@ -163,9 +179,12 @@ pub(super) fn rewrite_revision_tarball(
     else {
         return false;
     };
-    let addressed = revision.get("tarball").and_then(Value::as_str).is_some_and(|tarball| {
-        is_integrity_addressed_registry_tarball_url(tarball, &integrity, source_registry)
-    });
+    let addressed = revision
+        .get("tarball")
+        .and_then(Value::as_str)
+        .is_some_and(|tarball| {
+            is_integrity_addressed_registry_tarball_url(tarball, &integrity, source_registry)
+        });
     if !addressed {
         return false;
     }
@@ -185,8 +204,14 @@ pub(super) fn rewrite_revision_tarball(
 /// later requests. Returns `None` for a URL whose path ends in `/`.
 #[must_use]
 pub fn tarball_basename(url: &str) -> Option<&str> {
-    let path = url.split(['?', '#']).next().unwrap_or(url);
-    path.rsplit('/').next().filter(|segment| !segment.is_empty())
+    let path = url
+        .split(['?', '#'])
+        .next()
+        .unwrap_or(url);
+    path
+        .rsplit('/')
+        .next()
+        .filter(|segment| !segment.is_empty())
 }
 
 /// Look up the version manifest for `version_or_tag` inside a parsed
@@ -234,7 +259,10 @@ pub(super) fn extract_version_manifest_from_registry(
         .and_then(|tags| tags.get(version_or_tag))
         .and_then(Value::as_str)
         .unwrap_or(version_or_tag);
-    let mut manifest = packument.get("versions")?.get(resolved)?.clone();
+    let mut manifest = packument
+        .get("versions")?
+        .get(resolved)?
+        .clone();
     rewrite_tarball_urls_from_registry(&mut manifest, pkg, source_registry, public_url);
     Some(manifest)
 }
@@ -320,7 +348,9 @@ pub fn abbreviate_packument(packument: &Value, now: DateTime<Utc>) -> Value {
 pub(super) fn abbreviate_versions(versions: &serde_json::Map<String, Value>) -> Value {
     let mut abbreviated = serde_json::Map::with_capacity(versions.len());
     for (version_id, version_value) in versions {
-        let Some(version_obj) = version_value.as_object() else { continue };
+        let Some(version_obj) = version_value.as_object() else {
+            continue;
+        };
         let mut trimmed = serde_json::Map::new();
         copy_fields(&mut trimmed, version_obj, ABBREVIATED_VERSION_FIELDS);
         trim_dist_fields(&mut trimmed);
@@ -368,7 +398,10 @@ pub(super) fn trim_dist_fields(version: &mut serde_json::Map<String, Value>) {
         return;
     };
     dist.remove("npm-signature");
-    if dist.get("integrity").and_then(Value::as_str).is_some_and(|integrity| !integrity.is_empty())
+    if dist
+        .get("integrity")
+        .and_then(Value::as_str)
+        .is_some_and(|integrity| !integrity.is_empty())
     {
         dist.remove("shasum");
     }
@@ -393,8 +426,13 @@ pub(super) fn coarsen_time_map(
     let horizon = now - chrono::Duration::days(TIME_PRECISION_HORIZON_DAYS);
     let mut out = serde_json::Map::with_capacity(time.len());
     for (key, value) in time {
-        let coarsened = value.as_str().and_then(|raw| coarsen_timestamp(raw, horizon));
-        out.insert(key.clone(), coarsened.map_or_else(|| value.clone(), Value::String));
+        let coarsened = value
+            .as_str()
+            .and_then(|raw| coarsen_timestamp(raw, horizon));
+        out.insert(
+            key.clone(),
+            coarsened.map_or_else(|| value.clone(), Value::String),
+        );
     }
     out
 }
@@ -412,12 +450,19 @@ pub(super) fn coarsen_timestamp(raw: &str, horizon: DateTime<Utc>) -> Option<Str
     let parsed = DateTime::parse_from_rfc3339(raw).ok()?.with_timezone(&Utc);
     if parsed < horizon {
         let date = parsed.date_naive();
-        let rounded =
-            if parsed == date.and_hms_opt(0, 0, 0)?.and_utc() { date } else { date.succ_opt()? };
+        let rounded = if parsed == date.and_hms_opt(0, 0, 0)?.and_utc() {
+            date
+        } else {
+            date.succ_opt()?
+        };
         Some(rounded.format("%Y-%m-%d").to_string())
     } else {
         let minute = parsed.with_second(0)?.with_nanosecond(0)?;
-        let rounded = if parsed == minute { minute } else { minute + chrono::Duration::minutes(1) };
+        let rounded = if parsed == minute {
+            minute
+        } else {
+            minute + chrono::Duration::minutes(1)
+        };
         Some(rounded.format("%Y-%m-%dT%H:%MZ").to_string())
     }
 }

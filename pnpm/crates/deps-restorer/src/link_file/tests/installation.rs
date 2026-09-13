@@ -61,8 +61,15 @@ fn copy_restores_executable_mode_from_cas_suffix() {
     link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Copy, &src, &dst)
         .expect("copy should restore executable CAS mode");
 
-    let dst_mode = fs::metadata(&dst).unwrap().permissions().mode() & 0o777;
-    assert_eq!(dst_mode, 0o755, "copied executable file must stay executable");
+    let dst_mode = fs::metadata(&dst)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(
+        dst_mode, 0o755,
+        "copied executable file must stay executable",
+    );
 }
 /// A non-executable CAS entry has no `-exec` suffix, so the copy must
 /// leave its mode untouched. Guards against widening permissions on the
@@ -81,8 +88,15 @@ fn copy_does_not_widen_non_exec_mode() {
     link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Copy, &src, &dst)
         .expect("copy should succeed");
 
-    let dst_mode = fs::metadata(&dst).unwrap().permissions().mode() & 0o777;
-    assert_eq!(dst_mode, 0o600, "non-executable file must not gain exec bits");
+    let dst_mode = fs::metadata(&dst)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(
+        dst_mode, 0o600,
+        "non-executable file must not gain exec bits",
+    );
 }
 /// On EEXIST the import adopts the racing writer's dirent, but re-asserts
 /// the exec bit from the `-exec` suffix — so a target a prior failed
@@ -108,8 +122,15 @@ fn eexist_restores_executable_mode_from_cas_suffix() {
     )
     .expect("EEXIST import should heal the exec bit");
 
-    let dst_mode = fs::metadata(&dst).unwrap().permissions().mode() & 0o777;
-    assert_eq!(dst_mode, 0o755, "stale 0o644 target must be restored to 0o755 on EEXIST");
+    let dst_mode = fs::metadata(&dst)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(
+        dst_mode, 0o755,
+        "stale 0o644 target must be restored to 0o755 on EEXIST",
+    );
 }
 /// The EEXIST exec-bit re-assertion must not widen a non-executable
 /// entry: a `-exec`-less source leaves an existing `0o600` target alone.
@@ -132,8 +153,15 @@ fn eexist_does_not_widen_non_exec_mode() {
     )
     .expect("EEXIST import should be a no-op for a non-exec entry");
 
-    let dst_mode = fs::metadata(&dst).unwrap().permissions().mode() & 0o777;
-    assert_eq!(dst_mode, 0o600, "non-exec EEXIST target must not gain exec bits");
+    let dst_mode = fs::metadata(&dst)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(
+        dst_mode, 0o600,
+        "non-exec EEXIST target must not gain exec bits",
+    );
 }
 /// The writer that owns a shared slot may replace the target again
 /// before the exec-bit re-assertion opens it; it restores the bit itself,
@@ -166,8 +194,15 @@ fn spurious_not_found_with_an_existing_target_is_adopted() {
     recover_from_concurrent_import(io::Error::from(io::ErrorKind::NotFound), &src, &dst)
         .expect("a NotFound against an existing target is a concurrent import");
 
-    let dst_mode = fs::metadata(&dst).unwrap().permissions().mode() & 0o777;
-    assert_eq!(dst_mode, 0o755, "the adopted target must be restored to 0o755");
+    let dst_mode = fs::metadata(&dst)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(
+        dst_mode, 0o755,
+        "the adopted target must be restored to 0o755",
+    );
 }
 #[test]
 fn not_found_without_a_target_propagates() {
@@ -242,7 +277,11 @@ fn existing_target_is_preserved() {
     ] {
         link_file::<SilentReporter>(&AtomicU8::new(0), method, &src, &dst)
             .expect("existing target should short-circuit");
-        assert_eq!(fs::read(&dst).unwrap(), b"old", "method {method:?} must not overwrite");
+        assert_eq!(
+            fs::read(&dst).unwrap(),
+            b"old",
+            "method {method:?} must not overwrite",
+        );
     }
 }
 /// `CloneOrCopy` has to succeed on any filesystem because
@@ -258,8 +297,13 @@ fn clone_or_copy_materializes_the_file_contents() {
     let dst = tmp.path().join("nested/dst.txt");
     fs::create_dir_all(dst.parent().unwrap()).unwrap();
 
-    link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::CloneOrCopy, &src, &dst)
-        .expect("CloneOrCopy should always succeed");
+    link_file::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::CloneOrCopy,
+        &src,
+        &dst,
+    )
+    .expect("CloneOrCopy should always succeed");
     assert_eq!(fs::read(&dst).unwrap(), b"clone-or-copy");
 }
 /// Explicit `Clone` must propagate errors rather than silently
@@ -321,13 +365,19 @@ fn auto_ladder_order_is_platform_specific() {
     {
         assert_eq!(AUTO_FIRST_TIER, LINK_STATE_HARDLINK);
         assert_eq!(next_auto_tier(LINK_STATE_HARDLINK), LINK_STATE_CLONE);
-        assert_eq!(next_auto_tier(LINK_STATE_CLONE), super::super::LINK_STATE_COPY);
+        assert_eq!(
+            next_auto_tier(LINK_STATE_CLONE),
+            super::super::LINK_STATE_COPY,
+        );
     }
     #[cfg(not(target_os = "linux"))]
     {
         assert_eq!(AUTO_FIRST_TIER, LINK_STATE_CLONE);
         assert_eq!(next_auto_tier(LINK_STATE_CLONE), LINK_STATE_HARDLINK);
-        assert_eq!(next_auto_tier(LINK_STATE_HARDLINK), super::super::LINK_STATE_COPY);
+        assert_eq!(
+            next_auto_tier(LINK_STATE_HARDLINK),
+            super::super::LINK_STATE_COPY,
+        );
     }
 }
 /// The downgrade cache only steps forward from the exact tier that
@@ -387,9 +437,11 @@ fn clone_or_copy_call_errors_propagate_without_downgrading() {
 #[test]
 fn is_call_error_rejects_capability_codes() {
     // Call-shape errors: must propagate.
-    for kind in
-        [io::ErrorKind::NotFound, io::ErrorKind::PermissionDenied, io::ErrorKind::AlreadyExists]
-    {
+    for kind in [
+        io::ErrorKind::NotFound,
+        io::ErrorKind::PermissionDenied,
+        io::ErrorKind::AlreadyExists,
+    ] {
         let err = io::Error::from(kind);
         assert!(is_call_error(&err), "kind {kind:?} should be a call error");
     }
@@ -403,16 +455,25 @@ fn is_call_error_rejects_capability_codes() {
         io::Error::from_raw_os_error(25),             // ENOTTY — ext4 reflink rejection
         io::Error::from_raw_os_error(95),             // EOPNOTSUPP
     ] {
-        assert!(!is_call_error(&err), "{err:?} should trigger fallback, not propagate");
+        assert!(
+            !is_call_error(&err),
+            "{err:?} should trigger fallback, not propagate",
+        );
     }
 
     // Link permissions can be denied while ordinary copying is allowed.
     #[cfg(unix)]
     {
         let eperm = io::Error::from_raw_os_error(libc::EPERM);
-        assert!(!is_call_error(&eperm), "EPERM is a capability signal, not a call error");
+        assert!(
+            !is_call_error(&eperm),
+            "EPERM is a capability signal, not a call error",
+        );
         let eacces = io::Error::from_raw_os_error(libc::EACCES);
-        assert!(!is_call_error(&eacces), "EACCES should allow a copy fallback");
+        assert!(
+            !is_call_error(&eacces),
+            "EACCES should allow a copy fallback",
+        );
     }
 }
 #[test]
@@ -445,7 +506,11 @@ fn eperm_downgrade_still_surfaces_a_failed_copy() {
         .expect_err("the copy tier cannot create a file under a missing directory");
 
     assert_eq!(err.kind(), io::ErrorKind::NotFound);
-    assert_eq!(state.load(Ordering::Relaxed), LINK_STATE_COPY, "both link tiers were retired");
+    assert_eq!(
+        state.load(Ordering::Relaxed),
+        LINK_STATE_COPY,
+        "both link tiers were retired",
+    );
     assert!(!dst.exists());
 }
 /// A copy that dies partway must not leave its half-written target
@@ -465,7 +530,10 @@ fn a_failed_copy_removes_its_partial_target() {
     link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Copy, &src, &dst)
         .expect_err("a directory cannot be read as a file");
 
-    assert!(!dst.exists(), "the partial target must not survive the failure");
+    assert!(
+        !dst.exists(),
+        "the partial target must not survive the failure",
+    );
 }
 /// The failed-copy cleanup unlinks by path, so it has to confirm the
 /// path still names what it created. A concurrent `import_atomic`
@@ -481,13 +549,22 @@ fn path_still_names_rejects_a_replaced_dirent() {
     let path = tmp.path().join("f");
     let created = fs::File::create(&path).unwrap();
 
-    assert!(path_still_names(&created, &path), "the path names the file this call created");
+    assert!(
+        path_still_names(&created, &path),
+        "the path names the file this call created",
+    );
 
     fs::remove_file(&path).unwrap();
     fs::write(&path, b"another importer's file").unwrap();
 
-    assert!(!path_still_names(&created, &path), "a replaced dirent is not ours to remove");
+    assert!(
+        !path_still_names(&created, &path),
+        "a replaced dirent is not ours to remove",
+    );
 
     fs::remove_file(&path).unwrap();
-    assert!(!path_still_names(&created, &path), "a path that names nothing has nothing to remove");
+    assert!(
+        !path_still_names(&created, &path),
+        "a path that names nothing has nothing to remove",
+    );
 }

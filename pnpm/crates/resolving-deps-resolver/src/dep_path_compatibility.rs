@@ -34,13 +34,14 @@ pub(crate) fn is_compatible_and_has_more_deps(
     }
 
     let larger_children: HashSet<&DepPath> = larger_node.edges.children.values().collect();
-    if !smaller_node.edges.children.values().all(|child| larger_children.contains(child)) {
+    if !smaller_node.edges.children
+        .values()
+        .all(|child| larger_children.contains(child))
+    {
         return false;
     }
 
-    smaller_node
-        .edges
-        .resolved_peer_names
+    smaller_node.edges.resolved_peer_names
         .iter()
         .all(|peer| larger_node.edges.resolved_peer_names.contains(peer))
 }

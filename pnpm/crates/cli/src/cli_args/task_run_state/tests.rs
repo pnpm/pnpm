@@ -39,7 +39,10 @@ fn task_execution_settings_have_a_stable_canonical_encoding() {
 fn a_changed_execution_setting_produces_a_different_invocation_identity() {
     let workspace = tempfile::tempdir().expect("create workspace");
     let project = workspace.path().join("project");
-    let key = TaskKey { project: project.clone(), task_name: "build".to_string() };
+    let key = TaskKey {
+        project: project.clone(),
+        task_name: "build".to_string(),
+    };
     let graph: TaskGraph = IndexMap::from([(
         key,
         TaskNode {
@@ -87,8 +90,14 @@ fn ignores_a_torn_trailing_record_and_removes_a_completed_journal() {
     let workspace = tempfile::tempdir().expect("create workspace");
     let first = workspace.path().join("first");
     let second = workspace.path().join("second");
-    let first_key = TaskKey { project: first.clone(), task_name: "build".to_string() };
-    let second_key = TaskKey { project: second.clone(), task_name: "build".to_string() };
+    let first_key = TaskKey {
+        project: first.clone(),
+        task_name: "build".to_string(),
+    };
+    let second_key = TaskKey {
+        project: second.clone(),
+        task_name: "build".to_string(),
+    };
     let graph: TaskGraph = IndexMap::from([
         (
             first_key.clone(),
@@ -125,7 +134,9 @@ fn ignores_a_torn_trailing_record_and_removes_a_completed_journal() {
         context.invocation,
         "76a575bfcc3b67becd98b5ec661be54567b53954a723da167603dad119fab140",
     );
-    let state = context.start(&HashSet::from([first_key.clone()])).expect("start state");
+    let state = context
+        .start(&HashSet::from([first_key.clone()]))
+        .expect("start state");
     state
         .record_passed(&second_key, &graph[&second_key], workspace.path())
         .expect("record passed task");
@@ -142,18 +153,28 @@ fn ignores_a_torn_trailing_record_and_removes_a_completed_journal() {
         .write_all(br#"{"project":"torn"#)
         .expect("write torn record");
 
-    let completed =
-        context.read_completed_tasks().expect("read state").expect("state is compatible");
+    let completed = context
+        .read_completed_tasks()
+        .expect("read state")
+        .expect("state is compatible");
     assert_eq!(completed, HashSet::from([first_key, second_key]));
     state.finish().expect("finish state");
-    assert!(context.read_completed_tasks().expect("read finished state").is_none());
+    assert!(
+        context
+            .read_completed_tasks()
+            .expect("read finished state")
+            .is_none(),
+    );
 }
 
 #[test]
 fn rejects_a_malformed_complete_record() {
     let workspace = tempfile::tempdir().expect("create workspace");
     let project = workspace.path().join("project");
-    let key = TaskKey { project: project.clone(), task_name: "build".to_string() };
+    let key = TaskKey {
+        project: project.clone(),
+        task_name: "build".to_string(),
+    };
     let graph: TaskGraph = IndexMap::from([(
         key,
         TaskNode {
@@ -173,7 +194,9 @@ fn rejects_a_malformed_complete_record() {
         workspace.path(),
         |_, _| vec!["build-command".to_string()],
     );
-    let state = context.start(&HashSet::new()).expect("start state");
+    let state = context
+        .start(&HashSet::new())
+        .expect("start state");
     fs::OpenOptions::new()
         .append(true)
         .open(&state.file_path)
@@ -181,7 +204,12 @@ fn rejects_a_malformed_complete_record() {
         .write_all(b"not-json\n")
         .expect("write malformed record");
 
-    assert!(context.read_completed_tasks().expect("read malformed state").is_none());
+    assert!(
+        context
+            .read_completed_tasks()
+            .expect("read malformed state")
+            .is_none(),
+    );
 }
 
 #[cfg(unix)]
@@ -192,7 +220,10 @@ fn rejects_a_symlinked_state_directory() {
     let workspace = tempfile::tempdir().expect("create workspace");
     let outside = tempfile::tempdir().expect("create outside directory");
     let project = workspace.path().join("project");
-    let key = TaskKey { project: project.clone(), task_name: "build".to_string() };
+    let key = TaskKey {
+        project: project.clone(),
+        task_name: "build".to_string(),
+    };
     let graph: TaskGraph = IndexMap::from([(
         key,
         TaskNode {
@@ -224,7 +255,12 @@ fn rejects_a_symlinked_state_directory() {
         error.to_string().contains("symbolic link or not a directory"),
         "unexpected error: {error:?}",
     );
-    assert!(!outside.path().join("latest.json").exists());
+    assert!(
+        !outside
+            .path()
+            .join("latest.json")
+            .exists(),
+    );
 }
 
 #[cfg(unix)]
@@ -234,7 +270,10 @@ fn disables_state_when_node_modules_is_read_only() {
 
     let workspace = tempfile::tempdir().expect("create workspace");
     let project = workspace.path().join("project");
-    let key = TaskKey { project: project.clone(), task_name: "build".to_string() };
+    let key = TaskKey {
+        project: project.clone(),
+        task_name: "build".to_string(),
+    };
     let graph: TaskGraph = IndexMap::from([(
         key.clone(),
         TaskNode {
@@ -259,10 +298,12 @@ fn disables_state_when_node_modules_is_read_only() {
         |_, _| vec!["build-command".to_string()],
     );
 
-    let result = context.start(&HashSet::new()).and_then(|state| {
-        state.record_passed(&key, &graph[&key], workspace.path())?;
-        state.finish()
-    });
+    let result = context
+        .start(&HashSet::new())
+        .and_then(|state| {
+            state.record_passed(&key, &graph[&key], workspace.path())?;
+            state.finish()
+        });
     fs::set_permissions(&node_modules, fs::Permissions::from_mode(0o755))
         .expect("restore node_modules permissions");
 
@@ -274,7 +315,10 @@ fn disables_state_when_node_modules_is_read_only() {
 fn finishing_an_older_invocation_preserves_the_newer_invocation_journal() {
     let workspace = tempfile::tempdir().expect("create workspace");
     let project = workspace.path().join("project");
-    let key = TaskKey { project: project.clone(), task_name: "build".to_string() };
+    let key = TaskKey {
+        project: project.clone(),
+        task_name: "build".to_string(),
+    };
     let graph: TaskGraph = IndexMap::from([(
         key.clone(),
         TaskNode {
@@ -294,8 +338,12 @@ fn finishing_an_older_invocation_preserves_the_newer_invocation_journal() {
         workspace.path(),
         |_, _| vec!["build-command".to_string()],
     );
-    let older = context.start(&HashSet::new()).expect("start older state");
-    let newer = context.start(&HashSet::from([key.clone()])).expect("start newer state");
+    let older = context
+        .start(&HashSet::new())
+        .expect("start older state");
+    let newer = context
+        .start(&HashSet::from([key.clone()]))
+        .expect("start newer state");
 
     older.finish().expect("finish older state");
 
@@ -305,7 +353,12 @@ fn finishing_an_older_invocation_preserves_the_newer_invocation_journal() {
         .expect("newer state remains compatible");
     assert_eq!(completed, HashSet::from([key]));
     newer.finish().expect("finish newer state");
-    assert!(context.read_completed_tasks().expect("read finished state").is_none());
+    assert!(
+        context
+            .read_completed_tasks()
+            .expect("read finished state")
+            .is_none(),
+    );
 }
 
 #[cfg(unix)]
@@ -315,7 +368,10 @@ fn a_finished_journal_is_not_resumable_when_cleanup_is_unavailable() {
 
     let workspace = tempfile::tempdir().expect("create workspace");
     let project = workspace.path().join("project");
-    let key = TaskKey { project: project.clone(), task_name: "build".to_string() };
+    let key = TaskKey {
+        project: project.clone(),
+        task_name: "build".to_string(),
+    };
     let graph: TaskGraph = IndexMap::from([(
         key.clone(),
         TaskNode {
@@ -335,7 +391,9 @@ fn a_finished_journal_is_not_resumable_when_cleanup_is_unavailable() {
         workspace.path(),
         |_, _| vec!["build-command".to_string()],
     );
-    let state = context.start(&HashSet::from([key])).expect("start state");
+    let state = context
+        .start(&HashSet::from([key]))
+        .expect("start state");
     fs::set_permissions(&context.state_dir, fs::Permissions::from_mode(0o555))
         .expect("make state directory read-only");
 
@@ -344,14 +402,22 @@ fn a_finished_journal_is_not_resumable_when_cleanup_is_unavailable() {
         .expect("restore state directory permissions");
 
     result.expect("unavailable cleanup is optional");
-    assert!(context.read_completed_tasks().expect("read finished state").is_none());
+    assert!(
+        context
+            .read_completed_tasks()
+            .expect("read finished state")
+            .is_none(),
+    );
 }
 
 #[test]
 fn a_stale_pointer_does_not_hide_a_newer_published_invocation_journal() {
     let workspace = tempfile::tempdir().expect("create workspace");
     let project = workspace.path().join("project");
-    let key = TaskKey { project: project.clone(), task_name: "build".to_string() };
+    let key = TaskKey {
+        project: project.clone(),
+        task_name: "build".to_string(),
+    };
     let graph: TaskGraph = IndexMap::from([(
         key.clone(),
         TaskNode {
@@ -371,10 +437,17 @@ fn a_stale_pointer_does_not_hide_a_newer_published_invocation_journal() {
         workspace.path(),
         |_, _| vec!["build-command".to_string()],
     );
-    let older = context.start(&HashSet::new()).expect("start older state");
+    let older = context
+        .start(&HashSet::new())
+        .expect("start older state");
     let older_contents = fs::read_to_string(&older.file_path).expect("read older state");
-    let older_header = older_contents.lines().next().expect("older state has a header");
-    let newer = context.start(&HashSet::from([key.clone()])).expect("start newer state");
+    let older_header = older_contents
+        .lines()
+        .next()
+        .expect("older state has a header");
+    let newer = context
+        .start(&HashSet::from([key.clone()]))
+        .expect("start newer state");
 
     fs::remove_file(&newer.published_path).expect("remove publication marker");
     fs::write(&context.latest_state_path, older_header).expect("write stale pointer");
@@ -403,7 +476,10 @@ fn a_stale_pointer_does_not_hide_a_newer_published_invocation_journal() {
 fn a_stale_start_cannot_revive_state_after_a_newer_invocation_finishes() {
     let workspace = tempfile::tempdir().expect("create workspace");
     let project = workspace.path().join("project");
-    let key = TaskKey { project: project.clone(), task_name: "build".to_string() };
+    let key = TaskKey {
+        project: project.clone(),
+        task_name: "build".to_string(),
+    };
     let graph: TaskGraph = IndexMap::from([(
         key.clone(),
         TaskNode {
@@ -423,19 +499,28 @@ fn a_stale_start_cannot_revive_state_after_a_newer_invocation_finishes() {
         workspace.path(),
         |_, _| vec!["build-command".to_string()],
     );
-    let older = context.start(&HashSet::new()).expect("start older state");
+    let older = context
+        .start(&HashSet::new())
+        .expect("start older state");
     let older_contents = fs::read(&older.file_path).expect("read older state");
     let older_header = older_contents
         .split(|byte| *byte == b'\n')
         .next()
         .expect("older state has a header")
         .to_vec();
-    let newer = context.start(&HashSet::from([key])).expect("start newer state");
+    let newer = context
+        .start(&HashSet::from([key]))
+        .expect("start newer state");
 
     newer.finish().expect("finish newer state");
     fs::write(&older.file_path, older_contents).expect("republish older journal");
     fs::write(&older.published_path, []).expect("republish older marker");
     fs::write(&context.latest_state_path, older_header).expect("write stale pointer");
 
-    assert!(context.read_completed_tasks().expect("read finished state").is_none());
+    assert!(
+        context
+            .read_completed_tasks()
+            .expect("read finished state")
+            .is_none(),
+    );
 }

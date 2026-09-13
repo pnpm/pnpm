@@ -15,7 +15,10 @@ fn summary_groups_by_dependency_type_in_order() {
             summary(),
         ],
     );
-    assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0\n\ndevDependencies:\n+ bar 2.0.0\n");
+    assert_eq!(
+        frame,
+        "\ndependencies:\n+ foo 1.0.0\n\ndevDependencies:\n+ bar 2.0.0\n",
+    );
 }
 
 #[test]
@@ -85,10 +88,18 @@ fn skipped_optional_dependency_renders_nothing() {
                 "fsevents",
                 "2.3.3",
             ),
-            skipped(SkippedOptionalReason::BuildFailure, "esbuild@0.20.0", "esbuild", "0.20.0"),
+            skipped(
+                SkippedOptionalReason::BuildFailure,
+                "esbuild@0.20.0",
+                "esbuild",
+                "0.20.0",
+            ),
         ],
     );
-    assert!(frame.is_empty(), "skipped-optional events must not render, got: {frame:?}");
+    assert!(
+        frame.is_empty(),
+        "skipped-optional events must not render, got: {frame:?}",
+    );
 }
 
 /// The registry's `latest` trails a prerelease build of the next major, so
@@ -97,7 +108,16 @@ fn skipped_optional_dependency_renders_nothing() {
 fn nothing_is_announced_unless_the_latest_version_is_ahead() {
     let mut reporter = state(false);
 
-    assert_eq!(render(&mut reporter, vec![update_check("12.0.0", "11.22.0")]), "");
-    assert_eq!(render(&mut reporter, vec![update_check("12.0.0", "12.0.0")]), "");
-    assert_eq!(render(&mut reporter, vec![update_check("12.0.0-rc.8", "11.22.0")]), "");
+    assert_eq!(
+        render(&mut reporter, vec![update_check("12.0.0", "11.22.0")]),
+        "",
+    );
+    assert_eq!(
+        render(&mut reporter, vec![update_check("12.0.0", "12.0.0")]),
+        "",
+    );
+    assert_eq!(
+        render(&mut reporter, vec![update_check("12.0.0-rc.8", "11.22.0")]),
+        "",
+    );
 }

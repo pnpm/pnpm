@@ -28,13 +28,22 @@ fn importer_parent_refs_skip_direct_deps_irrelevant_by_alias_and_real_name() {
             },
         ],
         packages: HashMap::from_iter([
-            ("alias-real@1.0.0".into(), package("alias-real", "1.0.0", &[], true)),
+            (
+                "alias-real@1.0.0".into(),
+                package("alias-real", "1.0.0", &[], true),
+            ),
             ("peer-c@2.0.0".into(), package("peer-c", "2.0.0", &[], true)),
             ("unused@1.0.0".into(), package("unused", "1.0.0", &[], true)),
         ]),
         dependencies_tree: HashMap::from_iter([
-            (alias_relevant, tree_node("alias-real@1.0.0", BTreeMap::new(), 0)),
-            (real_name_relevant, tree_node("peer-c@2.0.0", BTreeMap::new(), 0)),
+            (
+                alias_relevant,
+                tree_node("alias-real@1.0.0", BTreeMap::new(), 0),
+            ),
+            (
+                real_name_relevant,
+                tree_node("peer-c@2.0.0", BTreeMap::new(), 0),
+            ),
             (irrelevant, tree_node("unused@1.0.0", BTreeMap::new(), 0)),
         ]),
         all_peer_dep_names: HashSet::from_iter(["alias-peer".to_string(), "peer-c".to_string()]),
@@ -69,7 +78,10 @@ fn same_leaf_node_under_multiple_aliases_preserves_every_edge() {
         }],
         packages: HashMap::from_iter([
             ("shared@1.0.0".into(), package("shared", "1.0.0", &[], true)),
-            ("parent@1.0.0".into(), package("parent", "1.0.0", &[], false)),
+            (
+                "parent@1.0.0".into(),
+                package("parent", "1.0.0", &[], false),
+            ),
         ]),
         dependencies_tree: HashMap::from_iter([
             (shared, tree_node("shared@1.0.0", BTreeMap::new(), 1)),
@@ -86,6 +98,12 @@ fn same_leaf_node_under_multiple_aliases_preserves_every_edge() {
     let shared_dep_path = DepPath::from("shared@1.0.0");
     let parent_node = result.graph.get(&parent_dep_path).expect("parent graph node");
 
-    assert_eq!(parent_node.edges.children.get("alpha"), Some(&shared_dep_path));
-    assert_eq!(parent_node.edges.children.get("beta"), Some(&shared_dep_path));
+    assert_eq!(
+        parent_node.edges.children.get("alpha"),
+        Some(&shared_dep_path),
+    );
+    assert_eq!(
+        parent_node.edges.children.get("beta"),
+        Some(&shared_dep_path),
+    );
 }

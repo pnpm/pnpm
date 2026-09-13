@@ -20,7 +20,11 @@ pub enum VersioningError {
         file_path.display()
     )]
     #[diagnostic(code(ERR_PNPM_INVALID_CHANGE_INTENT))]
-    InvalidBumpType { file_path: PathBuf, pkg_name: String, bump_type: String },
+    InvalidBumpType {
+        file_path: PathBuf,
+        pkg_name: String,
+        bump_type: String,
+    },
 
     #[display("Expected {} to be a mapping of package@version keys to intent id lists", ledger_path.display())]
     #[diagnostic(code(ERR_PNPM_INVALID_VERSIONING_LEDGER))]
@@ -31,28 +35,48 @@ pub enum VersioningError {
         dirs.join(", ")
     )]
     #[diagnostic(code(ERR_PNPM_INVALID_VERSIONING_LEDGER))]
-    AmbiguousLedgerEntry { key: String, pkg_name: String, dirs: Vec<String> },
+    AmbiguousLedgerEntry {
+        key: String,
+        pkg_name: String,
+        dirs: Vec<String>,
+    },
 
     #[display("{context} names {reference}, which matches multiple workspace projects: {}. Reference the project by directory instead.", dirs.join(", "))]
     #[diagnostic(code(ERR_PNPM_VERSIONING_AMBIGUOUS_PACKAGE))]
-    AmbiguousPackage { context: String, reference: String, dirs: Vec<String> },
+    AmbiguousPackage {
+        context: String,
+        reference: String,
+        dirs: Vec<String>,
+    },
 
     #[display("Change intent file {} names {pkg_name}, which is not a package in this workspace", file_path.display())]
     #[diagnostic(code(ERR_PNPM_VERSIONING_UNKNOWN_PACKAGE))]
-    UnknownPackage { file_path: PathBuf, pkg_name: String },
+    UnknownPackage {
+        file_path: PathBuf,
+        pkg_name: String,
+    },
 
     #[display(
         "Change intent file {} requests a {bump_type} release of {pkg_name}, which cannot release (it is listed in versioning.ignore, has no version field, or has a non-semver version). Remove the entry or change it to \"none\".",
         file_path.display()
     )]
     #[diagnostic(code(ERR_PNPM_VERSIONING_UNRELEASABLE_PACKAGE))]
-    UnreleasablePackage { file_path: PathBuf, pkg_name: String, bump_type: String },
+    UnreleasablePackage {
+        file_path: PathBuf,
+        pkg_name: String,
+        bump_type: String,
+    },
 
     #[display(
         "Package {pkg_name} declares the internal dependency {alias} in {field} as \"{spec}\". Internal dependencies must use the workspace: protocol so that dependency ranges never need rewriting at release time."
     )]
     #[diagnostic(code(ERR_PNPM_VERSIONING_INTERNAL_RANGE))]
-    InternalRange { pkg_name: String, alias: String, field: String, spec: String },
+    InternalRange {
+        pkg_name: String,
+        alias: String,
+        field: String,
+        spec: String,
+    },
 
     #[display(
         "versioning.lanes assigns {pkg_name} to the \"{lane}\" lane, but \"main\" is the reserved default lane. Remove the entry instead."
@@ -71,7 +95,11 @@ pub enum VersioningError {
         "Two projects both release {identity}: ./{first_dir} and ./{second_dir}. A package name and version identify one published artifact, so same-named projects must release on different version lines (e.g. different lanes or majors)."
     )]
     #[diagnostic(code(ERR_PNPM_VERSIONING_DUPLICATE_RELEASE))]
-    DuplicateRelease { identity: String, first_dir: String, second_dir: String },
+    DuplicateRelease {
+        identity: String,
+        first_dir: String,
+        second_dir: String,
+    },
 
     #[display(
         "versioning.epics lead \"{lead}\" is not a releasable workspace project (it must be a named package with a semver version)."
@@ -83,7 +111,11 @@ pub enum VersioningError {
         "Package ./{member_dir} is matched by two epics (leads \"{first_lead}\" and \"{second_lead}\"). A package can belong to at most one epic."
     )]
     #[diagnostic(code(ERR_PNPM_VERSIONING_EPIC_OVERLAP))]
-    EpicOverlap { member_dir: String, first_lead: String, second_lead: String },
+    EpicOverlap {
+        member_dir: String,
+        first_lead: String,
+        second_lead: String,
+    },
 
     #[display(
         "A fixed group straddles the epic led by \"{lead}\": it mixes epic members with outside package(s) {outsiders}. A fixed group must sit entirely inside or entirely outside an epic."
@@ -114,22 +146,36 @@ pub enum VersioningError {
         "The release plan bumps {pkg_name} by {bump_type}, but versioning.maxBump caps releases from this branch at {max_bump}. Raised by {raised_by}."
     )]
     #[diagnostic(code(ERR_PNPM_VERSIONING_MAX_BUMP_EXCEEDED))]
-    MaxBumpExceeded { pkg_name: String, bump_type: String, max_bump: String, raised_by: String },
+    MaxBumpExceeded {
+        pkg_name: String,
+        bump_type: String,
+        max_bump: String,
+        raised_by: String,
+    },
 
     #[diagnostic(code(ERR_PNPM_VERSIONING_INVARIANTS_VIOLATED))]
     InvariantsViolated { message: String },
 
     #[display("Failed to read {}: {source}", path.display())]
     #[diagnostic(code(ERR_PNPM_VERSIONING_READ_ERROR))]
-    Read { path: PathBuf, source: std::io::Error },
+    Read {
+        path: PathBuf,
+        source: std::io::Error,
+    },
 
     #[display("Failed to write {}: {source}", path.display())]
     #[diagnostic(code(ERR_PNPM_VERSIONING_WRITE_ERROR))]
-    Write { path: PathBuf, source: std::io::Error },
+    Write {
+        path: PathBuf,
+        source: std::io::Error,
+    },
 
     #[display("Failed to remove {}: {source}", path.display())]
     #[diagnostic(code(ERR_PNPM_VERSIONING_REMOVE_ERROR))]
-    Remove { path: PathBuf, source: std::io::Error },
+    Remove {
+        path: PathBuf,
+        source: std::io::Error,
+    },
 
     #[diagnostic(transparent)]
     Manifest(pnpm_package_manifest::PackageManifestError),

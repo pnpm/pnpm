@@ -16,17 +16,27 @@ fn origin_of_extracts_scheme_host_and_port() {
     assert_eq!(origin_of("https://host/a"), origin_of("https://host:443/a"));
     assert_eq!(origin_of("http://host/a"), origin_of("http://host:80/a"));
     // A non-default port stays distinct.
-    assert_ne!(origin_of("https://host/a"), origin_of("https://host:8443/a"));
+    assert_ne!(
+        origin_of("https://host/a"),
+        origin_of("https://host:8443/a"),
+    );
     // Same host over http vs https are distinct origins.
-    assert_ne!(origin_of("http://example.com/a"), origin_of("https://example.com/a"));
+    assert_ne!(
+        origin_of("http://example.com/a"),
+        origin_of("https://example.com/a"),
+    );
     assert_eq!(origin_of("not a url"), None);
 }
 
 #[tokio::test]
 async fn streamed_responses_retain_both_permits_until_consumed_or_dropped() {
     let mut server = mockito::Server::new_async().await;
-    let mock =
-        server.mock("GET", "/artifact").with_body("artifact bytes").expect(3).create_async().await;
+    let mock = server
+        .mock("GET", "/artifact")
+        .with_body("artifact bytes")
+        .expect(3)
+        .create_async()
+        .await;
     let client = ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1));
     let initial_permits = client.semaphore.available_permits();
     let url = format!("{}/artifact", server.url());
@@ -45,7 +55,11 @@ async fn assert_streamed_response_permits(
     use futures_util::StreamExt;
 
     let guard = client.acquire_for_url(url).await;
-    let response = guard.get(url).send().await.unwrap();
+    let response = guard
+        .get(url)
+        .send()
+        .await
+        .unwrap();
     let response = guard.retain_for_body(response, Duration::from_secs(30));
     assert_eq!(response.url().as_str(), url);
     assert_eq!(response.content_length(), Some(14));
@@ -57,7 +71,14 @@ async fn assert_streamed_response_permits(
         assert_eq!(response.bytes().await.unwrap(), "artifact bytes");
     } else {
         let mut stream = Box::pin(response.bytes_stream());
-        assert_eq!(stream.next().await.unwrap().unwrap(), "artifact bytes");
+        assert_eq!(
+            stream
+                .next()
+                .await
+                .unwrap()
+                .unwrap(),
+            "artifact bytes",
+        );
         if mode == 1 {
             assert!(stream.next().await.is_none());
             assert_eq!(client.semaphore.available_permits(), initial_permits);

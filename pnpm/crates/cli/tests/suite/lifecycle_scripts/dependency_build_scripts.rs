@@ -22,18 +22,35 @@ fn ignored_scripts_package_names(output: &std::process::Output) -> Vec<String> {
                 .as_array()
                 .expect("packageNames is an array")
                 .iter()
-                .map(|name| name.as_str().expect("package name is a string").to_string())
+                .map(|name| {
+                    name
+                        .as_str()
+                        .expect("package name is a string")
+                        .to_string()
+                })
                 .collect()
         })
         .collect();
-    assert_eq!(events.len(), 1, "expected exactly one pnpm:ignored-scripts event; got {events:?}");
-    events.into_iter().next().expect("asserted a single event above")
+    assert_eq!(
+        events.len(),
+        1,
+        "expected exactly one pnpm:ignored-scripts event; got {events:?}",
+    );
+    events
+        .into_iter()
+        .next()
+        .expect("asserted a single event above")
 }
 
 #[test]
 fn run_pre_and_postinstall_scripts() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     eprintln!("Creating package.json...");
@@ -44,10 +61,16 @@ fn run_pre_and_postinstall_scripts() {
         },
     });
     fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
-    allow_builds(&workspace, &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
+    allow_builds(
+        &workspace,
+        &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)],
+    );
 
     eprintln!("Running pacquet install...");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let pkg_dir = workspace.join(
         "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
@@ -71,8 +94,13 @@ fn run_pre_and_postinstall_scripts() {
 
 #[test]
 fn run_install_scripts() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     eprintln!("Creating package.json...");
@@ -87,7 +115,10 @@ fn run_install_scripts() {
     allow_builds(&workspace, &[("@pnpm.e2e/install-script-example", true)]);
 
     eprintln!("Running pacquet install...");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let pkg_dir = workspace.join(
         "node_modules/.pnpm/@pnpm.e2e+install-script-example@1.0.0\
@@ -102,8 +133,13 @@ fn run_install_scripts() {
 
 #[test]
 fn lifecycle_scripts_run_in_dependency_order() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     eprintln!("Creating package.json...");
@@ -116,11 +152,17 @@ fn lifecycle_scripts_run_in_dependency_order() {
     fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
     allow_builds(
         &workspace,
-        &[("@pnpm.e2e/with-postinstall-a", true), ("@pnpm.e2e/with-postinstall-b", true)],
+        &[
+            ("@pnpm.e2e/with-postinstall-a", true),
+            ("@pnpm.e2e/with-postinstall-b", true),
+        ],
     );
 
     eprintln!("Running pacquet install...");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let virtual_store = workspace.join("node_modules/.pnpm");
     let output_a: serde_json::Value = virtual_store
@@ -145,7 +187,11 @@ fn lifecycle_scripts_run_in_dependency_order() {
     // `json-append` stores the `Number(new Date())` timestamp as a
     // JSON string; mirror upstream's `+value` coercion.
     let timestamp = |value: &serde_json::Value| -> u64 {
-        value[0].as_str().expect("timestamp string").parse().expect("parse timestamp")
+        value[0]
+            .as_str()
+            .expect("timestamp string")
+            .parse()
+            .expect("parse timestamp")
     };
     let ts_b = timestamp(&output_b);
     let ts_a = timestamp(&output_a);
@@ -157,8 +203,13 @@ fn lifecycle_scripts_run_in_dependency_order() {
 
 #[test]
 fn lifecycle_scripts_run_before_linking_bins() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     eprintln!("Creating package.json...");
@@ -172,7 +223,10 @@ fn lifecycle_scripts_run_before_linking_bins() {
     allow_builds(&workspace, &[("@pnpm.e2e/generated-bins", true)]);
 
     eprintln!("Running pacquet install...");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let node_modules = workspace.join("node_modules");
 
@@ -188,8 +242,11 @@ fn lifecycle_scripts_run_before_linking_bins() {
     fs::remove_dir_all(&node_modules).expect("remove node_modules");
 
     eprintln!("Running pacquet install --frozen-lockfile...");
-    let CommandTempCwd { pacquet: frozen_pacquet, root: frozen_root, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet: frozen_pacquet,
+        root: frozen_root,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     frozen_pacquet
         .with_current_dir(&workspace)
         .with_args(["install", "--frozen-lockfile"])
@@ -209,8 +266,13 @@ fn lifecycle_scripts_run_before_linking_bins() {
 
 #[test]
 fn hoisting_tolerates_bins_created_by_a_later_lifecycle_stage() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(
         workspace.join("package.json"),
@@ -226,10 +288,16 @@ fn hoisting_tolerates_bins_created_by_a_later_lifecycle_stage() {
     fs::write(&yaml_path, yaml).expect("write workspace manifest");
     allow_builds(
         &workspace,
-        &[("@pnpm.e2e/has-generated-bins-as-dep", true), ("@pnpm.e2e/generated-bins", true)],
+        &[
+            ("@pnpm.e2e/has-generated-bins-as-dep", true),
+            ("@pnpm.e2e/generated-bins", true),
+        ],
     );
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
     Command::cargo_bin("pnpm")
         .expect("find pnpm binary")
@@ -243,8 +311,13 @@ fn hoisting_tolerates_bins_created_by_a_later_lifecycle_stage() {
 
 #[test]
 fn bins_linked_even_if_scripts_ignored() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     eprintln!("Creating package.json...");
@@ -263,7 +336,10 @@ fn bins_linked_even_if_scripts_ignored() {
     set_strict_dep_builds(&workspace, false);
 
     eprintln!("Running pacquet install...");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let node_modules = workspace.join("node_modules");
 
@@ -290,7 +366,10 @@ fn bins_linked_even_if_scripts_ignored() {
     fs::remove_dir_all(&node_modules).expect("remove node_modules");
 
     eprintln!("Running pacquet install --frozen-lockfile...");
-    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     eprintln!("Checking bins are linked after frozen reinstall...");
     #[cfg(unix)]
@@ -311,8 +390,13 @@ fn bins_linked_even_if_scripts_ignored() {
 
 #[test]
 fn selectively_ignore_scripts_by_allow_builds() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     eprintln!("Creating package.json with allowBuilds...");
@@ -328,7 +412,10 @@ fn selectively_ignore_scripts_by_allow_builds() {
     allow_builds(&workspace, &[("@pnpm.e2e/install-script-example", true)]);
 
     eprintln!("Running pacquet install...");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let virtual_store = workspace.join("node_modules/.pnpm");
 
@@ -350,7 +437,10 @@ fn selectively_ignore_scripts_by_allow_builds() {
     eprintln!("Deleting node_modules for frozen reinstall...");
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
 
-    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     eprintln!("Checking denied package still did NOT run scripts after frozen reinstall...");
     assert!(!denied_pkg.join("generated-by-preinstall.js").exists());
@@ -363,8 +453,13 @@ fn selectively_ignore_scripts_by_allow_builds() {
 
 #[test]
 fn selectively_allow_scripts_by_allow_builds() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     eprintln!("Creating package.json with allowBuilds...");
@@ -380,7 +475,10 @@ fn selectively_allow_scripts_by_allow_builds() {
     allow_builds(&workspace, &[("@pnpm.e2e/install-script-example", true)]);
 
     eprintln!("Running pacquet install...");
-    let output = pacquet.with_args(["--reporter=ndjson", "install"]).output().expect("run pacquet");
+    let output = pacquet
+        .with_args(["--reporter=ndjson", "install"])
+        .output()
+        .expect("run pacquet");
     assert_success(&output);
 
     let virtual_store = workspace.join("node_modules/.pnpm");
@@ -430,15 +528,23 @@ fn selectively_allow_scripts_by_allow_builds() {
     eprintln!("Checking pnpm:ignored-scripts is empty under explicit denial...");
     // Explicit denial moves the package from "ignored" to "silently
     // skipped", so the event carries no package names this time.
-    assert_eq!(ignored_scripts_package_names(&frozen_output), Vec::<String>::new());
+    assert_eq!(
+        ignored_scripts_package_names(&frozen_output),
+        Vec::<String>::new(),
+    );
 
     drop((root, mock_instance));
 }
 
 #[test]
 fn selectively_allow_scripts_by_allow_builds_exact_versions() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     eprintln!("Creating package.json with exact-version allowBuilds...");
@@ -451,10 +557,16 @@ fn selectively_allow_scripts_by_allow_builds_exact_versions() {
     });
     fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
     set_strict_dep_builds(&workspace, false);
-    allow_builds(&workspace, &[("@pnpm.e2e/install-script-example@1.0.0", true)]);
+    allow_builds(
+        &workspace,
+        &[("@pnpm.e2e/install-script-example@1.0.0", true)],
+    );
 
     eprintln!("Running pacquet install...");
-    let output = pacquet.with_args(["--reporter=ndjson", "install"]).output().expect("run pacquet");
+    let output = pacquet
+        .with_args(["--reporter=ndjson", "install"])
+        .output()
+        .expect("run pacquet");
     assert_success(&output);
 
     let virtual_store = workspace.join("node_modules/.pnpm");
@@ -501,15 +613,23 @@ fn selectively_allow_scripts_by_allow_builds_exact_versions() {
     assert!(allowed_pkg.join("generated-by-install.js").exists());
 
     eprintln!("Checking pnpm:ignored-scripts is empty under explicit denial...");
-    assert_eq!(ignored_scripts_package_names(&frozen_output), Vec::<String>::new());
+    assert_eq!(
+        ignored_scripts_package_names(&frozen_output),
+        Vec::<String>::new(),
+    );
 
     drop((root, mock_instance));
 }
 
 #[test]
 fn lifecycle_scripts_run_after_linking_root_deps() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     eprintln!("Creating package.json...");
@@ -521,18 +641,27 @@ fn lifecycle_scripts_run_after_linking_root_deps() {
         },
     });
     fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
-    allow_builds(&workspace, &[("@pnpm.e2e/postinstall-requires-is-positive", true)]);
+    allow_builds(
+        &workspace,
+        &[("@pnpm.e2e/postinstall-requires-is-positive", true)],
+    );
 
     eprintln!("Running pacquet install...");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     eprintln!("Deleting node_modules for frozen reinstall...");
     let node_modules = workspace.join("node_modules");
     fs::remove_dir_all(&node_modules).expect("remove node_modules");
 
     eprintln!("Running pacquet install --frozen-lockfile...");
-    let CommandTempCwd { pacquet: frozen_pacquet, root: frozen_root, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet: frozen_pacquet,
+        root: frozen_root,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     frozen_pacquet
         .with_current_dir(&workspace)
         .with_args(["install", "--frozen-lockfile"])
@@ -544,8 +673,13 @@ fn lifecycle_scripts_run_after_linking_root_deps() {
 
 #[test]
 fn rebuild_after_allow_builds_changes() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     eprintln!("Creating package.json with partial allowBuilds...");
@@ -561,7 +695,10 @@ fn rebuild_after_allow_builds_changes() {
     allow_builds(&workspace, &[("@pnpm.e2e/install-script-example", true)]);
 
     eprintln!("Running pacquet install...");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let virtual_store = workspace.join("node_modules/.pnpm");
 
@@ -589,8 +726,11 @@ fn rebuild_after_allow_builds_changes() {
         ],
     );
 
-    let CommandTempCwd { pacquet: frozen_pacquet, root: frozen_root, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet: frozen_pacquet,
+        root: frozen_root,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     frozen_pacquet
         .with_current_dir(&workspace)
         .with_args(["install", "--frozen-lockfile"])
@@ -607,8 +747,13 @@ fn rebuild_after_allow_builds_changes() {
 
 #[test]
 fn headless_run_pre_postinstall_scripts() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     eprintln!("Creating package.json...");
@@ -619,10 +764,16 @@ fn headless_run_pre_postinstall_scripts() {
         },
     });
     fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
-    allow_builds(&workspace, &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
+    allow_builds(
+        &workspace,
+        &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)],
+    );
 
     eprintln!("Running pacquet install...");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let pkg_dir = workspace.join(
         "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
@@ -644,8 +795,13 @@ fn headless_run_pre_postinstall_scripts() {
 /// `ERR_PNPM_IGNORED_BUILDS` after adding the dependency.
 #[test]
 fn add_fails_under_strict_dep_builds_when_a_build_is_ignored() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(workspace.join("package.json"), "{}\n").expect("write package.json");
@@ -660,7 +816,10 @@ fn add_fails_under_strict_dep_builds_when_a_build_is_ignored() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
     eprintln!("pacquet add stdout:\n{stdout}\nstderr:\n{stderr}");
-    assert!(!output.status.success(), "strict add with an ignored build must exit non-zero");
+    assert!(
+        !output.status.success(),
+        "strict add with an ignored build must exit non-zero",
+    );
     let combined = format!("{stdout}{stderr}");
     assert!(
         combined.contains("ERR_PNPM_IGNORED_BUILDS")
@@ -683,7 +842,10 @@ fn add_fails_under_strict_dep_builds_when_a_build_is_ignored() {
         "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
              /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example",
     );
-    assert!(pkg_dir.join("package.json").exists(), "dependency should be materialized");
+    assert!(
+        pkg_dir.join("package.json").exists(),
+        "dependency should be materialized",
+    );
     assert!(!pkg_dir.join("generated-by-preinstall.js").exists());
     assert!(!pkg_dir.join("generated-by-postinstall.js").exists());
 
@@ -698,8 +860,13 @@ fn add_fails_under_strict_dep_builds_when_a_build_is_ignored() {
 /// pnpm's `--ignore-scripts`, which leaves `ignoredBuilds` empty.
 #[test]
 fn install_ignore_scripts_does_not_fail_under_strict_dep_builds() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let manifest_path = workspace.join("package.json");
@@ -720,7 +887,10 @@ fn install_ignore_scripts_does_not_fail_under_strict_dep_builds() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
     eprintln!("pacquet install --ignore-scripts stdout:\n{stdout}\nstderr:\n{stderr}");
-    assert!(output.status.success(), "install --ignore-scripts must exit zero");
+    assert!(
+        output.status.success(),
+        "install --ignore-scripts must exit zero",
+    );
     assert!(
         !format!("{stdout}{stderr}").contains("ERR_PNPM_IGNORED_BUILDS"),
         "--ignore-scripts must not report ignored builds",
@@ -730,7 +900,10 @@ fn install_ignore_scripts_does_not_fail_under_strict_dep_builds() {
         "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
              /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example",
     );
-    assert!(pkg_dir.join("package.json").exists(), "dependency should be materialized");
+    assert!(
+        pkg_dir.join("package.json").exists(),
+        "dependency should be materialized",
+    );
     assert!(!pkg_dir.join("generated-by-preinstall.js").exists());
     assert!(!pkg_dir.join("generated-by-postinstall.js").exists());
 
@@ -742,8 +915,13 @@ fn install_ignore_scripts_does_not_fail_under_strict_dep_builds() {
 /// ignored-build-scripts warning box.
 #[test]
 fn add_warns_without_strict_dep_builds_when_a_build_is_ignored() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(workspace.join("package.json"), "{}\n").expect("write package.json");
@@ -777,8 +955,13 @@ fn add_warns_without_strict_dep_builds_when_a_build_is_ignored() {
 /// fast path — otherwise rerunning install would bypass the gate.
 #[test]
 fn strict_install_keeps_failing_on_warm_rerun() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let package_json = serde_json::json!({
@@ -790,14 +973,21 @@ fn strict_install_keeps_failing_on_warm_rerun() {
     // First install (strict default, no `allowBuilds`): fails, but
     // still materializes the dep and records the ignored build in
     // `.modules.yaml`.
-    let first = pacquet.with_arg("install").output().expect("run pacquet install");
-    assert!(!first.status.success(), "first strict install with an ignored build must fail");
+    let first = pacquet
+        .with_arg("install")
+        .output()
+        .expect("run pacquet install");
+    assert!(
+        !first.status.success(),
+        "first strict install with an ignored build must fail",
+    );
 
     // Warm rerun: the lockfile and `.modules.yaml` are unchanged, so
     // the up-to-date fast path would normally exit 0 — but strict mode
     // must keep failing until the build is approved.
-    let CommandTempCwd { pacquet: rerun, root: rerun_root, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet: rerun, root: rerun_root, ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let rerun_out = rerun
         .with_current_dir(&workspace)
         .with_arg("install")
@@ -828,8 +1018,13 @@ fn strict_install_keeps_failing_on_warm_rerun() {
 /// fails again with `ERR_PNPM_IGNORED_BUILDS`.
 #[test]
 fn strict_install_keeps_failing_with_unreadable_modules_yaml() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let package_json = serde_json::json!({
@@ -838,15 +1033,25 @@ fn strict_install_keeps_failing_with_unreadable_modules_yaml() {
     fs::write(workspace.join("package.json"), package_json.to_string())
         .expect("write package.json");
 
-    let first = pacquet.with_arg("install").output().expect("run pacquet install");
-    assert!(!first.status.success(), "first strict install with an ignored build must fail");
+    let first = pacquet
+        .with_arg("install")
+        .output()
+        .expect("run pacquet install");
+    assert!(
+        !first.status.success(),
+        "first strict install with an ignored build must fail",
+    );
 
     // Corrupt the recorded state so it can't be parsed.
-    fs::write(workspace.join("node_modules/.modules.yaml"), "}{ not: valid: yaml")
-        .expect("corrupt .modules.yaml");
+    fs::write(
+        workspace.join("node_modules/.modules.yaml"),
+        "}{ not: valid: yaml",
+    )
+    .expect("corrupt .modules.yaml");
 
-    let CommandTempCwd { pacquet: rerun, root: rerun_root, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet: rerun, root: rerun_root, ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let rerun_out = rerun
         .with_current_dir(&workspace)
         .with_arg("install")
@@ -873,8 +1078,13 @@ fn strict_install_keeps_failing_with_unreadable_modules_yaml() {
 /// rerun look clean.
 #[test]
 fn ignored_builds_are_preserved_after_a_repeat_install() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(workspace.join("package.json"), "{}\n").expect("write package.json");
@@ -900,8 +1110,9 @@ fn ignored_builds_are_preserved_after_a_repeat_install() {
         String::from_utf8_lossy(&add_out.stderr),
     );
 
-    let CommandTempCwd { pacquet: rerun, root: rerun_root, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet: rerun, root: rerun_root, ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let rerun_out = rerun
         .with_current_dir(&workspace)
         .with_args(["install", "--config.optimistic-repeat-install=false"])
@@ -913,7 +1124,10 @@ fn ignored_builds_are_preserved_after_a_repeat_install() {
         String::from_utf8_lossy(&rerun_out.stderr),
     );
     eprintln!("repeat install output:\n{combined}");
-    assert!(!rerun_out.status.success(), "the strict repeat install must keep failing");
+    assert!(
+        !rerun_out.status.success(),
+        "the strict repeat install must keep failing",
+    );
     assert!(
         combined.contains("Ignored build scripts"),
         "the repeat install must report the ignored builds again; got:\n{combined}",
@@ -939,8 +1153,13 @@ fn ignored_builds_are_preserved_after_a_repeat_install() {
 /// optimization, never an approval.
 #[test]
 fn strict_dep_builds_fails_for_packages_with_cached_side_effects() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let package_json = serde_json::json!({
@@ -950,19 +1169,29 @@ fn strict_dep_builds_fails_for_packages_with_cached_side_effects() {
         .expect("write package.json");
     set_strict_dep_builds(&workspace, true);
     append_workspace_yaml_key(&workspace, "optimisticRepeatInstall", false);
-    allow_builds(&workspace, &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
+    allow_builds(
+        &workspace,
+        &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)],
+    );
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     let built_marker = workspace.join(
             "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
              /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js",
         );
-    assert!(built_marker.exists(), "the approved build must run and populate the cache");
+    assert!(
+        built_marker.exists(),
+        "the approved build must run and populate the cache",
+    );
 
     allow_builds(&workspace, &[]);
 
-    let CommandTempCwd { pacquet: rerun, root: rerun_root, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet: rerun, root: rerun_root, ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let rerun_out = rerun
         .with_current_dir(&workspace)
         .with_arg("install")

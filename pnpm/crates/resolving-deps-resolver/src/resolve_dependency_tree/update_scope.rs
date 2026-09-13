@@ -33,14 +33,20 @@ impl VersionLine {
     /// The line `version` sits on.
     #[must_use]
     pub fn of(version: &node_semver::Version) -> Self {
-        VersionLine { major: version.major, minor: version.minor }
+        VersionLine {
+            major: version.major,
+            minor: version.minor,
+        }
     }
 
     /// The line a version selector pins, or `None` when it pins none -- a
     /// range, a tag and an `npm:` alias spec all name no single version.
     #[must_use]
     pub fn parse(version_spec: &str) -> Option<Self> {
-        node_semver::Version::parse(version_spec).ok().as_ref().map(VersionLine::of)
+        node_semver::Version::parse(version_spec)
+            .ok()
+            .as_ref()
+            .map(VersionLine::of)
     }
 
     /// Whether `version` resolves within this line.
@@ -62,7 +68,9 @@ impl UpdateTargets {
     /// widens the target to every version, and never narrows one already
     /// recorded.
     pub fn insert(&mut self, name: String, line: Option<VersionLine>) {
-        let lines = self.0.entry(name).or_insert_with(|| Some(BTreeSet::new()));
+        let lines = self.0
+            .entry(name)
+            .or_insert_with(|| Some(BTreeSet::new()));
         match line {
             // pnpm evaluates every selector that matches a dependency, so
             // one selector targeting every version makes the narrower ones
@@ -87,9 +95,15 @@ impl UpdateTargets {
     /// `updateMatching` calls.
     #[must_use]
     pub fn covers(&self, name: &str, version: Option<&node_semver::Version>) -> bool {
-        let Some(lines) = self.0.get(name) else { return false };
-        let (Some(lines), Some(version)) = (lines.as_ref(), version) else { return true };
-        lines.iter().any(|line| line.covers(version))
+        let Some(lines) = self.0.get(name) else {
+            return false;
+        };
+        let (Some(lines), Some(version)) = (lines.as_ref(), version) else {
+            return true;
+        };
+        lines
+            .iter()
+            .any(|line| line.covers(version))
     }
 }
 

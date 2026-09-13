@@ -19,7 +19,10 @@ pub(in super::super) struct ScriptSelector<'a> {
 
 impl<'a> ScriptSelector<'a> {
     pub(in super::super) fn new(name: &'a str) -> Result<ScriptSelector<'a>, RunError> {
-        Ok(ScriptSelector { name, pattern: try_build_regex_from_command(name)? })
+        Ok(ScriptSelector {
+            name,
+            pattern: try_build_regex_from_command(name)?,
+        })
     }
 
     /// The script names this selector picks out of `manifest`: an exact
@@ -40,7 +43,10 @@ impl<'a> ScriptSelector<'a> {
         scripts
             .iter()
             .filter(|(script, body)| {
-                body.as_str().is_some_and(|body| !body.is_empty()) && pattern.is_match(script)
+                body
+                    .as_str()
+                    .is_some_and(|body| !body.is_empty())
+                    && pattern.is_match(script)
             })
             .map(|(script, _)| script.clone())
             .collect()
@@ -89,7 +95,11 @@ fn split_regex_literal(command: &str) -> Option<(&str, &str)> {
     let close = body.rfind('/')?;
     let (pattern, flags) = body.split_at(close);
     let flags = &flags[1..];
-    if pattern.is_empty() || !flags.chars().all(|flag| "dgimuvys".contains(flag)) {
+    if pattern.is_empty()
+        || !flags
+            .chars()
+            .all(|flag| "dgimuvys".contains(flag))
+    {
         return None;
     }
     let mut chars = pattern.chars();
@@ -111,20 +121,34 @@ pub(super) fn throw_or_filter_hidden_scripts(
     specified: Vec<String>,
     name: &str,
 ) -> Result<Vec<String>, RunError> {
-    if specified.is_empty() || !specified.iter().any(|script| script.starts_with('.')) {
+    if specified.is_empty()
+        || !specified
+            .iter()
+            .any(|script| script.starts_with('.'))
+    {
         return Ok(specified);
     }
     if name.starts_with('.') {
-        return Err(RunError::HiddenScript { script: name.to_string() });
+        return Err(RunError::HiddenScript {
+            script: name.to_string(),
+        });
     }
-    let visible: Vec<String> =
-        specified.iter().filter(|script| !script.starts_with('.')).cloned().collect();
+    let visible: Vec<String> = specified
+        .iter()
+        .filter(|script| !script.starts_with('.'))
+        .cloned()
+        .collect();
     if !visible.is_empty() {
         return Ok(visible);
     }
-    let hidden_names =
-        specified.iter().filter(|s| s.starts_with('.')).map(String::as_str).collect::<Vec<_>>();
-    Err(RunError::AllHidden { scripts: hidden_names.join(", ") })
+    let hidden_names = specified
+        .iter()
+        .filter(|s| s.starts_with('.'))
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    Err(RunError::AllHidden {
+        scripts: hidden_names.join(", "),
+    })
 }
 
 /// Render the script listing printed when `pnpm run` is called without a
@@ -170,7 +194,9 @@ fn split_listed_scripts(manifest: &Value) -> (ScriptListing<'_>, ScriptListing<'
         if name.starts_with('.') {
             continue;
         }
-        let Some(script) = script.as_str() else { continue };
+        let Some(script) = script.as_str() else {
+            continue;
+        };
         if ALL_LIFECYCLE_SCRIPTS.contains(&name.as_str()) {
             lifecycle.push((name.as_str(), script));
         } else {
@@ -188,8 +214,9 @@ fn append_command_section(output: &mut String, title: &str, commands: &[(&str, &
     if !output.is_empty() {
         output.push_str("\n\n");
     }
-    write!(output, "{title}\n{}", render_commands(commands))
-        .expect("writing to a string cannot fail");
+    write!(output, "{title}\n{}", render_commands(commands)).expect(
+        "writing to a string cannot fail",
+    );
 }
 
 fn render_commands(commands: &[(&str, &str)]) -> String {

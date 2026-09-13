@@ -71,7 +71,11 @@ impl VirtualStoreType {
     /// The type a given `enableGlobalVirtualStore` value selects.
     #[must_use]
     pub fn from_enable_global(enable_global: bool) -> Self {
-        if enable_global { VirtualStoreType::Global } else { VirtualStoreType::Project }
+        if enable_global {
+            VirtualStoreType::Global
+        } else {
+            VirtualStoreType::Project
+        }
     }
 }
 
@@ -289,15 +293,21 @@ impl<'de> serde::Deserialize<'de> for VerifyDepsBeforeRun {
                 f.write_str(r#"a boolean or one of "install", "warn", "error", "prompt""#)
             }
             fn visit_bool<DeError: de::Error>(self, value: bool) -> Result<Self::Value, DeError> {
-                Ok(if value { VerifyDepsBeforeRun::True } else { VerifyDepsBeforeRun::False })
+                Ok(if value {
+                    VerifyDepsBeforeRun::True
+                } else {
+                    VerifyDepsBeforeRun::False
+                })
             }
             fn visit_str<DeError: de::Error>(self, value: &str) -> Result<Self::Value, DeError> {
-                value.parse().map_err(|()| {
-                    DeError::invalid_value(
-                        de::Unexpected::Str(value),
-                        &r#"true, false, "install", "warn", "error", or "prompt""#,
-                    )
-                })
+                value
+                    .parse()
+                    .map_err(|()| {
+                        DeError::invalid_value(
+                            de::Unexpected::Str(value),
+                            &r#"true, false, "install", "warn", "error", or "prompt""#,
+                        )
+                    })
             }
         }
         deserializer.deserialize_any(V)

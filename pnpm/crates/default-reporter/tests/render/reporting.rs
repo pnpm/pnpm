@@ -21,15 +21,26 @@ fn progress_line_counts_each_status() {
             progress("imported"),
         ],
     );
-    assert_eq!(frame, "Progress: resolved 3, reused 2, downloaded 0, added 1");
+    assert_eq!(
+        frame,
+        "Progress: resolved 3, reused 2, downloaded 0, added 1",
+    );
 }
 
 #[test]
 fn prints_progress_beginning() {
     let mut reporter = state(false);
-    let frame =
-        render(&mut reporter, vec![stage_at(CWD, Stage::ResolutionStarted), progress("resolved")]);
-    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 0, added 0");
+    let frame = render(
+        &mut reporter,
+        vec![
+            stage_at(CWD, Stage::ResolutionStarted),
+            progress("resolved"),
+        ],
+    );
+    assert_eq!(
+        frame,
+        "Progress: resolved 1, reused 0, downloaded 0, added 0",
+    );
 }
 
 #[test]
@@ -41,8 +52,13 @@ fn prints_progress_without_added_packages_stats() {
         },
         ..ReporterOptions::default()
     });
-    let frame =
-        render(&mut reporter, vec![stage_at(CWD, Stage::ResolutionStarted), progress("resolved")]);
+    let frame = render(
+        &mut reporter,
+        vec![
+            stage_at(CWD, Stage::ResolutionStarted),
+            progress("resolved"),
+        ],
+    );
     assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 0");
 }
 
@@ -59,18 +75,29 @@ fn prints_all_progress_stats() {
             progress("imported"),
         ],
     );
-    assert_eq!(frame, "Progress: resolved 1, reused 1, downloaded 1, added 1");
+    assert_eq!(
+        frame,
+        "Progress: resolved 1, reused 1, downloaded 1, added 1",
+    );
 }
 
 #[test]
 fn prints_progress_beginning_in_append_only_mode() {
-    let mut reporter =
-        state_with_options(ReporterOptions { append_only: true, ..ReporterOptions::default() });
-    assert!(matches!(reporter.handle(&stage_at(CWD, Stage::ResolutionStarted)), Output::None,));
+    let mut reporter = state_with_options(ReporterOptions {
+        append_only: true,
+        ..ReporterOptions::default()
+    });
+    assert!(matches!(
+        reporter.handle(&stage_at(CWD, Stage::ResolutionStarted)),
+        Output::None,
+    ));
     let Output::Lines(lines) = reporter.handle(&progress("resolved")) else {
         panic!("append-only progress must emit a line");
     };
-    assert_eq!(lines, vec!["Progress: resolved 1, reused 0, downloaded 0, added 0"]);
+    assert_eq!(
+        lines,
+        vec!["Progress: resolved 1, reused 0, downloaded 0, added 0"],
+    );
 }
 
 #[test]
@@ -111,7 +138,10 @@ fn moves_fixed_progress_line_to_the_end() {
             stage_at(CWD, Stage::ImportingDone),
         ],
     );
-    assert_eq!(frame, "[WARN] foo\nProgress: resolved 1, reused 0, downloaded 1, added 0, done");
+    assert_eq!(
+        frame,
+        "[WARN] foo\nProgress: resolved 1, reused 0, downloaded 1, added 0, done",
+    );
 }
 
 #[test]
@@ -122,11 +152,17 @@ fn stats_render_packages_line_and_bar() {
         vec![
             LogEvent::Stats(StatsLog {
                 level: LogLevel::Debug,
-                message: StatsMessage::Added { prefix: CWD.to_string(), added: 5 },
+                message: StatsMessage::Added {
+                    prefix: CWD.to_string(),
+                    added: 5,
+                },
             }),
             LogEvent::Stats(StatsLog {
                 level: LogLevel::Debug,
-                message: StatsMessage::Removed { prefix: CWD.to_string(), removed: 2 },
+                message: StatsMessage::Removed {
+                    prefix: CWD.to_string(),
+                    removed: 2,
+                },
             }),
         ],
     );
@@ -135,16 +171,29 @@ fn stats_render_packages_line_and_bar() {
 
 #[test]
 fn append_only_stats_render_once_after_both_events() {
-    let mut reporter = ReporterState::new(CWD.to_string(), 80, Colors { enabled: false }, true);
+    let mut reporter = ReporterState::new(
+        CWD.to_string(),
+        80,
+        Colors {
+            enabled: false,
+        },
+        true,
+    );
     let added = reporter.handle(&LogEvent::Stats(StatsLog {
         level: LogLevel::Debug,
-        message: StatsMessage::Added { prefix: CWD.to_string(), added: 5 },
+        message: StatsMessage::Added {
+            prefix: CWD.to_string(),
+            added: 5,
+        },
     }));
     assert!(matches!(added, Output::None));
 
     let removed = reporter.handle(&LogEvent::Stats(StatsLog {
         level: LogLevel::Debug,
-        message: StatsMessage::Removed { prefix: CWD.to_string(), removed: 0 },
+        message: StatsMessage::Removed {
+            prefix: CWD.to_string(),
+            removed: 0,
+        },
     }));
     match removed {
         Output::Lines(lines) => assert_eq!(lines, vec!["Packages: +5\n+++++"]),
@@ -154,10 +203,20 @@ fn append_only_stats_render_once_after_both_events() {
 
 #[test]
 fn append_only_stats_render_on_summary_when_pair_is_incomplete() {
-    let mut reporter = ReporterState::new(CWD.to_string(), 80, Colors { enabled: false }, true);
+    let mut reporter = ReporterState::new(
+        CWD.to_string(),
+        80,
+        Colors {
+            enabled: false,
+        },
+        true,
+    );
     let added = reporter.handle(&LogEvent::Stats(StatsLog {
         level: LogLevel::Debug,
-        message: StatsMessage::Added { prefix: CWD.to_string(), added: 5 },
+        message: StatsMessage::Added {
+            prefix: CWD.to_string(),
+            added: 5,
+        },
     }));
     assert!(matches!(added, Output::None));
 
@@ -195,7 +254,10 @@ fn summary_matches_lexically_equivalent_current_prefix() {
     let mut reporter = state(false);
     let frame = render(
         &mut reporter,
-        vec![added_root_at("/repo/./", "foo", "1.0.0", DependencyType::Prod), summary()],
+        vec![
+            added_root_at("/repo/./", "foo", "1.0.0", DependencyType::Prod),
+            summary(),
+        ],
     );
     assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0\n");
 }
@@ -205,7 +267,10 @@ fn summary_matches_relative_current_prefix() {
     let mut reporter = state(false);
     let frame = render(
         &mut reporter,
-        vec![added_root_at(".", "foo", "1.0.0", DependencyType::Prod), summary()],
+        vec![
+            added_root_at(".", "foo", "1.0.0", DependencyType::Prod),
+            summary(),
+        ],
     );
     assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0\n");
 }
@@ -221,7 +286,10 @@ fn execution_time_renders_done_footer() {
             ended_at: 3500,
         })],
     );
-    assert!(frame.starts_with("Done in 2.5s using pnpm v"), "got: {frame}");
+    assert!(
+        frame.starts_with("Done in 2.5s using pnpm v"),
+        "got: {frame}",
+    );
 }
 
 #[test]
@@ -246,11 +314,17 @@ fn zero_install_stats_render_already_up_to_date() {
         vec![
             LogEvent::Stats(StatsLog {
                 level: LogLevel::Debug,
-                message: StatsMessage::Added { added: 0, prefix: CWD.to_string() },
+                message: StatsMessage::Added {
+                    added: 0,
+                    prefix: CWD.to_string(),
+                },
             }),
             LogEvent::Stats(StatsLog {
                 level: LogLevel::Debug,
-                message: StatsMessage::Removed { removed: 0, prefix: CWD.to_string() },
+                message: StatsMessage::Removed {
+                    removed: 0,
+                    prefix: CWD.to_string(),
+                },
             }),
         ],
     );
@@ -270,7 +344,10 @@ fn global_info_log_renders() {
                 .to_string(),
         })],
     );
-    assert_eq!(frame, "Authenticate your account at:\nhttps://registry.npmjs.org/auth/abc");
+    assert_eq!(
+        frame,
+        "Authenticate your account at:\nhttps://registry.npmjs.org/auth/abc",
+    );
 }
 
 #[test]
@@ -279,7 +356,10 @@ fn loglevel_error_still_renders_errors() {
         max_log_level: MaxLogLevel::Error,
         ..ReporterOptions::default()
     });
-    let frame = render(&mut reporter, vec![pnpm_log(LogLevel::Error, "ERR_PNPM_FETCH_404")]);
+    let frame = render(
+        &mut reporter,
+        vec![pnpm_log(LogLevel::Error, "ERR_PNPM_FETCH_404")],
+    );
     assert_eq!(frame, "ERR_PNPM_FETCH_404");
 }
 
@@ -289,14 +369,20 @@ fn loglevel_debug_renders_debug_messages() {
         max_log_level: MaxLogLevel::Debug,
         ..ReporterOptions::default()
     });
-    let frame = render(&mut reporter, vec![pnpm_log(LogLevel::Debug, "resolution details")]);
+    let frame = render(
+        &mut reporter,
+        vec![pnpm_log(LogLevel::Debug, "resolution details")],
+    );
     assert_eq!(frame, "resolution details");
 }
 
 #[test]
 fn debug_messages_stay_hidden_at_the_default_loglevel() {
     let mut reporter = state(false);
-    let frame = render(&mut reporter, vec![pnpm_log(LogLevel::Debug, "resolution details")]);
+    let frame = render(
+        &mut reporter,
+        vec![pnpm_log(LogLevel::Debug, "resolution details")],
+    );
     assert_eq!(frame, "");
 }
 
@@ -305,11 +391,16 @@ fn debug_messages_stay_hidden_at_the_default_loglevel() {
 /// at every ceiling, including `error`.
 #[test]
 fn dedupe_check_issues_render_at_every_loglevel_ceiling() {
-    for max_log_level in
-        [MaxLogLevel::Error, MaxLogLevel::Warn, MaxLogLevel::Info, MaxLogLevel::Debug]
-    {
-        let mut reporter =
-            state_with_options(ReporterOptions { max_log_level, ..ReporterOptions::default() });
+    for max_log_level in [
+        MaxLogLevel::Error,
+        MaxLogLevel::Warn,
+        MaxLogLevel::Info,
+        MaxLogLevel::Debug,
+    ] {
+        let mut reporter = state_with_options(ReporterOptions {
+            max_log_level,
+            ..ReporterOptions::default()
+        });
         let frame = render(
             &mut reporter,
             vec![LogEvent::DedupeCheck(DedupeCheckLog {
@@ -354,7 +445,9 @@ fn warnings_collapse_after_five() {
             prefix: CWD.to_string(),
         })
     };
-    let events: Vec<LogEvent> = (0..6).map(|_| warn()).collect();
+    let events: Vec<LogEvent> = (0..6)
+        .map(|_| warn())
+        .collect();
     let frame = render(&mut reporter, events);
     let lines: Vec<&str> = frame.lines().collect();
     assert_eq!(lines.len(), 6);
@@ -364,11 +457,21 @@ fn warnings_collapse_after_five() {
 
 #[test]
 fn append_only_emits_lines_not_frames() {
-    let mut reporter = ReporterState::new(CWD.to_string(), 80, Colors { enabled: false }, true);
+    let mut reporter = ReporterState::new(
+        CWD.to_string(),
+        80,
+        Colors {
+            enabled: false,
+        },
+        true,
+    );
     let out = reporter.handle(&progress("resolved"));
     match out {
         Output::Lines(lines) => {
-            assert_eq!(lines, vec!["Progress: resolved 1, reused 0, downloaded 0, added 0"]);
+            assert_eq!(
+                lines,
+                vec!["Progress: resolved 1, reused 0, downloaded 0, added 0"],
+            );
         }
         _ => panic!("append-only should emit Lines"),
     }
@@ -402,7 +505,10 @@ fn lifecycle_script_output_is_grouped_and_indented() {
         }),
     ];
     let frame = render(&mut reporter, events);
-    assert_eq!(frame, "deps/foo postinstall$ node build.js\n│ building\n└─ Running...");
+    assert_eq!(
+        frame,
+        "deps/foo postinstall$ node build.js\n│ building\n└─ Running...",
+    );
 }
 
 #[test]
@@ -424,8 +530,14 @@ fn hook_log_renders_with_magenta_hook_name() {
 #[test]
 fn direct_deprecation_renders_immediately_with_the_message() {
     let mut reporter = state(false);
-    let frame = render(&mut reporter, vec![deprecation("express", "0.14.1", 0, CWD)]);
-    assert_eq!(frame, "[WARN] deprecated express@0.14.1: no longer supported");
+    let frame = render(
+        &mut reporter,
+        vec![deprecation("express", "0.14.1", 0, CWD)],
+    );
+    assert_eq!(
+        frame,
+        "[WARN] deprecated express@0.14.1: no longer supported",
+    );
 }
 
 /// The event fires for every command; only the ones in pnpm's
@@ -442,8 +554,14 @@ fn a_newer_pnpm_is_announced_with_its_changelog() {
 
     let frame = render(&mut reporter, vec![update_check("11.22.0", "12.0.0")]);
 
-    assert!(frame.contains("Update available! 11.22.0 → 12.0.0."), "frame: {frame}");
-    assert!(frame.contains("Changelog: https://pnpm.io/v/12.0.0"), "frame: {frame}");
+    assert!(
+        frame.contains("Update available! 11.22.0 → 12.0.0."),
+        "frame: {frame}",
+    );
+    assert!(
+        frame.contains("Changelog: https://pnpm.io/v/12.0.0"),
+        "frame: {frame}",
+    );
     assert!(frame.contains("To update, run: "), "frame: {frame}");
 }
 
@@ -451,7 +569,10 @@ fn a_newer_pnpm_is_announced_with_its_changelog() {
 fn linked_packages_appear_in_the_summary_by_default() {
     let mut reporter = state(false);
 
-    let frame = render(&mut reporter, vec![linked_root("@acme/runtime", "/elsewhere"), summary()]);
+    let frame = render(
+        &mut reporter,
+        vec![linked_root("@acme/runtime", "/elsewhere"), summary()],
+    );
 
     assert!(frame.contains("@acme/runtime"), "frame: {frame}");
 }

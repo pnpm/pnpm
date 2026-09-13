@@ -4,7 +4,7 @@ use super::{
     cache_keys::SnapshotCacheKey,
     cold::{ColdBatch, ColdBatchState, ColdInputs, run_cold_batch},
     create_build_marker_source, init_store_dir_unless_frozen, nothing_to_materialize, partition,
-    publish_planned_canonical_fetches, removed_aliases_by_key,
+    removed_aliases_by_key,
     slot_linking::LinkSlotsParallel,
     snapshot_plan,
     warm::{WarmLinkBatch, enforce_cached_git_prepare_policy, link_warm_batch},
@@ -34,14 +34,13 @@ impl<'a> CreateVirtualStore<'a> {
         let prefetch = self.prefetch(wanted).await;
         let marker_source = self.prepare_store().await?;
         let mut plan = self.plan::<Reporter>(wanted, prefetch.cache_keys)?;
-        let prefetched = self
-            .settle_prefetch(
-                prefetch.task,
-                &prefetch.verified_files_cache,
-                wanted.packages,
-                &mut plan,
-            )
-            .await?;
+        let prefetched = self.settle_prefetch(
+            prefetch.task,
+            &prefetch.verified_files_cache,
+            wanted.packages,
+            &mut plan,
+        )
+        .await?;
         self.materialize_plan::<Reporter>(
             wanted,
             plan,
@@ -63,45 +62,32 @@ impl<'a> CreateVirtualStore<'a> {
         store: CreateVirtualStoreStoreContext<'_>,
         marker_source: Option<&tempfile::NamedTempFile>,
     ) -> Result<CreateVirtualStoreOutput, CreateVirtualStoreError> {
-        let mut partition = partition::partition_snapshots(
-            &plan.survivors,
-            &plan.skipped_entries,
-            prefetched,
-            &plan.marker_rebuilds,
-            self.ctx.linker.kind,
-        );
-
-        // Publish the cold-batch fetch plan for the concurrent
-        // verification fan-out: every cold registry-resolved snapshot
-        // with a pinned hash is downloaded from its canonical registry
-        // URL by this run (or fails the install / is dropped as an
-        // uninstallable optional), which is the existence evidence the
-        // npm verifier's age gate may substitute for a metadata body.
-        // First fill wins; entries outside the plan keep the
-        // metadata-backed path.
-        publish_planned_canonical_fetches(
-            self.fetching.planned_canonical_fetches,
-            &partition.cold,
-            wanted.packages,
-            self.fetching.custom_fetcher_session.is_some(),
-        );
+        let mut partition = self.partition_plan(wanted, &plan, prefetched);
 
         let links = self.link_plan(&plan);
-        let mut indexes =
-            CasIndexes::warm(links.shared_packages.as_ref(), &partition.warm, self.is_hoisted());
+        let mut indexes = CasIndexes::warm(
+            links.shared_packages.as_ref(),
+            &partition.warm,
+            self.is_hoisted(),
+        );
         self.link_warm::<Reporter>(
             wanted,
             &partition,
             &links,
             marker_source.map(tempfile::NamedTempFile::path),
         )?;
-        let fetch_failed = self
-            .download_cold::<Reporter>(
-                ColdInputs { wanted, store, prefetched, marker_source, links: &links },
-                &mut partition,
-                &mut indexes,
-            )
-            .await?;
+        let fetch_failed = self.download_cold::<Reporter>(
+            ColdInputs {
+                wanted,
+                store,
+                prefetched,
+                marker_source,
+                links: &links,
+            },
+            &mut partition,
+            &mut indexes,
+        )
+        .await?;
         self.apply_side_effects(wanted, &mut partition, &indexes.shared_base).await;
 
         // The writer is owned by the caller now. They drop their
@@ -128,10 +114,15 @@ impl<'a> CreateVirtualStore<'a> {
         // No snapshots to install. If the lockfile also has no project deps
         // this is a valid no-op; if it does, pnpm would have populated
         // `snapshots`, so bailing out here is safe enough for v9.
-        let Some(snapshots) = self.entries.snapshots else { return Ok(None) };
+        let Some(snapshots) = self.entries.snapshots else {
+            return Ok(None);
+        };
         let packages =
             self.entries.packages.ok_or(CreateVirtualStoreError::MissingPackagesSection)?;
-        Ok(Some(WantedEntries { packages, snapshots }))
+        Ok(Some(WantedEntries {
+            packages,
+            snapshots,
+        }))
     }
 
     async fn prefetch(&mut self, wanted: WantedEntries<'a>) -> CasPrefetch {
@@ -306,10 +297,14 @@ impl<'a> CreateVirtualStore<'a> {
                 self.current_entries.snapshots,
                 &plan.survivors,
             ),
-            shared_packages: config
-                .remote_side_effects_cache
+            shared_packages: config.remote_side_effects_cache
                 .as_ref()
-                .map(|settings| settings.packages.iter().map(String::as_str).collect()),
+                .map(|settings| {
+                    settings.packages
+                        .iter()
+                        .map(String::as_str)
+                        .collect()
+                }),
             template: LinkSlotsParallel {
                 import: crate::PackageImportOptions {
                     method: config.package_import_method,

@@ -18,7 +18,9 @@ pub(super) fn added_diff(added: &AddedRoot) -> (DepKind, PackageDiff) {
             from: added.linked_from.clone(),
             name: added.name.clone(),
             real_name: Some(added.real_name.clone()),
-            version: added.version.clone().or_else(|| added.id.clone()),
+            version: added.version
+                .clone()
+                .or_else(|| added.id.clone()),
             latest: added.latest.clone(),
         },
     )
@@ -43,7 +45,12 @@ pub(super) fn remove_optional_from_prod(manifest: &Value) -> Value {
     let optional: Vec<String> = manifest
         .get("optionalDependencies")
         .and_then(Value::as_object)
-        .map(|obj| obj.keys().cloned().collect())
+        .map(|obj| {
+            obj
+                .keys()
+                .cloned()
+                .collect()
+        })
         .unwrap_or_default();
     if let Some(deps) = manifest.get_mut("dependencies").and_then(Value::as_object_mut) {
         for name in optional {
@@ -66,14 +73,16 @@ pub(super) fn record_missing(
         if other.contains_key(name) {
             continue;
         }
-        bucket.entry(format!("{sign}{name}")).or_insert_with(|| PackageDiff {
-            added,
-            from: None,
-            name: name.clone(),
-            real_name: None,
-            version: Some(version.clone()),
-            latest: None,
-        });
+        bucket
+            .entry(format!("{sign}{name}"))
+            .or_insert_with(|| PackageDiff {
+                added,
+                from: None,
+                name: name.clone(),
+                real_name: None,
+                version: Some(version.clone()),
+                latest: None,
+            });
     }
 }
 
@@ -82,8 +91,17 @@ pub(super) fn manifest_dep_versions(manifest: &Value, prop: &str) -> HashMap<Str
         .get(prop)
         .and_then(Value::as_object)
         .map(|obj| {
-            obj.iter()
-                .map(|(name, value)| (name.clone(), value.as_str().unwrap_or_default().to_string()))
+            obj
+                .iter()
+                .map(|(name, value)| {
+                    (
+                        name.clone(),
+                        value
+                            .as_str()
+                            .unwrap_or_default()
+                            .to_string(),
+                    )
+                })
                 .collect()
         })
         .unwrap_or_default()

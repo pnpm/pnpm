@@ -63,8 +63,11 @@ fn platform_incompatible_optional_skips_optional_package_for_another_platform() 
 
 #[test]
 fn platform_incompatible_optional_keeps_optional_package_for_current_platform() {
-    let pkg =
-        registry_package(Some(vec!["darwin".to_string()]), Some(vec!["x64".to_string()]), None);
+    let pkg = registry_package(
+        Some(vec!["darwin".to_string()]),
+        Some(vec!["x64".to_string()]),
+        None,
+    );
     assert!(!platform_incompatible_optional(
         "@scope/binding",
         true,
@@ -75,9 +78,17 @@ fn platform_incompatible_optional_keeps_optional_package_for_current_platform() 
 
 #[test]
 fn platform_incompatible_optional_ignores_non_optional_packages() {
-    let pkg =
-        registry_package(Some(vec!["linux".to_string()]), Some(vec!["x64".to_string()]), None);
-    assert!(!platform_incompatible_optional("plain-dep", false, Some(&pkg), &host_darwin("x64")));
+    let pkg = registry_package(
+        Some(vec!["linux".to_string()]),
+        Some(vec!["x64".to_string()]),
+        None,
+    );
+    assert!(!platform_incompatible_optional(
+        "plain-dep",
+        false,
+        Some(&pkg),
+        &host_darwin("x64")
+    ));
 }
 
 #[test]
@@ -88,7 +99,10 @@ fn confined_importer_dir_accepts_dirs_inside_the_lockfile_root() {
     // The root importer and an in-tree sub-importer both resolve inside the
     // lockfile dir, so both are readable.
     let canonical_root = std::fs::canonicalize(root.path()).expect("canonicalize root");
-    assert_eq!(confined_importer_dir(root.path(), "."), Some(canonical_root.clone()));
+    assert_eq!(
+        confined_importer_dir(root.path(), "."),
+        Some(canonical_root.clone()),
+    );
     assert_eq!(
         confined_importer_dir(root.path(), "packages/foo"),
         Some(canonical_root.join("packages/foo")),
@@ -99,7 +113,10 @@ fn confined_importer_dir_accepts_dirs_inside_the_lockfile_root() {
 fn confined_importer_dir_rejects_lexical_escapes() {
     let root = tempfile::tempdir().expect("create lockfile dir");
     for id in ["..", "../foo", "/abs/path", "C:/x"] {
-        assert!(confined_importer_dir(root.path(), id).is_none(), "expected {id:?} to be rejected");
+        assert!(
+            confined_importer_dir(root.path(), id).is_none(),
+            "expected {id:?} to be rejected",
+        );
     }
 }
 
@@ -135,7 +152,10 @@ fn build_purl_unscoped() {
 
 #[test]
 fn build_purl_scoped() {
-    assert_eq!(build_purl("@babel/core", "7.22.0"), "pkg:npm/%40babel/core@7.22.0");
+    assert_eq!(
+        build_purl("@babel/core", "7.22.0"),
+        "pkg:npm/%40babel/core@7.22.0",
+    );
 }
 
 #[test]
@@ -175,8 +195,14 @@ fn peer_names_excludes_regular_deps() {
         "peerDependencies": { "react": "^18.0.0", "react-dom": "^18.0.0" },
     });
     let peers = peer_names_from_manifest(&manifest);
-    assert!(!peers.contains("react"), "react is both a dep and peer; should be excluded");
-    assert!(peers.contains("react-dom"), "react-dom is peer-only; should be included");
+    assert!(
+        !peers.contains("react"),
+        "react is both a dep and peer; should be excluded",
+    );
+    assert!(
+        peers.contains("react-dom"),
+        "react-dom is peer-only; should be included",
+    );
 }
 
 #[test]
@@ -206,7 +232,10 @@ fn extract_author_missing() {
 #[test]
 fn extract_author_blank_string() {
     assert_eq!(extract_author(&serde_json::json!({ "author": "" })), None);
-    assert_eq!(extract_author(&serde_json::json!({ "author": " \t\n" })), None);
+    assert_eq!(
+        extract_author(&serde_json::json!({ "author": " \t\n" })),
+        None,
+    );
 }
 
 #[test]
@@ -220,33 +249,51 @@ fn extract_author_blank_object_name() {
 #[test]
 fn extract_repository_string() {
     let manifest = serde_json::json!({ "repository": "https://github.com/foo/bar" });
-    assert_eq!(extract_repository(&manifest), Some("https://github.com/foo/bar".to_string()));
+    assert_eq!(
+        extract_repository(&manifest),
+        Some("https://github.com/foo/bar".to_string()),
+    );
 }
 
 #[test]
 fn extract_repository_object() {
     let manifest = serde_json::json!({ "repository": { "type": "git", "url": "https://github.com/foo/bar.git" } });
-    assert_eq!(extract_repository(&manifest), Some("https://github.com/foo/bar.git".to_string()));
+    assert_eq!(
+        extract_repository(&manifest),
+        Some("https://github.com/foo/bar.git".to_string()),
+    );
 }
 
 #[test]
 fn normalize_link_path_simple() {
-    assert_eq!(normalize_link_path(".", "packages/foo"), Some("packages/foo".to_string()));
+    assert_eq!(
+        normalize_link_path(".", "packages/foo"),
+        Some("packages/foo".to_string()),
+    );
 }
 
 #[test]
 fn normalize_link_path_relative() {
-    assert_eq!(normalize_link_path("packages/a", "../b"), Some("packages/b".to_string()));
+    assert_eq!(
+        normalize_link_path("packages/a", "../b"),
+        Some("packages/b".to_string()),
+    );
 }
 
 #[test]
 fn normalize_link_path_to_parent() {
-    assert_eq!(normalize_link_path("packages/a", ".."), Some("packages".to_string()));
+    assert_eq!(
+        normalize_link_path("packages/a", ".."),
+        Some("packages".to_string()),
+    );
 }
 
 #[test]
 fn normalize_link_path_to_root() {
-    assert_eq!(normalize_link_path("packages/a", "../.."), Some(".".to_string()));
+    assert_eq!(
+        normalize_link_path("packages/a", "../.."),
+        Some(".".to_string()),
+    );
 }
 
 #[test]
@@ -290,7 +337,10 @@ fn strip_url_credentials_removes_userinfo() {
 
 #[test]
 fn strip_url_credentials_no_credentials() {
-    assert_eq!(strip_url_credentials("https://github.com/foo/bar"), "https://github.com/foo/bar");
+    assert_eq!(
+        strip_url_credentials("https://github.com/foo/bar"),
+        "https://github.com/foo/bar",
+    );
 }
 
 #[test]

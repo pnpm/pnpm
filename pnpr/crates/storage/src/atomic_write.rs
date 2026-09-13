@@ -39,8 +39,11 @@ pub(super) async fn write_atomic_with_replace(
         return Err(err.into());
     }
     drop(file);
-    let committed =
-        if replace { fs::rename(&tmp, path).await } else { fs::hard_link(&tmp, path).await };
+    let committed = if replace {
+        fs::rename(&tmp, path).await
+    } else {
+        fs::hard_link(&tmp, path).await
+    };
     if let Err(err) = committed {
         let _ = fs::remove_file(&tmp).await;
         return Err(err.into());
@@ -65,7 +68,10 @@ pub async fn remove_atomic_write_temps(path: &Path) -> Result<()> {
     };
     while let Some(entry) = entries.next_entry().await? {
         let name = entry.file_name();
-        let Some(suffix) = name.as_encoded_bytes().strip_prefix(prefix.as_encoded_bytes()) else {
+        let Some(suffix) = name
+            .as_encoded_bytes()
+            .strip_prefix(prefix.as_encoded_bytes())
+        else {
             continue;
         };
         if !is_atomic_write_temp_suffix(suffix) {
@@ -106,7 +112,13 @@ pub(super) async fn create_tmp_file_with(
     let mut last_already_exists = None;
     for _ in 0..MAX_TEMP_CREATE_ATTEMPTS {
         let tmp_path = next_path(base);
-        match fs::OpenOptions::new().read(true).write(true).create_new(true).open(&tmp_path).await {
+        match fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create_new(true)
+            .open(&tmp_path)
+            .await
+        {
             Ok(file) => return Ok((file, tmp_path)),
             Err(err) if err.kind() == ErrorKind::AlreadyExists => {
                 last_already_exists = Some(err);
@@ -133,7 +145,10 @@ pub fn unique_tmp_path(base: &Path) -> PathBuf {
         Ok(()) => u64::from_ne_bytes(random),
         Err(_) => 0,
     };
-    let mut name = base.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
+    let mut name = base
+        .file_name()
+        .map(std::ffi::OsStr::to_os_string)
+        .unwrap_or_default();
     name.push(format!(".tmp.{pid}.{counter}.{random:016x}"));
     match base.parent() {
         Some(parent) => parent.join(name),

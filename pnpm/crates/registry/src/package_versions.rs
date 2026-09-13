@@ -78,7 +78,11 @@ impl MirrorFile {
                 std::sync::atomic::Ordering::Relaxed,
                 std::sync::atomic::Ordering::Relaxed,
             ) {
-                Ok(_) => return Ok(Arc::new(MirrorFile { file })),
+                Ok(_) => {
+                    return Ok(Arc::new(MirrorFile {
+                        file,
+                    }));
+                }
                 Err(current) => held = current,
             }
         }
@@ -103,7 +107,11 @@ enum FragmentSource {
     /// packument cache out of resident memory. See
     /// [`PackageVersions::from_file_spans`] for the inode-pinning
     /// contract the held handle provides.
-    FileSpan { file: Arc<MirrorFile>, offset: u64, len: u32 },
+    FileSpan {
+        file: Arc<MirrorFile>,
+        offset: u64,
+        len: u32,
+    },
     /// No fragment — the slot was constructed from an already-typed
     /// manifest (tests, the publish-date filter's slot moves).
     None,
@@ -245,7 +253,9 @@ impl PackageVersions {
     pub fn decode_error(&self, version: &str) -> Option<String> {
         let slot = self.slot(version)?;
         let json = slot.source.json()?;
-        serde_json::from_str::<PackageVersion>(&json).err().map(|error| error.to_string())
+        serde_json::from_str::<PackageVersion>(&json)
+            .err()
+            .map(|error| error.to_string())
     }
 
     /// Whether `version` is marked deprecated, equivalent to
@@ -261,11 +271,17 @@ impl PackageVersions {
     /// dominated warm-resolve CPU.
     #[must_use]
     pub fn is_deprecated(&self, version: &str) -> bool {
-        let Some(slot) = self.slot(version) else { return false };
+        let Some(slot) = self.slot(version) else {
+            return false;
+        };
         if let Some(parsed) = slot.parsed.get() {
-            return parsed.as_ref().is_some_and(|manifest| manifest.deprecated.is_some());
+            return parsed
+                .as_ref()
+                .is_some_and(|manifest| manifest.deprecated.is_some());
         }
-        let Some(json) = slot.source.json() else { return false };
+        let Some(json) = slot.source.json() else {
+            return false;
+        };
         if !json.contains(r#""deprecated""#) {
             return false;
         }
@@ -274,7 +290,9 @@ impl PackageVersions {
 
     /// Version strings in lexical order. Never hydrates.
     pub fn keys(&self) -> impl Iterator<Item = &String> {
-        self.slots.iter().map(|(version, _)| version)
+        self.slots
+            .iter()
+            .map(|(version, _)| version)
     }
 
     #[must_use]
@@ -292,7 +310,9 @@ impl PackageVersions {
     /// representation, so this belongs only on cold paths (the trust
     /// verifier's history scan, tests).
     pub fn iter(&self) -> impl Iterator<Item = (&String, Arc<PackageVersion>)> {
-        self.slots.iter().filter_map(|(version, slot)| Some((version, slot.hydrate(version)?)))
+        self.slots
+            .iter()
+            .filter_map(|(version, slot)| Some((version, slot.hydrate(version)?)))
     }
 
     /// Filtered copy keeping only the versions `keep` accepts. Slots
@@ -302,8 +322,7 @@ impl PackageVersions {
     #[must_use]
     pub fn filtered(&self, mut keep: impl FnMut(&str) -> bool) -> PackageVersions {
         PackageVersions {
-            slots: self
-                .slots
+            slots: self.slots
                 .iter()
                 .filter(|(version, _)| keep(version))
                 .map(|(version, slot)| (version.clone(), slot.clone()))
@@ -312,8 +331,9 @@ impl PackageVersions {
     }
 
     fn slot(&self, version: &str) -> Option<&VersionSlot> {
-        let index =
-            self.slots.binary_search_by(|(candidate, _)| candidate.as_str().cmp(version)).ok()?;
+        let index = self.slots
+            .binary_search_by(|(candidate, _)| candidate.as_str().cmp(version))
+            .ok()?;
         Some(&self.slots[index].1)
     }
 
@@ -321,7 +341,9 @@ impl PackageVersions {
         if !slots.is_sorted_by(|left, right| left.0 <= right.0) {
             slots.sort_unstable_by(|left, right| left.0.cmp(&right.0));
         }
-        PackageVersions { slots }
+        PackageVersions {
+            slots,
+        }
     }
 }
 
@@ -394,25 +416,27 @@ impl PackageVersions {
     /// version, which reads back as "absent" (the same contract as an
     /// undecodable fragment).
     pub fn fragments(&self) -> impl Iterator<Item = (&String, Cow<'_, str>)> {
-        self.slots.iter().filter_map(|(version, slot)| {
-            if let Some(json) = slot.source.json() {
-                return Some((version, json));
-            }
-            if let Some(Some(parsed)) = slot.parsed.get() {
-                match serde_json::to_string(parsed.as_ref()) {
-                    Ok(json) => return Some((version, Cow::Owned(json))),
-                    Err(error) => {
-                        tracing::warn!(
-                            target: "pnpm_registry",
-                            %error,
-                            version,
-                            "failed to re-serialize a typed manifest for the metadata mirror",
-                        );
+        self.slots
+            .iter()
+            .filter_map(|(version, slot)| {
+                if let Some(json) = slot.source.json() {
+                    return Some((version, json));
+                }
+                if let Some(Some(parsed)) = slot.parsed.get() {
+                    match serde_json::to_string(parsed.as_ref()) {
+                        Ok(json) => return Some((version, Cow::Owned(json))),
+                        Err(error) => {
+                            tracing::warn!(
+                                target: "pnpm_registry",
+                                %error,
+                                version,
+                                "failed to re-serialize a typed manifest for the metadata mirror",
+                            );
+                        }
                     }
                 }
-            }
-            None
-        })
+                None
+            })
     }
 }
 
@@ -429,7 +453,10 @@ impl From<HashMap<String, PackageVersion>> for PackageVersions {
 
 impl FromIterator<(String, PackageVersion)> for PackageVersions {
     fn from_iter<Iter: IntoIterator<Item = (String, PackageVersion)>>(iter: Iter) -> Self {
-        iter.into_iter().collect::<HashMap<_, _>>().into()
+        iter
+            .into_iter()
+            .collect::<HashMap<_, _>>()
+            .into()
     }
 }
 

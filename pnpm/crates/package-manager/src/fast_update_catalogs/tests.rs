@@ -56,8 +56,10 @@ importers:
         version: 1.1.0
 ",
     );
-    let catalogs =
-        Catalogs::from([("default".to_string(), [("foo".to_string(), "^2".to_string())].into())]);
+    let catalogs = Catalogs::from([(
+        "default".to_string(),
+        [("foo".to_string(), "^2".to_string())].into(),
+    )]);
 
     assert!(matches!(
         try_fast_update_catalogs(&lockfile, &catalogs, false),
@@ -132,8 +134,10 @@ importers:
   .: {}
 ",
     );
-    let catalogs =
-        Catalogs::from([("default".to_string(), [("foo".to_string(), "^1".to_string())].into())]);
+    let catalogs = Catalogs::from([(
+        "default".to_string(),
+        [("foo".to_string(), "^1".to_string())].into(),
+    )]);
 
     assert!(matches!(
         try_fast_update_catalogs(&lockfile, &catalogs, false),
@@ -159,8 +163,10 @@ importers:
         version: 1.0.0
 ",
     );
-    let catalogs =
-        Catalogs::from([("default".to_string(), [("foo".to_string(), "^1".to_string())].into())]);
+    let catalogs = Catalogs::from([(
+        "default".to_string(),
+        [("foo".to_string(), "^1".to_string())].into(),
+    )]);
 
     assert!(matches!(
         try_fast_update_catalogs(&lockfile, &catalogs, false),

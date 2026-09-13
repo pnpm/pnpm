@@ -11,10 +11,18 @@ fn run(
     env: &HashMap<String, String>,
 ) -> (i32, Vec<(LifecycleStdio, String)>) {
     let lines = Mutex::new(Vec::new());
-    let sink = |stdio, line| lines.lock().expect("the sink is never poisoned").push((stdio, line));
+    let sink = |stdio, line| {
+        lines
+            .lock()
+            .expect("the sink is never poisoned")
+            .push((stdio, line));
+    };
     let code = execute_emulated(script, cwd, env, EmulatedOutput::Lines(&sink), None)
         .expect("run the script under the emulator");
-    (code, lines.into_inner().expect("the sink is never poisoned"))
+    (
+        code,
+        lines.into_inner().expect("the sink is never poisoned"),
+    )
 }
 
 /// The lines `stdio` carried, in the order the sink saw them.
@@ -64,7 +72,10 @@ fn emits_a_final_line_without_a_newline() {
     let (code, lines) = run("cat unterminated.txt", dir.path(), &HashMap::new());
     dbg!(&lines);
     assert_eq!(code, 0);
-    assert_eq!(lines, vec![(LifecycleStdio::Stdout, "trailing".to_string())]);
+    assert_eq!(
+        lines,
+        vec![(LifecycleStdio::Stdout, "trailing".to_string())],
+    );
 }
 
 #[test]

@@ -54,7 +54,10 @@ fn register_creates_symlink_to_project_dir() {
     assert!(registry_dir.is_dir(), "projects dir must be created");
     let mut entries: Vec<_> = fs::read_dir(&registry_dir).unwrap().collect();
     assert_eq!(entries.len(), 1, "exactly one entry per project");
-    let entry = entries.pop().unwrap().unwrap();
+    let entry = entries
+        .pop()
+        .unwrap()
+        .unwrap();
     // `symlink_dir` writes a path relative to the link's parent
     // (matching the `symlink-dir` package), so canonicalize via the
     // entry path itself rather than the raw `read_link` output.
@@ -76,7 +79,11 @@ fn register_is_idempotent_on_repeat() {
 
     let registry_dir = store_dir.projects();
     let entries: Vec<_> = fs::read_dir(&registry_dir).unwrap().collect();
-    assert_eq!(entries.len(), 1, "still exactly one entry after re-register");
+    assert_eq!(
+        entries.len(),
+        1,
+        "still exactly one entry after re-register",
+    );
 }
 
 /// The `STORE_VERSION` subdir (`store_dir.root()` after
@@ -133,13 +140,24 @@ fn get_unlinks_stale_entry_and_skips_it() {
     // Take ownership of the tempdir to force its drop / removal
     // before we run the cleanup pass.
     drop(project);
-    assert!(!project_path.exists(), "test setup: project dir must be gone");
+    assert!(
+        !project_path.exists(),
+        "test setup: project dir must be gone",
+    );
 
     let projects = get_registered_projects(&store_dir).expect("list");
-    assert!(projects.is_empty(), "stale entry must not show up in the result");
-    let remaining: Vec<_> =
-        fs::read_dir(store_dir.projects()).unwrap().collect::<Result<_, _>>().unwrap();
-    assert!(remaining.is_empty(), "stale entry must be unlinked from disk");
+    assert!(
+        projects.is_empty(),
+        "stale entry must not show up in the result",
+    );
+    let remaining: Vec<_> = fs::read_dir(store_dir.projects())
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert!(
+        remaining.is_empty(),
+        "stale entry must be unlinked from disk",
+    );
 }
 
 #[test]
@@ -153,7 +171,10 @@ fn get_keeps_live_and_drops_stale_when_mixed() {
     register_project(&store_dir, live.path()).expect("register live");
     register_project(&store_dir, dead.path()).expect("register dead");
     drop(dead);
-    assert!(!dead_path.exists(), "test setup: dead project dir must be gone");
+    assert!(
+        !dead_path.exists(),
+        "test setup: dead project dir must be gone",
+    );
 
     let projects = get_registered_projects(&store_dir).expect("list");
     assert_eq!(projects.len(), 1, "only the live project survives");
@@ -161,8 +182,10 @@ fn get_keeps_live_and_drops_stale_when_mixed() {
         dunce::canonicalize(&projects[0]).unwrap(),
         dunce::canonicalize(live.path()).unwrap(),
     );
-    let remaining: Vec<_> =
-        fs::read_dir(store_dir.projects()).unwrap().collect::<Result<_, _>>().unwrap();
+    let remaining: Vec<_> = fs::read_dir(store_dir.projects())
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
     assert_eq!(remaining.len(), 1, "exactly one registry entry left");
 }
 
@@ -176,5 +199,10 @@ fn get_skips_dotfile_entries() {
 
     let projects = get_registered_projects(&store_dir).expect("list");
     assert_eq!(projects.len(), 1, "dotfile must not register as a project");
-    assert!(store_dir.projects().join(".DS_Store").exists());
+    assert!(
+        store_dir
+            .projects()
+            .join(".DS_Store")
+            .exists(),
+    );
 }

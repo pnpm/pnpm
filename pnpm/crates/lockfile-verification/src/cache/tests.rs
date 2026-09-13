@@ -25,11 +25,17 @@ struct Stub {
 
 impl Stub {
     fn new(trusts_past: bool) -> Arc<Self> {
-        Arc::new(Self { policy: serde_json::Map::new(), trusts_past })
+        Arc::new(Self {
+            policy: serde_json::Map::new(),
+            trusts_past,
+        })
     }
 
     fn with_policy(trusts_past: bool, policy: serde_json::Map<String, JsonValue>) -> Arc<Self> {
-        Arc::new(Self { policy, trusts_past })
+        Arc::new(Self {
+            policy,
+            trusts_past,
+        })
     }
 }
 
@@ -70,7 +76,10 @@ fn cold_cache_misses_with_populated_stat() {
     let lockfile = touch_lockfile(dir.path(), "lockfileVersion: '9.0'\n");
     let result = try_lockfile_verification_cache(dir.path(), &lockfile, &[], hashed("foo"));
     assert!(!result.hit);
-    assert!(result.precomputed.stat.is_some(), "stat populated on cold miss");
+    assert!(
+        result.precomputed.stat.is_some(),
+        "stat populated on cold miss",
+    );
 }
 
 #[test]
@@ -287,7 +296,10 @@ fn every_verifier_accepts_its_merged_cached_policy() {
     let mut age_policy = serde_json::Map::new();
     age_policy.insert("minimumReleaseAge".to_string(), 60.into());
     let mut trust_policy = serde_json::Map::new();
-    trust_policy.insert("trustPolicy".to_string(), JsonValue::String("no-downgrade".into()));
+    trust_policy.insert(
+        "trustPolicy".to_string(),
+        JsonValue::String("no-downgrade".into()),
+    );
     let verifiers: Vec<Arc<dyn ResolutionVerifier>> = vec![
         Stub::with_policy(true, age_policy) as Arc<dyn ResolutionVerifier>,
         Stub::with_policy(true, trust_policy) as Arc<dyn ResolutionVerifier>,
@@ -359,11 +371,16 @@ fn record_verification_merges_policies() {
     let mut policy_a = serde_json::Map::new();
     policy_a.insert("minimumReleaseAge".to_string(), 60.into());
     let mut policy_b = serde_json::Map::new();
-    policy_b.insert("trustPolicy".to_string(), JsonValue::String("no-downgrade".into()));
+    policy_b.insert(
+        "trustPolicy".to_string(),
+        JsonValue::String("no-downgrade".into()),
+    );
     policy_b.insert("minimumReleaseAge".to_string(), 120.into());
 
-    let verifiers: Vec<Arc<dyn ResolutionVerifier>> =
-        vec![Stub::with_policy(true, policy_a), Stub::with_policy(true, policy_b)];
+    let verifiers: Vec<Arc<dyn ResolutionVerifier>> = vec![
+        Stub::with_policy(true, policy_a),
+        Stub::with_policy(true, policy_b),
+    ];
 
     record_verification(
         dir.path(),
@@ -375,8 +392,14 @@ fn record_verification_merges_policies() {
 
     let line = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("read cache");
     let record: CacheRecord = serde_json::from_str(line.trim_end()).expect("parse cache record");
-    assert_eq!(record.policy.get("minimumReleaseAge").and_then(JsonValue::as_u64), Some(120));
-    assert_eq!(record.policy.get("trustPolicy").and_then(JsonValue::as_str), Some("no-downgrade"));
+    assert_eq!(
+        record.policy.get("minimumReleaseAge").and_then(JsonValue::as_u64),
+        Some(120),
+    );
+    assert_eq!(
+        record.policy.get("trustPolicy").and_then(JsonValue::as_str),
+        Some("no-downgrade"),
+    );
 }
 
 #[test]
@@ -395,7 +418,13 @@ fn append_only_log_records_each_call() {
         );
     }
     let contents = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("read cache");
-    assert_eq!(contents.lines().filter(|line| !line.is_empty()).count(), 3);
+    assert_eq!(
+        contents
+            .lines()
+            .filter(|line| !line.is_empty())
+            .count(),
+        3,
+    );
 }
 
 #[test]
@@ -426,7 +455,10 @@ fn compaction_dedupes_by_path_and_hash() {
         counter += 1;
     }
     fs::write(&cache_path, &seed).expect("seed cache");
-    assert!(seed.len() as u64 > super::COMPACT_TRIGGER_BYTES, "seed must trigger compaction");
+    assert!(
+        seed.len() as u64 > super::COMPACT_TRIGGER_BYTES,
+        "seed must trigger compaction",
+    );
 
     let verifiers: Vec<Arc<dyn ResolutionVerifier>> =
         vec![Stub::new(true) as Arc<dyn ResolutionVerifier>];
@@ -439,9 +471,20 @@ fn compaction_dedupes_by_path_and_hash() {
     );
 
     let contents = fs::read_to_string(&cache_path).expect("read post-compact");
-    let lines: Vec<&str> = contents.lines().filter(|line| !line.is_empty()).collect();
-    assert!(lines.len() <= MAX_CACHE_ENTRIES + 1, "trimmed past cap: {}", lines.len());
-    assert!(lines.len() <= 2, "duplicates collapsed: got {} lines", lines.len());
+    let lines: Vec<&str> = contents
+        .lines()
+        .filter(|line| !line.is_empty())
+        .collect();
+    assert!(
+        lines.len() <= MAX_CACHE_ENTRIES + 1,
+        "trimmed past cap: {}",
+        lines.len(),
+    );
+    assert!(
+        lines.len() <= 2,
+        "duplicates collapsed: got {} lines",
+        lines.len(),
+    );
 }
 
 #[test]
@@ -503,7 +546,10 @@ fn rewrite_cached_mtime(cache_dir: &Path, mtime_ns: &str) {
     record.lockfile.mtime_ns = mtime_ns.to_string();
     fs::write(
         cache_path,
-        format!("{}\n", serde_json::to_string(&record).expect("serialize cache record")),
+        format!(
+            "{}\n",
+            serde_json::to_string(&record).expect("serialize cache record"),
+        ),
     )
     .expect("rewrite cache record");
 }

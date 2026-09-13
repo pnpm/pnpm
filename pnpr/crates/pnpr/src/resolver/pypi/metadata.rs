@@ -30,12 +30,10 @@ pub(super) fn parse_metadata(
 ) -> Result<WheelMetadata, String> {
     let metadata =
         WheelMetadata::parse(document).map_err(|err| super::super::report_message(&err))?;
-    let named = metadata
-        .name
+    let named = metadata.name
         .parse::<pep508_rs::PackageName>()
         .map_err(|err| format!("read the distribution the metadata of {filename} names: {err}"))?;
-    let versioned = metadata
-        .version
+    let versioned = metadata.version
         .parse::<pep440_rs::Version>()
         .map_err(|err| format!("read the version the metadata of {filename} names: {err}"))?;
     if named != *name || versioned != *version {
@@ -98,7 +96,9 @@ pub(super) fn verify_digest(
     kind: &str,
     filename: &str,
 ) -> Result<(), String> {
-    let Some(expected) = digests.get("sha256") else { return Ok(()) };
+    let Some(expected) = digests.get("sha256") else {
+        return Ok(());
+    };
     let actual = pnpm_crypto_hash::create_hex_hash_bytes(bytes);
     if !actual.eq_ignore_ascii_case(expected) {
         return Err(format!(
@@ -114,10 +114,20 @@ pub(super) fn metadata_from_wheel(wheel: &[u8], filename: &str) -> Result<Vec<u8
     let mut archive = zip::ZipArchive::new(Cursor::new(wheel))
         .map_err(|err| format!("read the wheel {filename}: {err}"))?;
     let entry = (0..archive.len())
-        .filter_map(|index| Some(archive.by_index(index).ok()?.name().to_string()))
+        .filter_map(|index| {
+            Some(
+                archive
+                    .by_index(index)
+                    .ok()?
+                    .name()
+                    .to_string(),
+            )
+        })
         .find(|name| {
             let mut segments = name.split('/');
-            segments.next().is_some_and(|directory| directory.ends_with(".dist-info"))
+            segments
+                .next()
+                .is_some_and(|directory| directory.ends_with(".dist-info"))
                 && segments.next() == Some("METADATA")
                 && segments.next().is_none()
         })
@@ -134,7 +144,9 @@ pub(super) fn metadata_from_wheel(wheel: &[u8], filename: &str) -> Result<Vec<u8
         .read_to_end(&mut document)
         .map_err(|err| format!("read {entry} from {filename}: {err}"))?;
     if document.len() > MAX_METADATA_BYTES {
-        return Err(format!("the metadata in {filename} exceeds {MAX_METADATA_BYTES} bytes"));
+        return Err(format!(
+            "the metadata in {filename} exceeds {MAX_METADATA_BYTES} bytes",
+        ));
     }
     Ok(document)
 }

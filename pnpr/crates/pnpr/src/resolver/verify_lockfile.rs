@@ -1,7 +1,7 @@
 use super::{
     Arc, AuthHeaders, Bytes, Footprint, Identity, InMemoryPackageMetaCache, Lockfile, Mutex,
     ObservedDistStats, OsvIndex, PackageMetaCache, PacquetConfig, ResolutionVerifier,
-    ResolveRequest, Resolver, Response, StatusCode, TOO_MANY_CONFIGS_MESSAGE, TarballRouter,
+    ResolveRequest, Resolver, Response, StatusCode, TOO_MANY_CONFIGS_MESSAGE,
     build_resolution_verifiers, collect_resolution_policy_violations, hash_lockfile, json_error,
     ndjson_single_frame, observed_dist_stats_sink, osv_violations_for_lockfile,
     reject_inline_url_auth, reject_invalid_registries, reject_off_allowlist_fetches,
@@ -51,12 +51,7 @@ pub(crate) async fn handle_verify_lockfile(
     // populate a cache scope a resolve wouldn't.
     let footprint = Arc::new(Mutex::new(Footprint::default()));
     let request_auth = runtime.hooked_auth(&request, &identity, &footprint);
-    let tarball_router = TarballRouter::new(
-        Arc::clone(&runtime.route_context),
-        identity.clone(),
-        runtime.public_url.clone(),
-        config.resolved_registries().into_iter().collect(),
-    );
+    let tarball_router = super::request_tarball_router(runtime, &identity, config);
     let input_lockfile = tarball_router.verification_lockfile(input_lockfile);
 
     match verify_input_lockfile(runtime, config, &request_auth, &input_lockfile).await {
@@ -107,7 +102,10 @@ pub(super) async fn verify_input_lockfile(
         None,
     )
     .map_err(|err| {
-        VerifyFailure::Internal(json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()))
+        VerifyFailure::Internal(json_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            &err.to_string(),
+        ))
     })?;
 
     let hash = hash_lockfile(lockfile);
@@ -118,24 +116,24 @@ pub(super) async fn verify_input_lockfile(
     // A transport failure verifying an entry (the upstream registry couldn't be
     // reached/authorized) is a gateway error, not a policy violation — surface
     // the registry's own (credential-redacted) message to the client.
-    let violations = match collect_resolution_policy_violations(lockfile, &verifiers, None).await {
-        Ok(violations) => violations,
-        Err(message) => {
-            return Err(VerifyFailure::Internal(json_error(StatusCode::BAD_GATEWAY, &message)));
-        }
-    };
-    let osv_violations = runtime
-        .osv_index
+    let violations = collect_resolution_policy_violations(lockfile, &verifiers, None).await
+        .map_err(|message| {
+            VerifyFailure::Internal(json_error(StatusCode::BAD_GATEWAY, &message))
+        })?;
+    let osv_violations = runtime.osv_index
         .as_ref()
-        .map_or_else(Vec::new, |index| osv_violations_for_lockfile(index, lockfile));
+        .map_or_else(Vec::new, |index| {
+            osv_violations_for_lockfile(index, lockfile)
+        });
     if violations.is_empty() && osv_violations.is_empty() {
-        if let Some(cache) = runtime.cache.verdicts.as_ref() {
-            cache.record(&hash, &merge_policies(&verifiers, runtime.osv_index.as_ref()));
-        }
+        record_verdict(runtime, &hash, &verifiers);
         return Ok(Some(dist_stats));
     }
 
-    Err(VerifyFailure::Violations(render_violations(&violations, osv_violations)))
+    Err(VerifyFailure::Violations(render_violations(
+        &violations,
+        osv_violations,
+    )))
 }
 
 /// Whole-lockfile verdict cache: an O(1) hit when this exact lockfile
@@ -147,12 +145,18 @@ pub(super) fn past_verdict_trusted(
     hash: &str,
     verifiers: &[Arc<dyn ResolutionVerifier>],
 ) -> bool {
-    runtime.cache.verdicts.as_ref().is_some_and(|cache| {
-        cache.is_verified(hash, |policy| {
-            verifiers.iter().all(|verifier| verifier.can_trust_past_check(policy))
-                && runtime.osv_index.as_ref().is_none_or(|index| index.can_trust_policy(policy))
+    runtime.cache.verdicts
+        .as_ref()
+        .is_some_and(|cache| {
+            cache.is_verified(hash, |policy| {
+                verifiers
+                    .iter()
+                    .all(|verifier| verifier.can_trust_past_check(policy))
+                    && runtime.osv_index
+                        .as_ref()
+                        .is_none_or(|index| index.can_trust_policy(policy))
+            })
         })
-    })
 }
 
 pub(super) fn render_violations(
@@ -193,4 +197,50 @@ pub(super) fn merge_policies(
         merged.extend(osv_index.policy());
     }
     merged
+}
+
+fn record_verdict(runtime: &Resolver, hash: &str, verifiers: &[Arc<dyn ResolutionVerifier>]) {
+    if let Some(cache) = runtime.cache.verdicts.as_ref() {
+        cache.record(hash, &merge_policies(verifiers, runtime.osv_index.as_ref()));
+    }
+}
+
+pub(super) async fn verified_frozen_response(
+    runtime: &Resolver,
+    config: &'static PacquetConfig,
+    request: &ResolveRequest,
+    request_auth: &Arc<AuthHeaders>,
+    tarball_router: &super::TarballRouter,
+) -> Result<Option<Response>, Response> {
+    let verified_dist_stats = match super::verify_request_lockfile(
+        runtime,
+        config,
+        request,
+        request_auth,
+        tarball_router,
+    )
+    .await
+    {
+        Ok(stats) => stats,
+        Err(response) => return Err(response),
+    };
+
+    // Short-circuit paths that produce the whole lockfile without an
+    // incremental tree walk. A verified frozen lockfile still announces
+    // its tarballs as `package` frames when the verification fan-out
+    // just fetched their metadata — the sizes let the client start the
+    // largest downloads first. On a verdict-cache hit no metadata was
+    // fetched, so there's nothing to add and the response is the bare
+    // `done` frame.
+    let frozen = super::frozen_lockfile_response(
+        runtime,
+        config,
+        request,
+        tarball_router,
+        verified_dist_stats,
+    );
+    if let Some(response) = frozen {
+        return Ok(Some(response));
+    }
+    Ok(None)
 }

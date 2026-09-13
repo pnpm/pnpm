@@ -88,14 +88,7 @@ pub(super) async fn run<Reporter: self::Reporter>(
     }
     let http_client = Arc::new(build_registry_client(config)?);
     let resolver = store_resolver(config, &http_client)?;
-    let resolve_options = ResolveOptions {
-        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
-            project_dir: dir.to_path_buf(),
-            lockfile_dir: dir.to_path_buf(),
-            ..Default::default()
-        },
-        ..ResolveOptions::default()
-    };
+    let resolve_options = store_add_resolve_options(dir);
 
     // Both halves honour `frozenStore`, so a read-only store root gains
     // neither an `index.db` write nor its WAL / SHM sidecars.
@@ -128,7 +121,11 @@ pub(super) async fn run<Reporter: self::Reporter>(
     drop(store_index_writer);
     StoreIndexWriter::drain(writer_task, "; some rows may not be persisted").await;
 
-    if has_failures { Err(StoreAddFailureError.into()) } else { Ok(()) }
+    if has_failures {
+        Err(StoreAddFailureError.into())
+    } else {
+        Ok(())
+    }
 }
 
 /// Report one specifier's outcome; `true` when it failed.
@@ -147,7 +144,9 @@ fn report_add_outcome<Reporter: self::Reporter>(outcome: miette::Result<String>)
             false
         }
         Err(error) => {
-            let code = error.code().map_or_else(String::new, |code| format!("{code}: "));
+            let code = error
+                .code()
+                .map_or_else(String::new, |code| format!("{code}: "));
             emit_global_warning::<Reporter>(&format!("{code}{error}"));
             true
         }
@@ -209,7 +208,9 @@ async fn add_one<Reporter: self::Reporter>(args: AddOne<'_>) -> miette::Result<S
         ignore_file_pattern: None,
 
         progress_reported: None,
-        store_projection: pnpm_tarball::ArchiveStoreProjection::Package { append_manifest: None },
+        store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
+            append_manifest: None,
+        },
     }
     .run_without_mem_cache::<Reporter>()
     .await
@@ -260,5 +261,16 @@ impl<'a> AddOne<'a> {
             .resolve(&wanted, self.resolve_options)
             .await
             .map_err(|error| miette::miette!("{}: {error}", self.package))
+    }
+}
+
+fn store_add_resolve_options(dir: &Path) -> ResolveOptions {
+    ResolveOptions {
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: dir.to_path_buf(),
+            lockfile_dir: dir.to_path_buf(),
+            ..Default::default()
+        },
+        ..ResolveOptions::default()
     }
 }

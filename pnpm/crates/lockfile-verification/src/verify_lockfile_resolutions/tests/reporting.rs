@@ -7,11 +7,17 @@ use super::{
 #[tokio::test]
 async fn all_ok_emits_started_then_done() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -31,7 +37,11 @@ async fn all_ok_emits_started_then_done() {
     .expect("all-ok must succeed");
 
     let captured = EVENTS.lock().unwrap();
-    assert_eq!(captured.len(), 2, "expected Started + Done, got: {captured:?}");
+    assert_eq!(
+        captured.len(),
+        2,
+        "expected Started + Done, got: {captured:?}",
+    );
     match &captured[0] {
         LogEvent::LockfileVerification(log) => match &log.message {
             LockfileVerificationMessage::Started { entries, lockfile_path } => {
@@ -54,11 +64,17 @@ async fn all_ok_emits_started_then_done() {
 #[tokio::test]
 async fn failed_path_emits_failed_terminator() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -72,7 +88,11 @@ async fn failed_path_emits_failed_terminator() {
     .await;
 
     let captured = EVENTS.lock().unwrap();
-    assert_eq!(captured.len(), 2, "expected Started + Failed, got: {captured:?}");
+    assert_eq!(
+        captured.len(),
+        2,
+        "expected Started + Failed, got: {captured:?}",
+    );
     match &captured[1] {
         LogEvent::LockfileVerification(log) => assert!(
             matches!(log.message, LockfileVerificationMessage::Failed { .. }),
@@ -86,11 +106,17 @@ async fn failed_path_emits_failed_terminator() {
 #[tokio::test]
 async fn cache_hit_emits_cached_event() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -122,7 +148,11 @@ async fn cache_hit_emits_cached_event() {
     .expect("second run");
 
     let captured = EVENTS.lock().unwrap();
-    assert_eq!(captured.len(), 1, "expected a single Cached event, got: {captured:?}");
+    assert_eq!(
+        captured.len(),
+        1,
+        "expected a single Cached event, got: {captured:?}",
+    );
     match &captured[0] {
         LogEvent::LockfileVerification(log) => match &log.message {
             LockfileVerificationMessage::Cached { verified_at, lockfile_path: emitted } => {

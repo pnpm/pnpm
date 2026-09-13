@@ -33,10 +33,16 @@ fn run_peers(workspace: &std::path::Path, args: &[&str]) -> Value {
 #[test]
 fn peers_is_recursive_by_default_and_honors_filters() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
-        .expect("write workspace manifest");
-    fs::write(workspace.join("package.json"), r#"{ "name": "root", "version": "1.0.0" }"#)
-        .expect("write root manifest");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\n",
+    )
+    .expect("write workspace manifest");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "root", "version": "1.0.0" }"#,
+    )
+    .expect("write root manifest");
     write_project(&workspace, "packages/app-a", "app-a");
     write_project(&workspace, "packages/app-b", "app-b");
     fs::write(
@@ -48,8 +54,10 @@ fn peers_is_recursive_by_default_and_honors_filters() {
     let all = run_peers(&workspace, &["peers", "--lockfile-only", "--json"]);
     assert_eq!(all.as_object().map(serde_json::Map::len), Some(3));
 
-    let filtered =
-        run_peers(&workspace, &["--filter", "app-a", "peers", "--lockfile-only", "--json"]);
+    let filtered = run_peers(
+        &workspace,
+        &["--filter", "app-a", "peers", "--lockfile-only", "--json"],
+    );
     let filtered = filtered.as_object().expect("filtered peer issues object");
     assert_eq!(filtered.len(), 1);
     assert!(filtered.contains_key("packages/app-a"));
@@ -65,12 +73,18 @@ fn recursive_peers_uses_the_active_dedicated_lockfile() {
         "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n",
     )
     .expect("write workspace manifest");
-    fs::write(workspace.join("package.json"), r#"{ "name": "root", "version": "1.0.0" }"#)
-        .expect("write root manifest");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "root", "version": "1.0.0" }"#,
+    )
+    .expect("write root manifest");
     write_project(&workspace, "packages/app", "app");
     let app = workspace.join("packages/app");
-    fs::write(app.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\nimporters:\n  .: {}\n")
-        .expect("write dedicated lockfile");
+    fs::write(
+        app.join("pnpm-lock.yaml"),
+        "lockfileVersion: '9.0'\nimporters:\n  .: {}\n",
+    )
+    .expect("write dedicated lockfile");
 
     let issues = run_peers(&app, &["peers", "--lockfile-only", "--json"]);
     let issues = issues.as_object().expect("peer issues object");
@@ -85,10 +99,16 @@ fn recursive_peers_uses_the_active_dedicated_lockfile() {
 #[test]
 fn peers_accepts_the_check_subcommand() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-    fs::write(workspace.join("package.json"), r#"{ "name": "root", "version": "1.0.0" }"#)
-        .expect("write root manifest");
-    fs::write(workspace.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\nimporters:\n  .: {}\n")
-        .expect("write lockfile");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "root", "version": "1.0.0" }"#,
+    )
+    .expect("write root manifest");
+    fs::write(
+        workspace.join("pnpm-lock.yaml"),
+        "lockfileVersion: '9.0'\nimporters:\n  .: {}\n",
+    )
+    .expect("write lockfile");
 
     let bare = run_peers(&workspace, &["peers", "--lockfile-only", "--json"]);
     let checked = run_peers(&workspace, &["peers", "check", "--lockfile-only", "--json"]);
@@ -100,8 +120,11 @@ fn peers_accepts_the_check_subcommand() {
 #[test]
 fn peers_rejects_an_unknown_subcommand() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-    fs::write(workspace.join("package.json"), r#"{ "name": "root", "version": "1.0.0" }"#)
-        .expect("write root manifest");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "root", "version": "1.0.0" }"#,
+    )
+    .expect("write root manifest");
 
     let output = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
@@ -110,9 +133,16 @@ fn peers_rejects_an_unknown_subcommand() {
         .output()
         .expect("run pnpm peers list");
 
-    assert_eq!(output.status.code(), Some(1), "an unknown subcommand must exit 1: {output:?}");
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "an unknown subcommand must exit 1: {output:?}",
+    );
     let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
-    assert!(stdout.contains("Usage: pnpm peers"), "the help must be printed; got:\n{stdout}");
+    assert!(
+        stdout.contains("Usage: pnpm peers"),
+        "the help must be printed; got:\n{stdout}",
+    );
 
     drop(root);
 }
@@ -122,12 +152,20 @@ fn peers_rejects_an_unknown_subcommand() {
 /// succeeds.
 #[test]
 fn a_resolving_install_warns_about_peer_dependency_issues() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_peer_conflict_manifest(&workspace, "peer-conflict");
 
-    let output = pacquet.with_arg("install").output().expect("run pnpm install");
+    let output = pacquet
+        .with_arg("install")
+        .output()
+        .expect("run pnpm install");
     assert!(output.status.success(), "install must succeed: {output:?}");
     let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
     assert!(stdout.contains(PEERS_CHECK_HINT), "stdout:\n{stdout}");
@@ -140,8 +178,13 @@ fn a_resolving_install_warns_about_peer_dependency_issues() {
 /// materializing one.
 #[test]
 fn a_lockfile_only_install_warns_about_peer_dependency_issues() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_peer_conflict_manifest(&workspace, "peer-conflict");
 
@@ -149,10 +192,16 @@ fn a_lockfile_only_install_warns_about_peer_dependency_issues() {
         .with_args(["install", "--lockfile-only"])
         .output()
         .expect("run pnpm install --lockfile-only");
-    assert!(output.status.success(), "lockfile-only install must succeed: {output:?}");
+    assert!(
+        output.status.success(),
+        "lockfile-only install must succeed: {output:?}",
+    );
     let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
     assert!(stdout.contains(PEERS_CHECK_HINT), "stdout:\n{stdout}");
-    assert!(workspace.join("pnpm-lock.yaml").exists(), "the lockfile must be written");
+    assert!(
+        workspace.join("pnpm-lock.yaml").exists(),
+        "the lockfile must be written",
+    );
     assert!(
         !workspace.join("node_modules").exists(),
         "lockfile-only install must not materialize node_modules",
@@ -167,24 +216,47 @@ fn a_lockfile_only_install_warns_about_peer_dependency_issues() {
 /// while they decide how to answer the hints.
 #[test]
 fn strict_peer_dependencies_fails_a_resolving_install() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_peer_conflict_manifest(&workspace, "peer-conflict");
-    fs::write(workspace.join("pnpm-workspace.yaml"), "strictPeerDependencies: true\n")
-        .expect("write workspace manifest");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "strictPeerDependencies: true\n",
+    )
+    .expect("write workspace manifest");
 
-    let output = pacquet.with_arg("install").output().expect("run pnpm install");
+    let output = pacquet
+        .with_arg("install")
+        .output()
+        .expect("run pnpm install");
     assert!(!output.status.success(), "install must fail: {output:?}");
     let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
     assert!(
         stdout.contains("[ERR_PNPM_PEER_DEP_ISSUES] Unmet peer dependencies"),
         "stdout:\n{stdout}",
     );
-    assert!(stdout.contains("unmet peer @pnpm.e2e/foo"), "stdout:\n{stdout}");
-    assert!(stdout.contains("strictPeerDependencies: false"), "stdout:\n{stdout}");
-    assert!(!stdout.contains("autoInstallPeers: true"), "stdout:\n{stdout}");
-    assert!(workspace.join("node_modules").exists(), "the install must still have materialized");
+    assert!(
+        stdout.contains("unmet peer @pnpm.e2e/foo"),
+        "stdout:\n{stdout}",
+    );
+    assert!(
+        stdout.contains("strictPeerDependencies: false"),
+        "stdout:\n{stdout}",
+    );
+    assert!(
+        !stdout.contains("autoInstallPeers: true"),
+        "stdout:\n{stdout}",
+    );
+    assert!(
+        workspace.join("node_modules").exists(),
+        "the install must still have materialized",
+    );
 
     drop((root, mock_instance));
 }
@@ -195,12 +267,20 @@ fn strict_peer_dependencies_fails_a_resolving_install() {
 /// Both stacks behave this way.
 #[test]
 fn an_up_to_date_install_does_not_recheck_peers() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_peer_conflict_manifest(&workspace, "peer-conflict");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let output = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
@@ -209,7 +289,10 @@ fn an_up_to_date_install_does_not_recheck_peers() {
         .with_arg("install")
         .output()
         .expect("re-run pnpm install");
-    assert!(output.status.success(), "the repeat install must succeed: {output:?}");
+    assert!(
+        output.status.success(),
+        "the repeat install must succeed: {output:?}",
+    );
     let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
     assert!(!stdout.contains(PEERS_CHECK_HINT), "stdout:\n{stdout}");
 
@@ -220,7 +303,11 @@ fn an_up_to_date_install_does_not_recheck_peers() {
         .with_args(["peers", "check"])
         .output()
         .expect("run pnpm peers check");
-    assert_eq!(peers.status.code(), Some(1), "peers check still reports them: {peers:?}");
+    assert_eq!(
+        peers.status.code(),
+        Some(1),
+        "peers check still reports them: {peers:?}",
+    );
 
     drop((root, mock_instance));
 }
@@ -230,8 +317,13 @@ fn an_up_to_date_install_does_not_recheck_peers() {
 /// nothing to fail over under `strictPeerDependencies`.
 #[test]
 fn peer_dependency_rules_settle_the_install_verdict() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_peer_conflict_manifest(&workspace, "peer-conflict");
     fs::write(
@@ -240,7 +332,10 @@ fn peer_dependency_rules_settle_the_install_verdict() {
     )
     .expect("write workspace manifest");
 
-    let output = pacquet.with_arg("install").output().expect("run pnpm install");
+    let output = pacquet
+        .with_arg("install")
+        .output()
+        .expect("run pnpm install");
     assert!(output.status.success(), "install must succeed: {output:?}");
     let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
     assert!(!stdout.contains(PEERS_CHECK_HINT), "stdout:\n{stdout}");
@@ -276,10 +371,16 @@ fn write_peer_conflict_manifest(project_dir: &std::path::Path, name: &str) {
 /// sees them — a `link:` node's peers belong to the linked importer —
 /// so the consuming importer reaches the report by a route of its own.
 fn write_linked_peer_workspace(workspace: &std::path::Path) {
-    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
-        .expect("write workspace manifest");
-    fs::write(workspace.join("package.json"), r#"{ "name": "root", "version": "1.0.0" }"#)
-        .expect("write root manifest");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\n",
+    )
+    .expect("write workspace manifest");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "root", "version": "1.0.0" }"#,
+    )
+    .expect("write root manifest");
     let lib = workspace.join("packages/lib");
     fs::create_dir_all(&lib).expect("create the linked project");
     fs::write(
@@ -308,12 +409,20 @@ fn write_linked_peer_workspace(workspace: &std::path::Path) {
 
 #[test]
 fn a_linked_workspace_packages_unmet_peer_is_warned_about() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_linked_peer_workspace(&workspace);
 
-    let output = pacquet.with_arg("install").output().expect("run pnpm install");
+    let output = pacquet
+        .with_arg("install")
+        .output()
+        .expect("run pnpm install");
     assert!(output.status.success(), "install must succeed: {output:?}");
     let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
     assert!(stdout.contains(PEERS_CHECK_HINT), "stdout:\n{stdout}");
@@ -323,8 +432,13 @@ fn a_linked_workspace_packages_unmet_peer_is_warned_about() {
 
 #[test]
 fn strict_peer_dependencies_fails_on_a_linked_workspace_packages_unmet_peer() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_linked_peer_workspace(&workspace);
     fs::write(
@@ -333,30 +447,44 @@ fn strict_peer_dependencies_fails_on_a_linked_workspace_packages_unmet_peer() {
     )
     .expect("rewrite workspace manifest");
 
-    let output = pacquet.with_arg("install").output().expect("run pnpm install");
+    let output = pacquet
+        .with_arg("install")
+        .output()
+        .expect("run pnpm install");
     assert!(!output.status.success(), "install must fail: {output:?}");
     let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
     assert!(
         stdout.contains("[ERR_PNPM_PEER_DEP_ISSUES] Unmet peer dependencies"),
         "stdout:\n{stdout}",
     );
-    assert!(stdout.contains("unmet peer @pnpm.e2e/foo"), "stdout:\n{stdout}");
+    assert!(
+        stdout.contains("unmet peer @pnpm.e2e/foo"),
+        "stdout:\n{stdout}",
+    );
 
     drop((root, mock_instance));
 }
 
 #[test]
 fn a_partial_upper_bound_peer_range_covers_the_omitted_component() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         "packages:\n  - packages/*\nstrictPeerDependencies: true\n",
     )
     .expect("write workspace manifest");
-    fs::write(workspace.join("package.json"), r#"{ "name": "root", "private": true }"#)
-        .expect("write root manifest");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "root", "private": true }"#,
+    )
+    .expect("write root manifest");
 
     let lib = workspace.join("packages/lib");
     fs::create_dir_all(&lib).expect("create the linked project");
@@ -384,23 +512,34 @@ fn a_partial_upper_bound_peer_range_covers_the_omitted_component() {
     )
     .expect("write the consuming manifest");
 
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
 
     drop((root, mock_instance));
 }
 
 #[test]
 fn auto_installed_peer_of_linked_workspace_package_is_not_reported_missing() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         "packages:\n  - packages/*\nstrictPeerDependencies: true\nautoInstallPeers: true\n",
     )
     .expect("write workspace manifest");
-    fs::write(workspace.join("package.json"), r#"{ "name": "root", "private": true }"#)
-        .expect("write root manifest");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "root", "private": true }"#,
+    )
+    .expect("write root manifest");
 
     let lib = workspace.join("packages/lib");
     fs::create_dir_all(&lib).expect("create the linked project");
@@ -428,9 +567,15 @@ fn auto_installed_peer_of_linked_workspace_package_is_not_reported_missing() {
     )
     .expect("write the consuming manifest");
 
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
     let lockfile = _utils::read_lockfile(&workspace.join("pnpm-lock.yaml"));
-    assert_eq!(_utils::importer_version(&lockfile, "packages/lib", "@pnpm.e2e/foo"), "1.0.0");
+    assert_eq!(
+        _utils::importer_version(&lockfile, "packages/lib", "@pnpm.e2e/foo"),
+        "1.0.0",
+    );
     let _ = run_peers(&workspace, &["peers", "check", "--lockfile-only", "--json"]);
 
     drop((root, mock_instance));
@@ -438,21 +583,32 @@ fn auto_installed_peer_of_linked_workspace_package_is_not_reported_missing() {
 
 #[test]
 fn auto_installed_workspace_peer_is_resolved_from_the_linked_importer() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         "packages:\n  - packages/**\nstrictPeerDependencies: true\nautoInstallPeers: true\nlinkWorkspacePackages: true\n",
     )
     .expect("write workspace manifest");
-    fs::write(workspace.join("package.json"), r#"{ "name": "root", "private": true }"#)
-        .expect("write root manifest");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "root", "private": true }"#,
+    )
+    .expect("write root manifest");
 
     let peer = workspace.join("packages/peers/foo");
     fs::create_dir_all(&peer).expect("create the peer project");
-    fs::write(peer.join("package.json"), r#"{ "name": "@pnpm.e2e/foo", "version": "1.0.0" }"#)
-        .expect("write the peer manifest");
+    fs::write(
+        peer.join("package.json"),
+        r#"{ "name": "@pnpm.e2e/foo", "version": "1.0.0" }"#,
+    )
+    .expect("write the peer manifest");
 
     let lib = workspace.join("packages/lib");
     fs::create_dir_all(&lib).expect("create the linked project");
@@ -480,7 +636,10 @@ fn auto_installed_workspace_peer_is_resolved_from_the_linked_importer() {
     )
     .expect("write the consuming manifest");
 
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
     let lockfile = _utils::read_lockfile(&workspace.join("pnpm-lock.yaml"));
     assert_eq!(
         _utils::importer_version(&lockfile, "packages/lib", "@pnpm.e2e/foo"),
@@ -493,21 +652,32 @@ fn auto_installed_workspace_peer_is_resolved_from_the_linked_importer() {
 
 #[test]
 fn a_bare_workspace_shorthand_peer_range_is_met_by_the_linked_project() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         "packages:\n  - packages/*\nstrictPeerDependencies: true\n",
     )
     .expect("write workspace manifest");
-    fs::write(workspace.join("package.json"), r#"{ "name": "root", "version": "1.0.0" }"#)
-        .expect("write root manifest");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "root", "version": "1.0.0" }"#,
+    )
+    .expect("write root manifest");
 
     let peer = workspace.join("packages/peer");
     fs::create_dir_all(&peer).expect("create the peer project");
-    fs::write(peer.join("package.json"), r#"{ "name": "peer", "version": "2.0.0" }"#)
-        .expect("write the peer manifest");
+    fs::write(
+        peer.join("package.json"),
+        r#"{ "name": "peer", "version": "2.0.0" }"#,
+    )
+    .expect("write the peer manifest");
 
     let lib = workspace.join("packages/lib");
     fs::create_dir_all(&lib).expect("create the linked project");
@@ -535,10 +705,17 @@ fn a_bare_workspace_shorthand_peer_range_is_met_by_the_linked_project() {
     )
     .expect("write the consuming manifest");
 
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
     let issues = run_peers(&workspace, &["peers", "check", "--lockfile-only", "--json"]);
     for (project, project_issues) in issues.as_object().expect("peer issues by project") {
-        assert_eq!(project_issues["bad"], serde_json::json!({}), "{project}: {project_issues:#}");
+        assert_eq!(
+            project_issues["bad"],
+            serde_json::json!({}),
+            "{project}: {project_issues:#}",
+        );
         assert_eq!(
             project_issues["missing"],
             serde_json::json!({}),
@@ -551,21 +728,32 @@ fn a_bare_workspace_shorthand_peer_range_is_met_by_the_linked_project() {
 
 #[test]
 fn incompatible_injected_auto_installed_peer_is_reported() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         "packages:\n  - packages/**\nautoInstallPeers: true\ninjectWorkspacePackages: true\ndedupeInjectedDeps: false\n",
     )
     .expect("write workspace manifest");
-    fs::write(workspace.join("package.json"), r#"{ "name": "root", "private": true }"#)
-        .expect("write root manifest");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "root", "private": true }"#,
+    )
+    .expect("write root manifest");
 
     let peer = workspace.join("packages/peers/foo");
     fs::create_dir_all(&peer).expect("create the peer project");
-    fs::write(peer.join("package.json"), r#"{ "name": "@pnpm.e2e/foo", "version": "1.0.0" }"#)
-        .expect("write the peer manifest");
+    fs::write(
+        peer.join("package.json"),
+        r#"{ "name": "@pnpm.e2e/foo", "version": "1.0.0" }"#,
+    )
+    .expect("write the peer manifest");
 
     let lib = workspace.join("packages/lib");
     fs::create_dir_all(&lib).expect("create the linked project");
@@ -593,7 +781,10 @@ fn incompatible_injected_auto_installed_peer_is_reported() {
     )
     .expect("write the consuming manifest");
 
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
     let lockfile = _utils::read_lockfile(&workspace.join("pnpm-lock.yaml"));
     let peer_version = _utils::importer_version(&lockfile, "packages/lib", "@pnpm.e2e/foo");
     assert!(
@@ -617,9 +808,16 @@ fn incompatible_injected_auto_installed_peer_is_reported() {
         .with_args(["peers", "check", "--lockfile-only", "--json"])
         .output()
         .expect("inspect injected peers");
-    assert_eq!(output.status.code(), Some(1), "the injected peer is incompatible: {output:?}");
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "the injected peer is incompatible: {output:?}",
+    );
     let issues: Value = serde_json::from_slice(&output.stdout).expect("parse peers JSON");
-    assert_eq!(issues["packages/apps/app"]["bad"]["@pnpm.e2e/foo"][0]["foundVersion"], "1.0.0");
+    assert_eq!(
+        issues["packages/apps/app"]["bad"]["@pnpm.e2e/foo"][0]["foundVersion"],
+        "1.0.0",
+    );
 
     drop((root, mock_instance));
 }
@@ -636,8 +834,13 @@ fn catalog_peer_of_an_injected_workspace_package_is_resolved() {
 
 #[test]
 fn ignored_workspace_does_not_require_workspace_catalogs_for_peer_inspection() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
@@ -667,25 +870,49 @@ fn ignored_workspace_does_not_require_workspace_catalogs_for_peer_inspection() {
     )
     .expect("write the library manifest");
 
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
     let output = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(&workspace)
-        .with_args(["--ignore-workspace", "peers", "check", "--lockfile-only", "--json"])
+        .with_args([
+            "--ignore-workspace",
+            "peers",
+            "check",
+            "--lockfile-only",
+            "--json",
+        ])
         .output()
         .expect("inspect peers without workspace configuration");
-    assert_eq!(output.status.code(), Some(1), "the raw catalog range remains unmet: {output:?}");
-    assert!(output.stderr.is_empty(), "inspection must not fail with a diagnostic: {output:?}");
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "the raw catalog range remains unmet: {output:?}",
+    );
+    assert!(
+        output.stderr.is_empty(),
+        "inspection must not fail with a diagnostic: {output:?}",
+    );
     let issues: Value = serde_json::from_slice(&output.stdout).expect("parse peers JSON");
-    assert_eq!(issues["."]["bad"]["@pnpm.e2e/foo"][0]["wantedRange"], "catalog:");
+    assert_eq!(
+        issues["."]["bad"]["@pnpm.e2e/foo"][0]["wantedRange"],
+        "catalog:",
+    );
 
     drop((root, mock_instance));
 }
 
 #[test]
 fn standalone_install_does_not_require_catalogs_for_linked_peers() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::remove_file(workspace.join("pnpm-workspace.yaml"))
         .expect("remove the mock registry's workspace manifest");
@@ -712,7 +939,10 @@ fn standalone_install_does_not_require_catalogs_for_linked_peers() {
     )
     .expect("write linked library manifest");
 
-    let output = pacquet.with_arg("install").output().expect("install standalone project");
+    let output = pacquet
+        .with_arg("install")
+        .output()
+        .expect("install standalone project");
     assert!(
         output.status.success(),
         "install must report rather than reject the raw range: {output:?}",
@@ -725,16 +955,24 @@ fn standalone_install_does_not_require_catalogs_for_linked_peers() {
 
 #[test]
 fn workspace_without_catalogs_does_not_reject_an_injected_catalog_peer() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n",
     )
     .expect("write workspace manifest");
-    fs::write(workspace.join("package.json"), r#"{ "name": "root", "version": "1.0.0" }"#)
-        .expect("write root manifest");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "root", "version": "1.0.0" }"#,
+    )
+    .expect("write root manifest");
 
     let lib = workspace.join("packages/lib");
     fs::create_dir_all(&lib).expect("create the workspace library");
@@ -778,16 +1016,24 @@ fn workspace_without_catalogs_does_not_reject_an_injected_catalog_peer() {
 }
 
 fn assert_catalog_peer_of_workspace_package_is_resolved(injected: bool) {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         "packages:\n  - packages/*\ncatalog:\n  '@pnpm.e2e/foo': 1.0.0\nstrictPeerDependencies: true\n",
     )
     .expect("write workspace manifest");
-    fs::write(workspace.join("package.json"), r#"{ "name": "root", "version": "1.0.0" }"#)
-        .expect("write root manifest");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "root", "version": "1.0.0" }"#,
+    )
+    .expect("write root manifest");
 
     let lib = workspace.join("packages/lib");
     fs::create_dir_all(&lib).expect("create the workspace library");
@@ -814,7 +1060,10 @@ fn assert_catalog_peer_of_workspace_package_is_resolved(injected: bool) {
     }
     fs::write(app.join("package.json"), manifest.to_string()).expect("write the app manifest");
 
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
     let _ = run_peers(&workspace, &["peers", "check", "--lockfile-only", "--json"]);
 
     drop((root, mock_instance));
@@ -826,14 +1075,25 @@ fn assert_catalog_peer_of_workspace_package_is_resolved(injected: bool) {
 /// that never touched it.
 #[test]
 fn a_filtered_install_only_reports_the_projects_it_installed() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
-        .expect("write workspace manifest");
-    fs::write(workspace.join("package.json"), r#"{ "name": "root", "version": "1.0.0" }"#)
-        .expect("write root manifest");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\n",
+    )
+    .expect("write workspace manifest");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "root", "version": "1.0.0" }"#,
+    )
+    .expect("write root manifest");
     write_peer_conflict_manifest(&workspace.join("packages/dirty"), "dirty");
     let clean = workspace.join("packages/clean");
     fs::create_dir_all(&clean).expect("create the clean project");
@@ -847,7 +1107,10 @@ fn a_filtered_install_only_reports_the_projects_it_installed() {
     };
     write_clean(serde_json::json!({ "@pnpm.e2e/foo": "2.0.0" }));
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
@@ -876,9 +1139,15 @@ fn a_filtered_install_only_reports_the_projects_it_installed() {
         &["install"],
         serde_json::json!({ "@pnpm.e2e/foo": "2.0.0", "@pnpm.e2e/bar": "100.0.0" }),
     );
-    assert!(!unfiltered.status.success(), "the unfiltered install must fail: {unfiltered:?}");
+    assert!(
+        !unfiltered.status.success(),
+        "the unfiltered install must fail: {unfiltered:?}",
+    );
     let stdout = String::from_utf8(unfiltered.stdout).expect("stdout is UTF-8");
-    assert!(stdout.contains("[ERR_PNPM_PEER_DEP_ISSUES]"), "stdout:\n{stdout}");
+    assert!(
+        stdout.contains("[ERR_PNPM_PEER_DEP_ISSUES]"),
+        "stdout:\n{stdout}",
+    );
 
     let filtered = install_and_resolve(
         &["--filter", "clean", "install"],
@@ -888,7 +1157,10 @@ fn a_filtered_install_only_reports_the_projects_it_installed() {
             "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
         }),
     );
-    assert!(filtered.status.success(), "the filtered install must succeed: {filtered:?}");
+    assert!(
+        filtered.status.success(),
+        "the filtered install must succeed: {filtered:?}",
+    );
 
     drop((root, mock_instance));
 }

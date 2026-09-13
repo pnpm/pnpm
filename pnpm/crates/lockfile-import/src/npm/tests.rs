@@ -8,7 +8,10 @@ use super::collect_npm_lockfile_versions;
 fn collect(lockfile: &serde_json::Value) -> Vec<(String, Vec<String>)> {
     let mut versions = VersionsByPackageName::new();
     collect_npm_lockfile_versions(lockfile, &mut versions);
-    versions.into_iter().map(|(name, versions)| (name, versions.into_iter().collect())).collect()
+    versions
+        .into_iter()
+        .map(|(name, versions)| (name, versions.into_iter().collect()))
+        .collect()
 }
 
 #[test]
@@ -32,7 +35,10 @@ fn nested_format_walks_the_whole_tree() {
                 "@pnpm.e2e/dep-of-pkg-with-1-dep".to_string(),
                 vec!["100.0.0".to_string(), "101.0.0".to_string()]
             ),
-            ("@pnpm.e2e/pkg-with-1-dep".to_string(), vec!["100.0.0".to_string()]),
+            (
+                "@pnpm.e2e/pkg-with-1-dep".to_string(),
+                vec!["100.0.0".to_string()]
+            ),
         ],
     );
 }
@@ -59,7 +65,10 @@ fn flat_format_reads_names_from_node_modules_paths() {
                 "@pnpm.e2e/dep-of-pkg-with-1-dep".to_string(),
                 vec!["100.0.0".to_string(), "100.1.0".to_string()]
             ),
-            ("@pnpm.e2e/pkg-with-1-dep".to_string(), vec!["*".to_string(), "100.0.0".to_string()]),
+            (
+                "@pnpm.e2e/pkg-with-1-dep".to_string(),
+                vec!["*".to_string(), "100.0.0".to_string()]
+            ),
         ],
     );
 }

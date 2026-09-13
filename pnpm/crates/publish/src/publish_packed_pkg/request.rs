@@ -115,7 +115,11 @@ pub(super) async fn put_publish(
     let guard = client.acquire_for_url(put_url).await;
     // A staged publish POSTs to `-/stage/package/:pkg` (libnpmpublish's stage
     // route); a regular publish PUTs to `/:pkg`.
-    let builder = if is_stage { guard.post(put_url) } else { guard.put(put_url) };
+    let builder = if is_stage {
+        guard.post(put_url)
+    } else {
+        guard.put(put_url)
+    };
     let mut request = builder
         .header("content-type", "application/json")
         .header("npm-auth-type", "web")
@@ -131,28 +135,10 @@ pub(super) async fn put_publish(
     let response = request
         .send()
         .await
-        .map_err(|error| PublishHttpError::Transport { reason: error.to_string() })?;
-    let status = response.status();
-    let status_text = status.canonical_reason().unwrap_or_default().to_owned();
-    let www_authenticate = www_authenticate_header(&response);
-    let body = response.text().await.unwrap_or_default();
-
-    // The registry signals an OTP / web-auth challenge with a 401 that either
-    // advertises the `otp` token in `WWW-Authenticate` or carries a
-    // `one-time pass` body (npm-registry-fetch's two detection paths). For web
-    // auth the body also carries `authUrl` / `doneUrl`.
-    if status.as_u16() == 401 && is_otp_challenge(www_authenticate.as_deref(), &body) {
-        return Err(PublishHttpError::Otp { challenge: parse_otp_challenge(&body) });
-    }
-
-    let stage_id = is_stage.then(|| stage_id_from_body(&body)).flatten();
-    Ok(PublishResponse {
-        ok: status.is_success(),
-        status: status.as_u16(),
-        status_text,
-        body,
-        stage_id,
-    })
+        .map_err(|error| PublishHttpError::Transport {
+            reason: error.to_string(),
+        })?;
+    read_publish_response(response, is_stage).await
 }
 
 fn www_authenticate_header(response: &reqwest::Response) -> Option<String> {
@@ -168,7 +154,9 @@ fn www_authenticate_header(response: &reqwest::Response) -> Option<String> {
 /// body mentions `one-time pass`.
 pub(super) fn is_otp_challenge(www_authenticate: Option<&str>, body: &str) -> bool {
     let header_lists_otp = www_authenticate.is_some_and(|value| {
-        value.split(',').any(|token| token.trim().eq_ignore_ascii_case("otp"))
+        value
+            .split(',')
+            .any(|token| token.trim().eq_ignore_ascii_case("otp"))
     });
     header_lists_otp || body.to_lowercase().contains("one-time pass")
 }
@@ -176,17 +164,33 @@ pub(super) fn is_otp_challenge(www_authenticate: Option<&str>, body: &str) -> bo
 /// Read `authUrl` / `doneUrl` out of a challenge body for the web-auth flow.
 pub(super) fn parse_otp_challenge(body: &str) -> OtpChallenge {
     let parsed = serde_json::from_str::<Value>(body).ok();
-    let read =
-        |field: &str| parsed.as_ref().and_then(|json| json.get(field)?.as_str().map(str::to_owned));
+    let read = |field: &str| {
+        parsed
+            .as_ref()
+            .and_then(|json| {
+                json
+                    .get(field)?
+                    .as_str()
+                    .map(str::to_owned)
+            })
+    };
     OtpChallenge {
-        body: Some(OtpErrorBody { auth_url: read("authUrl"), done_url: read("doneUrl") }),
+        body: Some(OtpErrorBody {
+            auth_url: read("authUrl"),
+            done_url: read("doneUrl"),
+        }),
     }
 }
 
 fn stage_id_from_body(body: &str) -> Option<String> {
     serde_json::from_str::<Value>(body)
         .ok()
-        .and_then(|json| json.get("stageId")?.as_str().map(str::to_owned))
+        .and_then(|json| {
+            json
+                .get("stageId")?
+                .as_str()
+                .map(str::to_owned)
+        })
 }
 
 pub(crate) fn web_auth_fetch_options(http: &OidcHttpOptions) -> WebAuthFetchOptions {
@@ -200,4 +204,38 @@ pub(crate) fn web_auth_fetch_options(http: &OidcHttpOptions) -> WebAuthFetchOpti
             retries: http.fetch_retries,
         }),
     }
+}
+
+async fn read_publish_response(
+    response: reqwest::Response,
+    is_stage: bool,
+) -> Result<PublishResponse, PublishHttpError> {
+    let status = response.status();
+    let status_text = status
+        .canonical_reason()
+        .unwrap_or_default()
+        .to_owned();
+    let www_authenticate = www_authenticate_header(&response);
+    let body = response.text().await.unwrap_or_default();
+
+    // The registry signals an OTP / web-auth challenge with a 401 that either
+    // advertises the `otp` token in `WWW-Authenticate` or carries a
+    // `one-time pass` body (npm-registry-fetch's two detection paths). For web
+    // auth the body also carries `authUrl` / `doneUrl`.
+    if status.as_u16() == 401 && is_otp_challenge(www_authenticate.as_deref(), &body) {
+        return Err(PublishHttpError::Otp {
+            challenge: parse_otp_challenge(&body),
+        });
+    }
+
+    let stage_id = is_stage
+        .then(|| stage_id_from_body(&body))
+        .flatten();
+    Ok(PublishResponse {
+        ok: status.is_success(),
+        status: status.as_u16(),
+        status_text,
+        body,
+        stage_id,
+    })
 }

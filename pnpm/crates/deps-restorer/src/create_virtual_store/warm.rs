@@ -51,15 +51,13 @@ pub(super) fn cached_git_prepare_allowed(
     allow_build_policy: &crate::AllowBuildPolicy,
 ) -> Result<bool, CreateVirtualStoreError> {
     let (packages, prefetch) = lockfile;
-    let Some(key) = cache_key else { return Ok(true) };
-    let Some(cas_paths) = prefetch.cas_paths.get(key) else { return Ok(true) };
-    let metadata_key = snapshot_key.without_peer();
-    let metadata = packages.get(&metadata_key).ok_or_else(|| {
-        CreateVirtualStoreError::MissingPackageMetadata {
-            snapshot_key: snapshot_key.to_string(),
-            metadata_key: metadata_key.to_string(),
-        }
-    })?;
+    let Some(key) = cache_key else {
+        return Ok(true);
+    };
+    let Some(cas_paths) = prefetch.cas_paths.get(key) else {
+        return Ok(true);
+    };
+    let (metadata_key, metadata) = super::cache_keys::snapshot_metadata(snapshot_key, packages)?;
     if !is_git_hosted_resolution(&metadata.resolution)
         || prefetch.requires_prepare.get(key) == Some(&false)
     {
@@ -69,7 +67,10 @@ pub(super) fn cached_git_prepare_allowed(
         return Ok(false);
     };
     let package_id = metadata_key.pkg_id();
-    let name = manifest.get("name").and_then(serde_json::Value::as_str).unwrap_or("");
+    let name = manifest
+        .get("name")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("");
     if allow_build_policy.check(&format!("{name}@{package_id}")) == Some(true) {
         return Ok(true);
     }
@@ -77,11 +78,12 @@ pub(super) fn cached_git_prepare_allowed(
         return Ok(false);
     }
     let allow_build = |dep_path: &str| allow_build_policy.check(dep_path).unwrap_or(false);
-    assert_package_build_allowed(&allow_build, &package_id, &manifest).map_err(|error| {
-        CreateVirtualStoreError::InstallPackageBySnapshot(InstallPackageBySnapshotError::GitFetch(
-            GitFetcherError::Prepare(error),
-        ))
-    })?;
+    assert_package_build_allowed(&allow_build, &package_id, &manifest)
+        .map_err(|error| {
+            CreateVirtualStoreError::InstallPackageBySnapshot(
+                InstallPackageBySnapshotError::GitFetch(GitFetcherError::Prepare(error)),
+            )
+        })?;
     Ok(true)
 }
 /// The prefetched manifest, or the one the warm slot's `package.json` holds.
@@ -109,8 +111,12 @@ pub(super) fn requires_build_from_cas_paths(cas_paths: &HashMap<String, PathBuf>
     if files_include_install_scripts(cas_paths.keys()) {
         return true;
     }
-    let Some(package_json) = cas_paths.get("package.json") else { return false };
-    let Ok(contents) = fs::read_to_string(package_json) else { return false };
+    let Some(package_json) = cas_paths.get("package.json") else {
+        return false;
+    };
+    let Ok(contents) = fs::read_to_string(package_json) else {
+        return false;
+    };
     let Ok(manifest) = parse_manifest(&contents) else {
         return false;
     };
@@ -144,7 +150,9 @@ pub(super) fn warm_shared_base_cas_paths(
     warm: &[partition::WarmEntry<'_>],
 ) -> crate::shared_side_effects::BaseCasPaths {
     let mut base_cas_paths = crate::shared_side_effects::BaseCasPaths::new();
-    let Some(shared_packages) = shared_packages else { return base_cas_paths };
+    let Some(shared_packages) = shared_packages else {
+        return base_cas_paths;
+    };
     for (snapshot_key, _, cas_paths, _, _) in warm {
         if shared_packages.contains(snapshot_key.name.to_string().as_str()) {
             base_cas_paths.insert((*snapshot_key).clone(), (***cas_paths).clone());
@@ -155,7 +163,9 @@ pub(super) fn warm_shared_base_cas_paths(
 pub(super) fn warm_cas_paths_by_pkg_id(warm: &[partition::WarmEntry<'_>]) -> CasPathsByPkgId {
     let mut map = CasPathsByPkgId::with_capacity(warm.len());
     for (snapshot_key, _snapshot, cas_paths, _cache_key, _needs_build_marker) in warm {
-        map.entry(cas_paths_key(snapshot_key)).or_insert_with(|| (***cas_paths).clone());
+        map
+            .entry(cas_paths_key(snapshot_key))
+            .or_insert_with(|| (***cas_paths).clone());
     }
     map
 }
@@ -182,37 +192,7 @@ pub(super) fn link_warm_batch<Reporter: self::Reporter>(
         emit_hoisted_warm_progress::<Reporter>(warm, batch);
         return Ok(());
     }
-    let warm_slots: Vec<SlotLink<'_>> = warm
-        .iter()
-        .map(|(snapshot_key, snapshot, cas_paths, cache_key, needs_build_marker)| {
-            let force_import =
-                package_content_changed(batch.current_packages, batch.packages, snapshot_key);
-            SlotLink {
-                source: crate::SlotImportSource {
-                    is_mutable: false,
-                    force: force_import,
-                    build_marker: needs_build_marker
-                        .then_some(batch.needs_build_marker_source)
-                        .flatten(),
-                },
-                snapshot_key,
-                snapshot,
-                cas_paths: cas_paths.as_ref(),
-                warm_cache_key: Some(cache_key),
-                // A cache key means the file map is CAS-backed, and
-                // `snapshot_cache_key` yields none for a directory resolution,
-                // so a warm slot's source is immutable by construction.
-                dir_clone_cacheable: dir_clone_cacheable(
-                    batch.packages,
-                    snapshot_key,
-                    *needs_build_marker,
-                    false,
-                    force_import,
-                ),
-                removed_aliases: removed_aliases_for(batch.removed_aliases_by_key, snapshot_key),
-            }
-        })
-        .collect();
+    let warm_slots = warm_slots(warm, batch);
     link_slots_parallel::<Reporter>(LinkSlotsParallel {
         batch: "warm",
         slots: &warm_slots,
@@ -230,4 +210,46 @@ pub(super) fn emit_hoisted_warm_progress<Reporter: self::Reporter>(
             batch.template.progress_reported.contains(*cache_key),
         );
     }
+}
+
+fn warm_slots<'a>(
+    warm: &'a [partition::WarmEntry<'a>],
+    batch: &WarmLinkBatch<'a>,
+) -> Vec<SlotLink<'a>> {
+    warm
+        .iter()
+        .map(
+            |(snapshot_key, snapshot, cas_paths, cache_key, needs_build_marker)| {
+                let force_import =
+                    package_content_changed(batch.current_packages, batch.packages, snapshot_key);
+                SlotLink {
+                    source: crate::SlotImportSource {
+                        is_mutable: false,
+                        force: force_import,
+                        build_marker: needs_build_marker
+                            .then_some(batch.needs_build_marker_source)
+                            .flatten(),
+                    },
+                    snapshot_key,
+                    snapshot,
+                    cas_paths: cas_paths.as_ref(),
+                    warm_cache_key: Some(cache_key),
+                    // A cache key means the file map is CAS-backed, and
+                    // `snapshot_cache_key` yields none for a directory resolution,
+                    // so a warm slot's source is immutable by construction.
+                    dir_clone_cacheable: dir_clone_cacheable(
+                        batch.packages,
+                        snapshot_key,
+                        *needs_build_marker,
+                        false,
+                        force_import,
+                    ),
+                    removed_aliases: removed_aliases_for(
+                        batch.removed_aliases_by_key,
+                        snapshot_key,
+                    ),
+                }
+            },
+        )
+        .collect()
 }

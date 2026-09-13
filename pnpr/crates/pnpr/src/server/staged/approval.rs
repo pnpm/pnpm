@@ -39,27 +39,29 @@ pub(super) async fn claim_for_approval(
     stored: StoredStagedRecord,
 ) -> Result<ApprovalClaim, RegistryError> {
     if stored.record.approving_since.as_deref().is_some_and(approval_claim_is_live) {
-        return Err(RegistryError::StagedApprovalInFlight { stage_id: stage_id.to_string() });
+        return Err(RegistryError::StagedApprovalInFlight {
+            stage_id: stage_id.to_string(),
+        });
     }
     let mut record = stored.record;
     record.approving_since = Some(now_iso());
     let claimed_bytes = serde_json::to_vec(&record).expect("a staged record serializes");
-    let written = state
-        .inner
-        .storage
-        .replace_staged_meta_if_current(stage_id, &stored.bytes, &claimed_bytes)
-        .await?;
+    let written =
+        state.inner.storage.replace_staged_meta_if_current(stage_id, &stored.bytes, &claimed_bytes)
+            .await?;
     match written {
-        DocumentWrite::Written => {
-            Ok(ApprovalClaim { record, unclaimed_bytes: stored.bytes, claimed_bytes })
-        }
+        DocumentWrite::Written => Ok(ApprovalClaim {
+            record,
+            unclaimed_bytes: stored.bytes,
+            claimed_bytes,
+        }),
         // Something got between the read and the claim. Another approval
         // leaves its claim behind; one that finished, or a rejection, leaves
         // no record at all.
         DocumentWrite::Conflict => match state.inner.storage.read_staged_meta(stage_id).await? {
-            Some(_) => {
-                Err(RegistryError::StagedApprovalInFlight { stage_id: stage_id.to_string() })
-            }
+            Some(_) => Err(RegistryError::StagedApprovalInFlight {
+                stage_id: stage_id.to_string(),
+            }),
             None => Err(RegistryError::NotFound),
         },
     }
@@ -91,7 +93,9 @@ pub(super) async fn still_claimed(
 ) -> Result<(), RegistryError> {
     match state.inner.storage.read_staged_meta(stage_id).await? {
         Some(stored) if stored == claim.claimed_bytes => Ok(()),
-        Some(_) => Err(RegistryError::StagedApprovalInFlight { stage_id: stage_id.to_string() }),
+        Some(_) => Err(RegistryError::StagedApprovalInFlight {
+            stage_id: stage_id.to_string(),
+        }),
         None => Err(RegistryError::NotFound),
     }
 }
@@ -105,11 +109,12 @@ pub(super) async fn release_approval_claim(
     stage_id: &str,
     claim: &ApprovalClaim,
 ) {
-    let restored = state
-        .inner
-        .storage
-        .replace_staged_meta_if_current(stage_id, &claim.claimed_bytes, &claim.unclaimed_bytes)
-        .await;
+    let restored = state.inner.storage.replace_staged_meta_if_current(
+        stage_id,
+        &claim.claimed_bytes,
+        &claim.unclaimed_bytes,
+    )
+    .await;
     if let Err(err) = restored {
         tracing::warn!(error = %err, stage_id, "failed to release the claim on a staged publish");
     }

@@ -3,7 +3,11 @@ use super::{
 };
 
 pub(super) fn resolve_path(dir: &Path, path: &Path) -> PathBuf {
-    if path.is_absolute() { path.to_path_buf() } else { dir.join(path) }
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        dir.join(path)
+    }
 }
 
 pub(super) fn reject_non_empty_custom_edit_dir(edit_dir: &Path) -> Result<(), PatchError> {
@@ -12,11 +16,16 @@ pub(super) fn reject_non_empty_custom_edit_dir(edit_dir: &Path) -> Result<(), Pa
         return Ok(());
     }
     if is_empty_dir(edit_dir)
-        .map_err(|source| PatchError::ReadEditDir { edit_dir: edit_dir.to_path_buf(), source })?
+        .map_err(|source| PatchError::ReadEditDir {
+            edit_dir: edit_dir.to_path_buf(),
+            source,
+        })?
     {
         return Ok(());
     }
-    Err(PatchError::PatchEditDirExists { edit_dir: edit_dir.to_path_buf() })
+    Err(PatchError::PatchEditDirExists {
+        edit_dir: edit_dir.to_path_buf(),
+    })
 }
 
 pub(super) fn reject_non_empty_edit_dir(edit_dir: &Path) -> Result<(), PatchError> {
@@ -25,11 +34,16 @@ pub(super) fn reject_non_empty_edit_dir(edit_dir: &Path) -> Result<(), PatchErro
         return Ok(());
     }
     if is_empty_dir(edit_dir)
-        .map_err(|source| PatchError::ReadEditDir { edit_dir: edit_dir.to_path_buf(), source })?
+        .map_err(|source| PatchError::ReadEditDir {
+            edit_dir: edit_dir.to_path_buf(),
+            source,
+        })?
     {
         return Ok(());
     }
-    Err(PatchError::EditDirNotEmpty { edit_dir: edit_dir.to_path_buf() })
+    Err(PatchError::EditDirNotEmpty {
+        edit_dir: edit_dir.to_path_buf(),
+    })
 }
 
 fn is_empty_dir(path: &Path) -> io::Result<bool> {
@@ -41,7 +55,9 @@ pub(super) fn default_edit_dir(
     package_name: &str,
     target: &PatchTarget,
 ) -> PathBuf {
-    modules_dir.join(".pnpm_patches").join(default_edit_dir_name(package_name, target))
+    modules_dir
+        .join(".pnpm_patches")
+        .join(default_edit_dir_name(package_name, target))
 }
 
 pub(super) fn prepare_default_edit_dir(
@@ -50,20 +66,32 @@ pub(super) fn prepare_default_edit_dir(
 ) -> Result<(), PatchError> {
     let edit_root = modules_dir.join(".pnpm_patches");
     if edit_dir == edit_root || !is_subdir(&edit_root, edit_dir) {
-        return Err(PatchError::EditDirOutsideModulesDir { edit_dir: edit_dir.to_path_buf() });
+        return Err(PatchError::EditDirOutsideModulesDir {
+            edit_dir: edit_dir.to_path_buf(),
+        });
     }
     reject_edit_dir_symlink_if_exists(&edit_root)?;
     fs::create_dir_all(&edit_root)
-        .map_err(|source| PatchError::CreateEditDir { edit_dir: edit_root.clone(), source })?;
+        .map_err(|source| PatchError::CreateEditDir {
+            edit_dir: edit_root.clone(),
+            source,
+        })?;
     reject_default_edit_dir_symlink_components(&edit_root, edit_dir)?;
 
-    let real_modules_dir = dunce::canonicalize(modules_dir).map_err(|source| {
-        PatchError::ResolveEditDir { edit_dir: modules_dir.to_path_buf(), source }
-    })?;
+    let real_modules_dir = dunce::canonicalize(modules_dir)
+        .map_err(|source| PatchError::ResolveEditDir {
+            edit_dir: modules_dir.to_path_buf(),
+            source,
+        })?;
     let real_edit_root = dunce::canonicalize(&edit_root)
-        .map_err(|source| PatchError::ResolveEditDir { edit_dir: edit_root.clone(), source })?;
+        .map_err(|source| PatchError::ResolveEditDir {
+            edit_dir: edit_root.clone(),
+            source,
+        })?;
     if !is_subdir(&real_modules_dir, &real_edit_root) {
-        return Err(PatchError::EditDirOutsideModulesDir { edit_dir: edit_root });
+        return Err(PatchError::EditDirOutsideModulesDir {
+            edit_dir: edit_root,
+        });
     }
     Ok(())
 }
@@ -75,7 +103,9 @@ fn reject_default_edit_dir_symlink_components(
     reject_edit_dir_symlink_if_exists(edit_root)?;
     let relative = edit_dir
         .strip_prefix(edit_root)
-        .map_err(|_| PatchError::EditDirOutsideModulesDir { edit_dir: edit_dir.to_path_buf() })?;
+        .map_err(|_| PatchError::EditDirOutsideModulesDir {
+            edit_dir: edit_dir.to_path_buf(),
+        })?;
     let mut current = edit_root.to_path_buf();
     for component in relative.components() {
         match component {
@@ -83,12 +113,17 @@ fn reject_default_edit_dir_symlink_components(
                 current.push(part);
                 match fs::symlink_metadata(&current) {
                     Ok(meta) if meta.file_type().is_symlink() => {
-                        return Err(PatchError::EditDirSymlink { edit_dir: current });
+                        return Err(PatchError::EditDirSymlink {
+                            edit_dir: current,
+                        });
                     }
                     Ok(_) => {}
                     Err(source) if source.kind() == io::ErrorKind::NotFound => break,
                     Err(source) => {
-                        return Err(PatchError::ReadEditDir { edit_dir: current, source });
+                        return Err(PatchError::ReadEditDir {
+                            edit_dir: current,
+                            source,
+                        });
                     }
                 }
             }
@@ -105,12 +140,15 @@ fn reject_default_edit_dir_symlink_components(
 
 fn reject_edit_dir_symlink_if_exists(path: &Path) -> Result<(), PatchError> {
     match fs::symlink_metadata(path) {
-        Ok(meta) if meta.file_type().is_symlink() => {
-            Err(PatchError::EditDirSymlink { edit_dir: path.to_path_buf() })
-        }
+        Ok(meta) if meta.file_type().is_symlink() => Err(PatchError::EditDirSymlink {
+            edit_dir: path.to_path_buf(),
+        }),
         Ok(_) => Ok(()),
         Err(source) if source.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(source) => Err(PatchError::ReadEditDir { edit_dir: path.to_path_buf(), source }),
+        Err(source) => Err(PatchError::ReadEditDir {
+            edit_dir: path.to_path_buf(),
+            source,
+        }),
     }
 }
 
@@ -128,7 +166,11 @@ pub(super) fn reject_edit_dir_symlink_components_under(
 
 pub(super) fn default_edit_dir_name(package_name: &str, target: &PatchTarget) -> String {
     if !target.alias.is_empty() && !target.bare_specifier.is_empty() {
-        return format!("{}@{}", target.alias, sanitize_bare_specifier(&target.bare_specifier));
+        return format!(
+            "{}@{}",
+            target.alias,
+            sanitize_bare_specifier(&target.bare_specifier),
+        );
     }
     if !target.alias.is_empty() {
         return target.alias.clone();
@@ -158,23 +200,36 @@ pub(super) fn apply_existing_patch_file(
     target: &PatchTarget,
     edit_dir: &Path,
 ) -> Result<(), PatchError> {
-    let Some(patched_dependencies) = &config.patched_dependencies else { return Ok(()) };
+    let Some(patched_dependencies) = &config.patched_dependencies else {
+        return Ok(());
+    };
     let exact_key = format!("{}@{}", target.alias, target.bare_specifier);
     let patch_file = patched_dependencies
         .get(&exact_key)
-        .or_else(|| target.apply_to_all.then(|| patched_dependencies.get(&target.alias)).flatten());
-    let Some(patch_file) = patch_file else { return Ok(()) };
-    let base_dir = config
-        .workspace_dir
+        .or_else(|| {
+            target.apply_to_all
+                .then(|| patched_dependencies.get(&target.alias))
+                .flatten()
+        });
+    let Some(patch_file) = patch_file else {
+        return Ok(());
+    };
+    let base_dir = config.workspace_dir
         .as_deref()
-        .unwrap_or_else(|| config.modules_dir.parent().unwrap_or_else(|| Path::new(".")));
+        .unwrap_or_else(|| {
+            config.modules_dir
+                .parent()
+                .unwrap_or_else(|| Path::new("."))
+        });
     let patch_file_path = checked_existing_patch_file_path(
         base_dir,
         config.patches_dir.as_deref().unwrap_or("patches"),
         patch_file,
     )?;
     if !patch_file_path.exists() {
-        return Err(PatchError::PatchFileNotFound { patch_file_path });
+        return Err(PatchError::PatchFileNotFound {
+            patch_file_path,
+        });
     }
     pnpm_patching::apply_patch_to_dir(edit_dir, &patch_file_path)
         .map_err(PatchError::ApplyExistingPatch)
@@ -198,12 +253,19 @@ impl ExistingPatchFileContext {
             });
         }
         let real_patches_dir = realpath_if_exists(&patches_dir);
-        if real_patches_dir.as_ref().is_some_and(|real| !is_subdir(&real_project_root, real)) {
+        if real_patches_dir
+            .as_ref()
+            .is_some_and(|real| !is_subdir(&real_project_root, real))
+        {
             return Err(PatchError::PatchesDirOutsideProject {
                 patches_dir: patches_dir_setting.to_string(),
             });
         }
-        Ok(Self { project_root, patches_dir, real_patches_dir })
+        Ok(Self {
+            project_root,
+            patches_dir,
+            real_patches_dir,
+        })
     }
 }
 
@@ -215,7 +277,9 @@ pub(super) fn checked_existing_patch_file_path(
     let ctx = ExistingPatchFileContext::new(lockfile_dir, patches_dir_setting)?;
     let target_path = resolve_patch_path(&ctx.project_root, Path::new(patch_file));
     if target_path == ctx.patches_dir || !is_subdir(&ctx.patches_dir, &target_path) {
-        return Err(PatchError::PatchFileOutsidePatchesDir { patch_file: patch_file.to_string() });
+        return Err(PatchError::PatchFileOutsidePatchesDir {
+            patch_file: patch_file.to_string(),
+        });
     }
 
     let parent_dir = target_path.parent().map_or_else(PathBuf::new, Path::to_path_buf);
@@ -225,7 +289,9 @@ pub(super) fn checked_existing_patch_file_path(
     if let (Some(real_parent_dir), Some(real_patches_dir)) = (&real_parent_dir, &real_patches_dir)
         && !is_subdir(real_patches_dir, real_parent_dir)
     {
-        return Err(PatchError::PatchFileOutsidePatchesDir { patch_file: patch_file.to_string() });
+        return Err(PatchError::PatchFileOutsidePatchesDir {
+            patch_file: patch_file.to_string(),
+        });
     }
     check_existing_patch_file_kind(
         &target_path,
@@ -246,22 +312,32 @@ fn check_existing_patch_file_kind(
     patch_file: &str,
 ) -> Result<(), PatchError> {
     if target_stats.is_some_and(fs::Metadata::is_dir) {
-        return Err(PatchError::PatchFileIsDirectory { patch_file: patch_file.to_string() });
+        return Err(PatchError::PatchFileIsDirectory {
+            patch_file: patch_file.to_string(),
+        });
     }
     if !target_stats.is_some_and(|stats| stats.file_type().is_symlink()) {
         if target_stats.is_some_and(|stats| !stats.is_file()) {
-            return Err(PatchError::PatchFileNotRegular { patch_file: patch_file.to_string() });
+            return Err(PatchError::PatchFileNotRegular {
+                patch_file: patch_file.to_string(),
+            });
         }
         return Ok(());
     }
     let real_target = dunce::canonicalize(target_path).ok();
     if real_patches_dir.is_some_and(|real_patches_dir| {
-        real_target.as_ref().is_none_or(|real_target| !is_subdir(real_patches_dir, real_target))
+        real_target
+            .as_ref()
+            .is_none_or(|real_target| !is_subdir(real_patches_dir, real_target))
     }) {
-        return Err(PatchError::PatchFileOutsidePatchesDir { patch_file: patch_file.to_string() });
+        return Err(PatchError::PatchFileOutsidePatchesDir {
+            patch_file: patch_file.to_string(),
+        });
     }
     if !fs::metadata(target_path).is_ok_and(|stats| stats.is_file()) {
-        return Err(PatchError::PatchFileNotRegular { patch_file: patch_file.to_string() });
+        return Err(PatchError::PatchFileNotRegular {
+            patch_file: patch_file.to_string(),
+        });
     }
     Ok(())
 }
@@ -280,14 +356,21 @@ fn join_setting_path(base: &Path, setting: &str) -> PathBuf {
 }
 
 fn resolve_patch_path(base: &Path, path: &Path) -> PathBuf {
-    if path.is_absolute() { lexical_normalize(path) } else { lexical_normalize(&base.join(path)) }
+    if path.is_absolute() {
+        lexical_normalize(path)
+    } else {
+        lexical_normalize(&base.join(path))
+    }
 }
 
 fn lstat_patch_if_exists(path: &Path) -> Result<Option<fs::Metadata>, PatchError> {
     match fs::symlink_metadata(path) {
         Ok(meta) => Ok(Some(meta)),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
-        Err(source) => Err(PatchError::ReadPatchFileMetadata { path: path.to_path_buf(), source }),
+        Err(source) => Err(PatchError::ReadPatchFileMetadata {
+            path: path.to_path_buf(),
+            source,
+        }),
     }
 }
 

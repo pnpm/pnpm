@@ -108,7 +108,12 @@ fn is_negative_body() -> String {
 /// Serve `body` at `GET /<path>` and return the mock so the test can keep the
 /// server alive for the duration of the request.
 fn serve(server: &mut mockito::Server, path: &str, body: &str) -> mockito::Mock {
-    server.mock("GET", path).with_status(200).with_body(body).expect_at_least(1).create()
+    server
+        .mock("GET", path)
+        .with_status(200)
+        .with_body(body)
+        .expect_at_least(1)
+        .create()
 }
 
 #[test]
@@ -131,7 +136,10 @@ fn fails_without_package_name_or_manifest() {
 
     let output = run_view(&workspace, &auth_file, &[]);
 
-    assert!(!output.status.success(), "view without a package name must fail");
+    assert!(
+        !output.status.success(),
+        "view without a package name must fail",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("ERR_PNPM_MISSING_PACKAGE_NAME"),
@@ -168,7 +176,10 @@ fn prints_summary_for_a_package() {
 
     mock.assert();
     let stdout = stdout_of(&output);
-    assert!(stdout.contains("is-negative"), "summary must mention the package: {stdout:?}");
+    assert!(
+        stdout.contains("is-negative"),
+        "summary must mention the package: {stdout:?}",
+    );
     drop((root, server));
 }
 
@@ -177,7 +188,10 @@ fn package_not_found_is_fetch_404() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     write_registry_npmrc(&workspace, &format!("{}/", server.url()));
-    let mock = server.mock("GET", "/not-a-real-package").with_status(404).create();
+    let mock = server
+        .mock("GET", "/not-a-real-package")
+        .with_status(404)
+        .create();
     let auth_file = empty_auth_file(root.path());
 
     let output = run_view(&workspace, &auth_file, &["not-a-real-package"]);
@@ -196,19 +210,28 @@ fn package_not_found_is_fetch_404() {
 fn registry_flag_overrides_configured_registry() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut configured = mockito::Server::new();
-    let configured_mock = configured.mock("GET", "/is-negative").expect(0).create();
+    let configured_mock = configured
+        .mock("GET", "/is-negative")
+        .expect(0)
+        .create();
     write_registry_npmrc(&workspace, &format!("{}/", configured.url()));
     let mut overriding = mockito::Server::new();
     let mock = serve(&mut overriding, "/is-negative", &is_negative_body());
     let auth_file = empty_auth_file(root.path());
 
-    let output =
-        run_view(&workspace, &auth_file, &["is-negative", "--registry", &overriding.url()]);
+    let output = run_view(
+        &workspace,
+        &auth_file,
+        &["is-negative", "--registry", &overriding.url()],
+    );
 
     mock.assert();
     configured_mock.assert();
     let stdout = stdout_of(&output);
-    assert!(stdout.contains("is-negative"), "summary must mention the package: {stdout:?}");
+    assert!(
+        stdout.contains("is-negative"),
+        "summary must mention the package: {stdout:?}",
+    );
     drop((root, configured, overriding));
 }
 
@@ -219,13 +242,22 @@ fn registry_flag_overrides_configured_registry() {
 fn registry_flag_404_exits_with_code_1() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
-    let mock = server.mock("GET", "/not-a-real-package").with_status(404).create();
+    let mock = server
+        .mock("GET", "/not-a-real-package")
+        .with_status(404)
+        .create();
     let auth_file = empty_auth_file(root.path());
 
     let output = run_view(
         &workspace,
         &auth_file,
-        &["not-a-real-package", "versions", "--registry", &server.url(), "--json"],
+        &[
+            "not-a-real-package",
+            "versions",
+            "--registry",
+            &server.url(),
+            "--json",
+        ],
     );
 
     mock.assert();
@@ -242,7 +274,11 @@ fn registry_flag_404_exits_with_code_1() {
 fn json_flag_prints_errors_to_stdout_for_all_aliases() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
-    let mock = server.mock("GET", "/not-a-real-package").with_status(404).expect(4).create();
+    let mock = server
+        .mock("GET", "/not-a-real-package")
+        .with_status(404)
+        .expect(4)
+        .create();
     let auth_file = empty_auth_file(root.path());
 
     for alias in ["view", "info", "show", "v"] {
@@ -267,9 +303,10 @@ fn json_flag_prints_errors_to_stdout_for_all_aliases() {
             String::from_utf8_lossy(&output.stderr),
         );
         let stdout = String::from_utf8_lossy(&output.stdout);
-        let parsed: Value = serde_json::from_str(&stdout).unwrap_or_else(|error| {
-            panic!("stdout must be a JSON error envelope: {error}; stdout: {stdout}")
-        });
+        let parsed: Value = serde_json::from_str(&stdout)
+            .unwrap_or_else(|error| {
+                panic!("stdout must be a JSON error envelope: {error}; stdout: {stdout}")
+            });
         assert_eq!(
             parsed,
             serde_json::json!({
@@ -295,7 +332,10 @@ fn no_matching_version_errors() {
     let output = run_view(&workspace, &auth_file, &["is-negative@99999.0.0"]);
 
     mock.assert();
-    assert!(!output.status.success(), "an unsatisfiable version must fail");
+    assert!(
+        !output.status.success(),
+        "an unsatisfiable version must fail",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("ERR_PNPM_PACKAGE_NOT_FOUND"),
@@ -358,12 +398,22 @@ fn multiple_fields_quote_strings() {
     let mock = serve(&mut server, "/is-negative", &is_negative_body());
     let auth_file = empty_auth_file(root.path());
 
-    let output = run_view(&workspace, &auth_file, &["is-negative@1.0.0", "name", "version"]);
+    let output = run_view(
+        &workspace,
+        &auth_file,
+        &["is-negative@1.0.0", "name", "version"],
+    );
 
     mock.assert();
     let stdout = stdout_of(&output);
-    assert!(stdout.contains("name = 'is-negative'"), "quoted name expected: {stdout:?}");
-    assert!(stdout.contains("version = '1.0.0'"), "quoted version expected: {stdout:?}");
+    assert!(
+        stdout.contains("name = 'is-negative'"),
+        "quoted name expected: {stdout:?}",
+    );
+    assert!(
+        stdout.contains("version = '1.0.0'"),
+        "quoted version expected: {stdout:?}",
+    );
     drop((root, server));
 }
 
@@ -405,10 +455,17 @@ fn nested_field_selection() {
     let mock = serve(&mut server, "/is-negative", &is_negative_body());
     let auth_file = empty_auth_file(root.path());
 
-    let output = run_view(&workspace, &auth_file, &["is-negative@1.0.0", "dist.shasum"]);
+    let output = run_view(
+        &workspace,
+        &auth_file,
+        &["is-negative@1.0.0", "dist.shasum"],
+    );
 
     mock.assert();
-    assert_eq!(stdout_of(&output).trim(), "1d06e1c0aa697471e487f3f32c39ba8a6b485e1e");
+    assert_eq!(
+        stdout_of(&output).trim(),
+        "1d06e1c0aa697471e487f3f32c39ba8a6b485e1e",
+    );
     drop((root, server));
 }
 
@@ -420,8 +477,11 @@ fn field_selection_with_json() {
     let mock = serve(&mut server, "/is-negative", &is_negative_body());
     let auth_file = empty_auth_file(root.path());
 
-    let output =
-        run_view(&workspace, &auth_file, &["is-negative@1.0.0", "name", "version", "--json"]);
+    let output = run_view(
+        &workspace,
+        &auth_file,
+        &["is-negative@1.0.0", "name", "version", "--json"],
+    );
 
     mock.assert();
     let parsed: Value = serde_json::from_str(&stdout_of(&output)).expect("valid JSON");
@@ -438,7 +498,11 @@ fn single_field_json_unwraps_value() {
     let mock = serve(&mut server, "/is-negative", &is_negative_body());
     let auth_file = empty_auth_file(root.path());
 
-    let output = run_view(&workspace, &auth_file, &["is-negative@1.0.0", "name", "--json"]);
+    let output = run_view(
+        &workspace,
+        &auth_file,
+        &["is-negative@1.0.0", "name", "--json"],
+    );
 
     mock.assert();
     let parsed: Value = serde_json::from_str(&stdout_of(&output)).expect("valid JSON");
@@ -458,8 +522,14 @@ fn object_field_renders_as_json() {
 
     mock.assert();
     let parsed: Value = serde_json::from_str(&stdout_of(&output)).expect("dist renders as JSON");
-    assert!(parsed["tarball"].is_string(), "dist.tarball present: {parsed:?}");
-    assert!(parsed["shasum"].is_string(), "dist.shasum present: {parsed:?}");
+    assert!(
+        parsed["tarball"].is_string(),
+        "dist.tarball present: {parsed:?}",
+    );
+    assert!(
+        parsed["shasum"].is_string(),
+        "dist.shasum present: {parsed:?}",
+    );
     drop((root, server));
 }
 
@@ -477,7 +547,10 @@ fn versions_field_returns_array() {
     let parsed: Value =
         serde_json::from_str(&stdout_of(&output)).expect("versions is a JSON array");
     let versions = parsed.as_array().expect("array");
-    assert!(versions.contains(&Value::String("1.0.0".to_string())), "{versions:?}");
+    assert!(
+        versions.contains(&Value::String("1.0.0".to_string())),
+        "{versions:?}",
+    );
     drop((root, server));
 }
 
@@ -489,7 +562,11 @@ fn dist_tags_field_returns_mapping() {
     let mock = serve(&mut server, "/is-negative", &is_negative_body());
     let auth_file = empty_auth_file(root.path());
 
-    let output = run_view(&workspace, &auth_file, &["is-negative", "dist-tags", "--json"]);
+    let output = run_view(
+        &workspace,
+        &auth_file,
+        &["is-negative", "dist-tags", "--json"],
+    );
 
     mock.assert();
     let parsed: Value = serde_json::from_str(&stdout_of(&output)).expect("valid JSON");
@@ -509,7 +586,10 @@ fn time_field_returns_publish_timestamps() {
 
     mock.assert();
     let parsed: Value = serde_json::from_str(&stdout_of(&output)).expect("valid JSON");
-    assert!(parsed["1.0.0"].is_string(), "per-version time present: {parsed:?}");
+    assert!(
+        parsed["1.0.0"].is_string(),
+        "per-version time present: {parsed:?}",
+    );
     drop((root, server));
 }
 
@@ -525,9 +605,18 @@ fn summary_header_dist_and_published_sections() {
 
     mock.assert();
     let stdout = stdout_of(&output);
-    let first_line = stdout.lines().next().unwrap_or_default();
-    assert!(first_line.contains("is-negative@1.0.0"), "header: {first_line:?}");
-    assert!(first_line.contains("deps: none"), "no-deps package: {first_line:?}");
+    let first_line = stdout
+        .lines()
+        .next()
+        .unwrap_or_default();
+    assert!(
+        first_line.contains("is-negative@1.0.0"),
+        "header: {first_line:?}",
+    );
+    assert!(
+        first_line.contains("deps: none"),
+        "no-deps package: {first_line:?}",
+    );
     assert!(stdout.contains(".tarball:"), "dist tarball: {stdout:?}");
     assert!(stdout.contains(".shasum:"), "dist shasum: {stdout:?}");
     assert!(stdout.contains("published "), "published line: {stdout:?}");
@@ -547,7 +636,10 @@ fn summary_dist_tags_section() {
 
     mock.assert();
     let stdout = stdout_of(&output);
-    assert!(stdout.contains("dist-tags:"), "dist-tags section: {stdout:?}");
+    assert!(
+        stdout.contains("dist-tags:"),
+        "dist-tags section: {stdout:?}",
+    );
     assert!(stdout.contains("latest:"), "latest tag: {stdout:?}");
     drop((root, server));
 }
@@ -579,10 +671,19 @@ fn summary_shows_deps_count_and_deprecation() {
 
     mock.assert();
     let stdout = stdout_of(&output);
-    let first_line = stdout.lines().next().unwrap_or_default();
+    let first_line = stdout
+        .lines()
+        .next()
+        .unwrap_or_default();
     assert!(first_line.contains("deps: "), "deps count: {first_line:?}");
-    assert!(!first_line.contains("deps: none"), "should not be none: {first_line:?}");
-    assert!(stdout.contains("DEPRECATED! - use something else"), "deprecation: {stdout:?}");
+    assert!(
+        !first_line.contains("deps: none"),
+        "should not be none: {first_line:?}",
+    );
+    assert!(
+        stdout.contains("DEPRECATED! - use something else"),
+        "deprecation: {stdout:?}",
+    );
     drop((root, server));
 }
 
@@ -679,7 +780,10 @@ fn uses_manifest_name_when_package_omitted() {
     let output = run_view(&workspace, &auth_file, &[]);
 
     mock.assert();
-    assert!(stdout_of(&output).contains("is-negative"), "summary derived from manifest name");
+    assert!(
+        stdout_of(&output).contains("is-negative"),
+        "summary derived from manifest name",
+    );
     drop((root, server));
 }
 
@@ -698,7 +802,10 @@ fn searches_upward_for_manifest() {
     let output = run_view(&nested, &auth_file, &[]);
 
     mock.assert();
-    assert!(stdout_of(&output).contains("is-negative"), "manifest found by upward search");
+    assert!(
+        stdout_of(&output).contains("is-negative"),
+        "manifest found by upward search",
+    );
     drop((root, server));
 }
 
@@ -711,7 +818,10 @@ fn manifest_without_name_is_invalid_package_json() {
 
     let output = run_view(&workspace, &auth_file, &[]);
 
-    assert!(!output.status.success(), "a manifest with no name must fail");
+    assert!(
+        !output.status.success(),
+        "a manifest with no name must fail",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("ERR_PNPM_INVALID_PACKAGE_JSON"),
@@ -745,13 +855,20 @@ fn versions_field_with_json_returns_array() {
     let mock = serve(&mut server, "/is-negative", &is_negative_body());
     let auth_file = empty_auth_file(root.path());
 
-    let output = run_view(&workspace, &auth_file, &["is-negative", "versions", "--json"]);
+    let output = run_view(
+        &workspace,
+        &auth_file,
+        &["is-negative", "versions", "--json"],
+    );
 
     mock.assert();
     let parsed: Value =
         serde_json::from_str(&stdout_of(&output)).expect("versions is a JSON array");
     let versions = parsed.as_array().expect("array");
-    assert!(versions.contains(&Value::String("1.0.0".to_string())), "{versions:?}");
+    assert!(
+        versions.contains(&Value::String("1.0.0".to_string())),
+        "{versions:?}",
+    );
     drop((root, server));
 }
 
@@ -777,7 +894,10 @@ fn resolves_manifest_from_dir_flag_when_cwd_differs() {
         .expect("spawn pacquet view");
 
     mock.assert();
-    assert!(stdout_of(&output).contains("is-negative"), "manifest resolved from --dir");
+    assert!(
+        stdout_of(&output).contains("is-negative"),
+        "manifest resolved from --dir",
+    );
     drop((root, server));
 }
 
@@ -818,7 +938,10 @@ fn uses_package_yaml_name_when_package_omitted() {
     let output = run_view(&workspace, &auth_file, &[]);
 
     mock.assert();
-    assert!(stdout_of(&output).contains("is-negative"), "summary derived from package.yaml name");
+    assert!(
+        stdout_of(&output).contains("is-negative"),
+        "summary derived from package.yaml name",
+    );
     drop((root, server));
 }
 

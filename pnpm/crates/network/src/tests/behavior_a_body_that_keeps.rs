@@ -23,7 +23,11 @@ async fn a_body_that_keeps_arriving_outlives_the_fetch_timeout() {
     let url = format!("{}/runtime.tar.gz", server.url());
 
     let guard = client.acquire_for_url(&url).await;
-    let response = guard.get(&url).send().await.expect("the mock server responds");
+    let response = guard
+        .get(&url)
+        .send()
+        .await
+        .expect("the mock server responds");
     let body = response.bytes().await.expect("a body that keeps arriving must not time out");
 
     assert_eq!(body.len(), CHUNKS * "chunk".len());
@@ -46,7 +50,11 @@ async fn a_stalled_body_fails_after_the_fetch_timeout() {
     let url = format!("{}/runtime.tar.gz", server.url());
 
     let guard = client.acquire_for_url(&url).await;
-    let response = guard.get(&url).send().await.expect("the mock server responds");
+    let response = guard
+        .get(&url)
+        .send()
+        .await
+        .expect("the mock server responds");
     let error = response.bytes().await.expect_err("a stalled body must time out");
 
     assert!(error.is_timeout(), "got {error:?}");
@@ -57,8 +65,10 @@ fn for_installs_falls_back_on_unencodable_user_agent() {
     // A user-agent containing a control character cannot be encoded as
     // an HTTP header value; the client must still build (falling back
     // to the default UA) rather than erroring.
-    let settings =
-        NetworkSettings { user_agent: "bad\nua".to_string(), ..NetworkSettings::default() };
+    let settings = NetworkSettings {
+        user_agent: "bad\nua".to_string(),
+        ..NetworkSettings::default()
+    };
     ThrottledClient::for_installs(
         &ProxyConfig::default(),
         &TlsConfig::default(),
@@ -97,10 +107,16 @@ async fn redirect_guard_blocks_off_allowlist_redirect_target() {
         url.as_str().starts_with(&allowed)
     });
     let guard = client.acquire().await;
-    let result = guard.get(format!("{}/pkg", server.url())).send().await;
+    let result = guard
+        .get(format!("{}/pkg", server.url()))
+        .send()
+        .await;
 
     redirect.assert_async().await;
-    assert!(result.is_err(), "a redirect to an off-allowlist host must be blocked");
+    assert!(
+        result.is_err(),
+        "a redirect to an off-allowlist host must be blocked",
+    );
 }
 
 /// A redirect whose target the guard allows is followed normally, so an
@@ -108,7 +124,12 @@ async fn redirect_guard_blocks_off_allowlist_redirect_target() {
 #[tokio::test]
 async fn redirect_guard_follows_allowlisted_redirect_target() {
     let mut target = mockito::Server::new_async().await;
-    let body = target.mock("GET", "/final").with_status(200).with_body("ok").create_async().await;
+    let body = target
+        .mock("GET", "/final")
+        .with_status(200)
+        .with_body("ok")
+        .create_async()
+        .await;
     let mut entry = mockito::Server::new_async().await;
     let redirect = entry
         .mock("GET", "/pkg")
@@ -124,7 +145,11 @@ async fn redirect_guard_follows_allowlisted_redirect_target() {
         url.starts_with(&entry_origin) || url.starts_with(&target_origin)
     });
     let guard = client.acquire().await;
-    let resp = guard.get(format!("{}/pkg", entry.url())).send().await.expect("redirect followed");
+    let resp = guard
+        .get(format!("{}/pkg", entry.url()))
+        .send()
+        .await
+        .expect("redirect followed");
 
     assert_eq!(resp.status(), 200);
     assert_eq!(resp.text().await.expect("body"), "ok");
@@ -148,7 +173,10 @@ async fn max_sockets_caps_concurrent_sockets_per_origin() {
         client.acquire_for_url("https://registry.example.com/b"),
     )
     .await;
-    assert!(blocked.is_err(), "second socket to the same origin should block under maxSockets=1");
+    assert!(
+        blocked.is_err(),
+        "second socket to the same origin should block under maxSockets=1",
+    );
 
     // A different origin has its own budget and is not blocked.
     tokio::time::timeout(
@@ -200,13 +228,24 @@ async fn stalled_consumers_release_permits_on_deadline_or_cancellation() {
     let initial_permits = client.semaphore.available_permits();
     for cancel in [false, true] {
         let guard = client.acquire_for_url(&url).await;
-        let response = guard.get(&url).send().await.unwrap();
-        let budget = if cancel { Duration::from_secs(30) } else { Duration::from_millis(100) };
+        let response = guard
+            .get(&url)
+            .send()
+            .await
+            .unwrap();
+        let budget = if cancel {
+            Duration::from_secs(30)
+        } else {
+            Duration::from_millis(100)
+        };
         let mut stream = Box::pin(guard.retain_for_body(response, budget).bytes_stream());
-        stream.next().await.unwrap().unwrap();
+        stream
+            .next()
+            .await
+            .unwrap()
+            .unwrap();
         assert!(
-            tokio::time::timeout(Duration::from_millis(20), client.acquire_for_url(&url))
-                .await
+            tokio::time::timeout(Duration::from_millis(20), client.acquire_for_url(&url)).await
                 .is_err(),
         );
         if cancel {

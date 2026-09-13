@@ -129,7 +129,10 @@ impl FetchMetadataError {
     /// operation.
     #[must_use]
     pub fn is_body_retryable(&self) -> bool {
-        matches!(self, FetchMetadataError::BodyRead { .. } | FetchMetadataError::Decode { .. })
+        matches!(
+            self,
+            FetchMetadataError::BodyRead { .. } | FetchMetadataError::Decode { .. },
+        )
     }
 
     /// Whether this failure is a hard access/existence denial — HTTP
@@ -247,7 +250,10 @@ pub struct MalformedRevisionHistoryError {
 impl InvalidTarballRevisionMetadataError {
     #[must_use]
     pub fn new(tarball: &str, reason: impl Into<String>) -> Self {
-        Self { tarball: redact_and_sanitize(tarball), reason: reason.into() }
+        Self {
+            tarball: redact_and_sanitize(tarball),
+            reason: reason.into(),
+        }
     }
 }
 

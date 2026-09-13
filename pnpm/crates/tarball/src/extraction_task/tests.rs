@@ -14,7 +14,9 @@ async fn cancelled_waiter_keeps_capacity_until_running_extraction_exits() {
     let (release_tx, release_rx) = mpsc::channel();
     let (finished_tx, finished_rx) = oneshot::channel();
     let extraction = spawn_extraction(permit, move || {
-        started_tx.send(()).unwrap();
+        started_tx
+            .send(())
+            .unwrap();
         let _ = release_rx.recv();
         let _ = finished_tx.send(());
     });
@@ -24,7 +26,9 @@ async fn cancelled_waiter_keeps_capacity_until_running_extraction_exits() {
     waiter.abort();
     let error = waiter.await.unwrap_err();
     let available_while_running = semaphore.available_permits();
-    release_tx.send(()).unwrap();
+    release_tx
+        .send(())
+        .unwrap();
     finished_rx.await.unwrap();
     let _returned_permit = semaphore.acquire().await.unwrap();
 
@@ -34,13 +38,18 @@ async fn cancelled_waiter_keeps_capacity_until_running_extraction_exits() {
 
 #[test]
 fn cancelled_waiter_keeps_capacity_for_queued_extraction() {
-    let runtime = Builder::new_current_thread().max_blocking_threads(1).build().unwrap();
+    let runtime = Builder::new_current_thread()
+        .max_blocking_threads(1)
+        .build()
+        .unwrap();
     runtime.block_on(async {
         let semaphore = Box::leak(Box::new(Semaphore::new(1)));
         let (started_tx, started_rx) = oneshot::channel();
         let (release_tx, release_rx) = mpsc::channel();
         let blocker = tokio::task::spawn_blocking(move || {
-            started_tx.send(()).unwrap();
+            started_tx
+                .send(())
+                .unwrap();
             let _ = release_rx.recv();
         });
         started_rx.await.unwrap();
@@ -52,7 +61,9 @@ fn cancelled_waiter_keeps_capacity_for_queued_extraction() {
         waiter.abort();
         let error = waiter.await.unwrap_err();
         let available_while_queued = semaphore.available_permits();
-        release_tx.send(()).unwrap();
+        release_tx
+            .send(())
+            .unwrap();
         blocker.await.unwrap();
         assert_eq!(finished_rx.await.unwrap(), 42);
         let _returned_permit = semaphore.acquire().await.unwrap();

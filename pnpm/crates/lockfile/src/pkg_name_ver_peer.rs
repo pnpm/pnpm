@@ -25,14 +25,19 @@ impl PkgNameVerPeer {
     #[must_use]
     pub fn to_virtual_store_name(&self, max_length: usize) -> String {
         let escape_for_fs = |character: char| {
-            matches!(character, '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | '#')
+            matches!(
+                character,
+                '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | '#',
+            )
         };
         let mut filename = self.to_string().replace(escape_for_fs, "+");
         if filename.contains('(') {
             if filename.ends_with(')') {
                 filename.pop();
             }
-            filename = filename.replace(")(", "_").replace(['(', ')'], "_");
+            filename = filename
+                .replace(")(", "_")
+                .replace(['(', ')'], "_");
         }
         shorten_virtual_store_name(filename, max_length)
     }

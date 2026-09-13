@@ -9,7 +9,11 @@ use super::{SearchMatch, Searcher};
 use crate::TreeNodeId;
 
 fn searcher(queries: &[&str]) -> Searcher {
-    let queries: Vec<String> = queries.iter().copied().map(str::to_string).collect();
+    let queries: Vec<String> = queries
+        .iter()
+        .copied()
+        .map(str::to_string)
+        .collect();
     Searcher::from_queries(&queries).unwrap()
 }
 
@@ -17,21 +21,48 @@ fn searcher(queries: &[&str]) -> Searcher {
 #[test]
 fn packages_searcher() {
     let search = searcher(&["rimraf@*"]);
-    assert_eq!(search.matches("rimraf", "rimraf", "1.0.0", None), SearchMatch::Yes);
-    assert_eq!(search.matches("express", "express", "1.0.0", None), SearchMatch::No);
+    assert_eq!(
+        search.matches("rimraf", "rimraf", "1.0.0", None),
+        SearchMatch::Yes,
+    );
+    assert_eq!(
+        search.matches("express", "express", "1.0.0", None),
+        SearchMatch::No,
+    );
 
     let search = searcher(&["rim*"]);
-    assert_eq!(search.matches("rimraf", "rimraf", "1.0.0", None), SearchMatch::Yes);
-    assert_eq!(search.matches("express", "express", "1.0.0", None), SearchMatch::No);
+    assert_eq!(
+        search.matches("rimraf", "rimraf", "1.0.0", None),
+        SearchMatch::Yes,
+    );
+    assert_eq!(
+        search.matches("express", "express", "1.0.0", None),
+        SearchMatch::No,
+    );
 
     let search = searcher(&["rim*@2"]);
-    assert_eq!(search.matches("rimraf", "rimraf", "2.0.0", None), SearchMatch::Yes);
-    assert_eq!(search.matches("rimraf", "rimraf", "1.0.0", None), SearchMatch::No);
+    assert_eq!(
+        search.matches("rimraf", "rimraf", "2.0.0", None),
+        SearchMatch::Yes,
+    );
+    assert_eq!(
+        search.matches("rimraf", "rimraf", "1.0.0", None),
+        SearchMatch::No,
+    );
 
     let search = searcher(&["minimatch", "once@1.4"]);
-    assert_eq!(search.matches("minimatch", "minimatch", "2.0.0", None), SearchMatch::Yes);
-    assert_eq!(search.matches("once", "once", "1.4.1", None), SearchMatch::Yes);
-    assert_eq!(search.matches("rimraf", "rimraf", "1.0.0", None), SearchMatch::No);
+    assert_eq!(
+        search.matches("minimatch", "minimatch", "2.0.0", None),
+        SearchMatch::Yes,
+    );
+    assert_eq!(
+        search.matches("once", "once", "1.4.1", None),
+        SearchMatch::Yes,
+    );
+    assert_eq!(
+        search.matches("rimraf", "rimraf", "1.0.0", None),
+        SearchMatch::No,
+    );
 }
 
 // Rust counterpart of upstream's 'package searcher with 2 finders'
@@ -59,14 +90,20 @@ fn finder_results_are_consulted_by_alias_and_node() {
         search.matches("minimatch", "minimatch", "2.0.0", Some(&minimatch)),
         SearchMatch::No,
     );
-    assert_eq!(search.matches("once", "once", "1.4.1", Some(&once)), SearchMatch::Yes);
+    assert_eq!(
+        search.matches("once", "once", "1.4.1", Some(&once)),
+        SearchMatch::Yes,
+    );
     assert_eq!(
         search.matches("rimraf", "rimraf", "1.0.0", Some(&rimraf)),
         SearchMatch::Message("found by finder one\nfound by finder two".to_string()),
     );
     // A verdict recorded for one node does not apply to the same alias
     // resolved to a different node.
-    assert_eq!(search.matches("once", "once", "1.4.1", Some(&minimatch)), SearchMatch::No);
+    assert_eq!(
+        search.matches("once", "once", "1.4.1", Some(&minimatch)),
+        SearchMatch::No,
+    );
 }
 
 // Positional queries are checked before finder verdicts, mirroring the
@@ -81,5 +118,8 @@ fn queries_are_checked_before_finder_results() {
         SearchMatch::Message("finder message".to_string()),
     )]));
 
-    assert_eq!(search.matches("once", "once", "1.4.1", Some(&once)), SearchMatch::Yes);
+    assert_eq!(
+        search.matches("once", "once", "1.4.1", Some(&once)),
+        SearchMatch::Yes,
+    );
 }

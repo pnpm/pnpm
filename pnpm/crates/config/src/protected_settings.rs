@@ -16,7 +16,9 @@ pub const PROTECTED_PLACEHOLDER: &str = "(protected)";
 #[must_use]
 pub fn is_setting_protected(key: &str) -> bool {
     if key.starts_with("//") {
-        PROTECTED_SUFFIXES.iter().any(|suffix| key.ends_with(&format!(":{suffix}")))
+        PROTECTED_SUFFIXES
+            .iter()
+            .any(|suffix| key.ends_with(&format!(":{suffix}")))
     } else {
         PROTECTED_SUFFIXES.contains(&key)
     }

@@ -50,14 +50,23 @@ pub(crate) fn walk_for_paths(
     include: Include,
     paths: &mut AuditPathIndex,
 ) {
-    let walk =
-        PathWalk { graph, vulnerable_names, include, classes: classify_graph(graph, include) };
+    let walk = PathWalk {
+        graph,
+        vulnerable_names,
+        include,
+        classes: classify_graph(graph, include),
+    };
     for importer in &graph.importers {
-        let importer_trail =
-            Rc::new(TrailNode { name: importer.path_segment.clone(), parent: None });
+        let importer_trail = Rc::new(TrailNode {
+            name: importer.path_segment.clone(),
+            parent: None,
+        });
         let mut in_trail = HashSet::new();
         let mut stack: Vec<PathFrame> = Vec::new();
-        for (_, root) in importer.roots.iter().filter(|(kind, _)| root_included(*kind, include)) {
+        for (_, root) in importer.roots
+            .iter()
+            .filter(|(kind, _)| root_included(*kind, include))
+        {
             open_path_node(
                 &walk,
                 root.key.clone(),
@@ -112,15 +121,20 @@ pub(crate) fn open_path_node(
         return;
     }
     let name = key.name.to_string();
-    let trail = Rc::new(TrailNode { name: name.clone(), parent: Some(parent_trail) });
+    let trail = Rc::new(TrailNode {
+        name: name.clone(),
+        parent: Some(parent_trail),
+    });
     if walk.vulnerable_names.contains(&name)
         && let Some(version) = package_version(&key)
     {
-        let class = walk
-            .classes
+        let class = walk.classes
             .get(&key)
             .copied()
-            .unwrap_or(DepClass { dev_only: false, optional_only: false });
+            .unwrap_or(DepClass {
+                dev_only: false,
+                optional_only: false,
+            });
         record_path(
             paths,
             &name,
@@ -135,7 +149,12 @@ pub(crate) fn open_path_node(
         return;
     }
     in_trail.insert(key.clone());
-    stack.push(PathFrame { key, trail, children, next: 0 });
+    stack.push(PathFrame {
+        key,
+        trail,
+        children,
+        next: 0,
+    });
 }
 
 pub(crate) fn record_path(
@@ -146,12 +165,16 @@ pub(crate) fn record_path(
     is_dev: bool,
     is_optional: bool,
 ) {
-    let by_version = paths.entry(name.to_string()).or_default();
-    let info = by_version.entry(version.to_string()).or_insert_with(|| PathInfo {
-        paths: Vec::new(),
-        dev: is_dev,
-        optional: is_optional,
-    });
+    let by_version = paths
+        .entry(name.to_string())
+        .or_default();
+    let info = by_version
+        .entry(version.to_string())
+        .or_insert_with(|| PathInfo {
+            paths: Vec::new(),
+            dev: is_dev,
+            optional: is_optional,
+        });
     if !is_dev {
         info.dev = false;
     }

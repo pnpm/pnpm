@@ -10,7 +10,12 @@ use super::{
 };
 
 fn no_retry() -> RetryOpts {
-    RetryOpts { retries: 0, factor: 1, min_timeout: Duration::ZERO, max_timeout: Duration::ZERO }
+    RetryOpts {
+        retries: 0,
+        factor: 1,
+        min_timeout: Duration::ZERO,
+        max_timeout: Duration::ZERO,
+    }
 }
 
 /// A `127.0.0.1:<port>` address guaranteed to refuse connections: bind an
@@ -31,7 +36,10 @@ fn unused_client() -> ThrottledClient {
 }
 
 fn auth_config(pairs: &[(&str, &str)]) -> HashMap<String, String> {
-    pairs.iter().map(|(key, value)| ((*key).to_string(), (*value).to_string())).collect()
+    pairs
+        .iter()
+        .map(|(key, value)| ((*key).to_string(), (*value).to_string()))
+        .collect()
 }
 
 /// Declare a per-test [`Reporter`] fake recording every `pnpm` log line
@@ -40,12 +48,18 @@ fn auth_config(pairs: &[(&str, &str)]) -> HashMap<String, String> {
 macro_rules! recording_reporter {
     ($reporter:ident, $buffer:ident) => {
         static $buffer: Mutex<Vec<(LogLevel, String)>> = Mutex::new(Vec::new());
-        $buffer.lock().unwrap().clear();
+        $buffer
+            .lock()
+            .unwrap()
+            .clear();
         struct $reporter;
         impl Reporter for $reporter {
             fn emit(event: &LogEvent) {
                 if let LogEvent::Pnpm(PnpmLog { level, message, .. }) = event {
-                    $buffer.lock().unwrap().push((*level, message.clone()));
+                    $buffer
+                        .lock()
+                        .unwrap()
+                        .push((*level, message.clone()));
                 }
             }
         }
@@ -130,9 +144,14 @@ async fn throws_when_not_logged_in() {
     .await
     .unwrap_err();
     assert!(matches!(err, LogoutError::NotLoggedIn { .. }));
-    assert_eq!(err.to_string(), "Not logged in to https://registry.npmjs.org/, so can't log out");
     assert_eq!(
-        miette::Diagnostic::code(&err).map(|code| code.to_string()).as_deref(),
+        err.to_string(),
+        "Not logged in to https://registry.npmjs.org/, so can't log out",
+    );
+    assert_eq!(
+        miette::Diagnostic::code(&err)
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_NOT_LOGGED_IN"),
     );
 }
@@ -160,7 +179,10 @@ async fn throws_when_not_logged_in_to_a_custom_registry() {
     )
     .await
     .unwrap_err();
-    assert_eq!(err.to_string(), "Not logged in to https://npm.example.com/, so can't log out");
+    assert_eq!(
+        err.to_string(),
+        "Not logged in to https://npm.example.com/, so can't log out",
+    );
 }
 
 #[tokio::test]
@@ -230,7 +252,10 @@ async fn logs_out_from_a_custom_registry() {
 
     assert_eq!(result, "Logged out of https://npm.example.com/");
     let revokes = REVOKES.lock().unwrap();
-    assert_eq!(revokes[0].0, "https://npm.example.com/-/user/token/custom-token");
+    assert_eq!(
+        revokes[0].0,
+        "https://npm.example.com/-/user/token/custom-token",
+    );
     let writes = WRITES.lock().unwrap();
     assert_eq!(writes[0].1, "");
 }
@@ -243,7 +268,9 @@ async fn removes_token_locally_when_registry_returns_non_ok() {
         writes = WRITES,
         revokes = REVOKES,
         read = { Ok("//registry.npmjs.org/:_authToken=old-token\n".to_string()) },
-        revoke = RevokeOutcome::Rejected { status: 404 },
+        revoke = RevokeOutcome::Rejected {
+            status: 404
+        },
     );
     let auth = auth_config(&[("//registry.npmjs.org/:_authToken", "old-token")]);
     let result = logout::<Sys, Rep>(
@@ -261,7 +288,10 @@ async fn removes_token_locally_when_registry_returns_non_ok() {
 
     assert_eq!(result, "Logged out of https://registry.npmjs.org/");
     assert_eq!(WRITES.lock().unwrap()[0].1, "");
-    assert_eq!(infos(&EVENTS), ["Registry returned HTTP 404 when revoking token"]);
+    assert_eq!(
+        infos(&EVENTS),
+        ["Registry returned HTTP 404 when revoking token"],
+    );
 }
 
 #[tokio::test]
@@ -290,7 +320,10 @@ async fn removes_token_locally_when_fetch_errors() {
 
     assert_eq!(result, "Logged out of https://registry.npmjs.org/");
     assert_eq!(WRITES.lock().unwrap()[0].1, "");
-    assert_eq!(infos(&EVENTS), ["Could not reach the registry to revoke the token"]);
+    assert_eq!(
+        infos(&EVENTS),
+        ["Could not reach the registry to revoke the token"],
+    );
 }
 
 #[tokio::test]
@@ -318,7 +351,13 @@ async fn warns_when_the_token_is_in_no_file_pnpm_owns() {
     .unwrap();
 
     assert_eq!(result, "Logged out of https://registry.npmjs.org/");
-    assert!(WRITES.lock().unwrap().is_empty(), "no file pnpm owns must be written");
+    assert!(
+        WRITES
+            .lock()
+            .unwrap()
+            .is_empty(),
+        "no file pnpm owns must be written",
+    );
     let warnings = warns(&EVENTS);
     let warning = warnings.first().expect("a warning was emitted");
     let expected_path = Path::new("/config").join("config.yaml");
@@ -334,7 +373,9 @@ async fn throws_when_registry_call_fails_and_token_not_in_auth_ini() {
         writes = WRITES,
         revokes = REVOKES,
         read = { Ok(String::new()) },
-        revoke = RevokeOutcome::Rejected { status: 401 },
+        revoke = RevokeOutcome::Rejected {
+            status: 401
+        },
     );
     let auth = auth_config(&[("//registry.npmjs.org/:_authToken", "orphan-token")]);
     let err = logout::<Sys, Rep>(
@@ -352,13 +393,18 @@ async fn throws_when_registry_call_fails_and_token_not_in_auth_ini() {
 
     assert!(matches!(err, LogoutError::LogoutFailed { .. }));
     assert_eq!(
-        miette::Diagnostic::code(&err).map(|code| code.to_string()).as_deref(),
+        miette::Diagnostic::code(&err)
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_LOGOUT_FAILED"),
     );
     let message = err.to_string();
     assert!(message.contains("Failed to log out of https://registry.npmjs.org/"));
     assert!(message.contains("may still need to be revoked on the registry"));
-    assert_eq!(infos(&EVENTS), ["Registry returned HTTP 401 when revoking token"]);
+    assert_eq!(
+        infos(&EVENTS),
+        ["Registry returned HTTP 401 when revoking token"],
+    );
 }
 
 #[tokio::test]
@@ -431,7 +477,10 @@ async fn url_encodes_the_token_when_revoking() {
         read = { Ok(String::new()) },
         revoke = RevokeOutcome::Revoked,
     );
-    let auth = auth_config(&[("//registry.npmjs.org/:_authToken", "token/with+special=chars")]);
+    let auth = auth_config(&[(
+        "//registry.npmjs.org/:_authToken",
+        "token/with+special=chars",
+    )]);
     logout::<Sys, Rep>(
         &unused_client(),
         LogoutOptions {
@@ -504,7 +553,10 @@ async fn handles_registry_with_a_path() {
     .unwrap();
 
     assert_eq!(result, "Logged out of https://example.com/npm/");
-    assert_eq!(REVOKES.lock().unwrap()[0].0, "https://example.com/npm/-/user/token/path-token");
+    assert_eq!(
+        REVOKES.lock().unwrap()[0].0,
+        "https://example.com/npm/-/user/token/path-token",
+    );
     assert_eq!(WRITES.lock().unwrap()[0].1, "");
 }
 
@@ -597,8 +649,11 @@ async fn propagates_auth_ini_write_errors() {
 async fn host_revokes_and_removes_token() {
     const TOKEN: &str = "secret-token";
     let mut server = mockito::Server::new_async().await;
-    let mock =
-        server.mock("DELETE", "/-/user/token/secret-token").with_status(200).create_async().await;
+    let mock = server
+        .mock("DELETE", "/-/user/token/secret-token")
+        .with_status(200)
+        .create_async()
+        .await;
     let registry = server.url();
     let token_key = format!("{}:_authToken", nerf_dart(&format!("{registry}/")));
 
@@ -627,22 +682,34 @@ async fn host_revokes_and_removes_token() {
     assert_eq!(result, format!("Logged out of {registry}/"));
     let remaining =
         std::fs::read_to_string(config_dir.path().join("auth.ini")).expect("read auth.ini");
-    assert!(!remaining.contains(TOKEN), "token should be gone: {remaining:?}");
-    assert!(remaining.contains("other=keep"), "other settings kept: {remaining:?}");
+    assert!(
+        !remaining.contains(TOKEN),
+        "token should be gone: {remaining:?}",
+    );
+    assert!(
+        remaining.contains("other=keep"),
+        "other settings kept: {remaining:?}",
+    );
 }
 
 #[tokio::test]
 async fn host_removes_token_locally_when_registry_rejects() {
     const TOKEN: &str = "old-token";
     let mut server = mockito::Server::new_async().await;
-    let mock =
-        server.mock("DELETE", "/-/user/token/old-token").with_status(404).create_async().await;
+    let mock = server
+        .mock("DELETE", "/-/user/token/old-token")
+        .with_status(404)
+        .create_async()
+        .await;
     let registry = server.url();
     let token_key = format!("{}:_authToken", nerf_dart(&format!("{registry}/")));
 
     let config_dir = TempDir::new().expect("create temp config dir");
-    std::fs::write(config_dir.path().join("auth.ini"), format!("{token_key}={TOKEN}\n"))
-        .expect("seed auth.ini");
+    std::fs::write(
+        config_dir.path().join("auth.ini"),
+        format!("{token_key}={TOKEN}\n"),
+    )
+    .expect("seed auth.ini");
     let auth_config = auth_config(&[(&token_key, TOKEN)]);
 
     let result = logout::<Host, SilentReporter>(
@@ -662,7 +729,10 @@ async fn host_removes_token_locally_when_registry_rejects() {
     assert_eq!(result, format!("Logged out of {registry}/"));
     let remaining =
         std::fs::read_to_string(config_dir.path().join("auth.ini")).expect("read auth.ini");
-    assert!(!remaining.contains(TOKEN), "token should be gone: {remaining:?}");
+    assert!(
+        !remaining.contains(TOKEN),
+        "token should be gone: {remaining:?}",
+    );
 }
 
 #[tokio::test]
@@ -673,8 +743,11 @@ async fn host_removes_token_locally_when_registry_unreachable() {
     let token_key = format!("{}:_authToken", nerf_dart(&format!("{registry}/")));
 
     let config_dir = TempDir::new().expect("create temp config dir");
-    std::fs::write(config_dir.path().join("auth.ini"), format!("{token_key}={TOKEN}\n"))
-        .expect("seed auth.ini");
+    std::fs::write(
+        config_dir.path().join("auth.ini"),
+        format!("{token_key}={TOKEN}\n"),
+    )
+    .expect("seed auth.ini");
     let auth_config = auth_config(&[(&token_key, TOKEN)]);
 
     let result = logout::<Host, SilentReporter>(
@@ -693,7 +766,10 @@ async fn host_removes_token_locally_when_registry_unreachable() {
     assert_eq!(result, format!("Logged out of {registry}/"));
     let remaining =
         std::fs::read_to_string(config_dir.path().join("auth.ini")).expect("read auth.ini");
-    assert!(!remaining.contains(TOKEN), "token should be gone: {remaining:?}");
+    assert!(
+        !remaining.contains(TOKEN),
+        "token should be gone: {remaining:?}",
+    );
 }
 
 #[test]
@@ -734,9 +810,18 @@ async fn not_logged_in_error_redacts_and_sanitizes_the_registry() {
     .unwrap_err();
 
     let message = err.to_string();
-    assert!(!message.contains("s3cret"), "credentials must be redacted: {message:?}");
-    assert!(!message.contains('\u{7}'), "control characters must be stripped: {message:?}");
-    assert!(message.contains("npm.example.com"), "host should remain: {message:?}");
+    assert!(
+        !message.contains("s3cret"),
+        "credentials must be redacted: {message:?}",
+    );
+    assert!(
+        !message.contains('\u{7}'),
+        "control characters must be stripped: {message:?}",
+    );
+    assert!(
+        message.contains("npm.example.com"),
+        "host should remain: {message:?}",
+    );
 }
 
 #[tokio::test]
@@ -767,9 +852,18 @@ async fn success_message_and_warning_redact_the_registry() {
     .unwrap();
 
     for output in [&result, &warns(&EVENTS).remove(0)] {
-        assert!(output.contains("https://npm.example.com/"), "host should remain: {output:?}");
-        assert!(!output.contains("s3cret"), "credentials must be redacted: {output:?}");
-        assert!(!output.contains('\u{1b}'), "control characters must be stripped: {output:?}");
+        assert!(
+            output.contains("https://npm.example.com/"),
+            "host should remain: {output:?}",
+        );
+        assert!(
+            !output.contains("s3cret"),
+            "credentials must be redacted: {output:?}",
+        );
+        assert!(
+            !output.contains('\u{1b}'),
+            "control characters must be stripped: {output:?}",
+        );
     }
 }
 
@@ -797,13 +891,31 @@ async fn retry_logs_do_not_leak_the_token() {
         .finish();
     let outcome = {
         let _guard = tracing::subscriber::set_default(subscriber);
-        Host::revoke(&ThrottledClient::new_for_installs(), &revoke_url, TOKEN, retry).await
+        Host::revoke(
+            &ThrottledClient::new_for_installs(),
+            &revoke_url,
+            TOKEN,
+            retry,
+        )
+        .await
     };
 
     assert_eq!(outcome, RevokeOutcome::Unreachable);
-    let logs = String::from_utf8(buffer.lock().unwrap().clone()).expect("logs are UTF-8");
-    assert!(logs.contains("retrying"), "a retry warn should have been logged: {logs:?}");
-    assert!(!logs.contains(TOKEN), "the token must not appear in retry logs: {logs:?}");
+    let logs = String::from_utf8(
+        buffer
+            .lock()
+            .unwrap()
+            .clone(),
+    )
+    .expect("logs are UTF-8");
+    assert!(
+        logs.contains("retrying"),
+        "a retry warn should have been logged: {logs:?}",
+    );
+    assert!(
+        !logs.contains(TOKEN),
+        "the token must not appear in retry logs: {logs:?}",
+    );
 }
 
 #[derive(Clone)]
@@ -811,7 +923,10 @@ struct CaptureWriter(std::sync::Arc<Mutex<Vec<u8>>>);
 
 impl io::Write for CaptureWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.lock().unwrap().extend_from_slice(buf);
+        self.0
+            .lock()
+            .unwrap()
+            .extend_from_slice(buf);
         Ok(buf.len())
     }
 
@@ -836,11 +951,17 @@ impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for CaptureWriter {
 #[tokio::test]
 async fn a_broken_config_yaml_still_lets_the_legacy_token_go() {
     static WRITES: Mutex<Vec<(std::path::PathBuf, String)>> = Mutex::new(Vec::new());
-    WRITES.lock().unwrap().clear();
+    WRITES
+        .lock()
+        .unwrap()
+        .clear();
     struct Sys;
     impl FsReadToString for Sys {
         fn read_to_string(path: &Path) -> io::Result<String> {
-            if path.file_name().is_some_and(|name| name == "config.yaml") {
+            if path
+                .file_name()
+                .is_some_and(|name| name == "config.yaml")
+            {
                 return Err(io::Error::new(io::ErrorKind::PermissionDenied, "EACCES"));
             }
             Ok("//registry.npmjs.org/:_authToken=stale-token\nother=value\n".to_string())
@@ -849,7 +970,10 @@ async fn a_broken_config_yaml_still_lets_the_legacy_token_go() {
     impl FsWrite for Sys {
         fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
             let text = String::from_utf8(bytes.to_vec()).expect("written auth.ini is UTF-8");
-            WRITES.lock().unwrap().push((path.to_path_buf(), text));
+            WRITES
+                .lock()
+                .unwrap()
+                .push((path.to_path_buf(), text));
             Ok(())
         }
     }
@@ -882,9 +1006,18 @@ async fn a_broken_config_yaml_still_lets_the_legacy_token_go() {
         matches!(err, LogoutError::ReadConfigYaml { .. }),
         "the unreadable config must still be reported, got {err:?}",
     );
-    let writes = WRITES.lock().unwrap().clone();
+    let writes = WRITES
+        .lock()
+        .unwrap()
+        .clone();
     let (path, text) = writes.first().expect("auth.ini must still be rewritten");
     assert_eq!(path, &Path::new("/broken/config").join("auth.ini"));
-    assert!(!text.contains("stale-token"), "the legacy token must be gone: {text:?}");
-    assert!(text.contains("other=value"), "the rest of auth.ini must survive: {text:?}");
+    assert!(
+        !text.contains("stale-token"),
+        "the legacy token must be gone: {text:?}",
+    );
+    assert!(
+        text.contains("other=value"),
+        "the rest of auth.ini must survive: {text:?}",
+    );
 }

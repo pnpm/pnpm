@@ -19,11 +19,14 @@ pub(super) fn planned_edits(
 ) -> BTreeMap<PathBuf, Vec<WorkflowEdit>> {
     let mut edits: BTreeMap<PathBuf, Vec<WorkflowEdit>> = BTreeMap::new();
     for plan in updates {
-        edits.entry(plan.action.file.clone()).or_default().push(WorkflowEdit {
-            range: plan.action.source.range.clone(),
-            expected: plan.action.source.original_value.clone(),
-            replacement: render_target_value(&plan.action, update_target(plan, latest)),
-        });
+        edits
+            .entry(plan.action.file.clone())
+            .or_default()
+            .push(WorkflowEdit {
+                range: plan.action.source.range.clone(),
+                expected: plan.action.source.original_value.clone(),
+                replacement: render_target_value(&plan.action, update_target(plan, latest)),
+            });
     }
     edits
 }
@@ -33,12 +36,10 @@ pub(super) async fn apply_workflow_edits(
 ) -> miette::Result<()> {
     for (file, replacements) in edits {
         let file_display = file.display().to_string();
-        let text = fs::read_to_string(&file)
-            .await
+        let text = fs::read_to_string(&file).await
             .map_err(|error| miette::miette!("Failed to read {file_display}: {error}"))?;
         let text = apply_replacements(&file, text, replacements)?;
-        tokio::task::spawn_blocking(move || pnpm_fs::write_atomic(&file, text.as_bytes()))
-            .await
+        tokio::task::spawn_blocking(move || pnpm_fs::write_atomic(&file, text.as_bytes())).await
             .map_err(|error| miette::miette!("Failed to write {file_display}: {error}"))?
             .map_err(|error| miette::miette!("Failed to write {file_display}: {error}"))?;
     }
@@ -50,7 +51,9 @@ fn apply_replacements(
     mut text: String,
     mut replacements: Vec<WorkflowEdit>,
 ) -> miette::Result<String> {
-    if replacements.iter().any(|edit| text.get(edit.range.clone()) != Some(edit.expected.as_str()))
+    if replacements
+        .iter()
+        .any(|edit| text.get(edit.range.clone()) != Some(edit.expected.as_str()))
     {
         let file_display = file.display();
         return Err(miette::miette!(

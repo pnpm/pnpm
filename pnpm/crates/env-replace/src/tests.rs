@@ -14,7 +14,11 @@ impl EnvVar for NoEnv {
 /// Used by tests that exercise paths where every placeholder must expand.
 fn replace_clean<Sys: EnvVar>(text: &str) -> String {
     let (value, unresolved) = env_replace_lossy::<Sys>(text);
-    assert_eq!(unresolved, Vec::<String>::new(), "unexpected unresolved placeholders");
+    assert_eq!(
+        unresolved,
+        Vec::<String>::new(),
+        "unexpected unresolved placeholders",
+    );
     value
 }
 
@@ -26,7 +30,10 @@ fn substitutes_simple_placeholder() {
             (name == "TOKEN").then(|| "abc123".to_owned())
         }
     }
-    assert_eq!(replace_clean::<EnvWithToken>("Bearer ${TOKEN}"), "Bearer abc123");
+    assert_eq!(
+        replace_clean::<EnvWithToken>("Bearer ${TOKEN}"),
+        "Bearer abc123",
+    );
 }
 
 #[test]
@@ -80,13 +87,22 @@ fn preserves_non_ascii_literal_text() {
         }
     }
     assert_eq!(replace_clean::<EnvWithValue>("café/日本語"), "café/日本語");
-    assert_eq!(replace_clean::<EnvWithValue>("café/${VALUE}/日本語"), "café/resolved/日本語");
+    assert_eq!(
+        replace_clean::<EnvWithValue>("café/${VALUE}/日本語"),
+        "café/resolved/日本語",
+    );
     assert_eq!(
         replace_clean::<EnvWithValue>("café/${MISSING:-défaut}/日本語"),
         "café/défaut/日本語",
     );
-    assert_eq!(replace_clean::<EnvWithValue>(r"café/\${VALUE}/日本語"), "café/${VALUE}/日本語");
-    assert_eq!(replace_clean::<EnvWithValue>("café/${OPEN/日本語"), "café/${OPEN/日本語");
+    assert_eq!(
+        replace_clean::<EnvWithValue>(r"café/\${VALUE}/日本語"),
+        "café/${VALUE}/日本語",
+    );
+    assert_eq!(
+        replace_clean::<EnvWithValue>("café/${OPEN/日本語"),
+        "café/${OPEN/日本語",
+    );
 }
 
 #[test]
@@ -144,7 +160,10 @@ fn handles_multiple_placeholders() {
     struct StaticEnv;
     impl EnvVar for StaticEnv {
         fn var(name: &str) -> Option<String> {
-            ENV.iter().find(|(key, _)| *key == name).map(|(_, value)| (*value).to_owned())
+            ENV
+                .iter()
+                .find(|(key, _)| *key == name)
+                .map(|(_, value)| (*value).to_owned())
         }
     }
     assert_eq!(replace_clean::<StaticEnv>("${A}-${B}-${A}"), "1-2-1");
@@ -206,5 +225,8 @@ fn preserves_resolved_and_default_placeholders_alongside_unresolved() {
 fn collects_every_unresolved_placeholder_occurrence() {
     let (value, unresolved) = env_replace_lossy::<NoEnv>("${A}-${B}-${A}");
     assert_eq!(value, "--");
-    assert_eq!(unresolved, vec!["${A}".to_owned(), "${B}".to_owned(), "${A}".to_owned()]);
+    assert_eq!(
+        unresolved,
+        vec!["${A}".to_owned(), "${B}".to_owned(), "${A}".to_owned()],
+    );
 }

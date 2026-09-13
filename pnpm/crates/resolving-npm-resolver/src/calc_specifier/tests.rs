@@ -15,9 +15,12 @@ fn picked(version: &str) -> PackageVersion {
 
 #[test]
 fn keeps_the_range_operator_the_dependency_already_declared() {
-    for (bare_specifier, expected) in
-        [("^1.0.0", "^4.2.0"), ("~1.0.0", "~4.2.0"), ("1.0.0", "4.2.0"), ("*", "^4.2.0")]
-    {
+    for (bare_specifier, expected) in [
+        ("^1.0.0", "^4.2.0"),
+        ("~1.0.0", "~4.2.0"),
+        ("1.0.0", "4.2.0"),
+        ("*", "^4.2.0"),
+    ] {
         assert_eq!(
             calc_specifier(
                 bare_specifier,
@@ -103,7 +106,13 @@ fn a_prerelease_pick_keeps_the_declared_range_operator() {
     // With no previous pin the prerelease stays exact rather than widened
     // to the default pin.
     assert_eq!(
-        calc_specifier("latest", None, Some("foo"), &picked("5.0.0-rc.1"), RangeSpecStyle::Major),
+        calc_specifier(
+            "latest",
+            None,
+            Some("foo"),
+            &picked("5.0.0-rc.1"),
+            RangeSpecStyle::Major
+        ),
         "5.0.0-rc.1",
     );
 }
@@ -120,12 +129,20 @@ fn calc_version_range_preserves_an_existing_prerelease_range_style() {
         ("2 || 3", "3.0.0-rc.11"),
     ] {
         assert_eq!(
-            calc_version_range(&version, infer_range_spec_style(prev), None, RangeSpecStyle::Major),
+            calc_version_range(
+                &version,
+                infer_range_spec_style(prev),
+                None,
+                RangeSpecStyle::Major
+            ),
             expected,
             "range for previous specifier {prev}",
         );
     }
-    assert_eq!(calc_version_range(&version, None, None, RangeSpecStyle::Major), "3.0.0-rc.11");
+    assert_eq!(
+        calc_version_range(&version, None, None, RangeSpecStyle::Major),
+        "3.0.0-rc.11",
+    );
 }
 
 #[test]
@@ -137,14 +154,19 @@ fn calc_version_range_ignores_the_requested_specifier_style_for_a_prerelease() {
         "3.0.0-rc.11",
     );
     let release = Version::parse("3.1.0").expect("parse release version");
-    assert_eq!(calc_version_range(&release, None, spec_style, RangeSpecStyle::Major), "~3.1.0");
+    assert_eq!(
+        calc_version_range(&release, None, spec_style, RangeSpecStyle::Major),
+        "~3.1.0",
+    );
 }
 
 #[test]
 fn a_prefixed_specifier_keeps_its_protocol_and_the_declared_range_operator() {
-    for (bare_specifier, expected) in
-        [("jsr:^1.0.0", "jsr:^4.2.0"), ("jsr:~1.0.0", "jsr:~4.2.0"), ("jsr:1.0.0", "jsr:4.2.0")]
-    {
+    for (bare_specifier, expected) in [
+        ("jsr:^1.0.0", "jsr:^4.2.0"),
+        ("jsr:~1.0.0", "jsr:~4.2.0"),
+        ("jsr:1.0.0", "jsr:4.2.0"),
+    ] {
         assert_eq!(
             calc_prefixed_specifier(
                 "jsr:",
@@ -220,7 +242,13 @@ fn the_previous_range_operator_wins_over_an_exact_request() {
     );
     // No previous pin: the exact requested version stays exact.
     assert_eq!(
-        calc_specifier("19.3.0", None, Some("react"), &picked("19.3.0"), RangeSpecStyle::Major),
+        calc_specifier(
+            "19.3.0",
+            None,
+            Some("react"),
+            &picked("19.3.0"),
+            RangeSpecStyle::Major
+        ),
         "19.3.0",
     );
 }

@@ -43,14 +43,20 @@ fn a_rejected_credential_is_not_reported_as_an_anonymous_rate_limit() {
 /// credential on the connection it relaxed.
 #[test]
 fn no_token_is_sent_when_authentication_is_withheld() {
-    assert_eq!(pick_token(false, Some("gh".to_string()), Some("github".to_string())), None);
+    assert_eq!(
+        pick_token(false, Some("gh".to_string()), Some("github".to_string())),
+        None,
+    );
 }
 
 #[test]
 fn releases_are_read_with_the_v_prefix_stripped() {
     let releases = parse_releases(&releases_body("")).expect("parse the release list");
     assert_eq!(
-        releases.iter().map(|release| release.version.as_str()).collect::<Vec<_>>(),
+        releases
+            .iter()
+            .map(|release| release.version.as_str())
+            .collect::<Vec<_>>(),
         ["6.0.0-rc.19", "6.0.0-rc.18"],
     );
 }
@@ -68,7 +74,12 @@ fn archives_become_platform_variants_with_sri_integrities() {
                 LockfileResolution::Binary(binary) => binary.integrity.to_string(),
                 other => panic!("expected a binary resolution, got {other:?}"),
             };
-            (target.os.clone(), target.cpu.clone(), target.libc.clone(), integrity)
+            (
+                target.os.clone(),
+                target.cpu.clone(),
+                target.libc.clone(),
+                integrity,
+            )
         })
         .collect();
     assert_eq!(
@@ -144,7 +155,9 @@ fn an_asset_without_a_usable_digest_is_skipped() {
     let releases = parse_releases(&releases_body(unsigned)).expect("parse the release list");
     let variants = asset_variants(&releases[0]).expect("decode the archives");
     assert!(
-        variants.iter().all(|variant| variant.targets[0].cpu != "ia32"),
+        variants
+            .iter()
+            .all(|variant| variant.targets[0].cpu != "ia32"),
         "an archive pnpm cannot verify must not be installable",
     );
 }
@@ -153,7 +166,10 @@ fn an_asset_without_a_usable_digest_is_skipped() {
 fn a_release_without_archives_is_an_error() {
     let releases = parse_releases(&releases_body("")).expect("parse the release list");
     let error = asset_variants(&releases[1]).expect_err("a release with no assets cannot resolve");
-    assert!(matches!(error, ReadYarnReleasesError::NoUsableAssets { .. }), "{error:?}");
+    assert!(
+        matches!(error, ReadYarnReleasesError::NoUsableAssets { .. }),
+        "{error:?}",
+    );
 }
 
 #[test]
@@ -165,7 +181,10 @@ fn gh_token_outranks_github_token() {
 #[test]
 fn a_blank_token_reads_as_no_token() {
     assert_eq!(pick_token(true, Some("  ".to_string()), None), None);
-    assert_eq!(pick_token(true, Some(String::new()), Some(String::new())), None);
+    assert_eq!(
+        pick_token(true, Some(String::new()), Some(String::new())),
+        None,
+    );
     assert_eq!(pick_token(true, None, None), None);
 }
 

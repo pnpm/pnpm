@@ -6,22 +6,37 @@ async fn next_line_bounded_truncates_long_lines_and_keeps_draining() {
     let long = "x".repeat(100);
     let input = format!("{long}\nafter\n");
     let mut reader = BufReader::new(input.as_bytes());
-    assert_eq!(next_line_bounded(&mut reader, 10).await.unwrap().unwrap(), "x".repeat(10));
-    assert_eq!(next_line_bounded(&mut reader, 10).await.unwrap().unwrap(), "after");
+    assert_eq!(
+        next_line_bounded(&mut reader, 10).await.unwrap().unwrap(),
+        "x".repeat(10),
+    );
+    assert_eq!(
+        next_line_bounded(&mut reader, 10).await.unwrap().unwrap(),
+        "after",
+    );
     assert_eq!(next_line_bounded(&mut reader, 10).await.unwrap(), None);
 }
 
 #[tokio::test]
 async fn next_line_bounded_survives_invalid_utf8() {
     let mut reader = BufReader::new(&b"bad\xffbyte\nnext\n"[..]);
-    assert_eq!(next_line_bounded(&mut reader, 64).await.unwrap().unwrap(), "bad\u{fffd}byte");
-    assert_eq!(next_line_bounded(&mut reader, 64).await.unwrap().unwrap(), "next");
+    assert_eq!(
+        next_line_bounded(&mut reader, 64).await.unwrap().unwrap(),
+        "bad\u{fffd}byte",
+    );
+    assert_eq!(
+        next_line_bounded(&mut reader, 64).await.unwrap().unwrap(),
+        "next",
+    );
 }
 
 #[tokio::test]
 async fn next_line_bounded_returns_final_unterminated_line() {
     let mut reader = BufReader::new(&b"no newline"[..]);
-    assert_eq!(next_line_bounded(&mut reader, 64).await.unwrap().unwrap(), "no newline");
+    assert_eq!(
+        next_line_bounded(&mut reader, 64).await.unwrap().unwrap(),
+        "no newline",
+    );
     assert_eq!(next_line_bounded(&mut reader, 64).await.unwrap(), None);
 }
 

@@ -40,8 +40,14 @@ async fn serves_scoped_packument_from_storage() {
     let storage = common::build_storage();
     let app = router(static_config(storage.path().to_path_buf()));
 
-    let response =
-        app.oneshot(Request::get("/@foo/no-deps").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .oneshot(
+            Request::get("/@foo/no-deps")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 
     let doc: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
@@ -62,7 +68,12 @@ async fn serves_scoped_packument_from_storage() {
         doc["versions"]["1.0.0"]["dist"]["shasum"],
         "a1c3e0c08af5ec17f150b8b9f067bead3d64e472",
     );
-    assert!(doc["versions"]["1.0.0"]["dist"]["integrity"].as_str().unwrap().starts_with("sha512-"));
+    assert!(
+        doc["versions"]["1.0.0"]["dist"]["integrity"]
+            .as_str()
+            .unwrap()
+            .starts_with("sha512-"),
+    );
 }
 
 #[tokio::test]
@@ -74,7 +85,11 @@ async fn serves_scoped_tarball_from_storage() {
     let app = router(static_config(storage.path().to_path_buf()));
 
     let response = app
-        .oneshot(Request::get("/@foo/no-deps/-/no-deps-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/@foo/no-deps/-/no-deps-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -88,7 +103,11 @@ async fn static_mode_returns_404_for_unknown_package() {
     let app = router(static_config(storage.path().to_path_buf()));
 
     let response = app
-        .oneshot(Request::get("/@foo/this-package-does-not-exist").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/@foo/this-package-does-not-exist")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
@@ -113,7 +132,10 @@ async fn abbreviated_accept_header_strips_packument() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(
-        response.headers().get("content-type").and_then(|value| value.to_str().ok()),
+        response
+            .headers()
+            .get("content-type")
+            .and_then(|value| value.to_str().ok()),
         Some("application/vnd.npm.install-v1+json"),
     );
 
@@ -123,16 +145,30 @@ async fn abbreviated_accept_header_strips_packument() {
     // `contributors`, etc. on each version. The abbreviated form
     // should drop them but keep the install-relevant fields.
     let version_obj = &doc["versions"]["1.0.0"];
-    assert!(version_obj.get("_nodeVersion").is_none(), "abbreviated form should drop _nodeVersion");
-    assert!(version_obj.get("_id").is_none(), "abbreviated form should drop per-version _id");
-    assert!(version_obj.get("contributors").is_none(), "abbreviated form should drop contributors");
+    assert!(
+        version_obj.get("_nodeVersion").is_none(),
+        "abbreviated form should drop _nodeVersion",
+    );
+    assert!(
+        version_obj.get("_id").is_none(),
+        "abbreviated form should drop per-version _id",
+    );
+    assert!(
+        version_obj.get("contributors").is_none(),
+        "abbreviated form should drop contributors",
+    );
     assert_eq!(version_obj["name"], "@foo/no-deps");
     assert_eq!(version_obj["version"], "1.0.0");
     assert_eq!(
         version_obj["dist"]["tarball"],
         format!("{PUBLIC_URL}/@foo/no-deps/-/no-deps-1.0.0.tgz"),
     );
-    assert!(version_obj["dist"]["integrity"].as_str().unwrap().starts_with("sha512-"));
+    assert!(
+        version_obj["dist"]["integrity"]
+            .as_str()
+            .unwrap()
+            .starts_with("sha512-"),
+    );
 
     // Top-level: keep name, dist-tags. The fixture has `_attachments`,
     // `_uplinks`, `_distfiles` that the abbreviated form must drop.
@@ -145,12 +181,30 @@ async fn abbreviated_accept_header_strips_packument() {
     assert_eq!(doc["modified"], doc["time"]["modified"]);
     // README prose is never read during resolution and is the
     // dominant per-packument bloat — the abbreviated form drops it.
-    assert!(doc.get("readme").is_none(), "abbreviated form should drop readme");
-    assert!(doc.get("readmeFilename").is_none(), "abbreviated form should drop readmeFilename");
-    assert!(doc.get("_attachments").is_none(), "abbreviated form should drop _attachments");
-    assert!(doc.get("_uplinks").is_none(), "abbreviated form should drop _uplinks");
-    assert!(doc.get("_distfiles").is_none(), "abbreviated form should drop _distfiles");
-    assert!(doc.get("users").is_none(), "abbreviated form should drop users");
+    assert!(
+        doc.get("readme").is_none(),
+        "abbreviated form should drop readme",
+    );
+    assert!(
+        doc.get("readmeFilename").is_none(),
+        "abbreviated form should drop readmeFilename",
+    );
+    assert!(
+        doc.get("_attachments").is_none(),
+        "abbreviated form should drop _attachments",
+    );
+    assert!(
+        doc.get("_uplinks").is_none(),
+        "abbreviated form should drop _uplinks",
+    );
+    assert!(
+        doc.get("_distfiles").is_none(),
+        "abbreviated form should drop _distfiles",
+    );
+    assert!(
+        doc.get("users").is_none(),
+        "abbreviated form should drop users",
+    );
 }
 
 #[tokio::test]
@@ -169,13 +223,19 @@ async fn full_packument_served_when_accept_does_not_request_abbreviated() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(
-        response.headers().get("content-type").and_then(|value| value.to_str().ok()),
+        response
+            .headers()
+            .get("content-type")
+            .and_then(|value| value.to_str().ok()),
         Some("application/json"),
     );
 
     let doc: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     // Full form keeps the fields the abbreviated form drops.
-    assert!(doc["_attachments"].is_object(), "full form should keep _attachments");
+    assert!(
+        doc["_attachments"].is_object(),
+        "full form should keep _attachments",
+    );
     assert_eq!(doc["versions"]["1.0.0"]["_nodeVersion"], "25.6.1");
 }
 
@@ -185,7 +245,11 @@ async fn serves_version_manifest_by_dist_tag() {
     let app = router(static_config(storage.path().to_path_buf()));
 
     let response = app
-        .oneshot(Request::get("/@foo/no-deps/latest").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/@foo/no-deps/latest")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -208,7 +272,11 @@ async fn serves_version_manifest_by_literal_version() {
     let app = router(static_config(storage.path().to_path_buf()));
 
     let response = app
-        .oneshot(Request::get("/@foo/no-deps/1.0.0").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/@foo/no-deps/1.0.0")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -223,7 +291,11 @@ async fn version_manifest_returns_404_for_unknown_version() {
     let app = router(static_config(storage.path().to_path_buf()));
 
     let response = app
-        .oneshot(Request::get("/@foo/no-deps/99.0.0").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/@foo/no-deps/99.0.0")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
@@ -235,7 +307,11 @@ async fn static_mode_returns_404_for_unknown_tarball() {
     let app = router(static_config(storage.path().to_path_buf()));
 
     let response = app
-        .oneshot(Request::get("/@foo/no-deps/-/no-deps-99.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/@foo/no-deps/-/no-deps-99.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
@@ -246,16 +322,31 @@ async fn serves_a_single_npm_ecosystem_at_the_root() {
     let storage = common::build_storage();
     let app = router(static_config(storage.path().to_path_buf()));
 
-    for path in ["/@foo/no-deps", "/~main/@foo/no-deps", "/~local/@foo/no-deps"] {
-        let response =
-            app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+    for path in [
+        "/@foo/no-deps",
+        "/~main/@foo/no-deps",
+        "/~local/@foo/no-deps",
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::OK, "{path}");
         let doc: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
         assert_eq!(doc["name"], "@foo/no-deps", "{path}");
     }
     let response = app
         .clone()
-        .oneshot(Request::get("/@foo/no-deps/-/no-deps-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/@foo/no-deps/-/no-deps-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -263,7 +354,13 @@ async fn serves_a_single_npm_ecosystem_at_the_root() {
         body_bytes(response.into_body()).await,
         std::fs::read(storage.path().join("@foo/no-deps/no-deps-1.0.0.tgz")).unwrap(),
     );
-    let response =
-        app.oneshot(Request::get("/~main/-/whoami").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .oneshot(
+            Request::get("/~main/-/whoami")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }

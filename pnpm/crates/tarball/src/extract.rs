@@ -8,6 +8,9 @@ pub(crate) use streaming::{
     stream_extract_gzipped_tarball, tar_entry_payload,
 };
 
+pub(crate) use archive_path::{archive_entry_segments, clean_archive_entry_path};
+mod archive_path;
+
 use super::{
     Cow, Cursor, HashMap, IgnoreEntryFilter, IntoParallelRefIterator, MAX_UNTRUSTED_PREALLOC_BYTES,
     ParallelIterator, PathBuf, Read, TarballError, UNIX_EPOCH, cas_write_pool,
@@ -39,12 +42,16 @@ pub(crate) fn allocate_tarball_buffer(
         return Ok(Vec::new());
     };
 
-    let too_large =
-        || TarballError::TarballTooLarge { url: url.to_string(), advertised_size: size };
+    let too_large = || TarballError::TarballTooLarge {
+        url: url.to_string(),
+        advertised_size: size,
+    };
 
     let capacity = usize::try_from(size).map_err(|_| too_large())?;
     let mut buf = Vec::new();
-    buf.try_reserve_exact(capacity).map_err(|_| too_large())?;
+    buf
+        .try_reserve_exact(capacity)
+        .map_err(|_| too_large())?;
     Ok(buf)
 }
 
@@ -166,7 +173,10 @@ pub(crate) fn gzip_isize_hint(gz_data: &[u8]) -> Option<usize> {
     {
         return None;
     }
-    let trailer: [u8; 4] = gz_data.get(gz_data.len().checked_sub(4)?..)?.try_into().ok()?;
+    let trailer: [u8; 4] = gz_data
+        .get(gz_data.len().checked_sub(4)?..)?
+        .try_into()
+        .ok()?;
     usize::try_from(u32::from_le_bytes(trailer)).ok()
 }
 
@@ -181,7 +191,9 @@ pub(crate) fn non_gzip_body_error(prefix_len: usize) -> TarballError {
     } else {
         DecodeErrorStatus::CorruptData
     };
-    TarballError::DecodeGzip(zune_inflate::errors::InflateDecodeErrors::new_with_error(status))
+    TarballError::DecodeGzip(zune_inflate::errors::InflateDecodeErrors::new_with_error(
+        status,
+    ))
 }
 
 /// First bytes of every gzip member, and all a reader needs to tell an
@@ -248,7 +260,11 @@ pub(crate) fn write_cas_entry(
     let (file_path, file_hash) = store_dir
         .write_cas_file(&file.data, file.executable)
         .map_err(TarballError::WriteCasFile)?;
-    Ok((file.cleaned_path.clone(), file_path, cafs_file_info(&file_hash, file.mode, file.size)))
+    Ok((
+        file.cleaned_path.clone(),
+        file_path,
+        cafs_file_info(&file_hash, file.mode, file.size),
+    ))
 }
 
 /// Build the [`CafsFileInfo`] index row for a freshly written CAS file.
@@ -257,9 +273,16 @@ pub(crate) fn cafs_file_info(file_hash: &FileHash, mode: u32, size: u64) -> Cafs
     // index schema (see `CafsFileInfo::checked_at`). Drop the timestamp
     // if the clock reports something unrepresentable — `checkedAt` is
     // optional and pnpm tolerates `None`.
-    let checked_at =
-        UNIX_EPOCH.elapsed().ok().and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok());
-    CafsFileInfo { digest: format!("{file_hash:x}"), mode, size, checked_at }
+    let checked_at = UNIX_EPOCH
+        .elapsed()
+        .ok()
+        .and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok());
+    CafsFileInfo {
+        digest: format!("{file_hash:x}"),
+        mode,
+        size,
+        checked_at,
+    }
 }
 
 /// Walk decompressed tar bytes, writing each regular-file entry into
@@ -291,10 +314,7 @@ pub(crate) fn extract_tarball_entries(
         .map_err(TarballError::ReadTarballEntries)?
         // `Err` entries pass the filter so the `?` below propagates
         // them rather than silently dropping a malformed archive.
-        .filter(|entry| match entry {
-            Ok(entry) => entry.header().entry_type().is_file(),
-            Err(_) => true,
-        });
+        .filter(is_regular_file_entry);
 
     let ((_, Some(capacity)) | (capacity, None)) = entries.size_hint();
 
@@ -331,7 +351,11 @@ pub(crate) fn extract_tarball_entries(
     }
 
     let written = write_pending_files(store_dir, &pending)?;
-    Ok(assemble_extract_output(written, manifest, manifest_build_scripts || file_build_hooks))
+    Ok(assemble_extract_output(
+        written,
+        manifest,
+        manifest_build_scripts || file_build_hooks,
+    ))
 }
 
 /// Hash and write a slice of pending files into the content-addressed
@@ -353,14 +377,20 @@ fn write_pending_files(
     const PARALLEL_EXTRACT_THRESHOLD: usize = 32;
     if pending.len() >= PARALLEL_EXTRACT_THRESHOLD {
         let write_all = || -> Result<Vec<(String, PathBuf, CafsFileInfo)>, TarballError> {
-            pending.par_iter().map(|file| write_cas_entry(store_dir, file)).collect()
+            pending
+                .par_iter()
+                .map(|file| write_cas_entry(store_dir, file))
+                .collect()
         };
         match cas_write_pool() {
             Some(pool) => pool.install(write_all),
             None => write_all(),
         }
     } else {
-        pending.iter().map(|file| write_cas_entry(store_dir, file)).collect()
+        pending
+            .iter()
+            .map(|file| write_cas_entry(store_dir, file))
+            .collect()
     }
 }
 
@@ -376,10 +406,16 @@ fn assemble_extract_output(
     let mut files = HashMap::with_capacity(written.len());
     for (path, file_path, info) in written {
         if let Some(previous) = cas_paths.insert(path.clone(), file_path) {
-            tracing::warn!(?previous, "Duplication detected. Old entry has been ejected");
+            tracing::warn!(
+                ?previous,
+                "Duplication detected. Old entry has been ejected",
+            );
         }
         if let Some(previous) = files.insert(path, info) {
-            tracing::warn!(?previous, "Duplication detected. Old entry has been ejected");
+            tracing::warn!(
+                ?previous,
+                "Duplication detected. Old entry has been ejected",
+            );
         }
     }
 
@@ -393,50 +429,6 @@ fn assemble_extract_output(
         remote_side_effects_quarantine: None,
     };
     (cas_paths, pkg_files_idx)
-}
-
-/// Validate and clean one archive entry path: reject traversal, drop
-/// the top-level package directory (`package/`), and join the remaining
-/// segments with forward slashes.
-///
-/// Rejected rather than normalized so a tampered tarball is visible
-/// instead of silently landing outside the store.
-///
-/// An entry that is only one segment long keeps that segment. Such an
-/// entry sits at the archive root — beside `package/`, or in a flat
-/// archive with no wrapping directory at all — so there is no
-/// top-level directory on it to drop, and pnpm keys it by its own name
-/// (`parseString` in `parseTarball.ts` advances past the first
-/// separator, which a single segment has none of). Dropping the segment
-/// instead would leave nothing to key the file by, and rejecting the
-/// entry would fail an archive that every other installer accepts. A
-/// lone `.` is the exception: it names the archive root rather than
-/// anything inside it, so there is no file for a key to address.
-///
-/// Joined by hand rather than with `PathBuf`, whose native separator
-/// would desynchronize these keys from pnpm's always-forward-slashed
-/// path layer and the `index.db` both implementations share. Callers
-/// pass the `to_string_lossy` rendering, which coerces non-UTF-8 bytes
-/// to U+FFFD per component.
-pub(crate) fn clean_archive_entry_path(raw: &str) -> Result<String, TarballError> {
-    let Some(mut parts) = archive_entry_segments(raw) else {
-        return Err(TarballError::ReadTarballEntries(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!(
-                "tar entry path rejected (non-normal component, possible directory traversal): {raw:?}",
-            ),
-        )));
-    };
-    if parts.as_slice() == ["."] {
-        return Err(TarballError::ReadTarballEntries(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("tar entry path names the archive root itself, not a file in it: {raw:?}"),
-        )));
-    }
-    if parts.len() > 1 {
-        parts.remove(0);
-    }
-    Ok(parts.join("/"))
 }
 
 /// Reject a `package.json` entry that claims more than
@@ -529,8 +521,7 @@ impl<'a> StreamingExtract<'a> {
         // `Some(size)` makes the store writer reject a short stream
         // before anything is committed to a content-addressed path, so a
         // truncated archive leaves no orphan blob behind.
-        let (file_path, file_hash, streamed_size) = self
-            .store_dir
+        let (file_path, file_hash, streamed_size) = self.store_dir
             .write_cas_file_from_reader(entry, meta.executable, Some(meta.size))
             .map_err(|error| match error {
                 WriteCasFileFromReaderError::Read(error) => TarballError::ReadTarballEntries(error),
@@ -555,39 +546,12 @@ impl<'a> StreamingExtract<'a> {
 
     fn finish(mut self) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
         self.flush()?;
-        Ok(assemble_extract_output(self.written, self.manifest, self.build_hooks))
+        Ok(assemble_extract_output(
+            self.written,
+            self.manifest,
+            self.build_hooks,
+        ))
     }
-}
-
-/// Split a published archive entry's path into its segments, rejecting
-/// anything that escapes the archive root.
-///
-/// `\` is treated as a separator, as pnpm does before it validates
-/// (`parseTarball.ts`). Without that, a Windows-built entry keeps its
-/// backslashes verbatim on Unix — where they are ordinary filename
-/// characters — and the resulting key travels through the `index.db`
-/// both implementations share to a reader that *does* treat them as
-/// separators.
-///
-/// A leading `.` is preserved because npm's `tar` counts it as the
-/// component removed by `strip: 1`. Other `.` components are ignored.
-///
-/// `None` for an absolute path or one climbing past the root.
-pub(crate) fn archive_entry_segments(raw: &str) -> Option<Vec<&str>> {
-    if raw.starts_with(['/', '\\']) {
-        return None;
-    }
-    let mut segments = Vec::new();
-    for (index, segment) in raw.split(['/', '\\']).enumerate() {
-        match segment {
-            "" => {}
-            "." if index == 0 => segments.push(segment),
-            "." => {}
-            ".." => return None,
-            other => segments.push(other),
-        }
-    }
-    (!segments.is_empty()).then_some(segments)
 }
 
 mod streaming;
@@ -599,3 +563,13 @@ use streaming::{
 
 mod manifest;
 use manifest::capture_bundled_manifest;
+
+fn is_regular_file_entry<Reader: Read>(entry: &std::io::Result<tar::Entry<'_, Reader>>) -> bool {
+    match entry {
+        Ok(entry) => entry
+            .header()
+            .entry_type()
+            .is_file(),
+        Err(_) => true,
+    }
+}

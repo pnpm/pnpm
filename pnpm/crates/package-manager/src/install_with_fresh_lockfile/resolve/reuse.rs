@@ -34,13 +34,19 @@ pub(in super::super) fn preferred_versions_seeds(
     wanted_lockfile: Option<&Lockfile>,
     importer_manifests: &BTreeMap<String, &PackageManifest>,
     overrides: Option<&PreferredVersions>,
-) -> (Arc<PreferredVersions>, BTreeMap<String, Arc<PreferredVersions>>) {
+) -> (
+    Arc<PreferredVersions>,
+    BTreeMap<String, Arc<PreferredVersions>>,
+) {
     use pnpm_lockfile_preferred_versions::{
         get_preferred_versions_from_lockfile_and_manifests as from_lockfile,
         get_preferred_versions_from_lockfile_and_manifests_excluding as from_lockfile_excluding,
     };
 
-    let manifests: Vec<&PackageManifest> = importer_manifests.values().copied().collect();
+    let manifests: Vec<&PackageManifest> = importer_manifests
+        .values()
+        .copied()
+        .collect();
     let snapshots = wanted_lockfile.and_then(|lockfile| lockfile.snapshots.as_ref());
 
     let mut workspace_seed = match update_seed_policy {
@@ -129,7 +135,10 @@ pub(super) fn merge_preferred_versions(
 ) {
     let Some(overrides) = overrides else { return };
     for (name, selectors) in overrides {
-        seed.entry(name.clone()).or_default().extend(selectors.clone());
+        seed
+            .entry(name.clone())
+            .or_default()
+            .extend(selectors.clone());
     }
 }
 /// Which lockfile pins `pacquet update` withholds from the seed, so its
@@ -196,17 +205,8 @@ impl ReuseSeedInputs<'_> {
 pub(in super::super) async fn lockfile_reuse_seed(
     inputs: ReuseSeedInputs<'_>,
 ) -> Option<Arc<Lockfile>> {
-    use crate::fast_update_catalogs::{FastCatalogUpdate, try_fast_update_catalogs};
-
     let overrides_use_catalogs = overrides_use_catalogs(inputs.config);
-    let (catalogs_match, fast_catalog_seed) =
-        match inputs.lockfile.wanted.map_or(FastCatalogUpdate::Unchanged, |lockfile| {
-            try_fast_update_catalogs(lockfile, inputs.catalogs, overrides_use_catalogs)
-        }) {
-            FastCatalogUpdate::Unchanged => (true, None),
-            FastCatalogUpdate::Updated(lockfile) => (false, Some(*lockfile)),
-            FastCatalogUpdate::Unsupported => (false, None),
-        };
+    let (catalogs_match, fast_catalog_seed) = fast_catalog_reuse(&inputs, overrides_use_catalogs);
 
     let lockfile =
         inputs.lockfile.wanted.filter(|lockfile| inputs.package_settings_match(lockfile))?;
@@ -229,7 +229,11 @@ pub(in super::super) async fn lockfile_reuse_seed(
     let can_rewrite_catalogs = inputs.fast_override_eligible && !overrides_use_catalogs;
 
     let catalog_rewrite = match rewritten_catalogs(
-        CatalogRewriteInputs { catalogs_match, fast_catalog_seed, can_rewrite_catalogs },
+        CatalogRewriteInputs {
+            catalogs_match,
+            fast_catalog_seed,
+            can_rewrite_catalogs,
+        },
         inputs.rewrite_context(lockfile, rewrite_manifest_hook.as_ref()),
         inputs.catalogs,
     )
@@ -270,8 +274,10 @@ pub(super) async fn reuse_or_rewrite_overrides(
         return None;
     }
     let seed = try_fast_update_overrides(FastOverrideOptions {
-        context: inputs
-            .rewrite_context(catalog_rewrite.as_ref().unwrap_or(lockfile), rewrite_manifest_hook),
+        context: inputs.rewrite_context(
+            catalog_rewrite.as_ref().unwrap_or(lockfile),
+            rewrite_manifest_hook,
+        ),
         parsed_overrides: inputs.lockfile.parsed_overrides?,
         resolved_overrides: inputs.lockfile.resolved_overrides?,
     })
@@ -279,10 +285,13 @@ pub(super) async fn reuse_or_rewrite_overrides(
     Some(Arc::new(seed))
 }
 pub(super) fn overrides_use_catalogs(config: &Config) -> bool {
-    config
-        .overrides
+    config.overrides
         .as_ref()
-        .is_some_and(|overrides| overrides.values().any(|value| value.starts_with("catalog:")))
+        .is_some_and(|overrides| {
+            overrides
+                .values()
+                .any(|value| value.starts_with("catalog:"))
+        })
 }
 /// What the workspace's catalogs did to the lockfile the reuse seed starts
 /// from.
@@ -322,5 +331,20 @@ pub(super) async fn rewritten_catalogs(
     {
         Some(seed) => CatalogRewrite::Rewritten(Box::new(seed)),
         None => CatalogRewrite::Unsupported,
+    }
+}
+
+fn fast_catalog_reuse(
+    inputs: &ReuseSeedInputs<'_>,
+    overrides_use_catalogs: bool,
+) -> (bool, Option<Lockfile>) {
+    use crate::fast_update_catalogs::{FastCatalogUpdate, try_fast_update_catalogs};
+
+    match inputs.lockfile.wanted.map_or(FastCatalogUpdate::Unchanged, |lockfile| {
+        try_fast_update_catalogs(lockfile, inputs.catalogs, overrides_use_catalogs)
+    }) {
+        FastCatalogUpdate::Unchanged => (true, None),
+        FastCatalogUpdate::Updated(lockfile) => (false, Some(*lockfile)),
+        FastCatalogUpdate::Unsupported => (false, None),
     }
 }

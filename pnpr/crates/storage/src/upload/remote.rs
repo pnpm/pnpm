@@ -1,3 +1,5 @@
+mod sweep;
+
 use super::{BlobUpload, BlobUploadWriter, generate_upload_id, is_upload_id};
 use crate::s3::send_parts;
 use futures_util::StreamExt;
@@ -55,7 +57,11 @@ pub(super) struct RemoteChunk {
 
 impl RemoteUploadStore {
     pub(crate) fn new(store: Arc<dyn ObjectStore>, prefix: &str, scratch: PathBuf) -> Self {
-        Self { store, prefix: format!("{prefix}.pnpr-uploads/"), scratch }
+        Self {
+            store,
+            prefix: format!("{prefix}.pnpr-uploads/"),
+            scratch,
+        }
     }
 
     fn key(&self, id: &str, object: &str) -> Path {
@@ -73,30 +79,44 @@ impl RemoteUploadStore {
             version: result.meta.version.clone(),
         };
         let record: UploadRecord = serde_json::from_slice(&result.bytes().await?)?;
-        if record.chunks.len() > MAX_CHUNKS || record.chunks.iter().any(|id| !is_upload_id(id)) {
-            return Err(RegistryError::Internal { reason: "invalid upload chunk list".into() });
+        if record.chunks.len() > MAX_CHUNKS
+            || record.chunks
+                .iter()
+                .any(|id| !is_upload_id(id))
+        {
+            return Err(RegistryError::Internal {
+                reason: "invalid upload chunk list".into(),
+            });
         }
-        Ok(Some(VersionedRecord { record, version }))
+        Ok(Some(VersionedRecord {
+            record,
+            version,
+        }))
     }
 
     async fn write(&self, id: &str, record: &UploadRecord, mode: PutMode) -> Result<UpdateVersion> {
-        let result = self
-            .store
+        let result = self.store
             .put_opts(
                 &self.key(id, "session.json"),
                 serde_json::to_vec(record)?.into(),
-                PutOptions { mode, ..Default::default() },
+                PutOptions {
+                    mode,
+                    ..Default::default()
+                },
             )
             .await
             .map_err(|error| match error {
                 object_store::Error::Precondition { .. }
                 | object_store::Error::AlreadyExists { .. }
-                | object_store::Error::NotFound { .. } => {
-                    RegistryError::BlobUploadConflict { id: id.to_string() }
-                }
+                | object_store::Error::NotFound { .. } => RegistryError::BlobUploadConflict {
+                    id: id.to_string(),
+                },
                 error => error.into(),
             })?;
-        Ok(UpdateVersion { e_tag: result.e_tag, version: result.version })
+        Ok(UpdateVersion {
+            e_tag: result.e_tag,
+            version: result.version,
+        })
     }
 
     async fn temp(&self) -> Result<TempPath> {
@@ -128,7 +148,14 @@ impl RemoteUploadStore {
             completion: None,
         };
         let version = self.write(&id, &record, PutMode::Create).await?;
-        self.handle(&id, VersionedRecord { record, version }).await
+        self.handle(
+            &id,
+            VersionedRecord {
+                record,
+                version,
+            },
+        )
+        .await
     }
 
     pub(super) async fn open(
@@ -136,7 +163,9 @@ impl RemoteUploadStore {
         repository: &CanonicalPackageName,
         id: &str,
     ) -> Result<Option<BlobUpload>> {
-        let Some(state) = self.read(id).await? else { return Ok(None) };
+        let Some(state) = self.read(id).await? else {
+            return Ok(None);
+        };
         if state.record.closed || state.record.repository != repository.as_str() {
             return Ok(None);
         }
@@ -144,12 +173,16 @@ impl RemoteUploadStore {
     }
 
     pub(super) async fn abort(&self, id: &str) -> Result<bool> {
-        let Some(mut state) = self.read(id).await? else { return Ok(false) };
+        let Some(mut state) = self.read(id).await? else {
+            return Ok(false);
+        };
         if state.record.closed {
             return Ok(false);
         }
         if state.record.completion.is_some() {
-            return Err(RegistryError::BlobUploadConflict { id: id.to_string() });
+            return Err(RegistryError::BlobUploadConflict {
+                id: id.to_string(),
+            });
         }
         state.record.closed = true;
         self.write(id, &state.record, PutMode::Update(state.version)).await?;
@@ -176,136 +209,6 @@ impl RemoteUploadStore {
             Err(error) => Err(error.into()),
         }
     }
-
-    pub(super) async fn sweep(&self, max_age: Duration) -> Result<usize> {
-        let mut listing = self.store.list(Some(&Path::from(self.prefix.clone())));
-        let mut swept = 0;
-        let mut state = SweepState::default();
-        while let Some(meta) = listing.next().await {
-            let meta = meta?;
-            let Some(relative) = meta.location.as_ref().strip_prefix(&self.prefix) else {
-                continue;
-            };
-            let Some((id, object)) = relative.split_once('/') else { continue };
-            let age = std::time::SystemTime::from(meta.last_modified).elapsed().unwrap_or_default();
-            if !is_upload_id(id) || age <= max_age || state.unreadable.contains(id) {
-                continue;
-            }
-            if self.expire_upload_object(id, object, &meta, &mut state).await? {
-                swept += 1;
-            }
-        }
-        Ok(swept)
-    }
-
-    /// Expire one listed object of an upload no longer being written to,
-    /// reporting whether the upload itself was reclaimed.
-    async fn expire_upload_object(
-        &self,
-        id: &str,
-        object: &str,
-        meta: &object_store::ObjectMeta,
-        state: &mut SweepState,
-    ) -> Result<bool> {
-        if object == "session.json" {
-            return self.expire_upload_session(id, meta, state).await;
-        }
-        self.expire_upload_chunk(id, meta, state).await?;
-        Ok(false)
-    }
-
-    /// Drop a chunk whose session is already closed or gone. A chunk of a live
-    /// session stays: the push may still be running.
-    async fn expire_upload_chunk(
-        &self,
-        id: &str,
-        meta: &object_store::ObjectMeta,
-        state: &mut SweepState,
-    ) -> Result<()> {
-        if let Some(live) = state.sessions.get(id) {
-            if !live {
-                self.remove(&meta.location).await?;
-            }
-            return Ok(());
-        }
-        let record = match self.sweep_session(id, state).await? {
-            SweepSession::Record(record) => record,
-            SweepSession::Missing => {
-                state.sessions.insert(id.to_string(), false);
-                self.remove(&meta.location).await?;
-                return Ok(());
-            }
-            SweepSession::Unreadable => return Ok(()),
-        };
-        state.sessions.insert(id.to_string(), !record.record.closed);
-        if record.record.closed {
-            self.remove(&meta.location).await?;
-        }
-        Ok(())
-    }
-
-    /// Close an expired session and reclaim what it left behind.
-    async fn expire_upload_session(
-        &self,
-        id: &str,
-        meta: &object_store::ObjectMeta,
-        state: &mut SweepState,
-    ) -> Result<bool> {
-        let mut record = match self.sweep_session(id, state).await? {
-            SweepSession::Record(record) => record,
-            SweepSession::Missing => {
-                state.sessions.insert(id.to_string(), false);
-                self.remove(&meta.location).await?;
-                return Ok(false);
-            }
-            SweepSession::Unreadable => return Ok(false),
-        };
-        // The listing may predate a successful append. Compare the listed
-        // version, never a freshly read version, when expiring it.
-        record.record.closed = true;
-        let version = UpdateVersion { e_tag: meta.e_tag.clone(), version: meta.version.clone() };
-        match self.write(id, &record.record, PutMode::Update(version)).await {
-            Ok(_) => {}
-            Err(RegistryError::BlobUploadConflict { .. }) => return Ok(false),
-            Err(error) => return Err(error),
-        }
-        state.sessions.insert(id.to_string(), false);
-        self.remove_chunks(id).await?;
-        self.remove(&meta.location).await?;
-        Ok(true)
-    }
-
-    /// Read an upload's session record, remembering an unreadable one so the
-    /// rest of the sweep leaves that upload alone.
-    async fn sweep_session(&self, id: &str, state: &mut SweepState) -> Result<SweepSession> {
-        match self.read(id).await {
-            Ok(Some(record)) => Ok(SweepSession::Record(record)),
-            Ok(None) => Ok(SweepSession::Missing),
-            Err(error) => {
-                tracing::warn!(error = %error.log_message(), upload = id, "skipping unreadable upload session");
-                state.unreadable.insert(id.to_string());
-                Ok(SweepSession::Unreadable)
-            }
-        }
-    }
-}
-
-/// What one sweep has learned about the uploads it has listed so far.
-#[derive(Default)]
-struct SweepState {
-    /// Whether an upload id's session is still open.
-    sessions: HashMap<String, bool>,
-    /// Upload ids whose session object could not be read this sweep.
-    unreadable: HashSet<String>,
-}
-
-/// An upload's session as this sweep found it.
-enum SweepSession {
-    Record(VersionedRecord),
-    /// The session object is gone, so anything left under the id is orphaned.
-    Missing,
-    /// The session could not be read; leave the whole upload alone.
-    Unreadable,
 }
 
 impl RemoteUpload {
@@ -335,8 +238,10 @@ impl RemoteUpload {
         }
         let mut file = fs::File::create(path).await?;
         for chunk in &state.record.chunks {
-            let mut stream =
-                self.backend.store.get(&self.backend.key(&self.id, chunk)).await?.into_stream();
+            let mut stream = self.backend.store
+                .get(&self.backend.key(&self.id, chunk))
+                .await?
+                .into_stream();
             while let Some(bytes) = stream.next().await {
                 file.write_all(&bytes?).await?;
             }
@@ -350,15 +255,22 @@ impl RemoteUpload {
     pub(super) async fn prepare_completion(&self, filename: &str) -> Result<()> {
         let mut state = self.state.lock().await;
         if state.record.closed
-            || state.record.completion.as_deref().is_some_and(|value| value != filename)
+            || state.record.completion
+                .as_deref()
+                .is_some_and(|value| value != filename)
         {
-            return Err(RegistryError::BlobUploadConflict { id: self.id.clone() });
+            return Err(RegistryError::BlobUploadConflict {
+                id: self.id.clone(),
+            });
         }
         let mut record = state.record.clone();
         record.completion = Some(filename.to_string());
         let version =
             self.backend.write(&self.id, &record, PutMode::Update(state.version.clone())).await?;
-        *state = VersionedRecord { record, version };
+        *state = VersionedRecord {
+            record,
+            version,
+        };
         Ok(())
     }
 
@@ -368,7 +280,10 @@ impl RemoteUpload {
         record.closed = true;
         let version =
             self.backend.write(&self.id, &record, PutMode::Update(state.version.clone())).await?;
-        *state = VersionedRecord { record, version };
+        *state = VersionedRecord {
+            record,
+            version,
+        };
         if let Err(error) = self.backend.remove_chunks(&self.id).await {
             tracing::warn!(%error, upload = self.id, "completed upload chunks await expiry cleanup");
         }
@@ -377,40 +292,53 @@ impl RemoteUpload {
 }
 
 impl RemoteChunk {
+    async fn unchanged_offset(&self) -> Result<u64> {
+        let current = self.upload.backend.read(&self.upload.id).await?;
+        if current.is_none_or(|current| current.record.closed || current.version != self.version) {
+            return Err(RegistryError::BlobUploadConflict {
+                id: self.upload.id.clone(),
+            });
+        }
+        Ok(self.snapshot.size)
+    }
+
     pub(super) async fn commit(mut self, size: u64) -> Result<u64> {
         if size == 0 {
-            let current = self.upload.backend.read(&self.upload.id).await?;
-            if current
-                .is_none_or(|current| current.record.closed || current.version != self.version)
-            {
-                return Err(RegistryError::BlobUploadConflict { id: self.upload.id.clone() });
-            }
-            return Ok(self.snapshot.size);
+            return self.unchanged_offset().await;
         }
         if self.snapshot.closed || self.snapshot.completion.is_some() {
-            return Err(RegistryError::BlobUploadConflict { id: self.upload.id.clone() });
+            return Err(RegistryError::BlobUploadConflict {
+                id: self.upload.id.clone(),
+            });
         }
         if self.snapshot.chunks.len() == MAX_CHUNKS {
-            return Err(RegistryError::BadRequest { reason: "upload has too many chunks".into() });
+            return Err(RegistryError::BadRequest {
+                reason: "upload has too many chunks".into(),
+            });
         }
         let chunk = generate_upload_id();
         let key = self.upload.backend.key(&self.upload.id, &chunk);
         let mut multipart = self.upload.backend.store.put_multipart(&key).await?;
         send_parts(&self.path, multipart.as_mut()).await?;
         self.snapshot.chunks.push(chunk);
-        self.snapshot.size =
-            self.snapshot.size.checked_add(size).ok_or_else(|| RegistryError::BadRequest {
+        self.snapshot.size = self.snapshot.size
+            .checked_add(size)
+            .ok_or_else(|| RegistryError::BadRequest {
                 reason: "upload size overflow".into(),
             })?;
         // An uncertain write may have committed. Leave its chunk until session
         // expiry, when no append can make the chunk reachable anymore.
-        let version = self
-            .upload
-            .backend
-            .write(&self.upload.id, &self.snapshot, PutMode::Update(self.version))
-            .await?;
+        let version = self.upload.backend.write(
+            &self.upload.id,
+            &self.snapshot,
+            PutMode::Update(self.version),
+        )
+        .await?;
         let offset = self.snapshot.size;
-        *self.upload.state.lock().await = VersionedRecord { record: self.snapshot, version };
+        *self.upload.state.lock().await = VersionedRecord {
+            record: self.snapshot,
+            version,
+        };
         Ok(offset)
     }
 }

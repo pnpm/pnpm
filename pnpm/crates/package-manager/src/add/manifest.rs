@@ -138,7 +138,9 @@ pub(super) fn catalog_version_request(
         .dependencies(DIRECT_GROUPS)
         .find_map(|(name, specifier)| (name == alias).then_some(specifier));
     let catalog_name = crate::per_dep_catalog_name(previous, save_catalog_name);
-    let entry = catalogs.get(catalog_name).and_then(|catalog| catalog.get(&alias))?;
+    let entry = catalogs
+        .get(catalog_name)
+        .and_then(|catalog| catalog.get(&alias))?;
     if !crate::catalog_covers(entry, &wanted) {
         return None;
     }
@@ -219,9 +221,18 @@ pub(super) fn guess_dependency_group(
     manifest: &PackageManifest,
     name: &str,
 ) -> Option<DependencyGroup> {
-    [DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Peer]
-        .into_iter()
-        .find(|&group| manifest.dependencies([group]).any(|(dep, _)| dep == name))
+    [
+        DependencyGroup::Optional,
+        DependencyGroup::Prod,
+        DependencyGroup::Dev,
+        DependencyGroup::Peer,
+    ]
+    .into_iter()
+    .find(|&group| {
+        manifest
+            .dependencies([group])
+            .any(|(dep, _)| dep == name)
+    })
 }
 /// Resolve every selector against `catalogs` concurrently, then apply them
 /// to `manifest`.
@@ -302,8 +313,11 @@ pub(super) fn read_catalog_ctx(
     manifest: &PackageManifest,
     config: &Config,
 ) -> Result<AddCatalogCtx, AddError> {
-    let manifest_dir =
-        manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
+    let manifest_dir = manifest
+        .path()
+        .parent()
+        .expect("manifest path always has a parent dir")
+        .to_path_buf();
     let workspace_dir_opt =
         pnpm_workspace::find_workspace_dir(&manifest_dir).map_err(AddError::FindWorkspaceDir)?;
     let catalogs = if let Some(catalogs) = config.catalogs.clone() {
@@ -319,11 +333,17 @@ pub(super) fn read_catalog_ctx(
     };
     let workspace_dir = workspace_dir_opt.unwrap_or(manifest_dir);
     let prefix = workspace_dir.to_string_lossy().into_owned();
-    Ok(AddCatalogCtx { catalogs, workspace_dir, prefix })
+    Ok(AddCatalogCtx {
+        catalogs,
+        workspace_dir,
+        prefix,
+    })
 }
 pub(super) fn merge_catalogs(target: &mut Catalogs, updates: &Catalogs) {
     for (catalog_name, entries) in updates {
-        let catalog = target.entry(catalog_name.clone()).or_default();
+        let catalog = target
+            .entry(catalog_name.clone())
+            .or_default();
         for (dependency, specifier) in entries {
             catalog.insert(dependency.clone(), specifier.clone());
         }
@@ -345,7 +365,10 @@ pub(super) fn persist_manifest<Reporter: self::Reporter>(
     let prefix = package_manifest_prefix(manifest);
     Reporter::emit(&LogEvent::PackageManifest(PackageManifestLog {
         level: LogLevel::Debug,
-        message: PackageManifestMessage::Updated { prefix, updated },
+        message: PackageManifestMessage::Updated {
+            prefix,
+            updated,
+        },
     }));
     Ok(())
 }

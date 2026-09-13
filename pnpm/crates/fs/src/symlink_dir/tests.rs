@@ -18,8 +18,14 @@ use tempfile::tempdir;
 #[test]
 fn unix_symlink_contents_are_relative_to_link_parent() {
     let root = tempdir().expect("create temp dir");
-    let target = root.path().join("packages").join("pkg-a");
-    let link = root.path().join("node_modules").join("pkg-a");
+    let target = root
+        .path()
+        .join("packages")
+        .join("pkg-a");
+    let link = root
+        .path()
+        .join("node_modules")
+        .join("pkg-a");
     fs::create_dir_all(&target).expect("create target dir");
     fs::create_dir_all(link.parent().unwrap()).expect("create link parent");
 
@@ -31,7 +37,10 @@ fn unix_symlink_contents_are_relative_to_link_parent() {
         std::path::PathBuf::from("..").join("packages").join("pkg-a"),
         "symlink contents must be the relative path from link parent to target",
     );
-    assert!(link.exists(), "symlink must resolve to an existing directory");
+    assert!(
+        link.exists(),
+        "symlink must resolve to an existing directory",
+    );
 }
 
 #[test]
@@ -45,9 +54,15 @@ fn force_symlink_dir_resolves_parent_components_in_link_and_target() {
 
     force_symlink_dir(&target, &link).unwrap();
 
-    assert_eq!(fs::canonicalize(&link).unwrap(), fs::canonicalize(&target).unwrap());
+    assert_eq!(
+        fs::canonicalize(&link).unwrap(),
+        fs::canonicalize(&target).unwrap(),
+    );
     #[cfg(unix)]
-    assert_eq!(fs::read_link(&link).unwrap(), std::path::Path::new("../../b"));
+    assert_eq!(
+        fs::read_link(&link).unwrap(),
+        std::path::Path::new("../../b"),
+    );
     let outcome = force_symlink_dir(&workspace.join("../../libs/b"), &link).unwrap();
     eprintln!("reuse outcome: {outcome:?}");
     assert!(outcome.reused);
@@ -63,14 +78,20 @@ fn force_symlink_dir_returns_reused_when_already_pointing_at_target() {
     let first = force_symlink_dir(&target, &link).expect("first call");
     assert_eq!(
         first,
-        ForceSymlinkOutcome { reused: false, warning: None },
+        ForceSymlinkOutcome {
+            reused: false,
+            warning: None
+        },
         "first call creates the link, not reused",
     );
 
     let second = force_symlink_dir(&target, &link).expect("second call");
     assert_eq!(
         second,
-        ForceSymlinkOutcome { reused: true, warning: None },
+        ForceSymlinkOutcome {
+            reused: true,
+            warning: None
+        },
         "second call with the same target must be a no-op reuse",
     );
 }
@@ -94,7 +115,10 @@ fn force_symlink_inner_surfaces_concurrent_cleanup_warnings() {
         .expect("completed link should be reused");
 
     assert!(outcome.reused);
-    assert_eq!(outcome.warning.as_deref(), Some("staged junction cleanup failed"));
+    assert_eq!(
+        outcome.warning.as_deref(),
+        Some("staged junction cleanup failed"),
+    );
 }
 
 #[test]
@@ -109,12 +133,18 @@ fn force_symlink_dir_retargets_a_stale_symlink() {
     force_symlink_dir(&stale_target, &link).expect("seed stale link");
     let outcome =
         force_symlink_dir(&fresh_target, &link).expect("force-overwrite to the fresh target");
-    assert!(!outcome.reused, "the link pointed at the wrong target, so this should be a rewrite");
+    assert!(
+        !outcome.reused,
+        "the link pointed at the wrong target, so this should be a rewrite",
+    );
 
     // Use the canonical paths to dodge `/private/tmp` vs `/tmp` aliasing.
     let resolved = fs::canonicalize(&link).expect("canonicalize the new link");
     let want = fs::canonicalize(&fresh_target).expect("canonicalize fresh target");
-    assert_eq!(resolved, want, "symlink must now resolve to the fresh target");
+    assert_eq!(
+        resolved, want,
+        "symlink must now resolve to the fresh target",
+    );
 }
 
 #[test]
@@ -126,8 +156,14 @@ fn force_symlink_dir_moves_non_symlink_occupant_to_ignored_name() {
     fs::write(&link, b"squatting on the link slot").expect("seed occupant file");
 
     let outcome = force_symlink_dir(&target, &link).expect("force_symlink_dir succeeds");
-    assert!(!outcome.reused, "we wrote a fresh link over an occupant — not a reuse");
-    assert!(outcome.warning.is_some(), "warning must be set when an occupant was moved aside");
+    assert!(
+        !outcome.reused,
+        "we wrote a fresh link over an occupant — not a reuse",
+    );
+    assert!(
+        outcome.warning.is_some(),
+        "warning must be set when an occupant was moved aside",
+    );
     let warning = outcome.warning.unwrap();
     assert!(
         warning.contains(".ignored_link"),
@@ -138,7 +174,10 @@ fn force_symlink_dir_moves_non_symlink_occupant_to_ignored_name() {
     let resolved_target = fs::canonicalize(&target).expect("canonicalize target");
     assert_eq!(resolved_link, resolved_target);
     let ignored_path = root.path().join(".ignored_link");
-    assert!(ignored_path.is_file(), "displaced occupant must live at {ignored_path:?}");
+    assert!(
+        ignored_path.is_file(),
+        "displaced occupant must live at {ignored_path:?}",
+    );
 }
 
 #[test]
@@ -189,9 +228,11 @@ fn remove_occupant_clears_files_directories_and_missing_paths() {
 fn rename_error_allows_destination_removal_covers_occupied_and_locked_destinations() {
     use std::io::{Error, ErrorKind};
 
-    for kind in
-        [ErrorKind::AlreadyExists, ErrorKind::DirectoryNotEmpty, ErrorKind::PermissionDenied]
-    {
+    for kind in [
+        ErrorKind::AlreadyExists,
+        ErrorKind::DirectoryNotEmpty,
+        ErrorKind::PermissionDenied,
+    ] {
         assert!(
             super::replace::rename_error_allows_destination_removal(&Error::from(kind)),
             "{kind:?}",
@@ -203,22 +244,39 @@ fn rename_error_allows_destination_removal_covers_occupied_and_locked_destinatio
         )),
         cfg!(windows),
     );
-    assert!(!super::replace::rename_error_allows_destination_removal(&Error::from(
-        ErrorKind::NotFound
-    )));
+    assert!(!super::replace::rename_error_allows_destination_removal(
+        &Error::from(ErrorKind::NotFound)
+    ));
 }
 
 #[test]
 fn force_symlink_dir_creates_missing_parent_directories() {
     let root = tempdir().expect("create temp dir");
     let target = root.path().join("target");
-    let link = root.path().join("deeply").join("nested").join("modules").join("link");
+    let link = root
+        .path()
+        .join("deeply")
+        .join("nested")
+        .join("modules")
+        .join("link");
     fs::create_dir_all(&target).expect("create target");
-    assert!(!link.parent().unwrap().exists(), "parent chain must be missing before the call");
+    assert!(
+        !link
+            .parent()
+            .unwrap()
+            .exists(),
+        "parent chain must be missing before the call",
+    );
 
     let outcome =
         force_symlink_dir(&target, &link).expect("force_symlink_dir creates parents and link");
-    assert_eq!(outcome, ForceSymlinkOutcome { reused: false, warning: None });
+    assert_eq!(
+        outcome,
+        ForceSymlinkOutcome {
+            reused: false,
+            warning: None
+        },
+    );
     let resolved_link = fs::canonicalize(&link).expect("canonicalize the new symlink");
     let resolved_target = fs::canonicalize(&target).expect("canonicalize target");
     assert_eq!(resolved_link, resolved_target);
@@ -243,13 +301,19 @@ fn windows_scoped_alias_path_gets_native_separators() {
     let mixed = std::path::Path::new(r"C:\store\v11\links\@\pkg\1.0.0\hash\node_modules")
         .join("@scope/name");
     assert!(
-        mixed.as_os_str().to_string_lossy().contains('/'),
+        mixed
+            .as_os_str()
+            .to_string_lossy()
+            .contains('/'),
         "the join must leave a forward slash for the rewrite to remove: {mixed:?}",
     );
 
     let native = to_native_separators(&mixed);
     assert!(
-        !native.as_os_str().to_string_lossy().contains('/'),
+        !native
+            .as_os_str()
+            .to_string_lossy()
+            .contains('/'),
         "no forward slash may survive into the symlink syscall: {native:?}",
     );
     assert_eq!(
@@ -267,7 +331,10 @@ fn windows_verbatim_path_forward_slashes_are_rewritten() {
         std::path::Path::new(r"\\?\C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\@scope/name");
     let native = to_native_separators(verbatim);
     assert!(
-        !native.as_os_str().to_string_lossy().contains('/'),
+        !native
+            .as_os_str()
+            .to_string_lossy()
+            .contains('/'),
         "no forward slash may survive into the symlink syscall: {native:?}",
     );
     assert_eq!(
@@ -280,7 +347,10 @@ fn windows_verbatim_path_forward_slashes_are_rewritten() {
 #[test]
 fn windows_native_path_is_borrowed_unchanged() {
     let native = std::path::Path::new(r"C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\dep");
-    assert!(matches!(to_native_separators(native), std::borrow::Cow::Borrowed(_)));
+    assert!(matches!(
+        to_native_separators(native),
+        std::borrow::Cow::Borrowed(_)
+    ));
     assert_eq!(to_native_separators(native).as_ref(), native);
 }
 
@@ -296,27 +366,42 @@ fn windows_native_path_is_borrowed_unchanged() {
 #[test]
 fn windows_force_symlink_dir_repairs_dangling_junction_parent() {
     let root = tempdir().expect("create temp dir");
-    let target = root.path().join("store").join("dep").join("node_modules").join("dep");
+    let target = root
+        .path()
+        .join("store")
+        .join("dep")
+        .join("node_modules")
+        .join("dep");
     fs::create_dir_all(&target).expect("create target dir");
 
     // Build a slot `node_modules` that is a dangling junction: point it at
     // a directory, then delete that directory. Windows keeps the reparse
     // point (with the directory attribute) but its target is now missing —
     // the state a cache restore leaves behind.
-    let node_modules = root.path().join("store").join("consumer").join("node_modules");
+    let node_modules = root
+        .path()
+        .join("store")
+        .join("consumer")
+        .join("node_modules");
     let junction_target = root.path().join("gone");
     fs::create_dir_all(node_modules.parent().unwrap()).expect("create slot dir");
     fs::create_dir_all(&junction_target).expect("create junction target");
     junction::create(&junction_target, &node_modules).expect("create junction");
     fs::remove_dir_all(&junction_target).expect("delete junction target -> dangling");
-    assert!(is_reparse_point(&node_modules), "node_modules must be a dangling reparse point");
+    assert!(
+        is_reparse_point(&node_modules),
+        "node_modules must be a dangling reparse point",
+    );
 
     let link = node_modules.join("dep");
     force_symlink_dir(&target, &link).expect("force_symlink_dir must repair the parent and link");
 
     let resolved_link = fs::canonicalize(&link).expect("canonicalize the repaired symlink");
     let resolved_target = fs::canonicalize(&target).expect("canonicalize target");
-    assert_eq!(resolved_link, resolved_target, "the link must resolve to the real target");
+    assert_eq!(
+        resolved_link, resolved_target,
+        "the link must resolve to the real target",
+    );
 }
 
 #[cfg(windows)]
@@ -327,7 +412,9 @@ fn windows_concurrent_junction_creation_reuses_one_link() {
     fs::create_dir_all(&target).expect("create target");
 
     for iteration in 0..10 {
-        let link = root.path().join(format!("link-{iteration}"));
+        let link = root
+            .path()
+            .join(format!("link-{iteration}"));
         let barrier = std::sync::Barrier::new(32);
         let outcomes = std::thread::scope(|scope| {
             let handles: Vec<_> = (0..32)
@@ -354,7 +441,10 @@ fn windows_concurrent_junction_creation_reuses_one_link() {
             .map(|result| result.expect("concurrent junction creation must succeed"))
             .collect();
         assert_eq!(
-            outcomes.iter().filter(|outcome| !outcome.reused).count(),
+            outcomes
+                .iter()
+                .filter(|outcome| !outcome.reused)
+                .count(),
             1,
             "one worker must create the junction and every other worker must reuse it",
         );
@@ -407,8 +497,12 @@ fn windows_verbatim_and_plain_disk_resolve_to_same_root() {
 #[cfg(windows)]
 #[test]
 fn windows_error_directory_falls_back_to_junctions() {
-    assert!(super::windows::should_fallback_to_junction(&std::io::Error::from_raw_os_error(267)));
-    assert!(!super::windows::should_fallback_to_junction(&std::io::Error::from_raw_os_error(123)));
+    assert!(super::windows::should_fallback_to_junction(
+        &std::io::Error::from_raw_os_error(267)
+    ));
+    assert!(!super::windows::should_fallback_to_junction(
+        &std::io::Error::from_raw_os_error(123)
+    ));
 }
 
 /// `ERROR_PRIVILEGE_NOT_HELD` (1314) — symlink creation without
@@ -426,8 +520,16 @@ fn windows_privilege_not_held_falls_back_to_junctions() {
 #[test]
 fn force_symlink_dir_links_a_scoped_alias() {
     let root = tempdir().expect("create temp dir");
-    let target = root.path().join("store").join("node_modules").join("@scope").join("name");
-    let modules = root.path().join("app").join("node_modules");
+    let target = root
+        .path()
+        .join("store")
+        .join("node_modules")
+        .join("@scope")
+        .join("name");
+    let modules = root
+        .path()
+        .join("app")
+        .join("node_modules");
     let link = modules.join("@scope/name");
     fs::create_dir_all(&target).expect("create target dir");
 
@@ -455,10 +557,18 @@ fn read_symlink_dir_reads_back_what_force_symlink_dir_wrote() {
     let resolved_read = if read.is_absolute() {
         fs::canonicalize(&read)
     } else {
-        fs::canonicalize(link.parent().unwrap().join(&read))
+        fs::canonicalize(
+            link
+                .parent()
+                .unwrap()
+                .join(&read),
+        )
     }
     .expect("canonicalize read-back path");
-    assert_eq!(resolved_read, fs::canonicalize(&target).expect("canonicalize target"));
+    assert_eq!(
+        resolved_read,
+        fs::canonicalize(&target).expect("canonicalize target"),
+    );
 }
 
 /// Same reuse contract when the link lives in a *different* parent
@@ -471,12 +581,28 @@ fn read_symlink_dir_reads_back_what_force_symlink_dir_wrote() {
 #[test]
 fn force_symlink_dir_reuses_relative_link_across_parents() {
     let root = tempdir().expect("create temp dir");
-    let target = root.path().join("store").join("b@2").join("node_modules").join("b");
-    let link = root.path().join("store").join("a@1").join("node_modules").join("b");
+    let target = root
+        .path()
+        .join("store")
+        .join("b@2")
+        .join("node_modules")
+        .join("b");
+    let link = root
+        .path()
+        .join("store")
+        .join("a@1")
+        .join("node_modules")
+        .join("b");
     fs::create_dir_all(&target).expect("create target dir");
 
     let first = force_symlink_dir(&target, &link).expect("first call");
-    assert_eq!(first, ForceSymlinkOutcome { reused: false, warning: None });
+    assert_eq!(
+        first,
+        ForceSymlinkOutcome {
+            reused: false,
+            warning: None
+        },
+    );
     #[cfg(unix)]
     {
         let contents = fs::read_link(&link).expect("read link");
@@ -489,7 +615,10 @@ fn force_symlink_dir_reuses_relative_link_across_parents() {
     let second = force_symlink_dir(&target, &link).expect("second call");
     assert_eq!(
         second,
-        ForceSymlinkOutcome { reused: true, warning: None },
+        ForceSymlinkOutcome {
+            reused: true,
+            warning: None
+        },
         "an up-to-date relative link must be reused, not rewritten",
     );
 }

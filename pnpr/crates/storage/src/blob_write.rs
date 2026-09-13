@@ -32,7 +32,11 @@ impl BlobSlot {
         name: CanonicalPackageName,
         filename: String,
     ) -> Self {
-        Self { tmp_path, name, filename }
+        Self {
+            tmp_path,
+            name,
+            filename,
+        }
     }
 
     pub(crate) fn filename(&self) -> &str {
@@ -58,8 +62,7 @@ impl BlobWrite {
         if let Some(parent) = self.final_path.parent() {
             fs::create_dir_all(parent).await?;
         }
-        let tmp_path = self
-            .tmp_path
+        let tmp_path = self.tmp_path
             .as_ref()
             .ok_or_else(|| std::io::Error::other("blob cache temp path is missing"))?;
         fs::rename(tmp_path, &self.final_path).await?;
@@ -78,8 +81,7 @@ impl BlobWrite {
         };
         file.sync_all().await?;
         let len = file.metadata().await?.len();
-        let tmp_path = self
-            .tmp_path
+        let tmp_path = self.tmp_path
             .take()
             .ok_or_else(|| std::io::Error::other("blob cache temp path is missing"))?;
         file.seek(SeekFrom::Start(0)).await?;
@@ -88,7 +90,9 @@ impl BlobWrite {
 
     pub async fn abandon(mut self) {
         drop(self.file.take());
-        let Some(tmp_path) = self.tmp_path.as_ref() else { return };
+        let Some(tmp_path) = self.tmp_path.as_ref() else {
+            return;
+        };
         match fs::remove_file(tmp_path).await {
             Ok(()) => self.tmp_path = None,
             Err(err) if err.kind() == ErrorKind::NotFound => self.tmp_path = None,
@@ -100,7 +104,9 @@ impl BlobWrite {
 impl Drop for BlobWrite {
     fn drop(&mut self) {
         drop(self.file.take());
-        let Some(tmp_path) = self.tmp_path.take() else { return };
+        let Some(tmp_path) = self.tmp_path.take() else {
+            return;
+        };
         match std::fs::remove_file(&tmp_path) {
             Ok(()) => {}
             Err(err) if err.kind() == ErrorKind::NotFound => {}

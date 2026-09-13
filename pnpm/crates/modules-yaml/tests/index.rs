@@ -73,7 +73,10 @@ fn read_legacy_shamefully_hoist_true_manifest() {
         .expect("read manifest")
         .expect("modules manifest exists");
 
-    assert_eq!(manifest.public_hoist_pattern.as_deref(), Some(&["*".to_string()][..]));
+    assert_eq!(
+        manifest.public_hoist_pattern.as_deref(),
+        Some(&["*".to_string()][..]),
+    );
     assert_eq!(
         manifest.hoisted_dependencies,
         IndexMap::from([
@@ -167,9 +170,15 @@ fn write_modules_manifest_preserves_hoisted_dependency_order() {
                     ("a-alias".to_string(), HoistKind::Private),
                 ]),
             ),
-            ("a@1.0.0".to_string(), IndexMap::from([("a".to_string(), HoistKind::Private)])),
+            (
+                "a@1.0.0".to_string(),
+                IndexMap::from([("a".to_string(), HoistKind::Private)]),
+            ),
         ]),
-        virtual_store_dir: modules_dir.join(".pnpm").display().to_string(),
+        virtual_store_dir: modules_dir
+            .join(".pnpm")
+            .display()
+            .to_string(),
         ..Default::default()
     };
 
@@ -179,11 +188,17 @@ fn write_modules_manifest_preserves_hoisted_dependency_order() {
         .expect("manifest exists");
 
     assert_eq!(
-        written.hoisted_dependencies.keys().map(String::as_str).collect::<Vec<_>>(),
+        written.hoisted_dependencies
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
         vec!["z@1.0.0", "a@1.0.0"],
     );
     assert_eq!(
-        written.hoisted_dependencies["z@1.0.0"].keys().map(String::as_str).collect::<Vec<_>>(),
+        written.hoisted_dependencies["z@1.0.0"]
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
         vec!["z-alias", "a-alias"],
     );
 }
@@ -199,7 +214,10 @@ fn write_and_read_manifest_with_long_dependency_path() {
             dependency_path,
             IndexMap::from([("@scope/package".to_string(), HoistKind::Private)]),
         )]),
-        virtual_store_dir: modules_dir.join(".pnpm").display().to_string(),
+        virtual_store_dir: modules_dir
+            .join(".pnpm")
+            .display()
+            .to_string(),
         ..Default::default()
     };
 
@@ -248,7 +266,13 @@ fn yaml_fallback_keeps_depth_budget() {
         read_modules_layout::<Host>(modules_dir).map(drop),
     ] {
         let error = result.expect_err("excessive depth must be rejected");
-        assert!(error.to_string().to_lowercase().contains("depth"), "{error}");
+        assert!(
+            error
+                .to_string()
+                .to_lowercase()
+                .contains("depth"),
+            "{error}",
+        );
     }
 }
 

@@ -22,7 +22,10 @@ fn renders_the_auth_url_with_its_qr_code() {
     let auth_url = "https://example.com/auth";
     let qr_code = generate_qr_code(auth_url).expect("a short URL encodes");
     let message = format_auth_url_message::<UnexpectedReporter>(auth_url);
-    assert!(matches!(message, AuthUrlMessage::WithQrCode { .. }), "expected a QR-code message");
+    assert!(
+        matches!(message, AuthUrlMessage::WithQrCode { .. }),
+        "expected a QR-code message",
+    );
     assert_eq!(
         message.to_string(),
         format!("Authenticate your account at:\n{auth_url}\n\n{qr_code}"),

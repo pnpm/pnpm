@@ -18,8 +18,14 @@ fn rejects_adding_a_dependency_to_a_lockfile_that_records_publish_dates() {
     let mut subject = parsed_lockfile(WITH_SHARED_OPTIONAL_CHILD);
     subject.time = Some(
         [
-            ("bar@2.0.0".to_string(), "2020-01-01T00:00:00.000Z".to_string()),
-            ("opt@5.0.0".to_string(), "2020-01-01T00:00:00.000Z".to_string()),
+            (
+                "bar@2.0.0".to_string(),
+                "2020-01-01T00:00:00.000Z".to_string(),
+            ),
+            (
+                "opt@5.0.0".to_string(),
+                "2020-01-01T00:00:00.000Z".to_string(),
+            ),
         ]
         .into_iter()
         .collect(),
@@ -55,8 +61,11 @@ fn rejects_a_range_change_on_a_bare_edge_the_lockfile_holds_only_as_a_peer_varia
     );
 
     assert!(
-        try_fast_update_importers(&with_a_direct_foo_at("1.1.0"), &[(".".to_string(), &manifest)],)
-            .is_none(),
+        try_fast_update_importers(
+            &with_a_direct_foo_at("1.1.0"),
+            &[(".".to_string(), &manifest)],
+        )
+        .is_none(),
         "the bare record names no snapshot, so leaving it in place would keep the link dangling",
     );
 }

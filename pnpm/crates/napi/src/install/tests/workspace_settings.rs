@@ -3,13 +3,19 @@ use super::{ConfigOverlay, build_overlay, install_options, resolve_config};
 #[test]
 fn resolve_config_reloads_changed_workspace_yaml() {
     let dir = tempfile::tempdir().expect("tempdir");
-    std::fs::write(dir.path().join("pnpm-workspace.yaml"), "ignoreScripts: true\n")
-        .expect("write workspace yaml");
+    std::fs::write(
+        dir.path().join("pnpm-workspace.yaml"),
+        "ignoreScripts: true\n",
+    )
+    .expect("write workspace yaml");
     let first = resolve_config(dir.path(), &ConfigOverlay::default()).expect("first config");
     assert!(first.ignore_scripts);
 
-    std::fs::write(dir.path().join("pnpm-workspace.yaml"), "ignoreScripts: false\n")
-        .expect("rewrite workspace yaml");
+    std::fs::write(
+        dir.path().join("pnpm-workspace.yaml"),
+        "ignoreScripts: false\n",
+    )
+    .expect("rewrite workspace yaml");
     let second = resolve_config(dir.path(), &ConfigOverlay::default()).expect("second config");
     assert!(!second.ignore_scripts);
 }

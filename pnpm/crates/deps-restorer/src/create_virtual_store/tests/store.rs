@@ -71,11 +71,16 @@ async fn cold_batch_links_slots_in_parallel() {
         ]);
         mem_cache.insert(
             format!("https://registry.test/{package_name}/-/{package_name}-1.0.0.tgz"),
-            Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(cas_paths)))),
+            Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(
+                cas_paths,
+            )))),
         );
 
         snapshots.insert(package_key.clone(), SnapshotEntry::default());
-        packages.insert(package_key.without_peer(), metadata_with_integrity(DUMMY_SHA512));
+        packages.insert(
+            package_key.without_peer(),
+            metadata_with_integrity(DUMMY_SHA512),
+        );
     }
 
     let allow_build_policy = AllowBuildPolicy::default();
@@ -127,7 +132,10 @@ async fn cold_batch_links_slots_in_parallel() {
             git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
         },
 
-        entries: LockfileEntries { packages: Some(&packages), snapshots: Some(&snapshots) },
+        entries: LockfileEntries {
+            packages: Some(&packages),
+            snapshots: Some(&snapshots),
+        },
         current_entries: LockfileEntries::default(),
 
         dir_clone_cache: None,
@@ -153,7 +161,12 @@ async fn cold_batch_links_slots_in_parallel() {
     assert_eq!(output.requires_build_by_snapshot.get(&cold_b), Some(&false));
     assert_eq!(
         output.materialized_snapshots.into_iter().collect::<HashSet<_>>(),
-        HashSet::from([cold_a, cold_b, key("cold-c", "1.0.0"), key("cold-d", "1.0.0"),]),
+        HashSet::from([
+            cold_a,
+            cold_b,
+            key("cold-c", "1.0.0"),
+            key("cold-d", "1.0.0"),
+        ]),
     );
 }
 /// A warm global-virtual-store slot is skipped without its store row's
@@ -163,7 +176,10 @@ async fn cold_batch_links_slots_in_parallel() {
 async fn skipped_warm_slot_keeps_its_store_row_without_checking_cas_blobs() {
     let install = SeededStoreInstall::new(None);
     let first = install.run().await.expect("seeded store satisfies the offline install");
-    assert_eq!(first.materialized_snapshots.as_slice(), std::slice::from_ref(&install.package_key));
+    assert_eq!(
+        first.materialized_snapshots.as_slice(),
+        std::slice::from_ref(&install.package_key),
+    );
 
     fs::remove_file(&install.body_blob).expect("remove the CAS blob behind index.js");
 
@@ -173,7 +189,10 @@ async fn skipped_warm_slot_keeps_its_store_row_without_checking_cas_blobs() {
         "the slot is current: {:?}",
         second.materialized_snapshots,
     );
-    assert_eq!(second.requires_build_by_snapshot.get(&install.package_key), Some(&false));
+    assert_eq!(
+        second.requires_build_by_snapshot.get(&install.package_key),
+        Some(&false),
+    );
 }
 /// A skipped slot's row is still checked when it carries a side-effects
 /// overlay: the build phase's cache hit imports the overlay's base files
@@ -182,7 +201,10 @@ async fn skipped_warm_slot_keeps_its_store_row_without_checking_cas_blobs() {
 async fn skipped_warm_slot_with_a_side_effects_row_is_still_checked() {
     let install = SeededStoreInstall::new(Some(b"module.exports = 'built'\n"));
     let first = install.run().await.expect("seeded store satisfies the offline install");
-    assert_eq!(first.requires_build_by_snapshot.get(&install.package_key), Some(&false));
+    assert_eq!(
+        first.requires_build_by_snapshot.get(&install.package_key),
+        Some(&false),
+    );
     assert!(
         first.side_effects_maps_by_snapshot.contains_key(&install.package_key),
         "the seeded side-effects row must reach the build phase while its files verify",
@@ -242,12 +264,17 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
         let source_dir = workspace_root.join("prefetched").join(package_name);
         fs::create_dir_all(&source_dir).expect("create prefetched package dir");
         let manifest_path = source_dir.join("package.json");
-        fs::write(&manifest_path, format!(r#"{{"name":"{package_name}","version":"1.0.0"}}"#))
-            .expect("write package manifest");
+        fs::write(
+            &manifest_path,
+            format!(r#"{{"name":"{package_name}","version":"1.0.0"}}"#),
+        )
+        .expect("write package manifest");
         let cas_paths = HashMap::from([("package.json".to_string(), manifest_path)]);
         mem_cache.insert(
             format!("https://registry.test/{package_name}/-/{package_name}-1.0.0.tgz"),
-            Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(cas_paths)))),
+            Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(
+                cas_paths,
+            )))),
         );
         packages.insert(
             key(package_name, "1.0.0").without_peer(),
@@ -319,7 +346,10 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
             git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
         },
 
-        entries: LockfileEntries { packages: Some(&packages), snapshots: Some(&snapshots) },
+        entries: LockfileEntries {
+            packages: Some(&packages),
+            snapshots: Some(&snapshots),
+        },
         current_entries: LockfileEntries::default(),
 
         dir_clone_cache: None,
@@ -343,7 +373,10 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
         .join("node_modules")
         .join("shared")
         .join("package.json");
-    assert!(shared_manifest.is_file(), "the shared slot must be materialized: {shared_manifest:?}");
+    assert!(
+        shared_manifest.is_file(),
+        "the shared slot must be materialized: {shared_manifest:?}",
+    );
 }
 /// `Git` resolutions go through the warm batch under a
 /// `gitHostedStoreIndexKey`-shaped key (`pkg_id\tbuilt|not-built`),
@@ -391,7 +424,10 @@ fn snapshot_cache_key_for_a_refused_tarball_is_absent() {
 
     let received = snapshot_cache_key(&pkg, &packages, false, &host_platform_selector())
         .expect("snapshot_cache_key must not error");
-    assert_eq!(received.value, None, "a tarball the fetch path refuses must not warm-hit");
+    assert_eq!(
+        received.value, None,
+        "a tarball the fetch path refuses must not warm-hit",
+    );
     assert!(!received.is_git_hosted);
 }
 /// Hash-equal peer variants of a directory dependency collapse into
@@ -409,7 +445,11 @@ fn group_slots_by_dir_collapses_hash_equal_peer_variants() {
     let mut packages = HashMap::new();
     packages.insert(plain.clone(), directory_metadata("packages/comp"));
 
-    let layout = gvs_layout(&snapshots, &packages, std::path::Path::new("/home/user/project"));
+    let layout = gvs_layout(
+        &snapshots,
+        &packages,
+        std::path::Path::new("/home/user/project"),
+    );
     assert_eq!(
         layout.slot_dir(&plain),
         layout.slot_dir(&peered),
@@ -427,10 +467,17 @@ fn group_slots_by_dir_collapses_hash_equal_peer_variants() {
 
     let groups = crate::create_virtual_store::slot_linking::group_slots_by_dir(&slots, &layout);
 
-    assert_eq!(groups.len(), 1, "hash-equal variants must share one link task");
+    assert_eq!(
+        groups.len(),
+        1,
+        "hash-equal variants must share one link task",
+    );
     assert_eq!(groups[0].duplicates.len(), 1);
-    let mut merged: Vec<String> =
-        groups[0].removed_aliases().iter().map(PkgName::to_string).collect();
+    let mut merged: Vec<String> = groups[0]
+        .removed_aliases()
+        .iter()
+        .map(PkgName::to_string)
+        .collect();
     merged.sort();
     assert_eq!(
         merged,
@@ -457,7 +504,11 @@ fn group_slots_by_dir_keeps_diverging_peer_variants_apart() {
     packages.insert(plain.clone(), directory_metadata("packages/comp"));
     packages.insert(child, metadata_with_integrity(DUMMY_SHA512));
 
-    let layout = gvs_layout(&snapshots, &packages, std::path::Path::new("/home/user/project"));
+    let layout = gvs_layout(
+        &snapshots,
+        &packages,
+        std::path::Path::new("/home/user/project"),
+    );
     assert_ne!(
         layout.slot_dir(&plain),
         layout.slot_dir(&peered),
@@ -473,9 +524,21 @@ fn group_slots_by_dir_keeps_diverging_peer_variants_apart() {
 
     let groups = crate::create_virtual_store::slot_linking::group_slots_by_dir(&slots, &layout);
 
-    assert_eq!(groups.len(), 2, "distinct slots must keep distinct link tasks");
-    assert!(groups.iter().all(|group| group.duplicates.is_empty()));
-    assert!(groups.iter().all(|group| group.merged_removed_aliases.is_none()));
+    assert_eq!(
+        groups.len(),
+        2,
+        "distinct slots must keep distinct link tasks",
+    );
+    assert!(
+        groups
+            .iter()
+            .all(|group| group.duplicates.is_empty()),
+    );
+    assert!(
+        groups
+            .iter()
+            .all(|group| group.merged_removed_aliases.is_none()),
+    );
 }
 /// Without the global virtual store, `slot_dir` embeds the full
 /// peer-suffixed key, so grouping never merges anything and the link
@@ -501,6 +564,14 @@ fn group_slots_by_dir_is_identity_without_gvs() {
 
     let groups = crate::create_virtual_store::slot_linking::group_slots_by_dir(&slots, &layout);
 
-    assert_eq!(groups.len(), 2, "non-GVS slots are unique per key; nothing may merge");
-    assert!(groups.iter().all(|group| group.duplicates.is_empty()));
+    assert_eq!(
+        groups.len(),
+        2,
+        "non-GVS slots are unique per key; nothing may merge",
+    );
+    assert!(
+        groups
+            .iter()
+            .all(|group| group.duplicates.is_empty()),
+    );
 }

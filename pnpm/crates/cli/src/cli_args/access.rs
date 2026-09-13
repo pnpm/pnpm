@@ -1,5 +1,8 @@
+pub use errors::AccessError;
+
 use clap::Args;
 use derive_more::{Display, Error};
+
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use permissions::{get_status, grant_access, revoke_access, set_mfa, set_status};
 use pnpm_config::Config;
@@ -12,7 +15,7 @@ use registry::{
     normalize_registry_url, send_get, send_json, write_error_from_response,
 };
 use reqwest::{Method, Response, StatusCode};
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::collections::HashMap;
 
 #[derive(Debug, Args)]
 pub struct AccessArgs {
@@ -32,162 +35,6 @@ pub struct AccessArgs {
     pub params: Vec<String>,
 }
 
-#[derive(Debug, Display, Error, Diagnostic)]
-#[non_exhaustive]
-pub enum AccessError {
-    #[display(r#"A subcommand is required (e.g., "list packages", "get status", "set status=public", "grant", "revoke")"#)]
-    #[diagnostic(code(ERR_PNPM_ACCESS_SUBCOMMAND_REQUIRED))]
-    SubcommandRequired,
-
-    #[display(r#"Unknown subcommand: {cmd}. Run "pnpm help access" for available subcommands."#)]
-    #[diagnostic(code(ERR_PNPM_ACCESS_UNKNOWN_SUBCOMMAND))]
-    UnknownSubcommand {
-        #[error(not(source))]
-        cmd: String,
-    },
-
-    #[display("Package name is required (e.g., pnpm access get status @scope/pkg)")]
-    #[diagnostic(code(ERR_PNPM_ACCESS_GET_STATUS_PACKAGE_REQUIRED))]
-    GetStatusPackageRequired,
-
-    #[display("Package name is required (e.g., pnpm access list collaborators @scope/pkg)")]
-    #[diagnostic(code(ERR_PNPM_ACCESS_LIST_COLLABORATORS_PACKAGE_REQUIRED))]
-    ListCollaboratorsPackageRequired,
-
-    #[display("Package visibility is required (e.g., pnpm access set status=public @scope/pkg)")]
-    #[diagnostic(code(ERR_PNPM_ACCESS_SET_STATUS_REQUIRED))]
-    SetStatusRequired,
-
-    #[display(r#"Invalid access value "{value}". Must be "public" or "private"."#)]
-    #[diagnostic(code(ERR_PNPM_ACCESS_SET_STATUS_INVALID))]
-    SetStatusInvalid {
-        #[error(not(source))]
-        value: String,
-    },
-
-    #[display("Package name is required (e.g., pnpm access set status=public @scope/pkg)")]
-    #[diagnostic(code(ERR_PNPM_ACCESS_SET_STATUS_PACKAGE_REQUIRED))]
-    SetStatusPackageRequired,
-
-    #[display(
-        "Access settings can only be changed for scoped packages (@scope/name). Unscoped packages are always public."
-    )]
-    #[diagnostic(code(ERR_PNPM_ACCESS_SET_STATUS_UNSCOPED))]
-    SetStatusUnscoped,
-
-    #[display("MFA level is required (e.g., pnpm access set mfa=automation @scope/pkg)")]
-    #[diagnostic(code(ERR_PNPM_ACCESS_SET_MFA_REQUIRED))]
-    SetMfaRequired,
-
-    #[display(r#"Invalid MFA value "{value}". Must be "none", "publish", or "automation"."#)]
-    #[diagnostic(code(ERR_PNPM_ACCESS_SET_MFA_INVALID))]
-    SetMfaInvalid {
-        #[error(not(source))]
-        value: String,
-    },
-
-    #[display("Package name is required (e.g., pnpm access set mfa=automation @scope/pkg)")]
-    #[diagnostic(code(ERR_PNPM_ACCESS_SET_MFA_PACKAGE_REQUIRED))]
-    SetMfaPackageRequired,
-
-    #[display(
-        "Permissions and scope:team are required (e.g., pnpm access grant read-only @scope:developers @scope/pkg)"
-    )]
-    #[diagnostic(code(ERR_PNPM_ACCESS_GRANT_ARGS_REQUIRED))]
-    GrantArgsRequired,
-
-    #[display(r#"Invalid permissions "{value}". Must be "read-only" or "read-write"."#)]
-    #[diagnostic(code(ERR_PNPM_ACCESS_GRANT_INVALID_PERMISSIONS))]
-    GrantInvalidPermissions {
-        #[error(not(source))]
-        value: String,
-    },
-
-    #[display(r#"Invalid team "{team}". Format must be "scope:team". "#)]
-    #[diagnostic(code(ERR_PNPM_ACCESS_GRANT_INVALID_TEAM))]
-    GrantInvalidTeam {
-        #[error(not(source))]
-        team: String,
-    },
-
-    #[display(
-        "Package name is required (e.g., pnpm access grant read-only @scope:developers @scope/pkg)"
-    )]
-    #[diagnostic(code(ERR_PNPM_ACCESS_GRANT_PACKAGE_REQUIRED))]
-    GrantPackageRequired,
-
-    #[display(
-        "scope:team and package name are required (e.g., pnpm access revoke @scope:developers @scope/pkg)"
-    )]
-    #[diagnostic(code(ERR_PNPM_ACCESS_REVOKE_ARGS_REQUIRED))]
-    RevokeArgsRequired,
-
-    #[display(r#"Invalid team "{team}". Format must be "scope:team". "#)]
-    #[diagnostic(code(ERR_PNPM_ACCESS_REVOKE_INVALID_TEAM))]
-    RevokeInvalidTeam {
-        #[error(not(source))]
-        team: String,
-    },
-
-    #[display("Package name is required (e.g., pnpm access revoke @scope:developers @scope/pkg)")]
-    #[diagnostic(code(ERR_PNPM_ACCESS_REVOKE_PACKAGE_REQUIRED))]
-    RevokePackageRequired,
-
-    #[display(r#"Package "{package_name}" not found in registry"#)]
-    #[diagnostic(code(ERR_PNPM_PACKAGE_NOT_FOUND))]
-    PackageNotFound {
-        #[error(not(source))]
-        package_name: String,
-    },
-
-    #[display("You must be logged in to {action} packages. {body}")]
-    #[diagnostic(code(ERR_PNPM_UNAUTHORIZED))]
-    Unauthorized {
-        #[error(not(source))]
-        action: String,
-        #[error(not(source))]
-        body: String,
-    },
-
-    #[display("You do not have permission to {action} this package. {body}")]
-    #[diagnostic(code(ERR_PNPM_FORBIDDEN))]
-    Forbidden {
-        #[error(not(source))]
-        action: String,
-        #[error(not(source))]
-        body: String,
-    },
-
-    #[display("Invalid request: {body}")]
-    #[diagnostic(code(ERR_PNPM_ACCESS_VALIDATION_ERROR))]
-    ValidationError {
-        #[error(not(source))]
-        body: String,
-    },
-
-    #[display("Failed to {action} package: {status} {status_text}. {body}")]
-    #[diagnostic(code(ERR_PNPM_REGISTRY_ERROR))]
-    RegistryWriteFailed {
-        #[error(not(source))]
-        action: String,
-        status: u16,
-        #[error(not(source))]
-        status_text: String,
-        #[error(not(source))]
-        body: String,
-    },
-
-    #[display("Failed to {action} packages: {status} {status_text}")]
-    #[diagnostic(code(ERR_PNPM_REGISTRY_ERROR))]
-    RegistryFetchFailed {
-        #[error(not(source))]
-        action: String,
-        status: u16,
-        #[error(not(source))]
-        status_text: String,
-    },
-}
-
 impl AccessArgs {
     pub async fn run(mut self, config: &Config) -> miette::Result<Option<String>> {
         let mut params = std::mem::take(&mut self.params);
@@ -198,7 +45,11 @@ impl AccessArgs {
         }
 
         let first = params.remove(0);
-        let second = if params.is_empty() { None } else { Some(params.remove(0)) };
+        let second = if params.is_empty() {
+            None
+        } else {
+            Some(params.remove(0))
+        };
 
         let (action, rest) = parse_access_action(&first, second, params)?;
 
@@ -239,24 +90,32 @@ fn parse_access_action(
             let mfa = format!("mfa={}", &mfa_val["mfa=".len()..]);
             ("set_mfa", access_args(Some(mfa), None, params))
         }
-        ("public", _) => {
-            ("set_status", access_args(Some("status=public".to_string()), second, params))
-        }
-        ("restricted", _) => {
-            ("set_status", access_args(Some("status=restricted".to_string()), second, params))
-        }
+        ("public", _) => (
+            "set_status",
+            access_args(Some("status=public".to_string()), second, params),
+        ),
+        ("restricted", _) => (
+            "set_status",
+            access_args(Some("status=restricted".to_string()), second, params),
+        ),
         ("grant", _) => ("grant", access_args(None, second, params)),
         ("revoke", _) => ("revoke", access_args(None, second, params)),
         _ => {
             let parts = access_args(Some(first.to_owned()), second, params);
-            return Err(AccessError::UnknownSubcommand { cmd: parts.join(" ") });
+            return Err(AccessError::UnknownSubcommand {
+                cmd: parts.join(" "),
+            });
         }
     };
     Ok(action)
 }
 
 fn access_args(lead: Option<String>, second: Option<String>, params: Vec<String>) -> Vec<String> {
-    lead.into_iter().chain(second).chain(params).collect()
+    lead
+        .into_iter()
+        .chain(second)
+        .chain(params)
+        .collect()
 }
 
 async fn list_packages(context: &AccessContext<'_>, params: &[String]) -> miette::Result<String> {
@@ -290,12 +149,19 @@ fn list_packages_url(registry: &str, params: &[String]) -> String {
     }
     let parts: Vec<&str> = raw.splitn(2, ':').collect();
     let team = parts.get(1).unwrap_or(&"");
-    let team_path =
-        if team.is_empty() { String::new() } else { format!("{}/", encode_uri_component(team)) };
+    let team_path = if team.is_empty() {
+        String::new()
+    } else {
+        format!("{}/", encode_uri_component(team))
+    };
     format!(
         "{}-/team/{}/{}package?format=cli",
         normalize_registry_url(registry),
-        encode_uri_component(parts[0].strip_prefix('@').unwrap_or(parts[0])),
+        encode_uri_component(
+            parts[0]
+                .strip_prefix('@')
+                .unwrap_or(parts[0])
+        ),
         team_path,
     )
 }
@@ -305,8 +171,7 @@ async fn fetch_list_response(
     url: &str,
     auth_header: Option<&str>,
 ) -> miette::Result<String> {
-    let (_guard, response) = send_get(context, url, auth_header)
-        .await
+    let (_guard, response) = send_get(context, url, auth_header).await
         .map_err(reqwest::Error::without_url)
         .into_diagnostic()
         .wrap_err("requesting the registry access list endpoint")?;
@@ -315,8 +180,11 @@ async fn fetch_list_response(
         return Err(fetch_error_from_response(response, "list packages from").await);
     }
 
-    let data: HashMap<String, serde_json::Value> =
-        response.json().await.into_diagnostic().wrap_err("parsing the access list response")?;
+    let data: HashMap<String, serde_json::Value> = response
+        .json()
+        .await
+        .into_diagnostic()
+        .wrap_err("parsing the access list response")?;
 
     if context.json {
         let output = serde_json::to_string_pretty(&data)
@@ -357,36 +225,34 @@ async fn list_collaborators(
     params: &[String],
 ) -> miette::Result<String> {
     let package_name = params.first().ok_or(AccessError::ListCollaboratorsPackageRequired)?;
-    let user = params.get(1);
-
     let auth_header =
         context.config.auth_headers.for_url_with_package(&context.registry, Some(package_name));
-
-    let base = format!(
-        "{}-/package/{}/collaborators?format=cli",
-        normalize_registry_url(&context.registry),
-        escaped_package_name(package_name),
+    let url = collaborators_url(
+        &context.registry,
+        package_name,
+        params.get(1).map(String::as_str),
     );
-    let url = match user {
-        Some(u) => format!("{base}&user={}", encode_uri_component(u)),
-        None => base,
-    };
 
-    let (_guard, response) = send_get(context, &url, auth_header.as_deref())
-        .await
+    let (_guard, response) = send_get(context, &url, auth_header.as_deref()).await
         .map_err(reqwest::Error::without_url)
         .into_diagnostic()
         .wrap_err("requesting the registry collaborators endpoint")?;
 
     if response.status() == StatusCode::NOT_FOUND {
-        return Err(AccessError::PackageNotFound { package_name: package_name.clone() }.into());
+        return Err(AccessError::PackageNotFound {
+            package_name: package_name.clone(),
+        }
+        .into());
     }
     if !response.status().is_success() {
         return Err(fetch_error_from_response(response, "list collaborators for").await);
     }
 
-    let entries: Vec<CollaboratorEntry> =
-        response.json().await.into_diagnostic().wrap_err("parsing the collaborators response")?;
+    let entries: Vec<CollaboratorEntry> = response
+        .json()
+        .await
+        .into_diagnostic()
+        .wrap_err("parsing the collaborators response")?;
 
     if context.json {
         let output = serde_json::to_string_pretty(&entries)
@@ -403,7 +269,9 @@ fn render_collaborators(entries: Vec<CollaboratorEntry>) -> String {
     let mut lines: Vec<String> = entries
         .into_iter()
         .map(|entry| {
-            let user = entry.user.or(entry.username).unwrap_or_else(|| "unknown".to_string());
+            let user = entry.user
+                .or(entry.username)
+                .unwrap_or_else(|| "unknown".to_string());
             let email = entry.email.unwrap_or_default();
             let permissions = entry.permissions.unwrap_or_else(|| "read-only".to_string());
             if email.is_empty() {
@@ -423,3 +291,17 @@ mod tests;
 mod registry;
 
 mod permissions;
+
+mod errors;
+
+fn collaborators_url(registry: &str, package_name: &str, user: Option<&str>) -> String {
+    let base = format!(
+        "{}-/package/{}/collaborators?format=cli",
+        normalize_registry_url(registry),
+        escaped_package_name(package_name),
+    );
+    match user {
+        Some(u) => format!("{base}&user={}", encode_uri_component(u)),
+        None => base,
+    }
+}

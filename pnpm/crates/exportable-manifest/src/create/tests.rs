@@ -198,7 +198,10 @@ fn jsr_protocol_dependency_becomes_npm_alias() {
         }),
         &default_opts(&catalogs),
     );
-    assert_eq!(out["dependencies"], json!({ "@foo/bar": "npm:@jsr/foo__bar@^1.2.3" }));
+    assert_eq!(
+        out["dependencies"],
+        json!({ "@foo/bar": "npm:@jsr/foo__bar@^1.2.3" }),
+    );
 }
 
 #[test]
@@ -214,7 +217,10 @@ fn jsr_dependency_without_version_selector_becomes_bare_npm_alias() {
         }),
         &default_opts(&catalogs),
     );
-    assert_eq!(out["dependencies"], json!({ "@foo/bar": "npm:@jsr/foo__bar" }));
+    assert_eq!(
+        out["dependencies"],
+        json!({ "@foo/bar": "npm:@jsr/foo__bar" }),
+    );
 }
 
 #[test]
@@ -299,7 +305,11 @@ fn readme_is_embedded_when_requested() {
         skip_manifest_obfuscation: false,
         embed_readme: true,
     };
-    let out = build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &opts);
+    let out = build(
+        dir.path(),
+        &json!({ "name": "foo", "version": "1.0.0" }),
+        &opts,
+    );
     assert_eq!(out["readme"], json!("# Hello"));
 }
 
@@ -308,8 +318,11 @@ fn readme_is_not_embedded_without_opt_in() {
     let dir = tempdir().unwrap();
     fs::write(dir.path().join("README.md"), "# Hello").unwrap();
     let catalogs = empty_catalogs();
-    let out =
-        build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &default_opts(&catalogs));
+    let out = build(
+        dir.path(),
+        &json!({ "name": "foo", "version": "1.0.0" }),
+        &default_opts(&catalogs),
+    );
     assert!(out.get("readme").is_none());
 }
 
@@ -329,7 +342,11 @@ fn readme_symlink_is_not_embedded() {
         skip_manifest_obfuscation: false,
         embed_readme: true,
     };
-    let out = build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &opts);
+    let out = build(
+        dir.path(),
+        &json!({ "name": "foo", "version": "1.0.0" }),
+        &opts,
+    );
     assert!(out.get("readme").is_none());
 }
 

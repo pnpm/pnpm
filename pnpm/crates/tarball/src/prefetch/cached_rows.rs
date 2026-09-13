@@ -13,7 +13,10 @@ enum CachedRow {
     Rejected(PkgContentMismatch),
     /// A usable row's per-file CAS map, carrying the identity
     /// disagreement the caller warns about when the check is not strict.
-    Hit { cas_paths: HashMap<String, PathBuf>, mismatch: Option<PkgContentMismatch> },
+    Hit {
+        cas_paths: HashMap<String, PathBuf>,
+        mismatch: Option<PkgContentMismatch>,
+    },
 }
 
 /// Reconstruct a package's `{filename → CAFS path}` map from the
@@ -84,9 +87,9 @@ fn cached_row_paths<Reporter: crate::Reporter>(
 ) -> Result<Option<HashMap<String, PathBuf>>, TarballError> {
     match row {
         CachedRow::Miss => Ok(None),
-        CachedRow::Rejected(mismatch) => {
-            Err(TarballError::UnexpectedPkgContentInStore { hint: mismatch.hint() })
-        }
+        CachedRow::Rejected(mismatch) => Err(TarballError::UnexpectedPkgContentInStore {
+            hint: mismatch.hint(),
+        }),
         CachedRow::Hit { cas_paths, mismatch } => {
             if let Some(mismatch) = mismatch {
                 Reporter::emit(&LogEvent::Global(GlobalLog {
@@ -147,7 +150,10 @@ fn cached_row(
         );
         return CachedRow::Miss;
     }
-    CachedRow::Hit { cas_paths: verify_result.files_map, mismatch }
+    CachedRow::Hit {
+        cas_paths: verify_result.files_map,
+        mismatch,
+    }
 }
 
 /// The row for `cache_key`, or `None` for a miss.
@@ -166,7 +172,10 @@ fn read_row(index: &SharedReadonlyStoreIndex, cache_key: &str) -> Option<Package
         );
         return None;
     };
-    guard.get(cache_key).ok().flatten()
+    guard
+        .get(cache_key)
+        .ok()
+        .flatten()
 }
 
 /// Reuse a pre-projection-key runtime row only when its synthesized

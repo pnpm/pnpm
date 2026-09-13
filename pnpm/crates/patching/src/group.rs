@@ -48,16 +48,16 @@ where
 
         match (parsed.name, parsed.version, parsed.non_semver_version) {
             (Some(name), Some(version), _) => {
-                let group = result.entry(name.to_string()).or_default();
+                let group = result
+                    .entry(name.to_string())
+                    .or_default();
                 group.exact.insert(version.to_string(), extended);
             }
             (Some(name), None, Some(non_semver_version)) => {
-                if Range::parse(non_semver_version).is_err() {
-                    return Err(PatchNonSemverRangeError {
-                        non_semver_version: non_semver_version.to_string(),
-                    });
-                }
-                let group = result.entry(name.to_string()).or_default();
+                validate_patch_range(non_semver_version)?;
+                let group = result
+                    .entry(name.to_string())
+                    .or_default();
                 if non_semver_version.trim() == "*" {
                     group.all = Some(extended);
                 } else {
@@ -71,7 +71,9 @@ where
                 // A bare `name` key and a `name@*` key both target
                 // `group.all`. This bare-name branch runs last, so a
                 // bare `name` overwrites whatever `name@*` set.
-                let group = result.entry(key.clone()).or_default();
+                let group = result
+                    .entry(key.clone())
+                    .or_default();
                 group.all = Some(extended);
             }
         }
@@ -82,3 +84,12 @@ where
 
 #[cfg(test)]
 mod tests;
+
+fn validate_patch_range(non_semver_version: &str) -> Result<(), PatchNonSemverRangeError> {
+    if Range::parse(non_semver_version).is_err() {
+        return Err(PatchNonSemverRangeError {
+            non_semver_version: non_semver_version.to_string(),
+        });
+    }
+    Ok(())
+}

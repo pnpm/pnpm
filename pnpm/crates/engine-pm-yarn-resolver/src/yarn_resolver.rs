@@ -51,7 +51,11 @@ pub struct YarnResolver {
 
 impl YarnResolver {
     pub fn new(http_client: Arc<ThrottledClient>, authenticate: bool) -> Self {
-        Self { http_client, authenticate, releases: tokio::sync::OnceCell::new() }
+        Self {
+            http_client,
+            authenticate,
+            releases: tokio::sync::OnceCell::new(),
+        }
     }
 
     async fn releases(&self) -> Result<&[YarnRelease], ReadYarnReleasesError> {
@@ -95,12 +99,15 @@ impl YarnResolver {
             .releases()
             .await
             .map_err(|error| Box::new(YarnResolverError::ReadReleases(error)) as ResolveError)?;
-        let release = pick_release(releases, version_spec).ok_or_else(|| {
-            // The specifier comes from a manifest, so it can carry
-            // credentials — the message a user sees must not.
-            let spec = redact_and_sanitize(version_spec);
-            Box::new(YarnResolverError::ResolutionFailure { spec }) as ResolveError
-        })?;
+        let release = pick_release(releases, version_spec)
+            .ok_or_else(|| {
+                // The specifier comes from a manifest, so it can carry
+                // credentials — the message a user sees must not.
+                let spec = redact_and_sanitize(version_spec);
+                Box::new(YarnResolverError::ResolutionFailure {
+                    spec,
+                }) as ResolveError
+            })?;
         let variants = asset_variants(release)
             .map_err(|error| Box::new(YarnResolverError::ReadReleases(error)) as ResolveError)?;
 
@@ -112,7 +119,9 @@ impl YarnResolver {
         });
         Ok(Some(ResolveResult {
             id: format!("yarn@runtime:{version}").into(),
-            resolution: LockfileResolution::Variations(VariationsResolution { variants }),
+            resolution: LockfileResolution::Variations(VariationsResolution {
+                variants,
+            }),
             resolved_via: RESOLVED_VIA.to_string(),
             normalized_bare_specifier: Some(format!("runtime:{version_spec}")),
             alias: wanted_dependency.alias.clone(),
@@ -159,12 +168,13 @@ pub async fn resolve_yarn_version(
     version_spec: &str,
     authenticate: bool,
 ) -> Result<String, YarnResolverError> {
-    let releases = fetch_yarn_releases(http_client, authenticate)
-        .await
+    let releases = fetch_yarn_releases(http_client, authenticate).await
         .map_err(YarnResolverError::ReadReleases)?;
-    pick_release(&releases, version_spec).map(|release| release.version.clone()).ok_or_else(|| {
-        YarnResolverError::ResolutionFailure { spec: redact_and_sanitize(version_spec) }
-    })
+    pick_release(&releases, version_spec)
+        .map(|release| release.version.clone())
+        .ok_or_else(|| YarnResolverError::ResolutionFailure {
+            spec: redact_and_sanitize(version_spec),
+        })
 }
 
 /// The newest release satisfying `version_spec`.
@@ -186,14 +196,18 @@ pub(crate) fn pick_release<'a>(
     candidates.sort_by(|left, right| right.0.cmp(&left.0));
 
     if version_spec.is_empty() || version_spec == "latest" || version_spec == "*" {
-        return candidates.first().map(|(_, release)| *release);
+        return candidates
+            .first()
+            .map(|(_, release)| *release);
     }
     let range = node_semver::Range::parse(version_spec).ok()?;
     candidates
         .iter()
         .find(|(version, _)| version.satisfies(&range))
         .or_else(|| {
-            candidates.iter().find(|(version, _)| without_prerelease(version).satisfies(&range))
+            candidates
+                .iter()
+                .find(|(version, _)| without_prerelease(version).satisfies(&range))
         })
         .map(|(_, release)| *release)
 }
@@ -212,14 +226,20 @@ fn bare_runtime_spec(wanted: &WantedDependency) -> Option<&str> {
     if wanted.alias.as_deref() != Some("yarn") {
         return None;
     }
-    wanted.bare_specifier.as_deref().and_then(|spec| spec.strip_prefix(BARE_SPEC_PREFIX))
+    wanted.bare_specifier
+        .as_deref()
+        .and_then(|spec| spec.strip_prefix(BARE_SPEC_PREFIX))
 }
 
 /// The archive member the manifest advertises as the engine's bin. See
 /// `read_yarn_releases::yarn_bin_path` for why it is not the `yarn`
 /// launcher sitting beside it.
 fn yarn_bin_for_current_os() -> &'static str {
-    if std::env::consts::OS == "windows" { "yarn-bin.exe" } else { "yarn-bin" }
+    if std::env::consts::OS == "windows" {
+        "yarn-bin.exe"
+    } else {
+        "yarn-bin"
+    }
 }
 
 #[cfg(test)]

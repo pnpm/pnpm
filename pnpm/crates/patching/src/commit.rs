@@ -3,17 +3,11 @@ use miette::Diagnostic;
 use pnpm_git_fetcher::PacklistError;
 use pnpm_package_manifest::PackageManifestError;
 use serde_json::{Map, Value};
-#[cfg(unix)]
-use std::os::unix::fs::OpenOptionsExt;
 use std::{
-    fs::{self, File, OpenOptions},
-    io::{self, Read},
+    fs, io,
     path::{Path, PathBuf},
     process::Command,
-    sync::atomic::{AtomicU64, Ordering},
 };
-
-const MAX_DIFF_OUTPUT_BYTES: u64 = 128 * 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PkgFilesForDiff {
@@ -112,31 +106,44 @@ fn prepare_pkg_files_for_diff_with_fs(
     fs_ops: &impl PatchCommitFs,
 ) -> Result<PkgFilesForDiff, PatchCommitError> {
     let manifest = pnpm_package_manifest::safe_read_package_json_from_dir(src)
-        .map_err(|source| PatchCommitError::ReadManifest { dir: src.to_path_buf(), source })?
+        .map_err(|source| PatchCommitError::ReadManifest {
+            dir: src.to_path_buf(),
+            source,
+        })?
         .unwrap_or_else(|| Value::Object(Map::default()));
     let files = pnpm_git_fetcher::packlist(src, &manifest)
-        .map_err(|source| PatchCommitError::Packlist { dir: src.to_path_buf(), source })?;
+        .map_err(|source| PatchCommitError::Packlist {
+            dir: src.to_path_buf(),
+            source,
+        })?;
 
     let temp_dir = temporary_filtered_dir(src);
     remove_existing_temp_dir_with_fs(&temp_dir, fs_ops)?;
     fs_ops
         .create_dir_all(&temp_dir)
-        .map_err(|source| PatchCommitError::CreateTempDir { dir: temp_dir.clone(), source })?;
+        .map_err(|source| PatchCommitError::CreateTempDir {
+            dir: temp_dir.clone(),
+            source,
+        })?;
     for file in files {
         let relative_path = safe_package_file_path(&file)?;
         let source_path = src.join(&relative_path);
         let target = temp_dir.join(&relative_path);
         let parent =
             target.parent().expect("filtered package file target should have a parent directory");
-        fs_ops.create_dir_all(parent).map_err(|source| PatchCommitError::CreateTempDir {
-            dir: parent.to_path_buf(),
-            source,
-        })?;
-        fs_ops.hard_link(&source_path, &target).map_err(|source| PatchCommitError::LinkFile {
-            source_path,
-            target,
-            source,
-        })?;
+        fs_ops
+            .create_dir_all(parent)
+            .map_err(|source| PatchCommitError::CreateTempDir {
+                dir: parent.to_path_buf(),
+                source,
+            })?;
+        fs_ops
+            .hard_link(&source_path, &target)
+            .map_err(|source| PatchCommitError::LinkFile {
+                source_path,
+                target,
+                source,
+            })?;
     }
     Ok(PkgFilesForDiff::Temporary(temp_dir))
 }
@@ -146,37 +153,38 @@ pub fn diff_folders(folder_a: &Path, folder_b: &Path) -> Result<String, PatchCom
     let folder_b_slash = slash_path(folder_b);
     let stdout = DiffTempFile::new("stdout")?;
     let stderr = DiffTempFile::new("stderr")?;
-    let status = Command::new("git")
-        .arg("-c")
-        .arg("core.safecrlf=false")
-        .arg("-c")
-        .arg("core.quotePath=false")
-        .arg("diff")
-        .arg("--src-prefix=a/")
-        .arg("--dst-prefix=b/")
-        .arg("--ignore-cr-at-eol")
-        .arg("--irreversible-delete")
-        .arg("--full-index")
-        .arg("--no-index")
-        .arg("--text")
-        .arg("--no-ext-diff")
-        .arg("--no-color")
-        .arg("--")
-        .arg(&folder_a_slash)
-        .arg(&folder_b_slash)
-        .env("GIT_CONFIG_NOSYSTEM", "1")
-        .env("GIT_CONFIG_GLOBAL", "/dev/null")
-        .stdout(stdout.writer.try_clone().map_err(|source| PatchCommitError::DiffSpawn { source })?)
-        .stderr(stderr.writer.try_clone().map_err(|source| PatchCommitError::DiffSpawn { source })?)
+    let status = git_diff_command(&folder_a_slash, &folder_b_slash)
+        .stdout(
+            stdout.writer
+                .try_clone()
+                .map_err(|source| PatchCommitError::DiffSpawn {
+                    source,
+                })?,
+        )
+        .stderr(
+            stderr.writer
+                .try_clone()
+                .map_err(|source| PatchCommitError::DiffSpawn {
+                    source,
+                })?,
+        )
         .status()
-        .map_err(|source| PatchCommitError::DiffSpawn { source })?;
+        .map_err(|source| PatchCommitError::DiffSpawn {
+            source,
+        })?;
 
     let stderr = stderr.read_to_string("stderr")?;
     if !stderr.is_empty() || !matches!(status.code(), Some(0 | 1)) {
-        return Err(PatchCommitError::DiffFailed { stderr });
+        return Err(PatchCommitError::DiffFailed {
+            stderr,
+        });
     }
     let stdout = stdout.read_to_string("stdout")?;
-    Ok(normalize_diff_output(&stdout, &folder_a_slash, &folder_b_slash))
+    Ok(normalize_diff_output(
+        &stdout,
+        &folder_a_slash,
+        &folder_b_slash,
+    ))
 }
 
 fn remove_existing_temp_dir_with_fs(
@@ -187,7 +195,10 @@ fn remove_existing_temp_dir_with_fs(
         Ok(metadata) => metadata,
         Err(source) if source.kind() == io::ErrorKind::NotFound => return Ok(()),
         Err(source) => {
-            return Err(PatchCommitError::RemoveTempDir { dir: temp_dir.to_path_buf(), source });
+            return Err(PatchCommitError::RemoveTempDir {
+                dir: temp_dir.to_path_buf(),
+                source,
+            });
         }
     };
     if metadata.file_type().is_symlink() {
@@ -199,85 +210,10 @@ fn remove_existing_temp_dir_with_fs(
     match fs_ops.remove_dir_all(temp_dir) {
         Ok(()) => Ok(()),
         Err(source) if source.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(source) => Err(PatchCommitError::RemoveTempDir { dir: temp_dir.to_path_buf(), source }),
-    }
-}
-
-struct DiffTempFile {
-    path: PathBuf,
-    writer: File,
-}
-
-impl DiffTempFile {
-    fn new(stream: &'static str) -> Result<Self, PatchCommitError> {
-        static COUNTER: AtomicU64 = AtomicU64::new(0);
-        let pid = std::process::id();
-        let temp_dir = std::env::temp_dir();
-        for _ in 0..16 {
-            let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
-            let path = temp_dir.join(format!("pacquet-git-diff-{stream}-{pid}-{counter}.tmp"));
-            match diff_temp_file_options().open(&path) {
-                Ok(writer) => return Ok(Self { path, writer }),
-                Err(source) if source.kind() == io::ErrorKind::AlreadyExists => {}
-                Err(source) => return Err(PatchCommitError::DiffSpawn { source }),
-            }
-        }
-        Err(PatchCommitError::DiffSpawn {
-            source: io::Error::new(
-                io::ErrorKind::AlreadyExists,
-                "exhausted temp-path attempts for git diff output",
-            ),
-        })
-    }
-
-    fn read_to_string(&self, stream: &'static str) -> Result<String, PatchCommitError> {
-        let len = fs::metadata(&self.path)
-            .map_err(|source| PatchCommitError::DiffSpawn { source })?
-            .len();
-        if len > MAX_DIFF_OUTPUT_BYTES {
-            return Err(PatchCommitError::DiffOutputTooLarge {
-                stream,
-                limit: MAX_DIFF_OUTPUT_BYTES,
-            });
-        }
-        let mut file =
-            File::open(&self.path).map_err(|source| PatchCommitError::DiffSpawn { source })?;
-        let mut bytes = Vec::with_capacity(len as usize);
-        let mut buffer = [0; 8192];
-        loop {
-            let read =
-                file.read(&mut buffer).map_err(|source| PatchCommitError::DiffSpawn { source })?;
-            if read == 0 {
-                break;
-            }
-            let next_len =
-                bytes.len().checked_add(read).ok_or(PatchCommitError::DiffOutputTooLarge {
-                    stream,
-                    limit: MAX_DIFF_OUTPUT_BYTES,
-                })?;
-            if next_len as u64 > MAX_DIFF_OUTPUT_BYTES {
-                return Err(PatchCommitError::DiffOutputTooLarge {
-                    stream,
-                    limit: MAX_DIFF_OUTPUT_BYTES,
-                });
-            }
-            bytes.extend_from_slice(&buffer[..read]);
-        }
-        Ok(String::from_utf8_lossy(&bytes).into_owned())
-    }
-}
-
-fn diff_temp_file_options() -> OpenOptions {
-    let mut options = OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    options.mode(0o600);
-    options
-}
-
-impl Drop for DiffTempFile {
-    fn drop(&mut self) {
-        let _ = fs::remove_file(&self.path);
+        Err(source) => Err(PatchCommitError::RemoveTempDir {
+            dir: temp_dir.to_path_buf(),
+            source,
+        }),
     }
 }
 
@@ -311,8 +247,12 @@ impl PatchCommitFs for RealPatchCommitFs {
 fn temporary_filtered_dir(src: &Path) -> PathBuf {
     let name = src
         .file_name()
-        .map_or_else(|| String::from("patch"), |name| name.to_string_lossy().into_owned());
-    src.parent()
+        .map_or_else(
+            || String::from("patch"),
+            |name| name.to_string_lossy().into_owned(),
+        );
+    src
+        .parent()
         .unwrap_or_else(|| Path::new("."))
         .join(format!("{name}_tmp_{}", std::process::id()))
 }
@@ -324,14 +264,16 @@ fn slash_path(path: &Path) -> String {
 fn safe_package_file_path(path: &str) -> Result<PathBuf, PatchCommitError> {
     let path = path_from_forward_slash(path);
     if path.is_absolute()
-        || path.components().any(|component| {
-            matches!(
-                component,
-                std::path::Component::ParentDir
-                    | std::path::Component::RootDir
-                    | std::path::Component::Prefix(_),
-            )
-        })
+        || path
+            .components()
+            .any(|component| {
+                matches!(
+                    component,
+                    std::path::Component::ParentDir
+                        | std::path::Component::RootDir
+                        | std::path::Component::Prefix(_),
+                )
+            })
     {
         return Err(PatchCommitError::InvalidPackageFilePath {
             path: path.to_string_lossy().into_owned(),
@@ -348,7 +290,9 @@ fn normalize_diff_output(diff: &str, folder_a: &str, folder_b: &str) -> String {
     let mut out = String::with_capacity(diff.len());
     let mut in_hunk = false;
     for line in diff.split_inclusive('\n') {
-        let (content, newline) = line.strip_suffix('\n').map_or((line, ""), |line| (line, "\n"));
+        let (content, newline) = line
+            .strip_suffix('\n')
+            .map_or((line, ""), |line| (line, "\n"));
         if content.starts_with("diff --git ") {
             in_hunk = false;
             out.push_str(&normalize_diff_path_line(content, folder_a, folder_b));
@@ -409,7 +353,10 @@ fn push_non_ds_store_block(output: &mut String, block: &str) {
     if block.is_empty() {
         return;
     }
-    let header = block.lines().next().unwrap_or_default();
+    let header = block
+        .lines()
+        .next()
+        .unwrap_or_default();
     if is_ds_store_diff_header(header) {
         return;
     }
@@ -420,8 +367,38 @@ fn is_ds_store_diff_header(header: &str) -> bool {
     let mut parts = header.split_whitespace();
     matches!(parts.next(), Some("diff"))
         && matches!(parts.next(), Some("--git"))
-        && parts.take(2).all(|path| path.rsplit('/').next() == Some(".DS_Store"))
+        && parts
+            .take(2)
+            .all(|path| path.rsplit('/').next() == Some(".DS_Store"))
 }
 
 #[cfg(test)]
 mod tests;
+
+fn git_diff_command(folder_a: &str, folder_b: &str) -> Command {
+    let mut command = Command::new("git");
+    command
+        .arg("-c")
+        .arg("core.safecrlf=false")
+        .arg("-c")
+        .arg("core.quotePath=false")
+        .arg("diff")
+        .arg("--src-prefix=a/")
+        .arg("--dst-prefix=b/")
+        .arg("--ignore-cr-at-eol")
+        .arg("--irreversible-delete")
+        .arg("--full-index")
+        .arg("--no-index")
+        .arg("--text")
+        .arg("--no-ext-diff")
+        .arg("--no-color")
+        .arg("--")
+        .arg(folder_a)
+        .arg(folder_b)
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", "/dev/null");
+    command
+}
+
+mod diff_output;
+use diff_output::DiffTempFile;

@@ -12,8 +12,7 @@ async fn fresh_lockfile_resolves_catalog_protocol_in_overrides() {
     assert_package_present(&lockfile, "@pnpm.e2e/foo@100.0.0");
     assert_package_absent(&lockfile, "@pnpm.e2e/foo@100.1.0");
     assert_eq!(
-        lockfile
-            .overrides
+        lockfile.overrides
             .as_ref()
             .and_then(|overrides| overrides.get("@pnpm.e2e/foo@^100.0.0"))
             .map(String::as_str),

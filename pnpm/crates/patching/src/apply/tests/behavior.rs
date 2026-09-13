@@ -80,7 +80,10 @@ fn malformed_patch_errors_invalid_patch() {
     );
 
     let err = apply_patch_to_dir(patched.path(), &patch).expect_err("must fail");
-    assert!(matches!(err, PatchApplyError::InvalidPatch { .. }), "got: {err:?}");
+    assert!(
+        matches!(err, PatchApplyError::InvalidPatch { .. }),
+        "got: {err:?}",
+    );
 }
 
 #[test]
@@ -88,12 +91,19 @@ fn unmatching_hunk_errors_patch_failed() {
     let patched = tempdir().unwrap();
     // Write a file whose contents diverge from the patch's context
     // lines so diffy's apply can't locate the hunk.
-    fs::write(patched.path().join("index.js"), "totally different contents\n").unwrap();
+    fs::write(
+        patched.path().join("index.js"),
+        "totally different contents\n",
+    )
+    .unwrap();
     let patch_dir = tempdir().unwrap();
     let patch = write_patch(patch_dir.path(), IS_POSITIVE_PATCH);
 
     let err = apply_patch_to_dir(patched.path(), &patch).expect_err("must fail");
-    assert!(matches!(err, PatchApplyError::PatchFailed { .. }), "got: {err:?}");
+    assert!(
+        matches!(err, PatchApplyError::PatchFailed { .. }),
+        "got: {err:?}",
+    );
 }
 
 /// The patch context here is the U+FFFD chars themselves, so we
@@ -104,7 +114,11 @@ fn modify_target_with_invalid_utf8_bytes_does_not_error() {
     let patched = tempdir().unwrap();
     // Three invalid UTF-8 bytes that lossy-decode to three U+FFFD
     // chars (`\xEF\xBF\xBD` each).
-    fs::write(patched.path().join("blob.txt"), [0xffu8, 0xfeu8, 0xfdu8, b'\n']).unwrap();
+    fs::write(
+        patched.path().join("blob.txt"),
+        [0xffu8, 0xfeu8, 0xfdu8, b'\n'],
+    )
+    .unwrap();
     let patch_dir = tempdir().unwrap();
     let patch = write_patch(
         patch_dir.path(),
@@ -144,8 +158,14 @@ deleted file mode 100644
 ",
     );
     let err = apply_patch_to_dir(patched.path(), &patch).expect_err("must refuse mismatch");
-    assert!(matches!(err, PatchApplyError::PatchFailed { .. }), "got: {err:?}");
-    assert!(target.exists(), "file must NOT be unlinked when the patch doesn't match");
+    assert!(
+        matches!(err, PatchApplyError::PatchFailed { .. }),
+        "got: {err:?}",
+    );
+    assert!(
+        target.exists(),
+        "file must NOT be unlinked when the patch doesn't match",
+    );
 }
 
 /// `git diff --irreversible-delete`, which `pnpm patch-commit` runs,
@@ -198,7 +218,10 @@ fn delete_patch_leaving_non_empty_result_errors_without_unlinking() {
         }
         other => panic!("expected PatchFailed, got {other:?}"),
     }
-    assert!(target.exists(), "target must NOT be unlinked when content remains");
+    assert!(
+        target.exists(),
+        "target must NOT be unlinked when content remains",
+    );
 }
 
 #[test]
@@ -248,9 +271,19 @@ fn modify_preserves_executable_mode() {
     let patch = write_patch(patch_dir.path(), IS_POSITIVE_PATCH);
     apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
 
-    let mode = fs::metadata(&target).unwrap().permissions().mode() & 0o777;
-    assert_eq!(mode, 0o755, "executable bit must be preserved across the rewrite");
-    assert_eq!(fs::read_to_string(&target).unwrap(), IS_POSITIVE_INDEX_JS_PATCHED);
+    let mode = fs::metadata(&target)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(
+        mode, 0o755,
+        "executable bit must be preserved across the rewrite",
+    );
+    assert_eq!(
+        fs::read_to_string(&target).unwrap(),
+        IS_POSITIVE_INDEX_JS_PATCHED,
+    );
 }
 
 /// `Modify` must NOT destroy the target when the rewrite can't finish.
@@ -273,7 +306,10 @@ fn modify_does_not_destroy_target_on_write_failure() {
 
     // Make the directory read-only so the sibling temp file open in
     // `write_atomic_with_mode` fails with `PermissionDenied`.
-    let dir_mode = fs::metadata(patched.path()).unwrap().permissions().mode();
+    let dir_mode = fs::metadata(patched.path())
+        .unwrap()
+        .permissions()
+        .mode();
     fs::set_permissions(patched.path(), fs::Permissions::from_mode(0o555)).unwrap();
 
     let err = apply_patch_to_dir(patched.path(), &patch);

@@ -14,8 +14,7 @@ impl MetadataMutation {
         paths: impl IntoIterator<Item = PathBuf>,
     ) -> Result<Self> {
         let paths = paths.into_iter().collect::<Vec<_>>();
-        tokio::task::spawn_blocking(move || Self::capture_blocking(&transaction_key, paths))
-            .await
+        tokio::task::spawn_blocking(move || Self::capture_blocking(&transaction_key, paths)).await
             .into_diagnostic()
             .wrap_err("join metadata snapshot task")?
     }
@@ -23,36 +22,48 @@ impl MetadataMutation {
     fn capture_blocking(transaction_key: &std::path::Path, paths: Vec<PathBuf>) -> Result<Self> {
         let lock_directory = metadata_lock_directory();
         prepare_metadata_lock_directory(&lock_directory)?;
-        let transaction_key =
-            fs::canonicalize(transaction_key).into_diagnostic().wrap_err_with(|| {
-                format!("resolve metadata transaction key {}", transaction_key.display())
+        let transaction_key = fs::canonicalize(transaction_key)
+            .into_diagnostic()
+            .wrap_err_with(|| {
+                format!(
+                    "resolve metadata transaction key {}",
+                    transaction_key.display(),
+                )
             })?;
         let lock_path = lock_directory.join(format!(
             "{}.lock",
             pnpm_crypto_hash::create_hex_hash(&transaction_key.to_string_lossy()),
         ));
         let lock = open_metadata_lock(&lock_path)?;
-        lock.lock().into_diagnostic().wrap_err_with(|| {
-            format!("acquire metadata transaction lock {}", lock_path.display())
-        })?;
+        lock
+            .lock()
+            .into_diagnostic()
+            .wrap_err_with(|| {
+                format!("acquire metadata transaction lock {}", lock_path.display())
+            })?;
         let snapshots = paths
             .into_iter()
             .collect::<BTreeSet<_>>()
             .into_iter()
             .map(MetadataFile::capture)
             .collect::<Result<Vec<_>>>()?;
-        Ok(Self { snapshots, _lock: lock })
+        Ok(Self {
+            snapshots,
+            _lock: lock,
+        })
     }
 
     pub(crate) fn finish(self, outcome: Result<()>) -> Result<()> {
         let Err(operation_error) = outcome else {
             return Ok(());
         };
-        self.restore().map_err(|restore_error| {
-            restore_error.wrap_err(format!(
-                "restore project metadata after dependency operation failed: {operation_error}",
-            ))
-        })?;
+        self
+            .restore()
+            .map_err(|restore_error| {
+                restore_error.wrap_err(format!(
+                    "restore project metadata after dependency operation failed: {operation_error}",
+                ))
+            })?;
         Err(operation_error)
     }
 
@@ -111,12 +122,18 @@ fn prepare_metadata_lock_directory(directory: &std::path::Path) -> Result<()> {
 
 fn open_metadata_lock(path: &std::path::Path) -> Result<fs::File> {
     let mut options = fs::OpenOptions::new();
-    options.create(true).truncate(false).read(true).write(true);
+    options
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true);
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt as _;
 
-        options.mode(0o600).custom_flags(libc::O_CLOEXEC | libc::O_NOFOLLOW);
+        options
+            .mode(0o600)
+            .custom_flags(libc::O_CLOEXEC | libc::O_NOFOLLOW);
     }
     let lock = options
         .open(path)

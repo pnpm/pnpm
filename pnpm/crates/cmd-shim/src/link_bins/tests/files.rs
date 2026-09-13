@@ -9,8 +9,11 @@ fn link_bins_walks_modules_and_scopes() {
     let tmp = tempdir().unwrap();
     let modules = tmp.path().join("node_modules");
     create_dir_all(modules.join("foo")).unwrap();
-    write_file(modules.join("foo/package.json"), json!({"name": "foo", "bin": "f.js"}).to_string())
-        .unwrap();
+    write_file(
+        modules.join("foo/package.json"),
+        json!({"name": "foo", "bin": "f.js"}).to_string(),
+    )
+    .unwrap();
     write_file(modules.join("foo/f.js"), "#!/usr/bin/env node\n").unwrap();
     create_dir_all(modules.join("@s/bar")).unwrap();
     write_file(
@@ -25,7 +28,10 @@ fn link_bins_walks_modules_and_scopes() {
     link_bins::<Host>(&modules, &bins, &LinkBinsOptions::default()).unwrap();
 
     assert!(bins.join("foo").exists(), "foo shim must exist");
-    assert!(bins.join("bar").exists(), "scoped @s/bar shim must use bare name `bar`");
+    assert!(
+        bins.join("bar").exists(),
+        "scoped @s/bar shim must use bare name `bar`",
+    );
 }
 
 /// Real fs can't trigger this `read_dir` error portably; the fake

@@ -185,10 +185,18 @@ impl InstallPackageBySnapshot<'_> {
             }
         };
         self.link_slot::<Reporter>(
-            SlotLink { package_key, snapshot, package_id: &package_id, source_is_mutable },
+            SlotLink {
+                package_key,
+                snapshot,
+                package_id: &package_id,
+                source_is_mutable,
+            },
             &cas_paths,
         )?;
-        Ok(InstalledPackage { cas_paths, source_is_mutable })
+        Ok(InstalledPackage {
+            cas_paths,
+            source_is_mutable,
+        })
     }
 
     fn ingest<'d>(

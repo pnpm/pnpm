@@ -14,12 +14,15 @@ fn detect_dep_types(
     let mut dep_types: HashMap<PackageKey, DepType> = HashMap::new();
     let mut walked: HashSet<(PackageKey, bool)> = HashSet::new();
 
-    let dev_keys =
-        importer_roots(lockfile, |importer| std::slice::from_ref(&importer.dev_dependencies));
-    let prod_keys =
-        importer_roots(lockfile, |importer| std::slice::from_ref(&importer.dependencies));
-    let optional_keys =
-        importer_roots(lockfile, |importer| std::slice::from_ref(&importer.optional_dependencies));
+    let dev_keys = importer_roots(lockfile, |importer| {
+        std::slice::from_ref(&importer.dev_dependencies)
+    });
+    let prod_keys = importer_roots(lockfile, |importer| {
+        std::slice::from_ref(&importer.dependencies)
+    });
+    let optional_keys = importer_roots(lockfile, |importer| {
+        std::slice::from_ref(&importer.optional_dependencies)
+    });
     let prod_keys = [prod_keys, optional_keys].concat();
 
     detect_dep_types_walk(
@@ -48,8 +51,7 @@ fn importer_roots<'a>(
         &'a pnpm_lockfile::ProjectSnapshot,
     ) -> &'a [Option<pnpm_lockfile::ResolvedDependencyMap>],
 ) -> Vec<PackageKey> {
-    lockfile
-        .importers
+    lockfile.importers
         .values()
         .flat_map(|importer| maps(importer).iter().flatten())
         .flatten()
@@ -81,7 +83,11 @@ fn detect_dep_types_walk(
             .then(|| snapshot.optional_dependencies.iter().flatten())
             .into_iter()
             .flatten();
-        for (alias, dep_ref) in snapshot.dependencies.iter().flatten().chain(optional_iter) {
+        for (alias, dep_ref) in snapshot.dependencies
+            .iter()
+            .flatten()
+            .chain(optional_iter)
+        {
             if let Some(child_key) = dep_ref.resolve(alias) {
                 queue.push(child_key);
             }
@@ -93,14 +99,18 @@ fn detect_dep_types_walk(
 /// recorded and the prod walk reaches too is production, not dev-only.
 fn record_dep_type(dep_types: &mut HashMap<PackageKey, DepType>, key: &PackageKey, is_dev: bool) {
     if is_dev {
-        dep_types.entry(key.clone()).or_insert(DepType::DevOnly);
+        dep_types
+            .entry(key.clone())
+            .or_insert(DepType::DevOnly);
         return;
     }
     if dep_types.get(key) == Some(&DepType::DevOnly) {
         dep_types.insert(key.clone(), DepType::ProdOnly);
         return;
     }
-    dep_types.entry(key.clone()).or_insert(DepType::ProdOnly);
+    dep_types
+        .entry(key.clone())
+        .or_insert(DepType::ProdOnly);
 }
 
 pub(super) fn collect_components(
@@ -115,7 +125,11 @@ pub(super) fn collect_components(
     let lockfile = required_sbom_lockfile(state)?;
 
     let lockfile_dir = state.lockfile_dir().to_path_buf();
-    let root = RootMetadata::of(&read_root_manifest(state, &lockfile_dir, filter_importer_ids));
+    let root = RootMetadata::of(&read_root_manifest(
+        state,
+        &lockfile_dir,
+        filter_importer_ids,
+    ));
     let dep_types = detect_dep_types(lockfile, include.optional_dependencies);
 
     let default_virtual_store_dirs = [state.config.effective_virtual_store_dir().to_path_buf()];
@@ -166,12 +180,22 @@ struct RootMetadata {
 
 impl RootMetadata {
     pub(super) fn of(manifest: &serde_json::Value) -> Self {
-        let name = manifest.get("name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
-        let version =
-            manifest.get("version").and_then(|v| v.as_str()).unwrap_or("0.0.0").to_string();
+        let name = manifest
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+        let version = manifest
+            .get("version")
+            .and_then(|v| v.as_str())
+            .unwrap_or("0.0.0")
+            .to_string();
         RootMetadata {
             purl: build_purl(&name, &version),
-            license: manifest.get("license").and_then(|v| v.as_str()).map(ToString::to_string),
+            license: manifest
+                .get("license")
+                .and_then(|v| v.as_str())
+                .map(ToString::to_string),
             description: manifest
                 .get("description")
                 .and_then(|v| v.as_str())
@@ -186,8 +210,7 @@ impl RootMetadata {
 }
 
 fn initial_importer_ids(lockfile: &Lockfile, filter_importer_ids: Option<&[&str]>) -> Vec<String> {
-    lockfile
-        .importers
+    lockfile.importers
         .keys()
         .filter(|id| filter_importer_ids.is_none_or(|ids| ids.contains(&id.as_str())))
         .cloned()

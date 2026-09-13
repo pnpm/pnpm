@@ -60,25 +60,39 @@ async fn workspace_root_direct_deps_resolve_child_importer_peers() {
             }),
         ),
     );
-    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
+    let resolver = RecordingResolver {
+        table,
+        seen: Mutex::new(HashMap::default()),
+    };
     let importers = vec![
-        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
-        WorkspaceImporter { id: "packages/app".to_string(), manifest: &app_manifest },
+        WorkspaceImporter {
+            id: ".".to_string(),
+            manifest: &root_manifest,
+        },
+        WorkspaceImporter {
+            id: "packages/app".to_string(),
+            manifest: &app_manifest,
+        },
     ];
     let mut opts = workspace_opts(false, false);
     opts.peers.resolve_peers_from_workspace_root = true;
 
-    let result =
-        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+    let result = resolve_workspace(
+        &resolver,
+        &importers,
+        &[DependencyGroup::Prod],
+        opts,
+        |importer| {
             let project_dir = match importer.id.as_str() {
                 "." => std::path::PathBuf::from("/repo"),
                 "packages/app" => std::path::PathBuf::from("/repo/packages/app"),
                 _ => unreachable!("unexpected importer"),
             };
             importer_opts(project_dir, None)
-        })
-        .await
-        .expect("resolve workspace");
+        },
+    )
+    .await
+    .expect("resolve workspace");
 
     assert_eq!(
         result.peers.direct_dependencies_by_importer["packages/app"]["plugin"].as_str(),
@@ -103,8 +117,12 @@ async fn local_workspace_package_version_can_satisfy_another_importers_optional_
             }),
         ),
     );
-    let mut local_opt =
-        fake_result("opt", "1.0.0", None, serde_json::json!({ "name": "opt", "version": "1.0.0" }));
+    let mut local_opt = fake_result(
+        "opt",
+        "1.0.0",
+        None,
+        serde_json::json!({ "name": "opt", "version": "1.0.0" }),
+    );
     local_opt.id = PkgResolutionId::from("link:packages/opt".to_string());
     local_opt.package.name_ver = None;
     local_opt.resolution = LockfileResolution::Directory(DirectoryResolution {
@@ -114,27 +132,47 @@ async fn local_workspace_package_version_can_satisfy_another_importers_optional_
     table.insert(("opt".to_string(), "workspace:*".to_string()), local_opt);
     table.insert(
         ("opt".to_string(), "1.0.0".to_string()),
-        fake_result("opt", "1.0.0", None, serde_json::json!({ "name": "opt", "version": "1.0.0" })),
+        fake_result(
+            "opt",
+            "1.0.0",
+            None,
+            serde_json::json!({ "name": "opt", "version": "1.0.0" }),
+        ),
     );
-    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
+    let resolver = RecordingResolver {
+        table,
+        seen: Mutex::new(HashMap::default()),
+    };
     let (tmp_root, root_manifest) = fake_manifest(serde_json::json!({ "opt": "workspace:*" }));
     let (tmp_a, a_manifest) = fake_manifest(serde_json::json!({ "needs-opt": "1.0.0" }));
     let importers = [
-        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
-        WorkspaceImporter { id: "pkg-a".to_string(), manifest: &a_manifest },
+        WorkspaceImporter {
+            id: ".".to_string(),
+            manifest: &root_manifest,
+        },
+        WorkspaceImporter {
+            id: "pkg-a".to_string(),
+            manifest: &a_manifest,
+        },
     ];
     let dirs = [tmp_root.path(), tmp_a.path()];
 
     let mut opts = workspace_opts(false, false);
     opts.peers.auto_install_peers = true;
     let mut next = 0;
-    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
-        let dir = dirs[next].to_path_buf();
-        next += 1;
-        let mut opts = importer_opts(dir, None);
-        opts.peers.auto_install_peers = true;
-        opts
-    })
+    let result = resolve_workspace(
+        &resolver,
+        &importers,
+        &[DependencyGroup::Prod],
+        opts,
+        |_| {
+            let dir = dirs[next].to_path_buf();
+            next += 1;
+            let mut opts = importer_opts(dir, None);
+            opts.peers.auto_install_peers = true;
+            opts
+        },
+    )
     .await
     .unwrap();
 
@@ -173,7 +211,11 @@ async fn transiently_walked_subtree_versions_do_not_bias_optional_peer_hoists() 
         Some("host@1.0.0".to_string()),
         "the unreachable dep@1.0.0 must not satisfy host's optional peer",
     );
-    assert_eq!(direct.get("dep"), None, "no optional-peer hoist may install dep");
+    assert_eq!(
+        direct.get("dep"),
+        None,
+        "no optional-peer hoist may install dep",
+    );
     assert_eq!(graph_versions_of(&result, "dep"), ["2.0.0"]);
 }
 
@@ -216,8 +258,14 @@ async fn non_root_importer_hoists_the_root_importers_peer_provider() {
     let (_root_tmp, root_manifest) = fake_manifest(serde_json::json!({ "react": "19.2.0" }));
     let (_app_tmp, app_manifest) = fake_manifest(serde_json::json!({ "lucide": "1.0.0" }));
     let importers = vec![
-        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
-        WorkspaceImporter { id: "app-b".to_string(), manifest: &app_manifest },
+        WorkspaceImporter {
+            id: ".".to_string(),
+            manifest: &root_manifest,
+        },
+        WorkspaceImporter {
+            id: "app-b".to_string(),
+            manifest: &app_manifest,
+        },
     ];
     let resolver = RecordingResolver {
         table: HashMap::from_iter([
@@ -258,17 +306,26 @@ async fn non_root_importer_hoists_the_root_importers_peer_provider() {
     let mut opts = workspace_opts(false, false);
     opts.peers.auto_install_peers = true;
     opts.peers.resolve_peers_from_workspace_root = true;
-    let result =
-        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+    let result = resolve_workspace(
+        &resolver,
+        &importers,
+        &[DependencyGroup::Prod],
+        opts,
+        |importer| {
             let mut importer_opts =
                 importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None);
             importer_opts.peers.resolve_peers_from_workspace_root = true;
             importer_opts
-        })
-        .await
-        .expect("resolve workspace with a root-provided peer");
+        },
+    )
+    .await
+    .expect("resolve workspace with a root-provided peer");
 
-    assert_eq!(graph_versions_of(&result, "react"), ["19.2.0"], "one react, the root's");
+    assert_eq!(
+        graph_versions_of(&result, "react"),
+        ["19.2.0"],
+        "one react, the root's",
+    );
     let app_deps = &result.peers.direct_dependencies_by_importer["app-b"];
     assert_eq!(app_deps["react"].as_str(), "react@19.2.0");
     assert_eq!(app_deps["lucide"].as_str(), "lucide@1.0.0(react@19.2.0)");
@@ -282,8 +339,14 @@ async fn root_dep_named_only_by_its_manifest_still_provides_the_peer() {
     let (_root_tmp, root_manifest) = fake_manifest(serde_json::json!({ "aliased": TARBALL }));
     let (_app_tmp, app_manifest) = fake_manifest(serde_json::json!({ "consumer": "1.0.0" }));
     let importers = vec![
-        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
-        WorkspaceImporter { id: "app-b".to_string(), manifest: &app_manifest },
+        WorkspaceImporter {
+            id: ".".to_string(),
+            manifest: &root_manifest,
+        },
+        WorkspaceImporter {
+            id: "app-b".to_string(),
+            manifest: &app_manifest,
+        },
     ];
     let mut unnamed = fake_result(
         "real-peer",
@@ -296,7 +359,10 @@ async fn root_dep_named_only_by_its_manifest_still_provides_the_peer() {
     unnamed.alias = Some("aliased".to_string());
     let resolver = RecordingResolver {
         table: HashMap::from_iter([
-            (("aliased".to_string(), TARBALL.to_string()), unnamed.clone()),
+            (
+                ("aliased".to_string(), TARBALL.to_string()),
+                unnamed.clone(),
+            ),
             (("real-peer".to_string(), TARBALL.to_string()), unnamed),
             (
                 ("real-peer".to_string(), "^1.0.0".to_string()),
@@ -326,20 +392,30 @@ async fn root_dep_named_only_by_its_manifest_still_provides_the_peer() {
     let mut opts = workspace_opts(false, false);
     opts.peers.auto_install_peers = true;
     opts.peers.resolve_peers_from_workspace_root = true;
-    let result =
-        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+    let result = resolve_workspace(
+        &resolver,
+        &importers,
+        &[DependencyGroup::Prod],
+        opts,
+        |importer| {
             let mut importer_opts =
                 importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None);
             importer_opts.peers.resolve_peers_from_workspace_root = true;
             importer_opts
-        })
-        .await
-        .expect("resolve workspace with a manifest-named root peer provider");
+        },
+    )
+    .await
+    .expect("resolve workspace with a manifest-named root peer provider");
 
     assert!(
-        !result.peers.graph.keys().any(|dep_path| dep_path.as_str().contains("1.9.9")),
+        !result.peers.graph
+            .keys()
+            .any(|dep_path| dep_path.as_str().contains("1.9.9")),
         "the peer must come from the root's tarball dep, not a second copy off the registry: {:?}",
-        result.peers.graph.keys().map(|k| k.as_str().to_string()).collect::<Vec<_>>(),
+        result.peers.graph
+            .keys()
+            .map(|k| k.as_str().to_string())
+            .collect::<Vec<_>>(),
     );
 }
 
@@ -408,8 +484,14 @@ async fn a_workspace_range_root_dep_is_offered_as_a_peer_provider() {
         fake_manifest(serde_json::json!({ "real-peer": WORKSPACE_RANGE }));
     let (_app_tmp, app_manifest) = fake_manifest(serde_json::json!({ "consumer": "1.0.0" }));
     let importers = vec![
-        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
-        WorkspaceImporter { id: "app-b".to_string(), manifest: &app_manifest },
+        WorkspaceImporter {
+            id: ".".to_string(),
+            manifest: &root_manifest,
+        },
+        WorkspaceImporter {
+            id: "app-b".to_string(),
+            manifest: &app_manifest,
+        },
     ];
     let mut linked = fake_result(
         "real-peer",
@@ -426,7 +508,10 @@ async fn a_workspace_range_root_dep_is_offered_as_a_peer_provider() {
     linked.resolved_via = "workspace".to_string();
     let resolver = RecordingResolver {
         table: HashMap::from_iter([
-            (("real-peer".to_string(), WORKSPACE_RANGE.to_string()), linked),
+            (
+                ("real-peer".to_string(), WORKSPACE_RANGE.to_string()),
+                linked,
+            ),
             (
                 ("real-peer".to_string(), "^1.0.0".to_string()),
                 fake_result(
@@ -455,26 +540,39 @@ async fn a_workspace_range_root_dep_is_offered_as_a_peer_provider() {
     let mut opts = workspace_opts(false, false);
     opts.peers.auto_install_peers = true;
     opts.peers.resolve_peers_from_workspace_root = true;
-    let result =
-        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+    let result = resolve_workspace(
+        &resolver,
+        &importers,
+        &[DependencyGroup::Prod],
+        opts,
+        |importer| {
             let mut importer_opts =
                 importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None);
             importer_opts.peers.resolve_peers_from_workspace_root = true;
             importer_opts
-        })
-        .await
-        .expect("resolve workspace with a workspace: range root dep");
+        },
+    )
+    .await
+    .expect("resolve workspace with a workspace: range root dep");
 
-    assert_eq!(result.peers.direct_dependencies_by_importer["."]["real-peer"].as_str(), LINK);
+    assert_eq!(
+        result.peers.direct_dependencies_by_importer["."]["real-peer"].as_str(),
+        LINK,
+    );
     assert_eq!(
         result.peers.direct_dependencies_by_importer["app-b"]["real-peer"].as_str(),
         "link:../../packages/real-peer",
         "app-b's peer is the same workspace package, reached from app-b's own directory",
     );
     assert!(
-        !result.peers.graph.keys().any(|dep_path| dep_path.as_str().contains("1.9.9")),
+        !result.peers.graph
+            .keys()
+            .any(|dep_path| dep_path.as_str().contains("1.9.9")),
         "no second copy off the registry: {:?}",
-        result.peers.graph.keys().map(|key| key.as_str().to_string()).collect::<Vec<_>>(),
+        result.peers.graph
+            .keys()
+            .map(|key| key.as_str().to_string())
+            .collect::<Vec<_>>(),
     );
 }
 
@@ -592,7 +690,10 @@ async fn importer_sharing_foreign_subtrees_binds_peers_from_workspace_root() {
             serde_json::json!({ "name": "peerx", "version": "1.0.0" }),
         ),
     );
-    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
+    let resolver = RecordingResolver {
+        table,
+        seen: Mutex::new(HashMap::default()),
+    };
     let (tmp_root, root_manifest) = fake_manifest(serde_json::json!({ "peerpkg": "1.0.0" }));
     let (tmp_a, a_manifest) =
         fake_manifest(serde_json::json!({ "mid": "1.0.0", "peerx": "1.0.0" }));
@@ -600,10 +701,22 @@ async fn importer_sharing_foreign_subtrees_binds_peers_from_workspace_root() {
     let (tmp_b, b_manifest) =
         fake_manifest(serde_json::json!({ "mid": "1.0.0", "bwrap": "1.0.0", "peerx": "1.0.0" }));
     let importers = [
-        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
-        WorkspaceImporter { id: "pkg-a".to_string(), manifest: &a_manifest },
-        WorkspaceImporter { id: "pkg-a2".to_string(), manifest: &a2_manifest },
-        WorkspaceImporter { id: "pkg-b".to_string(), manifest: &b_manifest },
+        WorkspaceImporter {
+            id: ".".to_string(),
+            manifest: &root_manifest,
+        },
+        WorkspaceImporter {
+            id: "pkg-a".to_string(),
+            manifest: &a_manifest,
+        },
+        WorkspaceImporter {
+            id: "pkg-a2".to_string(),
+            manifest: &a2_manifest,
+        },
+        WorkspaceImporter {
+            id: "pkg-b".to_string(),
+            manifest: &b_manifest,
+        },
     ];
     let dirs = [tmp_root.path(), tmp_a.path(), tmp_a2.path(), tmp_b.path()];
 
@@ -611,14 +724,20 @@ async fn importer_sharing_foreign_subtrees_binds_peers_from_workspace_root() {
     opts.peers.auto_install_peers = true;
     opts.peers.resolve_peers_from_workspace_root = true;
     let mut next = 0;
-    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
-        let dir = dirs[next].to_path_buf();
-        next += 1;
-        let mut opts = importer_opts(dir, None);
-        opts.peers.auto_install_peers = true;
-        opts.peers.resolve_peers_from_workspace_root = true;
-        opts
-    })
+    let result = resolve_workspace(
+        &resolver,
+        &importers,
+        &[DependencyGroup::Prod],
+        opts,
+        |_| {
+            let dir = dirs[next].to_path_buf();
+            next += 1;
+            let mut opts = importer_opts(dir, None);
+            opts.peers.auto_install_peers = true;
+            opts.peers.resolve_peers_from_workspace_root = true;
+            opts
+        },
+    )
     .await
     .unwrap();
 
@@ -659,7 +778,10 @@ async fn finalized_packages_are_announced_once_their_peer_free_subtree_settles()
     let announced = announced_finalized_packages(
         serde_json::json!({ "pure": "^1.0.0", "peered": "^1.0.0" }),
         HashMap::from_iter([
-            table_entry("pure", serde_json::json!({ "dependencies": { "leaf": "^1.0.0" } })),
+            table_entry(
+                "pure",
+                serde_json::json!({ "dependencies": { "leaf": "^1.0.0" } }),
+            ),
             table_entry("leaf", serde_json::json!({})),
             table_entry(
                 "peered",
@@ -688,12 +810,21 @@ async fn finalized_packages_include_peer_free_cycles() {
     let announced = announced_finalized_packages(
         serde_json::json!({ "ping": "^1.0.0" }),
         HashMap::from_iter([
-            table_entry("ping", serde_json::json!({ "dependencies": { "pong": "^1.0.0" } })),
-            table_entry("pong", serde_json::json!({ "dependencies": { "ping": "^1.0.0" } })),
+            table_entry(
+                "ping",
+                serde_json::json!({ "dependencies": { "pong": "^1.0.0" } }),
+            ),
+            table_entry(
+                "pong",
+                serde_json::json!({ "dependencies": { "ping": "^1.0.0" } }),
+            ),
         ]),
     )
     .await;
-    let ids = announced.iter().map(|(id, _)| id.as_str()).collect::<Vec<_>>();
+    let ids = announced
+        .iter()
+        .map(|(id, _)| id.as_str())
+        .collect::<Vec<_>>();
     assert_eq!(ids, ["ping@1.0.0", "pong@1.0.0"]);
 }
 
@@ -721,8 +852,7 @@ async fn warm_up_skips_dependencies_a_package_declares_as_its_own_peers() {
     let mut opts = workspace_opts(false, false);
     opts.peers.auto_install_peers = true;
     let result =
-        resolve_single_importer(&resolver, serde_json::json!({ "a": "^1.0.0" }), opts, None)
-            .await
+        resolve_single_importer(&resolver, serde_json::json!({ "a": "^1.0.0" }), opts, None).await
             .expect("resolve");
     assert_eq!(graph_versions_of(&result, "q"), ["1.0.0"]);
     assert_eq!(resolver.calls_for("q", "^2.0.0"), 0);

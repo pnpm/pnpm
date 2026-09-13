@@ -53,7 +53,11 @@ pub(super) async fn discover_workspace_roots(manifests: &[PathBuf]) -> Result<Ve
         .collect::<Result<BTreeSet<_>>>()?;
     let mut roots = BTreeSet::new();
     while !pending.is_empty() {
-        let concurrency = if roots.is_empty() { 1 } else { WORKSPACE_INSTALL_CONCURRENCY };
+        let concurrency = if roots.is_empty() {
+            1
+        } else {
+            WORKSPACE_INSTALL_CONCURRENCY
+        };
         let batch =
             std::iter::from_fn(|| pending.pop_first()).take(concurrency).collect::<Vec<_>>();
         let metadata = stream::iter(batch)
@@ -150,7 +154,10 @@ fn reject_redirected_workspace(root_dir: &Path) -> Result<()> {
 /// resolves npm alone: a server that does not serve Cargo resolution
 /// means a local resolve, not a failed install.
 pub(super) async fn resolve_via_pnpr(config: &Config, metadata: &str) -> Result<Option<String>> {
-    let Some(pnpr_server) = config.pnpr_server.as_deref().filter(|_| !config.offline) else {
+    let Some(pnpr_server) = config.pnpr_server
+        .as_deref()
+        .filter(|_| !config.offline)
+    else {
         return Ok(None);
     };
     let client = PnprClient::new(pnpr_server);
@@ -184,7 +191,13 @@ async fn read_cargo_metadata_for_manifest(manifest_path: &Path) -> Result<String
     let manifest_path = manifest_path.to_path_buf();
     let output = tokio::task::spawn_blocking(move || {
         Command::new("cargo")
-            .args(["metadata", "--no-deps", "--format-version", "1", "--manifest-path"])
+            .args([
+                "metadata",
+                "--no-deps",
+                "--format-version",
+                "1",
+                "--manifest-path",
+            ])
             .arg(&manifest_path)
             .output()
             .map(|output| (manifest_path, output))
@@ -199,7 +212,11 @@ async fn read_cargo_metadata_for_manifest(manifest_path: &Path) -> Result<String
         let manifest_path = manifest_path.display();
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stderr = stderr.trim();
-        return Err(miette::miette!("cargo metadata failed for {}: {}", manifest_path, stderr,));
+        return Err(miette::miette!(
+            "cargo metadata failed for {}: {}",
+            manifest_path,
+            stderr,
+        ));
     }
     String::from_utf8(output.stdout).into_diagnostic().wrap_err("decode cargo metadata output")
 }
@@ -219,21 +236,23 @@ pub(super) fn parse_lockfile(input: &str, index_url: &str) -> Result<LockedPacka
             let name = package.name.to_string();
             let version = package.version.to_string();
             validate_package_identity(&name, &version)?;
-            let source = match git_sources.entry(source.to_string()) {
-                std::collections::btree_map::Entry::Occupied(known) => Arc::clone(known.get()),
-                std::collections::btree_map::Entry::Vacant(slot) => {
-                    Arc::clone(slot.insert(Arc::new(GitSource::from_source_id(source)?)))
-                }
-            };
-            packages.git.push(GitPackage { name, version, source });
+            let source = shared_git_source(&mut git_sources, source)?;
+            packages.git.push(GitPackage {
+                name,
+                version,
+                source,
+            });
             continue;
         }
         let crate_source = source.clone();
-        packages.crates.push(locked_crate_from_package(package, &crate_source, index_url)?);
+        packages.crates.push(locked_crate_from_package(
+            package,
+            &crate_source,
+            index_url,
+        )?);
     }
 
-    reject_duplicate_links("registry", packages.crates.iter().map(LockedCrate::link_name))?;
-    reject_duplicate_links("git", packages.git.iter().map(GitPackage::link_name))?;
+    validate_package_links(&packages)?;
     Ok(packages)
 }
 
@@ -271,15 +290,24 @@ fn locked_crate_from_package(
     }
     let name = package.name.to_string();
     let version = package.version.to_string();
-    let checksum = package
-        .checksum
+    let checksum = package.checksum
         .ok_or_else(|| miette::miette!("registry package {name} {version} has no checksum"))?
         .to_string();
     validate_package_identity(&name, &version)?;
-    if checksum.len() != 64 || !checksum.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return Err(miette::miette!("invalid checksum for crate {name} {version}"));
+    if checksum.len() != 64
+        || !checksum
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit())
+    {
+        return Err(miette::miette!(
+            "invalid checksum for crate {name} {version}"
+        ));
     }
-    Ok(LockedCrate { name, version, checksum: checksum.to_ascii_lowercase() })
+    Ok(LockedCrate {
+        name,
+        version,
+        checksum: checksum.to_ascii_lowercase(),
+    })
 }
 
 /// Both names reach the filesystem as the `<name>-<version>` directory a
@@ -315,6 +343,32 @@ impl LockedCrate {
     /// hash. Cargo's workspace directory source supplies the graph-specific
     /// view, and Cargo writes compilation artifacts outside this slot.
     pub(super) fn store_slot(&self, store_root: &Path) -> PathBuf {
-        store_root.join("crates").join(&self.name).join(&self.version).join(&self.checksum)
+        store_root
+            .join("crates")
+            .join(&self.name)
+            .join(&self.version)
+            .join(&self.checksum)
     }
+}
+
+fn shared_git_source(
+    git_sources: &mut BTreeMap<String, Arc<GitSource>>,
+    source: &cargo_lock::SourceId,
+) -> Result<Arc<GitSource>> {
+    let source = match git_sources.entry(source.to_string()) {
+        std::collections::btree_map::Entry::Occupied(known) => Arc::clone(known.get()),
+        std::collections::btree_map::Entry::Vacant(slot) => {
+            Arc::clone(slot.insert(Arc::new(GitSource::from_source_id(source)?)))
+        }
+    };
+    Ok(source)
+}
+
+fn validate_package_links(packages: &LockedPackages) -> Result<()> {
+    reject_duplicate_links(
+        "registry",
+        packages.crates.iter().map(LockedCrate::link_name),
+    )?;
+    reject_duplicate_links("git", packages.git.iter().map(GitPackage::link_name))?;
+    Ok(())
 }

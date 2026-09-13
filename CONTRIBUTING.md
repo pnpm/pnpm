@@ -45,7 +45,7 @@ sudo dnf install make automake gcc gcc-c++ kernel-devel
 
 Rust is now the primary language in this repository, so most contributions need a working Rust toolchain and the Rust developer tools. The Rust workspace (`Cargo.toml`, `rust-toolchain.toml`, `justfile`) lives at the repository root; run `cargo` and `just` from there.
 
-1. Install [`rustup`](https://rustup.rs). You do not need to select a toolchain by hand. `rust-toolchain.toml` pins the version the project builds with, and `rustup` installs it, together with `rustfmt` and `clippy` from the pinned `default` profile, the first time you run `cargo` inside the repository.
+1. Install [`rustup`](https://rustup.rs). You do not need to select a toolchain by hand. `rust-toolchain.toml` pins the version the project builds with, and `rustup` installs it, together with `clippy` from the pinned `default` profile, the first time you run `cargo` inside the repository.
 
 2. Install [`just`](https://just.systems) (the task runner) and [`cargo-binstall`](https://github.com/cargo-bins/cargo-binstall), then install the task tools from the repository root:
 
@@ -53,7 +53,7 @@ Rust is now the primary language in this repository, so most contributions need 
    just init
    ```
 
-   `just init` installs `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov` (via `cargo binstall`), plus `cargo-fixit` (pinned to `0.1.15` via `cargo install cargo-fixit@0.1.15 --locked`, since `cargo-fixit` has no prebuilt binaries). `cargo-fixit` backs the `just fix` task.
+   `just init` installs `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov` (via `cargo binstall`), plus `cargo-fixit` (pinned to `0.1.15` via `cargo install cargo-fixit@0.1.15 --locked`, since `cargo-fixit` has no prebuilt binaries). `cargo-fixit` backs the `just fix` task. It also builds the pinned pnpm rustfmt fork described below.
 
 3. Install the dylint tools, which `just init` does not cover, **from source**:
 
@@ -72,6 +72,44 @@ The block is a function of `Cargo.lock`, so an install regenerates it byte for b
 Make sure `~/.cargo/bin` is on your `PATH`, ahead of any system-wide Rust in `/usr/bin`. `rustup`'s installer adds this entry through `~/.cargo/env`; ensure your shell sources it. This matters for the git hooks. The `pnpm install` step above wires up husky, and its `pre-push` hook runs the Rust checks in `pnpm/scripts/pre-push-rust.sh` (format, doc, dylint, typos) alongside the TypeScript compile and lint. That script locates `cargo`, `rustup`, `taplo`, `typos`, and `cargo-dylint` through `PATH`, and it **skips** a check when the tool is not found rather than failing. A push that appears to pass locally with the tools off `PATH` has silently skipped the format, doc, and dylint checks, so those problems surface only in CI.
 
 For the full Rust development workflow (checks, tests, benchmarks, and the code style guide), see [`pnpm/CONTRIBUTING.md`](./pnpm/CONTRIBUTING.md).
+
+### Rust formatting
+
+Use `just fmt` to format Rust and TOML, or run the Rust formatter directly:
+
+```shell
+node pnpm/scripts/rustfmt.mjs --all
+node pnpm/scripts/rustfmt.mjs --all -- --check
+```
+
+The wrapper uses the [pnpm rustfmt fork](https://github.com/pnpm/rustfmt), pinned by full commit SHA in [`pnpm/scripts/rustfmt.json`](./pnpm/scripts/rustfmt.json). Its `chain_complexity_layout` rule keeps a single method call attached to a simple receiver, even when its arguments are complex or span multiple lines. After a function-call receiver, a method moves to its own line if keeping it attached would split its arguments. Two method calls stay inline when their arguments are simple and the expression fits, such as `packages.iter().count()` or `values.get(&key).is_some()`. Two calls with complex or multiline arguments, and chains of three or more calls, put each method call on its own line. This applies in conditions too.
+
+Leading field accesses stay together with their receiver; fields after a vertically wrapped method each start a new line. `.await` follows the same layout rules as ordinary fields. `?` stays attached to the preceding expression.
+
+Struct construction uses `struct_lit_width = 0`, while destructuring uses `struct_pattern_width = 35`. This keeps short patterns such as `EnvSubcommand::Use { package_name }` inline without compacting struct literals.
+
+Ordinary `cargo fmt` uses the toolchain's upstream formatter and does not apply this rule. The task runner, CI, and git hook all use the wrapper.
+
+The first run installs the formatter's dated nightly toolchain with `rustc-dev` and LLVM tools, then builds the two formatter binaries with `cargo install --locked`. This needs network access, disk space for the compiler components, and the platform's Rust build prerequisites. Run `node pnpm/scripts/rustfmt.mjs --install` ahead of time to prepare the formatter. The project still builds with the stable compiler in `rust-toolchain.toml`; the formatter has its own runtime and does not replace any global binaries.
+
+Binaries are cached under `~/.cache/pnpm/rustfmt`, keyed by OS, architecture, nightly toolchain, and fork revision. `node pnpm/scripts/rustfmt.mjs --cache-path` prints the exact installation directory. Cached runs work offline when the required toolchain components are already installed. Updating the revision in `rustfmt.json` causes the next run to build a new cached copy. Installation or formatting failures are reported as errors; the wrapper never falls back to another formatter.
+
+For editors, `--rustfmt` forwards arguments directly to the pinned formatter and preserves its stdin/stdout interface. In VS Code with rust-analyzer, set [`rust-analyzer.rustfmt.overrideCommand`](https://rust-analyzer.github.io/book/configuration#rust-analyzer.rustfmt.overrideCommand) in your workspace settings:
+
+```json
+{
+  "rust-analyzer.rustfmt.overrideCommand": [
+    "node",
+    "/absolute/path/to/checkout/pnpm/scripts/rustfmt.mjs",
+    "--rustfmt",
+    "--edition=2024",
+    "--config-path",
+    "/absolute/path/to/checkout/rustfmt.toml"
+  ]
+}
+```
+
+Replace the two paths with your checkout paths. On Windows, use forward slashes or escape backslashes in JSON. Other editors can run the same command with source code on stdin. Install the formatter before enabling format-on-save to avoid the initial build delaying an editor request.
 
 ## Working with Git Worktrees
 

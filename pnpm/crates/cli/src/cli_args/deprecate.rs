@@ -20,10 +20,7 @@ use registry::{PackageMeta, put_package_meta};
 
 use reqwest::{Response, StatusCode};
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::{BTreeMap, HashMap},
-    time::Duration,
-};
+use std::collections::{BTreeMap, HashMap};
 
 const DEPRECATION_BODY_LIMIT: usize = 10 * 1024 * 1024;
 pub(crate) const DEPRECATION_ERROR_BODY_LIMIT: usize = 64 * 1024;
@@ -168,20 +165,17 @@ impl DeprecateContext<'_> {
         registry: Option<&String>,
         otp: Option<String>,
     ) -> miette::Result<DeprecateContext<'a>> {
-        let mut registries: HashMap<String, String> =
-            config.resolved_registries().into_iter().collect();
+        let mut registries: HashMap<String, String> = config
+            .resolved_registries()
+            .into_iter()
+            .collect();
         if let Some(registry) = registry {
             registries.insert("default".to_string(), normalize_registry_url(registry));
         }
         Ok(DeprecateContext {
             config,
             http_client: build_http_client(config)?,
-            retry_opts: RetryOpts {
-                retries: config.fetch_retries,
-                factor: config.fetch_retry_factor,
-                min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-                max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-            },
+            retry_opts: config.retry_opts(),
             registries,
             otp,
         })
@@ -200,8 +194,7 @@ impl DeprecateArgs {
         let spec = self.params.first().ok_or(DeprecateError::PackageRequired)?;
         let PackageSpec { name: package_name, version } = parse_package_spec(spec)?;
 
-        let message = self
-            .params
+        let message = self.params
             .get(1..)
             .map(|parts| parts.join(" "))
             .filter(|msg| !msg.is_empty())
@@ -227,17 +220,7 @@ pub(crate) async fn update_deprecation(
     let mut package_meta: PackageMeta =
         fetch_package_meta(context, &package_url, auth_header.as_deref(), package_name).await?;
 
-    if package_meta.versions.is_empty() {
-        return Err(DeprecateError::NoVersions { package_name: package_name.to_string() }.into());
-    }
-
-    let versions_to_update = versions_matching(&package_meta, version_range);
-    if versions_to_update.is_empty() {
-        return Err(DeprecateError::NoMatchingVersions {
-            version_range: version_range.unwrap_or("").to_string(),
-        }
-        .into());
-    }
+    let versions_to_update = require_matching_versions(&package_meta, package_name, version_range)?;
 
     validate_undeprecation(
         &package_meta,
@@ -263,8 +246,17 @@ pub(crate) async fn update_deprecation(
     )
     .await?;
 
-    let verb = if deprecated_message.is_some() { "deprecated" } else { "un-deprecated" };
-    Ok(format!("Successfully {} {} version(s) of {}", verb, versions_to_update.len(), package_name))
+    let verb = if deprecated_message.is_some() {
+        "deprecated"
+    } else {
+        "un-deprecated"
+    };
+    Ok(format!(
+        "Successfully {} {} version(s) of {}",
+        verb,
+        versions_to_update.len(),
+        package_name,
+    ))
 }
 
 /// The published versions the range selects, or every version when the
@@ -275,13 +267,15 @@ pub(crate) async fn update_deprecation(
 /// `NoMatchingVersions` rather than a distinct "invalid spec" error.
 fn versions_matching(package_meta: &PackageMeta, version_range: Option<&str>) -> Vec<String> {
     let Some(range_str) = version_range else {
-        return package_meta.versions.keys().cloned().collect();
+        return package_meta.versions
+            .keys()
+            .cloned()
+            .collect();
     };
     let Ok(range) = Range::parse(range_str) else {
         return Vec::new();
     };
-    package_meta
-        .versions
+    package_meta.versions
         .keys()
         .filter(|ver_str| {
             node_semver::Version::parse(ver_str).is_ok_and(|ver| range.satisfies(&ver))
@@ -292,11 +286,14 @@ fn versions_matching(package_meta: &PackageMeta, version_range: Option<&str>) ->
 
 pub(crate) fn parse_package_spec(spec: &str) -> Result<PackageSpec, DeprecateError> {
     let parsed = parse_wanted_dependency(spec);
-    let name = parsed
-        .alias
-        .ok_or_else(|| DeprecateError::InvalidPackageSpec { spec: spec.to_string() })?;
+    let name = parsed.alias.ok_or_else(|| DeprecateError::InvalidPackageSpec {
+        spec: spec.to_string(),
+    })?;
     let version = parsed.bare_specifier.filter(|version| !version.is_empty());
-    Ok(PackageSpec { name, version })
+    Ok(PackageSpec {
+        name,
+        version,
+    })
 }
 
 /// Undeprecating a range with no deprecated versions is an error.
@@ -307,13 +304,14 @@ fn validate_undeprecation(
     package_name: &str,
     version_range: Option<&str>,
 ) -> miette::Result<()> {
-    let has_deprecated = versions_to_update.iter().any(|ver_str| {
-        package_meta
-            .versions
-            .get(ver_str)
-            .and_then(|info| info.deprecated.as_ref())
-            .is_some_and(|dep| !dep.is_empty())
-    });
+    let has_deprecated = versions_to_update
+        .iter()
+        .any(|ver_str| {
+            package_meta.versions
+                .get(ver_str)
+                .and_then(|info| info.deprecated.as_ref())
+                .is_some_and(|dep| !dep.is_empty())
+        });
     if deprecated_message.is_none() && !has_deprecated {
         return Err(DeprecateError::NotDeprecated {
             package_name: package_name.to_string(),
@@ -328,3 +326,25 @@ fn validate_undeprecation(
 }
 
 mod registry;
+
+fn require_matching_versions(
+    package_meta: &PackageMeta,
+    package_name: &str,
+    version_range: Option<&str>,
+) -> miette::Result<Vec<String>> {
+    if package_meta.versions.is_empty() {
+        return Err(DeprecateError::NoVersions {
+            package_name: package_name.to_string(),
+        }
+        .into());
+    }
+
+    let versions_to_update = versions_matching(package_meta, version_range);
+    if versions_to_update.is_empty() {
+        return Err(DeprecateError::NoMatchingVersions {
+            version_range: version_range.unwrap_or("").to_string(),
+        }
+        .into());
+    }
+    Ok(versions_to_update)
+}

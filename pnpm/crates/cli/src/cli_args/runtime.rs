@@ -79,8 +79,11 @@ impl RuntimeArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
         let request = self.set_request()?;
         let config = state.config;
-        let prefix =
-            state.manifest.path().parent().expect("manifest path has a parent").to_path_buf();
+        let prefix = state.manifest
+            .path()
+            .parent()
+            .expect("manifest path has a parent")
+            .to_path_buf();
         add_package::<Reporter, _>(
             state,
             &request.package_name,
@@ -136,10 +139,11 @@ impl RuntimeArgs {
             return Err(RuntimeError::NoSubcommand);
         };
         if subcommand != "set" {
-            return Err(RuntimeError::UnknownSubcommand { subcommand: subcommand.clone() });
+            return Err(RuntimeError::UnknownSubcommand {
+                subcommand: subcommand.clone(),
+            });
         }
-        let runtime_name = self
-            .params
+        let runtime_name = self.params
             .get(1)
             .map(|name| name.trim())
             .filter(|name| !name.is_empty())
@@ -149,16 +153,22 @@ impl RuntimeArgs {
         // comma-separated package list or a local path by the global-add
         // pipeline.
         if !is_runtime_alias(runtime_name) {
-            return Err(RuntimeError::InvalidRuntimeName { name: runtime_name.to_string() });
+            return Err(RuntimeError::InvalidRuntimeName {
+                name: runtime_name.to_string(),
+            });
         }
-        let version_spec = self.params.get(2).map_or("", |version| version.trim());
+        let version_spec = self.params
+            .get(2)
+            .map_or("", |version| version.trim());
         // The version is interpolated into the same `<name>@runtime:<version>`
         // selector, which the global-add pipeline splits on commas. Reject a
         // comma so `runtime set node 22,evil -g` can't smuggle in a second
         // install target. No valid runtime version (semver, dist-tag,
         // channel) contains one.
         if version_spec.contains(',') {
-            return Err(RuntimeError::InvalidRuntimeVersion { version: version_spec.to_string() });
+            return Err(RuntimeError::InvalidRuntimeVersion {
+                version: version_spec.to_string(),
+            });
         }
         let dependency_group = if self.save_dev || !self.save_prod {
             DependencyGroup::Dev
@@ -183,7 +193,11 @@ fn runtime_shim_hint(
     {
         return None;
     }
-    let setup = if config.global_bin.is_none() { r#"run "pnpm setup", then "# } else { "" };
+    let setup = if config.global_bin.is_none() {
+        r#"run "pnpm setup", then "#
+    } else {
+        ""
+    };
     Some(format!(
         r#"To make the bare "{runtime_name}" command project-aware, {setup}run "pnpm shim add {runtime_name}"."#,
     ))

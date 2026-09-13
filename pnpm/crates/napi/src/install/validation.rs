@@ -9,7 +9,9 @@ use super::{
 pub(super) fn reject_non_object_manifests(projects: &[NodeApiProject]) -> napi::Result<()> {
     for project in projects {
         if !project.manifest.is_object()
-            || project.dependency_manifest.as_ref().is_some_and(|value| !value.is_object())
+            || project.dependency_manifest
+                .as_ref()
+                .is_some_and(|value| !value.is_object())
         {
             return Err(invalid_manifest_error(&project.root_dir));
         }
@@ -21,7 +23,10 @@ pub(super) fn reject_unsupported_install_options(options: &InstallOptions) -> na
     reject_non_empty_map(options.auth_config.as_ref(), "authConfig")?;
     // `neverBuiltDependencies` was replaced by `allowBuilds` in pnpm v12:
     // hosts fold it into explicit `allowBuilds: false` entries themselves.
-    reject_non_empty_list(options.never_built_dependencies.as_deref(), "neverBuiltDependencies")?;
+    reject_non_empty_list(
+        options.never_built_dependencies.as_deref(),
+        "neverBuiltDependencies",
+    )?;
     Ok(())
 }
 
@@ -37,5 +42,9 @@ fn reject_non_empty_list<Value>(value: Option<&[Value]>, option: &str) -> napi::
 }
 
 fn reject_if(condition: bool, option: &str) -> napi::Result<()> {
-    if condition { Err(unsupported_option_error("install", option)) } else { Ok(()) }
+    if condition {
+        Err(unsupported_option_error("install", option))
+    } else {
+        Ok(())
+    }
 }

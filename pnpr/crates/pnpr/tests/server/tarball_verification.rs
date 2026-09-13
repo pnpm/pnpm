@@ -63,15 +63,29 @@ async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
 
     let selected = app
         .clone()
-        .oneshot(Request::get("/foo/latest").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/foo/latest")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(selected.status(), StatusCode::OK);
     let selected: Value = serde_json::from_slice(&body_bytes(selected.into_body()).await).unwrap();
-    assert_eq!(selected["dist"]["tarball"], "http://example.test/foo/-/foo-2.0.0.tgz");
+    assert_eq!(
+        selected["dist"]["tarball"],
+        "http://example.test/foo/-/foo-2.0.0.tgz",
+    );
 
-    let full =
-        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let full = app
+        .clone()
+        .oneshot(
+            Request::get("/foo")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     let full: Value = serde_json::from_slice(&body_bytes(full.into_body()).await).unwrap();
     assert_eq!(
         full["versions"]["1.0.0"]["dist"]["tarball"],
@@ -82,14 +96,27 @@ async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
         "http://example.test/foo/-/foo-1.0.0.tgz",
     );
 
-    let route =
-        selected["dist"]["tarball"].as_str().unwrap().strip_prefix("http://example.test").unwrap();
-    let first = app.oneshot(Request::get(route).body(Body::empty()).unwrap()).await.unwrap();
+    let route = selected["dist"]["tarball"]
+        .as_str()
+        .unwrap()
+        .strip_prefix("http://example.test")
+        .unwrap();
+    let first = app
+        .oneshot(
+            Request::get(route)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(first.status(), StatusCode::OK);
     assert_eq!(body_bytes(first.into_body()).await, v1_bytes);
 
     let package_dir = public_cache_pkg(&storage, "foo");
-    assert_eq!(tarball_cache_entries(&package_dir), vec!["foo-2.0.0.tgz".to_string()]);
+    assert_eq!(
+        tarball_cache_entries(&package_dir),
+        vec!["foo-2.0.0.tgz".to_string()],
+    );
 
     // A fresh instance over the same storage and the same origin replays the
     // cached entry; the `expect(1)` mocks prove the upstream is never
@@ -97,7 +124,14 @@ async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
     // deliberately abandons this cache — see
     // `repointing_an_upstream_url_abandons_the_old_origins_cache`.)
     let restarted = router(config_for(&upstream.url(), storage));
-    let replay = restarted.oneshot(Request::get(route).body(Body::empty()).unwrap()).await.unwrap();
+    let replay = restarted
+        .oneshot(
+            Request::get(route)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(replay.status(), StatusCode::OK);
     assert_eq!(body_bytes(replay.into_body()).await, v1_bytes);
 
@@ -149,19 +183,33 @@ async fn tampered_upstream_tarball_aborts_the_stream_and_is_never_cached() {
     let cache_path = public_cache_pkg(&storage, "poisoned").join("poisoned-1.0.0.tgz");
 
     let app = router(config_for(&upstream.url(), storage.clone()));
-    let packument_response =
-        app.clone().oneshot(Request::get("/poisoned").body(Body::empty()).unwrap()).await.unwrap();
+    let packument_response = app
+        .clone()
+        .oneshot(
+            Request::get("/poisoned")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(packument_response.status(), StatusCode::OK);
 
     let tarball_response = app
-        .oneshot(Request::get("/poisoned/-/poisoned-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/poisoned/-/poisoned-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(tarball_response.status(), StatusCode::OK);
     // Draining the body runs the end-of-stream SRI check, which abandons the
     // cache temp on the mismatch.
     assert!(to_bytes(tarball_response.into_body(), usize::MAX).await.is_err());
-    assert!(!cache_path.exists(), "unverified tarball must not be written to the cache");
+    assert!(
+        !cache_path.exists(),
+        "unverified tarball must not be written to the cache",
+    );
 
     packument_mock.assert_async().await;
     tarball_mock.assert_async().await;
@@ -172,7 +220,11 @@ async fn tampered_upstream_tarball_aborts_the_stream_and_is_never_cached() {
     let url = upstream.url();
     drop(upstream);
     let cached_response = router(config_for(&url, storage))
-        .oneshot(Request::get("/poisoned/-/poisoned-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/poisoned/-/poisoned-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert!(
@@ -188,7 +240,10 @@ async fn tarball_without_integrity_or_shasum_is_rejected_before_fetch() {
     // No `dist.integrity` and no `dist.shasum`: nothing to verify the bytes
     // against, so the request must fail before any tarball fetch.
     let mut packument = foo_packument(&upstream.url());
-    packument["versions"]["1.0.0"]["dist"].as_object_mut().unwrap().remove("shasum");
+    packument["versions"]["1.0.0"]["dist"]
+        .as_object_mut()
+        .unwrap()
+        .remove("shasum");
     let packument_mock = upstream
         .mock("GET", "/foo")
         .with_status(200)
@@ -207,7 +262,11 @@ async fn tarball_without_integrity_or_shasum_is_rejected_before_fetch() {
 
     let tmp = TempDir::new().unwrap();
     let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
-        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/foo/-/foo-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 
@@ -241,7 +300,11 @@ async fn shasum_only_tarball_is_served_with_sha1_verification() {
 
     let tmp = TempDir::new().unwrap();
     let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
-        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/foo/-/foo-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -296,7 +359,11 @@ async fn ambiguous_tarball_basename_is_rejected_before_fetch() {
 
     let tmp = TempDir::new().unwrap();
     let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
-        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/foo/-/foo-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 
@@ -345,7 +412,11 @@ async fn invalid_tarball_integrities_are_controlled_failures() {
 
         let tmp = TempDir::new().unwrap();
         let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
-            .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::get("/foo/-/foo-1.0.0.tgz")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
 
@@ -374,7 +445,11 @@ async fn tarball_verification_finalizes_cache_with_no_tmp_leftover() {
     let app = router(config_for(&upstream.url(), cache_dir.clone()));
 
     let response = app
-        .oneshot(Request::get("/big/-/big-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/big/-/big-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -416,7 +491,11 @@ async fn cache_false_upstream_rejects_tampered_tarball_without_mirroring() {
     let app = router(config);
 
     let response = app
-        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/foo/-/foo-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);

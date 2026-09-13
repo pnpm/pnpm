@@ -23,7 +23,10 @@ fn format_bytes_uses_decimal_units() {
 fn get_nested_property_walks_dotted_paths() {
     let info = json!({ "name": "foo", "dist": { "shasum": "abc" } });
     assert_eq!(get_nested_property(&info, "name"), Some(json!("foo")));
-    assert_eq!(get_nested_property(&info, "dist.shasum"), Some(json!("abc")));
+    assert_eq!(
+        get_nested_property(&info, "dist.shasum"),
+        Some(json!("abc")),
+    );
     assert_eq!(get_nested_property(&info, "dist.missing"), None);
     assert_eq!(get_nested_property(&info, "name.shasum"), None);
 }
@@ -35,7 +38,10 @@ fn format_field_value_matches_pnpm_rules() {
     assert_eq!(format_field_value(Some(&json!("hello"))), "hello");
     assert_eq!(format_field_value(Some(&json!(42))), "42");
     assert_eq!(format_field_value(Some(&json!(true))), "true");
-    assert_eq!(format_field_value(Some(&json!({ "a": 1 }))), "{\n  \"a\": 1\n}");
+    assert_eq!(
+        format_field_value(Some(&json!({ "a": 1 }))),
+        "{\n  \"a\": 1\n}",
+    );
 }
 
 #[test]
@@ -67,8 +73,14 @@ fn format_time_ago_buckets_by_largest_unit() {
 
 #[test]
 fn parse_date_accepts_iso_timestamps_only() {
-    assert!(parse_date("2024-01-01T00:00:00.000Z").is_some(), "an ISO timestamp should parse");
-    assert!(parse_date("not-a-date").is_none(), "a non-timestamp should not parse");
+    assert!(
+        parse_date("2024-01-01T00:00:00.000Z").is_some(),
+        "an ISO timestamp should parse",
+    );
+    assert!(
+        parse_date("not-a-date").is_none(),
+        "a non-timestamp should not parse",
+    );
 }
 
 /// A rich info object that exercises every optional summary section.
@@ -135,16 +147,26 @@ fn bin_summary_covers_string_object_and_absent() {
     // A string `bin` on an unscoped package derives the package name.
     let unscoped = bin_summary(&json!({ "name": "hello-bin", "bin": "cli.js" }));
     assert_eq!(unscoped.len(), 2);
-    assert!(unscoped[0].is_empty(), "the bin section opens with a blank line: {unscoped:?}");
+    assert!(
+        unscoped[0].is_empty(),
+        "the bin section opens with a blank line: {unscoped:?}",
+    );
     assert!(unscoped[1].contains("hello-bin"), "{:?}", unscoped[1]);
     // A string `bin` on a scoped package strips the scope.
     let scoped = bin_summary(&json!({ "name": "@scope/hello-bin", "bin": "cli.js" }));
-    assert!(scoped[1].contains("hello-bin") && !scoped[1].contains("@scope"), "{:?}", scoped[1]);
+    assert!(
+        scoped[1].contains("hello-bin") && !scoped[1].contains("@scope"),
+        "{:?}",
+        scoped[1],
+    );
     // An object `bin` lists its keys.
     let object = bin_summary(&json!({ "name": "x", "bin": { "one": "a.js" } }));
     assert!(object[1].contains("one"), "{:?}", object[1]);
     // No / empty bin renders nothing.
-    assert!(bin_summary(&json!({ "name": "x" })).is_empty(), "a missing bin renders nothing");
+    assert!(
+        bin_summary(&json!({ "name": "x" })).is_empty(),
+        "a missing bin renders nothing",
+    );
     assert!(
         bin_summary(&json!({ "name": "x", "bin": "" })).is_empty(),
         "an empty bin renders nothing",
@@ -161,7 +183,12 @@ fn render_fields_multi_text_formats_by_type() {
     // An absent field renders as `field = ` with an empty value.
     let with_absent = ["missing".to_string(), "name".to_string()];
     let out2 = render_fields(&info, &with_absent, false);
-    assert!(out2.lines().any(|line| line == "missing = "), "{out2}");
+    assert!(
+        out2
+            .lines()
+            .any(|line| line == "missing = "),
+        "{out2}",
+    );
 }
 
 #[test]
@@ -176,9 +203,15 @@ fn publisher_prefers_npm_user_then_maintainers_then_author() {
     let many = publisher(&json!({ "maintainers": [{ "name": "a" }, { "name": "b" }] })).unwrap();
     assert!(many.contains("et al."), "{many}");
     let single = publisher(&json!({ "maintainers": [{ "name": "solo" }] })).unwrap();
-    assert!(single.contains("solo") && !single.contains("et al."), "{single}");
+    assert!(
+        single.contains("solo") && !single.contains("et al."),
+        "{single}",
+    );
     // Then the author (returned verbatim, not colorized).
-    assert_eq!(publisher(&json!({ "author": "Jane Doe" })), Some("Jane Doe".to_string()));
+    assert_eq!(
+        publisher(&json!({ "author": "Jane Doe" })),
+        Some("Jane Doe".to_string()),
+    );
     // Nothing to attribute.
     assert_eq!(publisher(&json!({})), None);
 }
@@ -212,7 +245,10 @@ fn published_info_covers_publisher_absence_and_bad_time() {
     // Missing version, missing time, and an unparsable timestamp all yield no line.
     assert_eq!(published_info(&json!({ "version": "1.0.0" })), None);
     assert_eq!(published_info(&json!({ "time": {} })), None);
-    assert_eq!(published_info(&json!({ "version": "1.0.0", "time": { "1.0.0": "nope" } })), None);
+    assert_eq!(
+        published_info(&json!({ "version": "1.0.0", "time": { "1.0.0": "nope" } })),
+        None,
+    );
 }
 
 #[test]
@@ -222,8 +258,14 @@ fn format_person_renders_name_and_optional_email() {
         with_email.contains("alice") && with_email.contains("alice@example.com"),
         "{with_email}",
     );
-    assert!(with_email.contains('<') && with_email.contains('>'), "{with_email}");
+    assert!(
+        with_email.contains('<') && with_email.contains('>'),
+        "{with_email}",
+    );
 
     let without_email = format_person(&json!({ "name": "bob" }));
-    assert!(without_email.contains("bob") && !without_email.contains('<'), "{without_email}");
+    assert!(
+        without_email.contains("bob") && !without_email.contains('<'),
+        "{without_email}",
+    );
 }

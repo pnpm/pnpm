@@ -83,14 +83,22 @@ fn key(text: &str) -> PackageKey {
 }
 
 fn has_alias(group: Option<&crate::ResolvedDependencyMap>, alias: &str) -> bool {
-    group.is_some_and(|group| group.keys().any(|name| name.to_string() == alias))
+    group.is_some_and(|group| {
+        group
+            .keys()
+            .any(|name| name.to_string() == alias)
+    })
 }
 
 fn snapshot_keys(lockfile: &Lockfile) -> Vec<String> {
-    let mut keys: Vec<String> = lockfile
-        .snapshots
+    let mut keys: Vec<String> = lockfile.snapshots
         .as_ref()
-        .map(|snapshots| snapshots.keys().map(ToString::to_string).collect())
+        .map(|snapshots| {
+            snapshots
+                .keys()
+                .map(ToString::to_string)
+                .collect()
+        })
         .unwrap_or_default();
     keys.sort();
     keys
@@ -107,7 +115,12 @@ fn keeps_only_what_the_selected_importer_reaches() {
 
     assert_eq!(
         snapshot_keys(&filtered),
-        vec!["deep@1.0.0", "dev-dep@1.0.0", "opt-dep@1.0.0", "prod-dep@1.0.0"],
+        vec![
+            "deep@1.0.0",
+            "dev-dep@1.0.0",
+            "opt-dep@1.0.0",
+            "prod-dep@1.0.0"
+        ],
     );
 }
 
@@ -123,8 +136,16 @@ fn prunes_the_metadata_map_too() {
         .expect("filter lockfile");
 
     let packages = filtered.packages.as_ref().expect("packages survive");
-    assert!(!packages.keys().any(|key| key.to_string() == "other-dep@1.0.0"));
-    assert!(packages.keys().any(|key| key.to_string() == "prod-dep@1.0.0"));
+    assert!(
+        !packages
+            .keys()
+            .any(|key| key.to_string() == "other-dep@1.0.0"),
+    );
+    assert!(
+        packages
+            .keys()
+            .any(|key| key.to_string() == "prod-dep@1.0.0"),
+    );
 }
 
 #[test]
@@ -140,9 +161,17 @@ fn an_excluded_group_is_emptied_and_its_edges_are_not_walked() {
         )
         .expect("filter lockfile");
 
-    assert_eq!(snapshot_keys(&filtered), vec!["deep@1.0.0", "prod-dep@1.0.0"]);
+    assert_eq!(
+        snapshot_keys(&filtered),
+        vec!["deep@1.0.0", "prod-dep@1.0.0"],
+    );
     let importer = &filtered.importers["packages/app"];
-    assert!(importer.dev_dependencies.as_ref().expect("group present").is_empty());
+    assert!(
+        importer.dev_dependencies
+            .as_ref()
+            .expect("group present")
+            .is_empty(),
+    );
     assert!(has_alias(importer.dependencies.as_ref(), "prod-dep"));
 }
 
@@ -171,12 +200,18 @@ fn skipped_keys_and_what_only_they_reach_are_dropped() {
         .filter_by_importers(vec!["packages/app".to_string()], &opts)
         .expect("filter lockfile");
 
-    assert_eq!(snapshot_keys(&filtered), vec!["dev-dep@1.0.0", "opt-dep@1.0.0"]);
+    assert_eq!(
+        snapshot_keys(&filtered),
+        vec!["dev-dep@1.0.0", "opt-dep@1.0.0"],
+    );
 }
 
 #[test]
 fn a_missing_dependency_is_reported_only_when_asked_for() {
-    let source = LOCKFILE.replace("  prod-dep@1.0.0:\n    dependencies:\n      deep: 1.0.0\n", "");
+    let source = LOCKFILE.replace(
+        "  prod-dep@1.0.0:\n    dependencies:\n      deep: 1.0.0\n",
+        "",
+    );
     let lockfile = Lockfile::parse(&source, Path::new("pnpm-lock.yaml"))
         .expect("parse lockfile")
         .expect("lockfile is not empty");

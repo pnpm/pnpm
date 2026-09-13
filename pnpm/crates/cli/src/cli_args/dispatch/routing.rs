@@ -153,7 +153,9 @@ pub(super) fn prints_json_errors(command: &CliCommand) -> bool {
 }
 
 pub(super) fn print_json_error(error: &miette::Report) {
-    let code = error.code().map_or_else(|| "pnpm".to_string(), |code| code.to_string());
+    let code = error
+        .code()
+        .map_or_else(|| "pnpm".to_string(), |code| code.to_string());
     let message = json_error_message(error);
     let mut error_body = serde_json::json!({
         "code": code,
@@ -190,11 +192,17 @@ pub(super) fn json_error_message(error: &miette::Report) -> String {
 fn otp_non_interactive_error(error: &miette::Report) -> Option<&OtpNonInteractiveError> {
     error
         .downcast_ref::<OtpNonInteractiveError>()
-        .or_else(|| error.chain().find_map(|cause| cause.downcast_ref::<OtpNonInteractiveError>()))
+        .or_else(|| {
+            error
+                .chain()
+                .find_map(|cause| cause.downcast_ref::<OtpNonInteractiveError>())
+        })
 }
 
 pub(super) fn now_millis() -> u128 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis())
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis())
 }
 
 /// Install fast paths emit the same completion event as the full command.

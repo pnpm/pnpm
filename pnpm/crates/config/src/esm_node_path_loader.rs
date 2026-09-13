@@ -91,7 +91,10 @@ pub fn esm_node_path_loader_import_flag() -> &'static str {
         let registration = REGISTRATION_TEMPLATE
             .replace("@HELPERS@", &RESOLVE_HELPERS.replace('\n', "\n    "))
             .replace("@ASYNC_LOADER@", &strict_uri_encode(&async_loader));
-        format!("--import=data:text/javascript,{}", strict_uri_encode(&registration))
+        format!(
+            "--import=data:text/javascript,{}",
+            strict_uri_encode(&registration),
+        )
     });
     &FLAG
 }
@@ -131,8 +134,9 @@ pub fn keep_esm_node_path_loader_option(
     node_options: &str,
     previous_node_options: Option<&str>,
 ) -> String {
-    let carried_flag = previous_node_options
-        .is_some_and(|previous| previous.contains(esm_node_path_loader_import_flag()));
+    let carried_flag = previous_node_options.is_some_and(|previous| {
+        previous.contains(esm_node_path_loader_import_flag())
+    });
     if carried_flag {
         add_esm_node_path_loader_option(Some(node_options))
     } else {

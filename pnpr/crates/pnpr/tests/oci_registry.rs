@@ -33,7 +33,10 @@ mod common;
 mod pausing_store;
 
 #[path = "../src/server/striped_locks.rs"]
-#[allow(dead_code, reason = "the collision fixture uses the production stripe mapping")]
+#[allow(
+    dead_code,
+    reason = "the collision fixture uses the production stripe mapping"
+)]
 mod striped_locks;
 
 use axum::{
@@ -72,7 +75,10 @@ fn oci_config(storage: PathBuf, hosted_access: &str) -> Config {
 }
 
 fn app(tmp: &TempDir) -> Router {
-    router_with_auth(oci_config(tmp.path().to_path_buf(), "$all"), AuthState::in_memory())
+    router_with_auth(
+        oci_config(tmp.path().to_path_buf(), "$all"),
+        AuthState::in_memory(),
+    )
 }
 
 /// The same registry with destructive writes opened up, which the
@@ -102,10 +108,17 @@ async fn token(app: &Router) -> String {
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body.to_string()))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
     let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
-    payload["token"].as_str().expect("token in response").to_string()
+    payload["token"]
+        .as_str()
+        .expect("token in response")
+        .to_string()
 }
 
 /// `docker login` sends the token as the `Basic` password.
@@ -121,8 +134,16 @@ async fn push_blob(app: &Router, auth: &str, repository: &str, bytes: &[u8]) -> 
         .header(header::AUTHORIZATION, auth)
         .body(Body::from(bytes.to_vec()))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
-    assert_eq!(response.status(), StatusCode::CREATED, "blob push should succeed");
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status(),
+        StatusCode::CREATED,
+        "blob push should succeed",
+    );
     digest
 }
 
@@ -147,16 +168,35 @@ async fn push_image(app: &Router, auth: &str, repository: &str, reference: &str)
     let manifest = image_manifest("config", &["layer"]);
     let request = Request::put(format!("/v2/{repository}/manifests/{reference}"))
         .header(header::AUTHORIZATION, auth)
-        .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
+        .header(
+            header::CONTENT_TYPE,
+            "application/vnd.oci.image.manifest.v1+json",
+        )
         .body(Body::from(manifest.clone()))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
-    assert_eq!(response.status(), StatusCode::CREATED, "manifest push should succeed");
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status(),
+        StatusCode::CREATED,
+        "manifest push should succeed",
+    );
     digest_of(&manifest)
 }
 
 async fn get(app: &Router, path: &str) -> axum::response::Response {
-    app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap()
+    app
+        .clone()
+        .oneshot(
+            Request::get(path)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap()
 }
 
 async fn check_protocol_surface(app: Router) {
@@ -209,7 +249,10 @@ async fn check_protocol_surface(app: Router) {
     assert_eq!(response.status(), StatusCode::CREATED);
     let location = response.headers()[header::LOCATION].to_str().unwrap();
     assert_eq!(location, format!("/v2/acme/destination/blobs/{digest}"));
-    assert_eq!(body_bytes(get(&app, location).await.into_body()).await, b"0123456789");
+    assert_eq!(
+        body_bytes(get(&app, location).await.into_body()).await,
+        b"0123456789",
+    );
     for from in ["acme/missing", "library/upstream"] {
         let response = app
             .clone()
@@ -224,7 +267,12 @@ async fn check_protocol_surface(app: Router) {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::ACCEPTED);
-        assert!(response.headers()[header::LOCATION].to_str().unwrap().contains("/uploads/"));
+        assert!(
+            response.headers()[header::LOCATION]
+                .to_str()
+                .unwrap()
+                .contains("/uploads/"),
+        );
     }
 
     for tag in ["a", "c", "e"] {
@@ -232,7 +280,10 @@ async fn check_protocol_surface(app: Router) {
     }
     push_image(&app, &auth, "acme/zebra", "latest").await;
     let response = get(&app, "/v2/acme/pages/tags/list?n=2").await;
-    let link = response.headers()[header::LINK].to_str().unwrap().to_string();
+    let link = response.headers()[header::LINK]
+        .to_str()
+        .unwrap()
+        .to_string();
     assert_eq!(link, r#"</v2/acme/pages/tags/list?n=2&last=c>; rel="next""#);
     let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(payload["tags"], json!(["a", "c"]));
@@ -249,7 +300,11 @@ async fn check_protocol_surface(app: Router) {
         assert!(!response.headers().contains_key(header::LINK));
         let payload: Value =
             serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
-        let field = if endpoint == "_catalog" { "repositories" } else { "tags" };
+        let field = if endpoint == "_catalog" {
+            "repositories"
+        } else {
+            "tags"
+        };
         assert_eq!(payload[field], json!([]));
         for invalid in ["-1", "oops", "184467440737095516160", ""] {
             assert_eq!(
@@ -297,8 +352,15 @@ async fn check_protocol_surface(app: Router) {
         assert_eq!(response.status(), StatusCode::CREATED);
         assert_eq!(response.headers()["oci-subject"], subject);
     }
-    let response = get(&app, &format!("{path}?artifactType=application%2Fexample.signature")).await;
-    assert_eq!(response.headers()[header::CONTENT_TYPE], pnpr_oci::media_type::OCI_IMAGE_INDEX);
+    let response = get(
+        &app,
+        &format!("{path}?artifactType=application%2Fexample.signature"),
+    )
+    .await;
+    assert_eq!(
+        response.headers()[header::CONTENT_TYPE],
+        pnpr_oci::media_type::OCI_IMAGE_INDEX,
+    );
     assert_eq!(response.headers()["oci-filters-applied"], "artifactType");
     let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(payload["schemaVersion"], 2);
@@ -324,7 +386,13 @@ async fn check_protocol_surface(app: Router) {
     assert_eq!(response.status(), StatusCode::ACCEPTED);
     let response = get(&app, &path).await;
     let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
-    assert_eq!(payload["manifests"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        payload["manifests"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1,
+    );
     let response = app
         .clone()
         .oneshot(
@@ -372,7 +440,10 @@ async fn check_ignored_ranges(app: &Router, blob_path: &str) {
         let response = app
             .clone()
             .oneshot(
-                Request::get(blob_path).header(header::RANGE, range).body(Body::empty()).unwrap(),
+                Request::get(blob_path)
+                    .header(header::RANGE, range)
+                    .body(Body::empty())
+                    .unwrap(),
             )
             .await
             .unwrap();
@@ -387,11 +458,18 @@ async fn check_unsatisfiable_ranges(app: &Router, blob_path: &str) {
         let response = app
             .clone()
             .oneshot(
-                Request::get(blob_path).header(header::RANGE, range).body(Body::empty()).unwrap(),
+                Request::get(blob_path)
+                    .header(header::RANGE, range)
+                    .body(Body::empty())
+                    .unwrap(),
             )
             .await
             .unwrap();
-        assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE, "{range}");
+        assert_eq!(
+            response.status(),
+            StatusCode::RANGE_NOT_SATISFIABLE,
+            "{range}",
+        );
         assert_eq!(response.headers()[header::CONTENT_RANGE], "bytes */10");
     }
 }
@@ -408,13 +486,19 @@ async fn check_satisfiable_ranges(app: &Router, blob_path: &str) {
         let response = app
             .clone()
             .oneshot(
-                Request::get(blob_path).header(header::RANGE, range).body(Body::empty()).unwrap(),
+                Request::get(blob_path)
+                    .header(header::RANGE, range)
+                    .body(Body::empty())
+                    .unwrap(),
             )
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT, "{range}");
         assert_eq!(response.headers()[header::CONTENT_RANGE], content_range);
-        assert_eq!(response.headers()[header::CONTENT_LENGTH], expected.len().to_string());
+        assert_eq!(
+            response.headers()[header::CONTENT_LENGTH],
+            expected.len().to_string(),
+        );
         assert_eq!(response.headers()[header::ACCEPT_RANGES], "bytes");
         assert_eq!(body_bytes(response.into_body()).await, expected.as_bytes());
     }
@@ -422,10 +506,18 @@ async fn check_satisfiable_ranges(app: &Router, blob_path: &str) {
 
 fn strip_referrer_metadata(document: &mut Value, expected_count: usize) {
     let entries = document["manifests"].as_array_mut().unwrap();
-    assert_eq!(entries.len(), expected_count, "the pushed manifests are stored");
+    assert_eq!(
+        entries.len(),
+        expected_count,
+        "the pushed manifests are stored",
+    );
     for entry in entries {
         assert!(
-            entry.as_object_mut().unwrap().remove("referrer").is_some(),
+            entry
+                .as_object_mut()
+                .unwrap()
+                .remove("referrer")
+                .is_some(),
             "the stored entry must carry referrer metadata before stripping it",
         );
     }

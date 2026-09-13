@@ -121,16 +121,20 @@ fn project_config(config: &pnpm_config::Config) -> ResolvedConfig {
     let auth_header_by_uri: HashMap<String, String> = by_scope
         .iter()
         .filter_map(|(uri, by_scope)| {
-            by_scope.get(DEFAULT_REGISTRY_SCOPE).map(|header| (uri.clone(), header.clone()))
+            by_scope
+                .get(DEFAULT_REGISTRY_SCOPE)
+                .map(|header| (uri.clone(), header.clone()))
         })
         .collect();
 
     let registries = resolved_registries(config, &by_scope);
 
-    let no_proxy = config.proxy.no_proxy.as_ref().map(|setting| match setting {
-        NoProxySetting::Bypass => serde_json::Value::Bool(true),
-        NoProxySetting::List(hosts) => serde_json::Value::String(hosts.join(",")),
-    });
+    let no_proxy = config.proxy.no_proxy
+        .as_ref()
+        .map(|setting| match setting {
+            NoProxySetting::Bypass => serde_json::Value::Bool(true),
+            NoProxySetting::List(hosts) => serde_json::Value::String(hosts.join(",")),
+        });
 
     resolved_config_values(config, registries, auth_header_by_uri, no_proxy)
 }
@@ -153,21 +157,20 @@ fn resolved_config_values(
         strict_ssl: config.tls.strict_ssl,
         store_dir: std::path::PathBuf::from(config.store_dir.clone()).display().to_string(),
         cache_dir: config.cache_dir.display().to_string(),
-        virtual_store_dir_max_length: u32::try_from(config.virtual_store_dir_max_length)
-            .unwrap_or(u32::MAX),
+        virtual_store_dir_max_length: capped_u32(config.virtual_store_dir_max_length),
         enable_global_virtual_store: config.enable_global_virtual_store,
         global_virtual_store_dir: config.global_virtual_store_dir.display().to_string(),
         virtual_store_dir: config.virtual_store_dir.display().to_string(),
-        effective_virtual_store_dir: config.effective_virtual_store_dir().display().to_string(),
-        network_concurrency: u32::try_from(config.network_concurrency).unwrap_or(u32::MAX),
-        max_sockets: config.max_sockets.map(|value| u32::try_from(value).unwrap_or(u32::MAX)),
+        effective_virtual_store_dir: display_path(config.effective_virtual_store_dir()),
+        network_concurrency: capped_u32(config.network_concurrency),
+        max_sockets: config.max_sockets.map(capped_u32),
         fetch_retries: config.fetch_retries,
         fetch_retry_factor: config.fetch_retry_factor,
-        fetch_retry_mintimeout: u32::try_from(config.fetch_retry_mintimeout).unwrap_or(u32::MAX),
-        fetch_retry_maxtimeout: u32::try_from(config.fetch_retry_maxtimeout).unwrap_or(u32::MAX),
-        fetch_timeout: u32::try_from(config.fetch_timeout).unwrap_or(u32::MAX),
-        fetch_warn_timeout_ms: u32::try_from(config.fetch_warn_timeout_ms).unwrap_or(u32::MAX),
-        fetch_min_speed_ki_bps: u32::try_from(config.fetch_min_speed_ki_bps).unwrap_or(u32::MAX),
+        fetch_retry_mintimeout: capped_u32(config.fetch_retry_mintimeout),
+        fetch_retry_maxtimeout: capped_u32(config.fetch_retry_maxtimeout),
+        fetch_timeout: capped_u32(config.fetch_timeout),
+        fetch_warn_timeout_ms: capped_u32(config.fetch_warn_timeout_ms),
+        fetch_min_speed_ki_bps: capped_u32(config.fetch_min_speed_ki_bps),
         user_agent: explicit_user_agent(config),
         engine_strict: config.engine_strict,
         node_version: config.node_version.clone(),
@@ -175,15 +178,19 @@ fn resolved_config_values(
         hoist_pattern: config.hoist_pattern.clone(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         shamefully_hoist: config.shamefully_hoist,
-        pnpm_home_dir: pnpm_config::default_pnpm_home_dir::<pnpm_config::Host>()
-            .map(|dir| dir.display().to_string()),
-        explicit_settings: config.explicit_settings.keys().cloned().collect(),
+        pnpm_home_dir: pnpm_config::default_pnpm_home_dir::<pnpm_config::Host>().map(display_path),
+        explicit_settings: config.explicit_settings
+            .keys()
+            .cloned()
+            .collect(),
     }
 }
 
 /// Embedders supply their own user agent unless configuration explicitly overrides it.
 fn explicit_user_agent(config: &pnpm_config::Config) -> Option<String> {
-    config.explicit_settings.contains_key("userAgent").then(|| config.user_agent.clone())
+    config.explicit_settings
+        .contains_key("userAgent")
+        .then(|| config.user_agent.clone())
 }
 
 fn import_method_name(method: pnpm_config::PackageImportMethod) -> &'static str {
@@ -205,8 +212,9 @@ fn resolved_registries(
     config: &pnpm_config::Config,
     by_scope: &AuthHeadersByScope,
 ) -> Vec<ResolvedRegistry> {
-    let default_entry = (!config.registries_by_scope.contains_key("default"))
-        .then(|| ("default".to_string(), config.registry.clone()));
+    let default_entry = (!config.registries_by_scope.contains_key("default")).then(|| {
+        ("default".to_string(), config.registry.clone())
+    });
     default_entry
         .iter()
         .map(|(name, url)| (name, url))
@@ -216,10 +224,31 @@ fn resolved_registries(
             // A scope registry prefers its scope-keyed credential; both
             // registry kinds fall back to the registry-wide (`@`) one.
             let auth_header = scoped
-                .and_then(|headers| if name == "default" { None } else { headers.get(name) })
+                .and_then(|headers| {
+                    if name == "default" {
+                        None
+                    } else {
+                        headers.get(name)
+                    }
+                })
                 .or_else(|| scoped.and_then(|headers| headers.get(DEFAULT_REGISTRY_SCOPE)))
                 .cloned();
-            ResolvedRegistry { name: name.clone(), url: url.clone(), auth_header }
+            ResolvedRegistry {
+                name: name.clone(),
+                url: url.clone(),
+                auth_header,
+            }
         })
         .collect()
+}
+
+fn display_path(path: impl AsRef<std::path::Path>) -> String {
+    path
+        .as_ref()
+        .display()
+        .to_string()
+}
+
+fn capped_u32(value: impl TryInto<u32>) -> u32 {
+    value.try_into().unwrap_or(u32::MAX)
 }

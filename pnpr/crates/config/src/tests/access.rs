@@ -13,7 +13,10 @@ fn from_yaml_str_rejects_hosted_org_path_traversal() {
             format!("storage: ./s\nregistries:\n  evil:\n    type: hosted\n    org: {org}\n");
         let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
             .expect_err("a traversal-y hosted org must be rejected");
-        assert!(err.to_string().contains("path-safe"), "unexpected error for {org:?}: {err}");
+        assert!(
+            err.to_string().contains("path-safe"),
+            "unexpected error for {org:?}: {err}",
+        );
     }
 }
 
@@ -32,7 +35,10 @@ upstreams: {}
         Some(Path::new("/etc/pnpr/./htpasswd")),
     );
     // Tokens default to the htpasswd sibling.
-    assert_eq!(config.identity.auth.tokens.file.as_deref(), Some(Path::new("/etc/pnpr/tokens.db")));
+    assert_eq!(
+        config.identity.auth.tokens.file.as_deref(),
+        Some(Path::new("/etc/pnpr/tokens.db")),
+    );
 }
 
 #[test]
@@ -42,7 +48,10 @@ fn auth_block_absent_disables_registration_by_default() {
     assert!(config.identity.auth.htpasswd.file.is_none());
     assert!(config.identity.auth.tokens.file.is_none());
     // Registration is opt-in: an omitted cap denies new sign-ups.
-    assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Disabled);
+    assert_eq!(
+        config.identity.auth.htpasswd.max_users,
+        super::super::MaxUsers::Disabled,
+    );
 }
 
 #[test]
@@ -55,7 +64,10 @@ auth:
 upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Disabled);
+    assert_eq!(
+        config.identity.auth.htpasswd.max_users,
+        super::super::MaxUsers::Disabled,
+    );
 }
 
 #[test]
@@ -87,7 +99,10 @@ auth:
 upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Disabled);
+    assert_eq!(
+        config.identity.auth.htpasswd.max_users,
+        super::super::MaxUsers::Disabled,
+    );
 }
 
 #[test]
@@ -101,7 +116,10 @@ auth:
 upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Limited(5));
+    assert_eq!(
+        config.identity.auth.htpasswd.max_users,
+        super::super::MaxUsers::Limited(5),
+    );
 }
 
 #[test]
@@ -120,8 +138,18 @@ registries:
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     let rules = &config.routing.hosted["local"].rules;
     // Omitted `access` falls back to the registry-level default...
-    assert!(rules.for_package("@team/x").access.allows(&user("team")));
-    assert!(!rules.for_package("@team/x").access.allows(&user("carol")));
+    assert!(
+        rules
+            .for_package("@team/x")
+            .access
+            .allows(&user("team")),
+    );
+    assert!(
+        !rules
+            .for_package("@team/x")
+            .access
+            .allows(&user("carol")),
+    );
     // ...while the more specific key overrides it.
     assert!(rules.for_package("@team/open").access.allows(&Identity::Anonymous));
 }
@@ -291,7 +319,10 @@ fn team_declarations_are_validated() {
         (colon_name, "cannot contain `:` or start with `$`"),
         (builtin_member, "built-in groups belong in the access lists"),
         (alias_member, "built-in groups belong in the access lists"),
-        (at_alias_member, "built-in groups belong in the access lists"),
+        (
+            at_alias_member,
+            "built-in groups belong in the access lists",
+        ),
         (nested_team_member, "cannot include another team"),
     ] {
         let yaml = format!("storage: ./s\nregistries:\n  local:\n    type: hosted\n{teams}");

@@ -46,8 +46,14 @@ pub(crate) fn passthrough_from(argv: &[OsString]) -> Option<usize> {
     // Scanned independently of the command: a separator ends parsing even
     // for a command that would otherwise own the rest of argv, as in
     // `pnpm install -- --config.foo=bar`.
-    let separator = argv.iter().position(|arg| arg == "--").map(|index| index + 1);
-    match (separator, command_boundary(argv).map(|boundary| boundary.index)) {
+    let separator = argv
+        .iter()
+        .position(|arg| arg == "--")
+        .map(|index| index + 1);
+    match (
+        separator,
+        command_boundary(argv).map(|boundary| boundary.index),
+    ) {
         (Some(separator), Some(command)) => Some(separator.min(command)),
         (separator, command) => separator.or(command),
     }
@@ -71,7 +77,10 @@ pub(crate) fn command_boundary(argv: &[OsString]) -> Option<CommandBoundary> {
     while index < argv.len() {
         // Non-UTF-8 cannot be classified, so treat it as the child's.
         let Some(arg) = argv[index].to_str() else {
-            return Some(CommandBoundary { index, is_script_shortcut: false });
+            return Some(CommandBoundary {
+                index,
+                is_script_shortcut: false,
+            });
         };
         if arg == "--" {
             // The separator governs from here; see `passthrough_from`.
@@ -184,7 +193,10 @@ pub(crate) fn subcommand_option_names(argv: &[OsString]) -> HashSet<&'static str
     let arity = union_arity();
     let mut index = 1;
     while let Some(positional) = next_positional(argv, index, arity) {
-        let Some(name) = argv[positional].to_str().filter(|name| *name != "--") else {
+        let Some(name) = argv[positional]
+            .to_str()
+            .filter(|name| *name != "--")
+        else {
             break;
         };
         if COMMAND_PREFIXES.contains(&name) {
@@ -200,7 +212,15 @@ pub(crate) fn subcommand_option_names(argv: &[OsString]) -> HashSet<&'static str
         return subcommand
             .get_arguments()
             .flat_map(|arg| {
-                arg.get_long().into_iter().chain(arg.get_all_aliases().into_iter().flatten())
+                arg
+                    .get_long()
+                    .into_iter()
+                    .chain(
+                        arg
+                            .get_all_aliases()
+                            .into_iter()
+                            .flatten(),
+                    )
             })
             .collect();
     }
@@ -253,7 +273,9 @@ fn next_positional(argv: &[OsString], from: usize, arity: &ArgTable) -> Option<u
 
 /// The token after the one at `index`, as far as it can be classified.
 fn next_token(argv: &[OsString], index: usize) -> Option<&str> {
-    argv.get(index + 1).and_then(|token| token.to_str())
+    argv
+        .get(index + 1)
+        .and_then(|token| token.to_str())
 }
 
 /// The number of argv slots `arg` occupies when it is an option, or `None`
@@ -267,14 +289,23 @@ fn next_token(argv: &[OsString], index: usize) -> Option<&str> {
 /// `--silent`). The union across subcommands is what the pre-clap passes
 /// have to work with, since the command is not yet known.
 pub(crate) fn option_width(arg: &str, next: Option<&str>, arity: &ArgTable) -> Option<usize> {
-    let rest = arg.strip_prefix('-').filter(|rest| !rest.is_empty())?;
+    let rest = arg
+        .strip_prefix('-')
+        .filter(|rest| !rest.is_empty())?;
     if let Some(long) = rest.strip_prefix('-') {
         return Some(long_option_width(long, next, arity));
     }
-    let short = rest.chars().next().expect("checked non-empty");
+    let short = rest
+        .chars()
+        .next()
+        .expect("checked non-empty");
     let is_bare_short = rest.chars().count() == 1;
     let consumes_value = arity.short_consumes_value(short).unwrap_or(false);
-    Some(if consumes_value && is_bare_short { 2 } else { 1 })
+    Some(if consumes_value && is_bare_short {
+        2
+    } else {
+        1
+    })
 }
 
 /// [`option_width`] for a `--long` option, given the token after it and
@@ -285,7 +316,10 @@ fn long_option_width(long: &str, next: Option<&str>, arity: &ArgTable) -> usize 
         return 1;
     }
     // An inline value is self-contained whatever the option's arity.
-    let Some(name) = long.split_once('=').map_or(Some(long), |_| None) else {
+    let Some(name) = long
+        .split_once('=')
+        .map_or(Some(long), |_| None)
+    else {
         return 1;
     };
     // A setting spelled as a bare flag is stripped by
@@ -311,7 +345,12 @@ fn long_option_width(long: &str, next: Option<&str>, arity: &ArgTable) -> usize 
 fn matching_subcommand<'a>(command: &'a Command, name: &str) -> Option<&'a Command> {
     command
         .get_subcommands()
-        .find(|sub| sub.get_name() == name || sub.get_all_aliases().any(|alias| alias == name))
+        .find(|sub| {
+            sub.get_name() == name
+                || sub
+                    .get_all_aliases()
+                    .any(|alias| alias == name)
+        })
 }
 
 #[cfg(test)]

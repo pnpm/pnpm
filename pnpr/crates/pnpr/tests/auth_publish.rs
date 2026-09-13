@@ -56,7 +56,13 @@ fn static_config_with_packages(dir: &TempDir, packages_block: &str) -> (Config, 
     // static shape.
     let nested: String = packages_block
         .lines()
-        .map(|line| if line.trim().is_empty() { line.to_string() } else { format!("    {line}") })
+        .map(|line| {
+            if line.trim().is_empty() {
+                line.to_string()
+            } else {
+                format!("    {line}")
+            }
+        })
         .collect::<Vec<_>>()
         .join("\n");
     let yaml = format!(
@@ -69,8 +75,12 @@ fn static_config_with_packages(dir: &TempDir, packages_block: &str) -> (Config, 
     );
     let config_path = dir.path().join("config.yaml");
     std::fs::write(&config_path, yaml).unwrap();
-    let mut config =
-        Config::from_yaml(&config_path, listen, Some("http://example.test".to_string())).unwrap();
+    let mut config = Config::from_yaml(
+        &config_path,
+        listen,
+        Some("http://example.test".to_string()),
+    )
+    .unwrap();
     config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     (config, storage)
 }
@@ -110,9 +120,16 @@ async fn add_user_and_get_token(
         "type": "user",
         "roles": [],
     });
-    let response = app.clone().oneshot(put_json(&path, body)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(put_json(&path, body))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
     let payload = body_json(response.into_body()).await;
-    let token = payload["token"].as_str().expect("token in response").to_string();
+    let token = payload["token"]
+        .as_str()
+        .expect("token in response")
+        .to_string();
     (app, token)
 }

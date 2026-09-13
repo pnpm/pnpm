@@ -21,13 +21,21 @@ pub enum PrefixError {
     /// IO error while looking up the prefix.
     #[display("failed to access {}: {source}", path.display())]
     #[diagnostic(code(ERR_PNPM_CLI_PREFIX_IO_ERROR))]
-    Io { path: PathBuf, source: std::io::Error },
+    Io {
+        path: PathBuf,
+        source: std::io::Error,
+    },
 }
 
 /// The markers that make a directory an npm project, as pnpm's
 /// `findLocalPrefix` counts them.
-const NPM_PROJECT_MARKERS: &[&str] =
-    &["node_modules", "package.json", "package.json5", "package.yaml", "pnpm-workspace.yaml"];
+const NPM_PROJECT_MARKERS: &[&str] = &[
+    "node_modules",
+    "package.json",
+    "package.json5",
+    "package.yaml",
+    "pnpm-workspace.yaml",
+];
 
 /// [`NPM_PROJECT_MARKERS`] plus the manifests pnpm v12 manages beyond
 /// `package.json` — a Cargo or Python package without a `package.json` is
@@ -64,7 +72,10 @@ pub fn find_npm_local_prefix(start_dir: &Path) -> miette::Result<PathBuf> {
 fn find_prefix(start_dir: &Path, targets: &[&str]) -> miette::Result<PathBuf> {
     let mut name = start_dir.to_path_buf();
 
-    while name.file_name().is_some_and(|f| f == "node_modules") {
+    while name
+        .file_name()
+        .is_some_and(|f| f == "node_modules")
+    {
         if let Some(parent) = name.parent() {
             name = parent.to_path_buf();
         } else {
@@ -72,7 +83,11 @@ fn find_prefix(start_dir: &Path, targets: &[&str]) -> miette::Result<PathBuf> {
         }
     }
 
-    if name == start_dir { find_prefix_up(&name, &name, targets) } else { Ok(name) }
+    if name == start_dir {
+        find_prefix_up(&name, &name, targets)
+    } else {
+        Ok(name)
+    }
 }
 
 fn find_prefix_up(name: &Path, original: &Path, targets: &[&str]) -> miette::Result<PathBuf> {
@@ -84,7 +99,10 @@ fn find_prefix_up(name: &Path, original: &Path, targets: &[&str]) -> miette::Res
             MarkerProbe::Unreadable => return Ok(original.to_path_buf()),
             MarkerProbe::NotFound => {}
         }
-        let Some(parent) = current.parent().filter(|parent| *parent != current) else {
+        let Some(parent) = current
+            .parent()
+            .filter(|parent| *parent != current)
+        else {
             return Ok(original.to_path_buf());
         };
         current = parent.to_path_buf();
@@ -116,7 +134,11 @@ fn probe_project_markers(
             Ok(true) => return Ok(MarkerProbe::Found),
             Ok(false) => continue,
             Err(error) if current == original => {
-                return Err(PrefixError::Io { path: target_path, source: error }.into());
+                return Err(PrefixError::Io {
+                    path: target_path,
+                    source: error,
+                }
+                .into());
             }
             Err(_) => return Ok(MarkerProbe::Unreadable),
         }
@@ -132,10 +154,11 @@ impl PrefixArgs {
             // (`globalDirShouldAllowWrite` is false for `root` and `prefix`;
             // see pnpm issue 2700).
             let bin = config.global_bin.clone().ok_or(GlobalError::NoGlobalBinDir)?;
-            std::fs::create_dir_all(&bin).map_err(|error| {
-                let bin_dir = bin.display();
-                miette::miette!("failed to create the global bin directory {bin_dir}: {error}")
-            })?;
+            std::fs::create_dir_all(&bin)
+                .map_err(|error| {
+                    let bin_dir = bin.display();
+                    miette::miette!("failed to create the global bin directory {bin_dir}: {error}")
+                })?;
             check_global_bin_dir(&bin, std::env::var("PATH").ok().as_deref(), false)
                 .map_err(miette::Report::new)?;
             // pnpm's `prefix` handler prints the parent of the global packages

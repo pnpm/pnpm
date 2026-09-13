@@ -10,9 +10,10 @@
 use crate::cli_args::ping::PingArgs;
 use clap::Args;
 use pnpm_config::{Config, PNPM_VERSION};
+use render::render_report;
 use serde::Serialize;
+use smoke_install::check_install_smoke_test;
 use std::{
-    fmt::Write as _,
     fs,
     path::{Path, PathBuf},
     process::Command,
@@ -124,26 +125,38 @@ impl DoctorArgs {
         let mut checks = vec![check_versions(), check_install_method()];
         checks.push(check_global_bin_dir(config));
         checks.push(check_writable_dir("Cache directory", &config.cache_dir));
-        checks.push(check_writable_dir("Store directory", config.store_dir.root()));
+        checks.push(check_writable_dir(
+            "Store directory",
+            config.store_dir.root(),
+        ));
         checks.push(check_filesystem_capabilities(config, self.benchmark));
         checks.push(self.check_connectivity(config).await);
         checks.push(check_install_smoke_test(self.benchmark));
 
-        let outcome = if checks.iter().any(|check| check.status == CheckStatus::Fail) {
+        let outcome = if checks
+            .iter()
+            .any(|check| check.status == CheckStatus::Fail)
+        {
             DoctorOutcome::Unhealthy
         } else {
             DoctorOutcome::Healthy
         };
 
-        let report = DoctorReport { checks };
+        let report = DoctorReport {
+            checks,
+        };
         let output = if self.json {
-            serde_json::to_string_pretty(&report).map_err(|error| {
-                miette::miette!("Failed to render the doctor report as JSON: {error}")
-            })?
+            serde_json::to_string_pretty(&report)
+                .map_err(|error| {
+                    miette::miette!("Failed to render the doctor report as JSON: {error}")
+                })?
         } else {
             render_report(&report)
         };
-        Ok(DoctorResult { output, outcome })
+        Ok(DoctorResult {
+            output,
+            outcome,
+        })
     }
 
     async fn check_connectivity(&self, config: &Config) -> CheckResult {
@@ -152,7 +165,12 @@ impl DoctorArgs {
             return CheckResult::pass(title, "skipped (--offline)");
         }
         let started = Instant::now();
-        match (PingArgs { registry: None }).run(config).await {
+        match (PingArgs {
+            registry: None,
+        })
+        .run(config)
+        .await
+        {
             Ok(_) => CheckResult::pass(
                 title,
                 format!("{} ({}ms)", config.registry, started.elapsed().as_millis()),
@@ -178,12 +196,20 @@ fn check_versions() -> CheckResult {
 /// native binary, so Node is not required for pnpm itself to work — its
 /// absence is worth reporting, not failing on.
 fn node_version() -> Option<String> {
-    let output = Command::new("node").arg("--version").output().ok()?;
+    let output = Command::new("node")
+        .arg("--version")
+        .output()
+        .ok()?;
     if !output.status.success() {
         return None;
     }
     let version = String::from_utf8(output.stdout).ok()?;
-    Some(version.trim().trim_start_matches('v').to_owned())
+    Some(
+        version
+            .trim()
+            .trim_start_matches('v')
+            .to_owned(),
+    )
 }
 
 fn check_install_method() -> CheckResult {
@@ -204,8 +230,10 @@ fn check_install_method() -> CheckResult {
 /// whichever candidate `PATH` actually contains.
 fn check_global_bin_dir(config: &Config) -> CheckResult {
     let title = "Global bin directory";
-    let candidates: Vec<PathBuf> =
-        [config.global_bin_dir.clone(), config.global_dir.clone()].into_iter().flatten().collect();
+    let candidates: Vec<PathBuf> = [config.global_bin_dir.clone(), config.global_dir.clone()]
+        .into_iter()
+        .flatten()
+        .collect();
     let Some(first) = candidates.first() else {
         return CheckResult::pass(title, "not configured");
     };
@@ -219,7 +247,10 @@ fn check_global_bin_dir(config: &Config) -> CheckResult {
     };
     let path_dirs: Vec<PathBuf> = std::env::split_paths(&path_var).collect();
 
-    let Some(bin_dir) = candidates.iter().find(|dir| dir_is_in_path(dir, &path_dirs)) else {
+    let Some(bin_dir) = candidates
+        .iter()
+        .find(|dir| dir_is_in_path(dir, &path_dirs))
+    else {
         return CheckResult::warn(
             title,
             format!("{} is not in PATH", first.display()),
@@ -238,13 +269,15 @@ fn check_global_bin_dir(config: &Config) -> CheckResult {
 
 fn dir_is_in_path(dir: &Path, path_dirs: &[PathBuf]) -> bool {
     let canonical = dir.canonicalize();
-    path_dirs.iter().any(|entry| {
-        entry == dir
-            || match (&canonical, entry.canonicalize()) {
-                (Ok(dir), Ok(entry)) => dir == &entry,
-                _ => false,
-            }
-    })
+    path_dirs
+        .iter()
+        .any(|entry| {
+            entry == dir
+                || match (&canonical, entry.canonicalize()) {
+                    (Ok(dir), Ok(entry)) => dir == &entry,
+                    _ => false,
+                }
+        })
 }
 
 fn check_writable_dir(title: &str, dir: &Path) -> CheckResult {
@@ -281,8 +314,11 @@ fn check_filesystem_capabilities(config: &Config, benchmark: bool) -> CheckResul
         );
     };
 
-    let available: Vec<&str> =
-        capabilities.iter().filter(|(_, supported)| *supported).map(|(name, _)| *name).collect();
+    let available: Vec<&str> = capabilities
+        .iter()
+        .filter(|(_, supported)| *supported)
+        .map(|(name, _)| *name)
+        .collect();
     let has_cheap_link = capabilities
         .iter()
         .any(|(name, supported)| *supported && matches!(*name, "reflink" | "hardlink"));
@@ -303,9 +339,18 @@ fn probe_link_capabilities(dir: &Path) -> std::io::Result<[(&'static str, bool);
     let source = dir.join("source");
     fs::write(&source, "pnpm-doctor")?;
     Ok([
-        ("reflink", reflink_copy::reflink(&source, dir.join("reflink")).is_ok()),
-        ("hardlink", fs::hard_link(&source, dir.join("hardlink")).is_ok()),
-        ("symlink", symlink_file(&source, &dir.join("symlink")).is_ok()),
+        (
+            "reflink",
+            reflink_copy::reflink(&source, dir.join("reflink")).is_ok(),
+        ),
+        (
+            "hardlink",
+            fs::hard_link(&source, dir.join("hardlink")).is_ok(),
+        ),
+        (
+            "symlink",
+            symlink_file(&source, &dir.join("symlink")).is_ok(),
+        ),
     ])
 }
 
@@ -319,74 +364,6 @@ fn symlink_file(source: &Path, link: &Path) -> std::io::Result<()> {
     std::os::windows::fs::symlink_file(source, link)
 }
 
-/// Install a throwaway package as a `file:` dependency, entirely offline, to
-/// confirm this binary can resolve, fetch into the store, and link a dependency
-/// end to end. Catches both classes of broken release the release gate exists
-/// for: a binary that will not run at all, and one whose install path crashes.
-fn check_install_smoke_test(benchmark: bool) -> CheckResult {
-    let title = "Install smoke test";
-    let started = Instant::now();
-    let Ok(base) = tempfile::tempdir() else {
-        return CheckResult::warn(
-            title,
-            "could not create a temporary directory",
-            "Check that the system temp directory is writable.",
-        );
-    };
-    match run_install_smoke_test(base.path()) {
-        Ok(()) => CheckResult::pass(title, r#"offline "file:" install linked its dependency"#)
-            .timed(benchmark, started),
-        Err(detail) => CheckResult::fail(
-            title,
-            detail,
-            r#"Run "pnpm install" in a scratch project to see the full error."#,
-        ),
-    }
-}
-
-fn run_install_smoke_test(base: &Path) -> Result<(), String> {
-    let provider = base.join("provider");
-    let consumer = base.join("consumer");
-    let store = base.join("store");
-    fs::create_dir_all(&provider).map_err(|error| error.to_string())?;
-    fs::create_dir_all(&consumer).map_err(|error| error.to_string())?;
-    fs::write(provider.join("package.json"), r#"{"name":"pnpm-doctor-fixture","version":"0.0.0"}"#)
-        .map_err(|error| error.to_string())?;
-    fs::write(
-        consumer.join("package.json"),
-        r#"{"name":"pnpm-doctor-consumer","version":"0.0.0","private":true,"dependencies":{"pnpm-doctor-fixture":"file:../provider"}}"#,
-    )
-    .map_err(|error| error.to_string())?;
-
-    // A throwaway store keeps the probe from writing into the real one. The
-    // fixture is a temp directory with no lockfile and no workspace above it,
-    // so nothing here depends on the lockfile or workspace flags.
-    let current_exe = std::env::current_exe().map_err(|error| error.to_string())?;
-    let output = Command::new(current_exe)
-        .current_dir(&consumer)
-        .args(["install", "--offline", "--ignore-scripts"])
-        .arg(format!("--store-dir={}", store.display()))
-        .output()
-        .map_err(|error| error.to_string())?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let reason = last_line(stderr.trim());
-        return Err(format!(
-            r#"offline "file:" install failed{}"#,
-            if reason.is_empty() { String::new() } else { format!(": {reason}") },
-        ));
-    }
-    if !consumer.join("node_modules/pnpm-doctor-fixture/package.json").exists() {
-        return Err("install reported success but the dependency was not linked".to_owned());
-    }
-    Ok(())
-}
-
-fn last_line(text: &str) -> String {
-    text.lines().rfind(|line| !line.trim().is_empty()).unwrap_or_default().to_owned()
-}
-
 fn can_write_to_dir(dir: &Path) -> bool {
     let probe = dir.join(format!(".pnpm-doctor-write-{}", std::process::id()));
     let written = fs::write(&probe, b"").is_ok();
@@ -394,48 +371,9 @@ fn can_write_to_dir(dir: &Path) -> bool {
     written
 }
 
-fn render_report(report: &DoctorReport) -> String {
-    let mut lines: Vec<String> = report
-        .checks
-        .iter()
-        .map(|check| {
-            let mut line = format!("{} {}", status_mark(check.status), check.title);
-            if let Some(detail) = &check.detail {
-                let _ = write!(line, ": {detail}");
-            }
-            if let Some(duration) = check.duration_ms {
-                let _ = write!(line, " ({duration}ms)");
-            }
-            if check.status != CheckStatus::Pass
-                && let Some(fix) = &check.fix
-            {
-                let _ = write!(line, "\n    {fix}");
-            }
-            line
-        })
-        .collect();
-
-    let failed = report.checks.iter().filter(|check| check.status == CheckStatus::Fail).count();
-    let warned = report.checks.iter().filter(|check| check.status == CheckStatus::Warn).count();
-    let summary = if failed > 0 {
-        format!("{failed} check(s) failed")
-    } else if warned > 0 {
-        format!("All checks passed with {warned} warning(s)")
-    } else {
-        "All checks passed".to_owned()
-    };
-    lines.push(String::new());
-    lines.push(summary);
-    lines.join("\n")
-}
-
-fn status_mark(status: CheckStatus) -> &'static str {
-    match status {
-        CheckStatus::Pass => "✓",
-        CheckStatus::Warn => "‼",
-        CheckStatus::Fail => "✗",
-    }
-}
-
 #[cfg(test)]
 mod tests;
+
+mod render;
+
+mod smoke_install;

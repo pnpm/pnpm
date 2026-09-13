@@ -155,7 +155,10 @@ impl State {
     /// The directory of the project the command runs in — where its
     /// `package.json` lives.
     pub fn project_dir(&self) -> &Path {
-        self.manifest.path().parent().expect("manifest path always has a parent dir")
+        self.manifest
+            .path()
+            .parent()
+            .expect("manifest path always has a parent dir")
     }
 
     pub fn lockfile_dir(&self) -> &Path {
@@ -163,7 +166,9 @@ impl State {
     }
 
     pub fn lockfile_path(&self) -> PathBuf {
-        self.lockfile_dir().join(self.config.wanted_lockfile_name())
+        self
+            .lockfile_dir()
+            .join(self.config.wanted_lockfile_name())
     }
 
     pub fn active_importer_id(&self) -> String {

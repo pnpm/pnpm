@@ -14,7 +14,16 @@ fn debug_render_redacts_embedded_url_credentials() {
         error: json_error,
     };
     let logged = redact_url_credentials(&format!("{error:?}"));
-    assert!(!logged.contains("secret"), "password must not survive: {logged}");
-    assert!(!logged.contains("user:"), "userinfo must not survive: {logged}");
-    assert!(logged.contains("registry.example/pkg"), "host/path retained: {logged}");
+    assert!(
+        !logged.contains("secret"),
+        "password must not survive: {logged}",
+    );
+    assert!(
+        !logged.contains("user:"),
+        "userinfo must not survive: {logged}",
+    );
+    assert!(
+        logged.contains("registry.example/pkg"),
+        "host/path retained: {logged}",
+    );
 }

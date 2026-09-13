@@ -41,8 +41,10 @@ pub fn get_changed_projects(
     let repo_root = find_repo_root(opts.workspace_dir);
     let changed_dirs = get_changed_dirs_since_commit(commit, opts)?;
 
-    let mut project_change_types: IndexMap<PathBuf, Option<ChangeType>> =
-        project_dirs.into_iter().map(|dir| (dir, None)).collect();
+    let mut project_change_types: IndexMap<PathBuf, Option<ChangeType>> = project_dirs
+        .into_iter()
+        .map(|dir| (dir, None))
+        .collect();
     for (changed_dir, change_type) in changed_dirs {
         let owner = owning_project(&repo_root, &changed_dir, &project_change_types);
         let entry = project_change_types.entry(owner).or_insert(None);
@@ -61,7 +63,10 @@ pub fn get_changed_projects(
             None => {}
         }
     }
-    Ok(ChangedProjects { changed_projects, ignore_dependent_for_projects })
+    Ok(ChangedProjects {
+        changed_projects,
+        ignore_dependent_for_projects,
+    })
 }
 
 /// The project a changed directory belongs to: itself if it is one, else the
@@ -78,7 +83,9 @@ fn owning_project(
         repo_root.join(changed_dir)
     };
     while !project_change_types.contains_key(&current) {
-        let Some(parent) = current.parent() else { break };
+        let Some(parent) = current.parent() else {
+            break;
+        };
         current = parent.to_path_buf();
     }
     current
@@ -112,14 +119,23 @@ fn get_changed_dirs_since_commit(
         // git wraps paths with non-ASCII characters in quotes.
         let changed_file = line.strip_prefix('"').unwrap_or(line);
         let changed_file = changed_file.strip_suffix('"').unwrap_or(changed_file);
-        if ignore_globs.iter().any(|glob| glob.is_match(changed_file)) {
+        if ignore_globs
+            .iter()
+            .any(|glob| glob.is_match(changed_file))
+        {
             continue;
         }
-        let dir = Path::new(changed_file).parent().unwrap_or_else(|| Path::new("")).to_path_buf();
+        let dir = Path::new(changed_file)
+            .parent()
+            .unwrap_or_else(|| Path::new(""))
+            .to_path_buf();
         if changed_dirs.get(&dir) == Some(&ChangeType::Source) {
             continue;
         }
-        let change_type = if test_globs.iter().any(|glob| glob.is_match(changed_file)) {
+        let change_type = if test_globs
+            .iter()
+            .any(|glob| glob.is_match(changed_file))
+        {
             ChangeType::Test
         } else {
             ChangeType::Source
@@ -139,7 +155,9 @@ fn git_diff_names(commit: &str, workspace_dir: &Path) -> Result<String, FilterEr
         .arg(workspace_dir)
         .current_dir(workspace_dir)
         .output()
-        .map_err(|err| FilterError::FilterChanged { stderr: err.to_string() })?;
+        .map_err(|err| FilterError::FilterChanged {
+            stderr: err.to_string(),
+        })?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(FilterError::FilterChanged {
@@ -163,10 +181,11 @@ fn compile_globs(patterns: &[String]) -> Result<Vec<Glob<'_>>, FilterError> {
         .iter()
         .filter(|pattern| !pattern.is_empty())
         .map(|pattern| {
-            Glob::new(pattern).map_err(|err| FilterError::InvalidPattern {
-                pattern: pattern.clone(),
-                message: err.to_string(),
-            })
+            Glob::new(pattern)
+                .map_err(|err| FilterError::InvalidPattern {
+                    pattern: pattern.clone(),
+                    message: err.to_string(),
+                })
         })
         .collect()
 }
@@ -178,10 +197,18 @@ fn compile_globs(patterns: &[String]) -> Result<Vec<Glob<'_>>, FilterError> {
 /// a worktree checked out inside another repository's tree resolves to
 /// the worktree root, matching where git anchors its diff paths.
 fn find_repo_root(workspace_dir: &Path) -> PathBuf {
-    let git_path =
-        workspace_dir.ancestors().map(|dir| dir.join(".git")).find(|candidate| candidate.exists());
+    let git_path = workspace_dir
+        .ancestors()
+        .map(|dir| dir.join(".git"))
+        .find(|candidate| candidate.exists());
     match git_path {
-        Some(git_path) => git_path.parent().expect("a `.git` path has a parent").to_path_buf(),
-        None => workspace_dir.parent().unwrap_or(workspace_dir).to_path_buf(),
+        Some(git_path) => git_path
+            .parent()
+            .expect("a `.git` path has a parent")
+            .to_path_buf(),
+        None => workspace_dir
+            .parent()
+            .unwrap_or(workspace_dir)
+            .to_path_buf(),
     }
 }

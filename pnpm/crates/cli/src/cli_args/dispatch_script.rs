@@ -128,7 +128,14 @@ pub(super) fn fallback<'a>(
         if recursive {
             args.run_recursive(config, dir, reporter)
         } else {
-            args.run_fallback(ExecDirs { run: cli_dir, project: dir }, config, reporter)
+            args.run_fallback(
+                ExecDirs {
+                    run: cli_dir,
+                    project: dir,
+                },
+                config,
+                reporter,
+            )
         }
     }))
 }
@@ -147,7 +154,14 @@ pub(super) fn exec<'a>(ctx: &RunCtx<'a>, args: ExecArgs) -> miette::Result<Comma
         if recursive {
             args.run_recursive(config, dir, reporter).await
         } else {
-            args.run(ExecDirs { run: cli_dir, project: dir }, config, reporter)
+            args.run(
+                ExecDirs {
+                    run: cli_dir,
+                    project: dir,
+                },
+                config,
+                reporter,
+            )
         }
     }))
 }

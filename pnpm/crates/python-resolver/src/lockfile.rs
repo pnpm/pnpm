@@ -46,14 +46,20 @@ pub struct Inputs {
 
 impl Inputs {
     pub fn set_requirements(&mut self, requirements: &[Requirement]) {
-        self.requirements = requirements.iter().map(ToString::to_string).collect();
+        self.requirements = requirements
+            .iter()
+            .map(ToString::to_string)
+            .collect();
         self.requirements.sort();
         self.requirements.dedup();
     }
 
     #[must_use]
     pub fn new(requirements: &[Requirement], target: &Target, index: &str) -> Self {
-        let mut requirements = requirements.iter().map(ToString::to_string).collect::<Vec<_>>();
+        let mut requirements = requirements
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>();
         requirements.sort();
         requirements.dedup();
         Self {
@@ -86,11 +92,14 @@ impl LockedWheel {
     /// SHA-256 is refused: it is the digest every index publishes and the
     /// only one a download is checked against.
     pub fn integrity(&self) -> Result<ssri::Integrity> {
-        let digest = self
-            .hashes
+        let digest = self.hashes
             .get("sha256")
             .ok_or_else(|| miette::miette!("Python wheel {} has no SHA-256 digest", self.name))?;
-        if digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        if digest.len() != 64
+            || !digest
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit())
+        {
             bail!("invalid Python wheel SHA-256 digest for {}", self.name);
         }
         ssri::Integrity::from_hex(digest, ssri::Algorithm::Sha256).into_diagnostic()
@@ -132,10 +141,16 @@ impl Lockfile {
                 .into_iter()
                 .map(|(name, version)| {
                     let wheel = packages.candidates[&name][&version].wheel.clone();
-                    LockedPackage { name, version, wheels: vec![wheel] }
+                    LockedPackage {
+                        name,
+                        version,
+                        wheels: vec![wheel],
+                    }
                 })
                 .collect(),
-            tool: ToolMetadata { pnpm: inputs },
+            tool: ToolMetadata {
+                pnpm: inputs,
+            },
         })
     }
 
@@ -150,13 +165,15 @@ impl Lockfile {
                 bail!("pnpm requires one target-compatible wheel per locked Python package")
             };
             wheel.integrity()?;
-            if packages
-                .candidates
+            if packages.candidates
                 .insert(
                     package.name.clone(),
                     BTreeMap::from([(
                         package.version.clone(),
-                        Candidate { wheel: wheel.clone(), core_metadata: None },
+                        Candidate {
+                            wheel: wheel.clone(),
+                            core_metadata: None,
+                        },
                     )]),
                 )
                 .is_some()

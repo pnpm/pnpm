@@ -100,7 +100,9 @@ pub async fn read_deno_assets(
     let assets = release_assets(http_client, version).await?;
     let mut variants = Vec::new();
     for asset in &assets {
-        let Some(targets) = parse_asset_name(&asset.name) else { continue };
+        let Some(targets) = parse_asset_name(&asset.name) else {
+            continue;
+        };
         variants.push(asset_resolution(http_client, asset, targets).await?);
     }
     variants.sort_by(|a, b| variant_url(a).cmp(variant_url(b)));
@@ -127,12 +129,14 @@ async fn release_assets(
         .and_then(reqwest::Response::error_for_status)
         .map_err(fetch_failed)?;
     let body = response.text().await.map_err(fetch_failed)?;
-    let index: ReleaseIndex =
-        serde_json::from_str(&body).map_err(|error| ReadDenoAssetsError::DecodeReleaseIndex {
+    let index: ReleaseIndex = serde_json::from_str(&body)
+        .map_err(|error| ReadDenoAssetsError::DecodeReleaseIndex {
             version: version.to_string(),
             error: Arc::new(error),
         })?;
-    index.assets.ok_or_else(|| ReadDenoAssetsError::MissingAssets { version: version.to_string() })
+    index.assets.ok_or_else(|| ReadDenoAssetsError::MissingAssets {
+        version: version.to_string(),
+    })
 }
 
 /// The download one release asset describes, with the integrity read from
@@ -150,9 +154,10 @@ async fn asset_resolution(
     // empty byte slice so a future change to `extract_sha256`
     // that loosens the validator surfaces with the right error
     // code instead of an opaque integrity-parse failure.
-    let hex_bytes = decode_hex(&sha256).ok_or_else(|| ReadDenoAssetsError::ParseHash {
-        url: asset.browser_download_url.clone(),
-    })?;
+    let hex_bytes = decode_hex(&sha256)
+        .ok_or_else(|| ReadDenoAssetsError::ParseHash {
+            url: asset.browser_download_url.clone(),
+        })?;
     let integrity: Integrity = format!("sha256-{}", BASE64_STANDARD.encode(hex_bytes))
         .parse()
         .map_err(|error| ReadDenoAssetsError::Integrity {
@@ -160,8 +165,7 @@ async fn asset_resolution(
             error: Arc::new(error),
         })?;
     let binary = BinaryResolution {
-        url: asset
-            .browser_download_url
+        url: asset.browser_download_url
             .strip_suffix(".sha256sum")
             .unwrap_or(&asset.browser_download_url)
             .to_string(),
@@ -170,7 +174,10 @@ async fn asset_resolution(
         archive: BinaryArchive::Zip,
         prefix: None,
     };
-    Ok(PlatformAssetResolution { resolution: LockfileResolution::Binary(binary), targets })
+    Ok(PlatformAssetResolution {
+        resolution: LockfileResolution::Binary(binary),
+        targets,
+    })
 }
 
 fn variant_url(variant: &PlatformAssetResolution) -> &str {
@@ -197,8 +204,11 @@ fn parse_asset_name(name: &str) -> Option<Vec<PlatformAssetTarget>> {
         "pc-windows-msvc" => "win32",
         _ => return None,
     };
-    let mut targets =
-        vec![PlatformAssetTarget { os: os.to_string(), cpu: cpu.to_string(), libc: None }];
+    let mut targets = vec![PlatformAssetTarget {
+        os: os.to_string(),
+        cpu: cpu.to_string(),
+        libc: None,
+    }];
     if os == "win32" && cpu == "x64" {
         targets.push(PlatformAssetTarget {
             os: "win32".to_string(),
@@ -213,9 +223,15 @@ async fn fetch_sha256(
     http_client: &ThrottledClient,
     url: &str,
 ) -> Result<String, ReadDenoAssetsError> {
-    let response =
-        http_client.acquire_for_url(url).await.get(url).send().await.map_err(|error| {
-            ReadDenoAssetsError::GithubFailure { url: url.to_string(), error: Arc::new(error) }
+    let response = http_client
+        .acquire_for_url(url)
+        .await
+        .get(url)
+        .send()
+        .await
+        .map_err(|error| ReadDenoAssetsError::GithubFailure {
+            url: url.to_string(),
+            error: Arc::new(error),
         })?;
     if !response.status().is_success() {
         return Err(ReadDenoAssetsError::GithubStatus {
@@ -223,11 +239,17 @@ async fn fetch_sha256(
             status: response.status().as_u16(),
         });
     }
-    let body = response.text().await.map_err(|error| ReadDenoAssetsError::GithubFailure {
-        url: url.to_string(),
-        error: Arc::new(error),
-    })?;
-    extract_sha256(&body).ok_or_else(|| ReadDenoAssetsError::ParseHash { url: url.to_string() })
+    let body = response
+        .text()
+        .await
+        .map_err(|error| ReadDenoAssetsError::GithubFailure {
+            url: url.to_string(),
+            error: Arc::new(error),
+        })?;
+    extract_sha256(&body)
+        .ok_or_else(|| ReadDenoAssetsError::ParseHash {
+            url: url.to_string(),
+        })
 }
 
 /// Lift a 64-character hex string out of an arbitrary body, matching

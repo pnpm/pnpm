@@ -33,8 +33,14 @@ pub struct DirGlob {
 impl DirGlob {
     pub fn new(pattern: &str) -> Self {
         let normalized = normalize(pattern);
-        let segments = normalized.split('/').map(Segment::parse).collect();
-        DirGlob { normalized, segments }
+        let segments = normalized
+            .split('/')
+            .map(Segment::parse)
+            .collect();
+        DirGlob {
+            normalized,
+            segments,
+        }
     }
 
     /// Whether `candidate` matches this glob.
@@ -146,28 +152,28 @@ impl CharClass {
         }
         while let Some(&character) = chars.get(index) {
             if character == ']' {
-                return Some((CharClass { negated, members }, index + 1));
+                return Some((
+                    CharClass {
+                        negated,
+                        members,
+                    },
+                    index + 1,
+                ));
             }
-            // `a-c` is a range; a `-` that ends the expression is a member.
-            match chars.get(index + 1) {
-                Some('-') if chars.get(index + 2).is_some_and(|&end| end != ']') => {
-                    members.push(ClassMember::Range(character, chars[index + 2]));
-                    index += 3;
-                }
-                _ => {
-                    members.push(ClassMember::Char(character));
-                    index += 1;
-                }
-            }
+            let (member, consumed) = class_member(chars, index, character);
+            members.push(member);
+            index += consumed;
         }
         None
     }
 
     fn matches(&self, character: char) -> bool {
-        let contains = self.members.iter().any(|member| match *member {
-            ClassMember::Char(member) => member == character,
-            ClassMember::Range(start, end) => (start..=end).contains(&character),
-        });
+        let contains = self.members
+            .iter()
+            .any(|member| match *member {
+                ClassMember::Char(member) => member == character,
+                ClassMember::Range(start, end) => (start..=end).contains(&character),
+            });
         contains != self.negated
     }
 }
@@ -189,8 +195,10 @@ fn match_segments(pattern: &[Segment], candidate: &[&str]) -> bool {
 /// the classic iterative wildcard match with backtracking so multiple `*`
 /// in one segment (`a*b*c`) match correctly.
 fn segment_match(pattern: &[Token], text: &str) -> bool {
-    let leading_wildcard =
-        matches!(pattern.first(), Some(Token::Star | Token::Char(CharPattern::Any)));
+    let leading_wildcard = matches!(
+        pattern.first(),
+        Some(Token::Star | Token::Char(CharPattern::Any)),
+    );
     if leading_wildcard && text.starts_with('.') {
         return false;
     }
@@ -228,3 +236,16 @@ fn segment_match(pattern: &[Token], text: &str) -> bool {
 
 #[cfg(test)]
 mod tests;
+
+fn class_member(chars: &[char], index: usize, character: char) -> (ClassMember, usize) {
+    match chars.get(index + 1) {
+        Some('-')
+            if chars
+                .get(index + 2)
+                .is_some_and(|&end| end != ']') =>
+        {
+            (ClassMember::Range(character, chars[index + 2]), 3)
+        }
+        _ => (ClassMember::Char(character), 1),
+    }
+}

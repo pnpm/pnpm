@@ -48,10 +48,16 @@ fn from_resolved_reports_every_setting() {
             "is-positive".to_string(),
             "patches/is-positive.patch".to_string(),
         )])),
-        overrides: Some(IndexMap::from([("is-positive".to_string(), "1.0.0".to_string())])),
+        overrides: Some(IndexMap::from([(
+            "is-positive".to_string(),
+            "1.0.0".to_string(),
+        )])),
         package_configs: Some(IndexMap::from([(
             "@acme/app".to_string(),
-            ProjectConfig { save_exact: Some(true), ..ProjectConfig::default() },
+            ProjectConfig {
+                save_exact: Some(true),
+                ..ProjectConfig::default()
+            },
         )])),
         ignored_optional_dependencies: Some(vec!["fsevents".to_string()]),
         supported_architectures: Some(SupportedArchitectures::default()),
@@ -67,9 +73,14 @@ fn from_resolved_reports_every_setting() {
         proxy: pnpm_network::ProxyConfig {
             https_proxy: Some("https://proxy.example".to_string()),
             http_proxy: Some("http://proxy.example".to_string()),
-            no_proxy: Some(pnpm_network::NoProxySetting::List(vec!["example.com".to_string()])),
+            no_proxy: Some(pnpm_network::NoProxySetting::List(vec![
+                "example.com".to_string(),
+            ])),
         },
-        update_config: UpdateConfig { changeset: Some(true), ..UpdateConfig::default() },
+        update_config: UpdateConfig {
+            changeset: Some(true),
+            ..UpdateConfig::default()
+        },
         // The settings that report as written, rather than as resolved.
         explicit_settings: [
             "storeDir",
@@ -81,7 +92,12 @@ fn from_resolved_reports_every_setting() {
             "globalBinDir",
         ]
         .into_iter()
-        .map(|key| (key.to_string(), serde_json::Value::String(format!("../{key}"))))
+        .map(|key| {
+            (
+                key.to_string(),
+                serde_json::Value::String(format!("../{key}")),
+            )
+        })
         .chain(
             [
                 "preferFrozenLockfile",
@@ -107,8 +123,11 @@ fn from_resolved_reports_every_setting() {
         panic!("the projected settings serialize to a JSON object");
     };
 
-    let unreported: Vec<&str> =
-        map.iter().filter(|(_, value)| value.is_null()).map(|(key, _)| key.as_str()).collect();
+    let unreported: Vec<&str> = map
+        .iter()
+        .filter(|(_, value)| value.is_null())
+        .map(|(key, _)| key.as_str())
+        .collect();
     let mut expected = UNREPORTED_SETTINGS.to_vec();
     expected.sort_unstable();
     let mut found = unreported;
@@ -132,8 +151,11 @@ fn reset_setting_to_default_covers_every_setting() {
     else {
         panic!("the projected settings serialize to a JSON object");
     };
-    let mut config =
-        Config { node_linker: NodeLinker::Hoisted, lockfile: false, ..Config::default() };
+    let mut config = Config {
+        node_linker: NodeLinker::Hoisted,
+        lockfile: false,
+        ..Config::default()
+    };
     let unhandled: Vec<&str> = map
         .keys()
         .map(String::as_str)
@@ -181,7 +203,10 @@ fn reset_setting_to_default_rederives_from_the_settings_still_set() {
         ));
     }
     assert!(!config.shamefully_hoist);
-    assert_eq!(config.public_hoist_pattern, Some(vec!["@types/*".to_string()]));
+    assert_eq!(
+        config.public_hoist_pattern,
+        Some(vec!["@types/*".to_string()]),
+    );
     assert!(!config.lockfile);
     assert!(config.hoist);
     assert_eq!(config.hoist_pattern, defaults.hoist_pattern);
@@ -220,7 +245,11 @@ fn reset_setting_to_default_keeps_disabled_patterns_when_leaving_virtual_store_o
 /// the setting counts as configured at all.
 #[test]
 fn from_resolved_leaves_explicitness_sensitive_settings_unset() {
-    let unset = Config { prefer_frozen_lockfile: true, lockfile: true, ..Config::default() };
+    let unset = Config {
+        prefer_frozen_lockfile: true,
+        lockfile: true,
+        ..Config::default()
+    };
     let projected = WorkspaceSettings::from_resolved(&unset);
     assert_eq!(projected.prefer_frozen_lockfile, None);
     assert_eq!(projected.lockfile, None);
@@ -233,5 +262,8 @@ fn from_resolved_leaves_explicitness_sensitive_settings_unset() {
         )]),
         ..Config::default()
     };
-    assert_eq!(WorkspaceSettings::from_resolved(&configured).prefer_frozen_lockfile, Some(false));
+    assert_eq!(
+        WorkspaceSettings::from_resolved(&configured).prefer_frozen_lockfile,
+        Some(false),
+    );
 }

@@ -32,13 +32,23 @@ fn refuses_nonpublic_literals_and_transition_addresses() {
         "2002:7f00:1::",
         "64:ff9b::7f00:1",
     ] {
-        assert!(!is_public_address(address.parse().unwrap()), "accepted {address}");
+        assert!(
+            !is_public_address(address.parse().unwrap()),
+            "accepted {address}",
+        );
     }
-    for url in ["https://127.0.0.1/jwks", "https://[::1]/token", "https://[::ffff:10.0.0.1]/jwks"] {
+    for url in [
+        "https://127.0.0.1/jwks",
+        "https://[::1]/token",
+        "https://[::ffff:10.0.0.1]/jwks",
+    ] {
         assert!(validate_destination(url).is_err(), "accepted {url}");
     }
     for address in ["8.8.8.8", "1.1.1.1", "2606:4700:4700::1111"] {
-        assert!(is_public_address(address.parse().unwrap()), "rejected {address}");
+        assert!(
+            is_public_address(address.parse().unwrap()),
+            "rejected {address}",
+        );
     }
 }
 
@@ -48,9 +58,17 @@ async fn checks_the_addresses_returned_to_the_connector() {
         "8.8.8.8:0".parse().unwrap(),
         "127.0.0.1:0".parse().unwrap(),
     ])));
-    assert!(resolver.resolve("issuer.example".parse().unwrap()).await.is_err());
+    assert!(
+        resolver
+            .resolve("issuer.example".parse().unwrap())
+            .await
+            .is_err(),
+    );
     let resolver = PublicResolver(Arc::new(FixedResolver(vec!["8.8.8.8:0".parse().unwrap()])));
-    let addresses: Vec<_> =
-        resolver.resolve("issuer.example".parse().unwrap()).await.unwrap().collect();
+    let addresses: Vec<_> = resolver
+        .resolve("issuer.example".parse().unwrap())
+        .await
+        .unwrap()
+        .collect();
     assert_eq!(addresses, vec!["8.8.8.8:0".parse::<SocketAddr>().unwrap()]);
 }

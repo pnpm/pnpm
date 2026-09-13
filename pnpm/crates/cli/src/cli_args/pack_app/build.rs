@@ -28,8 +28,9 @@ pub(super) fn reject_non_regular_outputs(
     output_name: &str,
 ) -> Result<(), PackAppError> {
     for target in targets {
-        let output_file =
-            output_dir.join(&target.raw).join(output_file_name(output_name, &target.platform));
+        let output_file = output_dir
+            .join(&target.raw)
+            .join(output_file_name(output_name, &target.platform));
         reject_non_regular_output_file(&output_file)?;
     }
     Ok(())
@@ -84,8 +85,14 @@ fn host_linux_libc() -> Option<&'static str> {
 
 fn builder_version_can_build_sea(version: &str) -> bool {
     let mut parts = version.split('.');
-    let major = parts.next().and_then(|major| major.parse::<u64>().ok()).unwrap_or(0);
-    let minor = parts.next().and_then(|minor| minor.parse::<u64>().ok()).unwrap_or(0);
+    let major = parts
+        .next()
+        .and_then(|major| major.parse::<u64>().ok())
+        .unwrap_or(0);
+    let minor = parts
+        .next()
+        .and_then(|minor| minor.parse::<u64>().ok())
+        .unwrap_or(0);
     major > MIN_BUILDER_VERSION.0
         || (major == MIN_BUILDER_VERSION.0 && minor >= MIN_BUILDER_VERSION.1)
 }
@@ -108,9 +115,16 @@ pub(super) fn ensure_node_runtime(
     // Linux variants always need a libc pin (glibc or musl) so variant
     // selection is deterministic and doesn't depend on the host's detected
     // libc or the user's supportedArchitectures.libc config.
-    let libc = if platform == "linux" { Some(libc.unwrap_or("glibc")) } else { libc };
-    let target_id =
-        [Some(platform), Some(arch), libc].into_iter().flatten().collect::<Vec<_>>().join("-");
+    let libc = if platform == "linux" {
+        Some(libc.unwrap_or("glibc"))
+    } else {
+        libc
+    };
+    let target_id = [Some(platform), Some(arch), libc]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>()
+        .join("-");
     let install_dir = build_root.join(format!("{target_id}-{version}"));
     let node_dir = install_dir.join("node_modules").join("node");
     let binary_path = node_binary_path(&node_dir, platform);
@@ -144,7 +158,11 @@ pub(super) fn ensure_node_runtime(
 }
 
 fn node_binary_path(node_dir: &Path, platform: &str) -> PathBuf {
-    if platform == "win32" { node_dir.join("node.exe") } else { node_dir.join("bin").join("node") }
+    if platform == "win32" {
+        node_dir.join("node.exe")
+    } else {
+        node_dir.join("bin").join("node")
+    }
 }
 
 pub(super) async fn resolve_version(config: &Config, specifier: &str) -> miette::Result<String> {
@@ -165,7 +183,10 @@ pub(super) async fn resolve_version(config: &Config, specifier: &str) -> miette:
     // Require a parseable semver before the string is ever used as a path.
     let version = version.filter(|version| node_semver::Version::parse(version).is_ok());
     version.ok_or_else(|| {
-        PackAppError::NodeVersionNotFound { specifier: specifier.to_string() }.into()
+        PackAppError::NodeVersionNotFound {
+            specifier: specifier.to_string(),
+        }
+        .into()
     })
 }
 
@@ -189,9 +210,9 @@ fn build_http_client(config: &Config) -> miette::Result<ThrottledClient> {
 /// `is_file() == false`. A missing path is fine (nothing to overwrite).
 pub(super) fn reject_non_regular_output_file(output_file: &Path) -> Result<(), PackAppError> {
     match fs::symlink_metadata(output_file) {
-        Ok(meta) if !meta.is_file() => {
-            Err(PackAppError::OutputFileNotRegular { path: output_file.display().to_string() })
-        }
+        Ok(meta) if !meta.is_file() => Err(PackAppError::OutputFileNotRegular {
+            path: output_file.display().to_string(),
+        }),
         _ => Ok(()),
     }
 }
@@ -219,14 +240,21 @@ pub(super) fn ad_hoc_sign_mac_binary(
         // repo-controlled `node_modules/.bin/codesign` on PATH can't be run
         // in its place.
         "darwin" => run_command(
-            Command::new("/usr/bin/codesign").arg("--sign").arg("-").arg(output_file),
+            Command::new("/usr/bin/codesign")
+                .arg("--sign")
+                .arg("-")
+                .arg(output_file),
             "codesign",
         ),
         "linux" => {
             let ldid = resolve_trusted_signer("ldid", dir, output_file)?;
-            run_command(Command::new(&ldid).arg("-S").arg(output_file), "ldid").map_err(|_| {
-                PackAppError::MacosSignFailed { path: output_file.display().to_string() }.into()
-            })
+            run_command(Command::new(&ldid).arg("-S").arg(output_file), "ldid")
+                .map_err(|_| {
+                    PackAppError::MacosSignFailed {
+                        path: output_file.display().to_string(),
+                    }
+                    .into()
+                })
         }
         host => Err(PackAppError::MacosSignUnsupportedHost {
             path: output_file.display().to_string(),
@@ -247,7 +275,9 @@ fn resolve_trusted_signer(
     dir: &Path,
     output_file: &Path,
 ) -> Result<PathBuf, PackAppError> {
-    let sign_failed = || PackAppError::MacosSignFailed { path: output_file.display().to_string() };
+    let sign_failed = || PackAppError::MacosSignFailed {
+        path: output_file.display().to_string(),
+    };
     let matches = which::which_all(name).map_err(|_| sign_failed())?;
     first_signer_outside_project(matches, dir).ok_or_else(sign_failed)
 }
@@ -265,7 +295,10 @@ pub(super) fn first_signer_outside_project(
 /// Run a child process inheriting stdio, erroring on spawn failure or a
 /// non-zero exit status.
 pub(super) fn run_command(command: &mut Command, label: &str) -> miette::Result<()> {
-    let status = command.status().into_diagnostic().wrap_err_with(|| format!("running {label}"))?;
+    let status = command
+        .status()
+        .into_diagnostic()
+        .wrap_err_with(|| format!("running {label}"))?;
     if !status.success() {
         return Err(miette::miette!("{label} exited with {status}"));
     }
@@ -273,9 +306,14 @@ pub(super) fn run_command(command: &mut Command, label: &str) -> miette::Result<
 }
 
 fn write_runtime_install_manifest(install_dir: &Path, target_id: &str) -> miette::Result<()> {
-    fs::create_dir_all(install_dir).into_diagnostic().wrap_err_with(|| {
-        format!("creating the runtime install directory {}", install_dir.display())
-    })?;
+    fs::create_dir_all(install_dir)
+        .into_diagnostic()
+        .wrap_err_with(|| {
+            format!(
+                "creating the runtime install directory {}",
+                install_dir.display(),
+            )
+        })?;
     fs::write(
         install_dir.join("package.json"),
         format!(

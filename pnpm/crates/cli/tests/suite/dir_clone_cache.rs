@@ -30,7 +30,11 @@ fn canonical_pkg_dir(store_dir: &Path, name: &str, version: &str) -> PathBuf {
         .unwrap_or_else(|err| panic!("read hash dirs under {version_dir:?}: {err}"))
         .map(|entry| entry.expect("read hash dir entry").path())
         .collect();
-    assert_eq!(hashes.len(), 1, "expected one hash dir under {version_dir:?}, got {hashes:?}");
+    assert_eq!(
+        hashes.len(),
+        1,
+        "expected one hash dir under {version_dir:?}, got {hashes:?}",
+    );
     hashes[0].join("node_modules").join(name)
 }
 
@@ -56,19 +60,26 @@ fn project_pkg_manifest(workspace: &Path) -> PathBuf {
 /// the project copy.
 #[test]
 fn warm_reinstall_is_served_from_the_canonical_slot() {
-    let CommandTempCwd { root: _root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
     write_manifest(&workspace);
 
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     assert!(
         project_pkg_manifest(&workspace).exists(),
         "the package must land on the flat project-local layout",
     );
     let canonical_manifest =
         canonical_pkg_dir(&store_dir, "@pnpm.e2e/pkg-with-1-dep", "100.0.0").join("package.json");
-    assert!(canonical_manifest.exists(), "the install must populate the canonical slot");
+    assert!(
+        canonical_manifest.exists(),
+        "the install must populate the canonical slot",
+    );
 
     // Unlink-then-write so the plant never reaches a store file the
     // slot might share an inode with.
@@ -76,7 +87,10 @@ fn warm_reinstall_is_served_from_the_canonical_slot() {
     fs::write(&canonical_manifest, r#"{"planted":true}"#).expect("plant the canonical manifest");
 
     fs::remove_dir_all(workspace.join("node_modules")).expect("wipe node_modules");
-    pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
     assert_eq!(
         fs::read_to_string(project_pkg_manifest(&workspace)).expect("read the project manifest"),
         r#"{"planted":true}"#,
@@ -90,8 +104,9 @@ fn warm_reinstall_is_served_from_the_canonical_slot() {
 /// a clone of the canonical copy could not deliver.
 #[test]
 fn explicit_copy_method_bypasses_the_cache() {
-    let CommandTempCwd { root: _root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
     write_manifest(&workspace);
     let mut yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
@@ -99,7 +114,10 @@ fn explicit_copy_method_bypasses_the_cache() {
     yaml.push_str("packageImportMethod: copy\n");
     fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write pnpm-workspace.yaml");
 
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     assert!(
         project_pkg_manifest(&workspace).exists(),
         "the package must land on the flat project-local layout",

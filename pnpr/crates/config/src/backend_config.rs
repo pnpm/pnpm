@@ -136,7 +136,11 @@ impl MaxUsers {
     /// [`build_auth_config`], so there is no YAML spelling for
     /// "unlimited".
     pub(super) fn from_yaml(value: i64) -> Self {
-        if value < 0 { MaxUsers::Disabled } else { MaxUsers::Limited(value as u64) }
+        if value < 0 {
+            MaxUsers::Disabled
+        } else {
+            MaxUsers::Limited(value as u64)
+        }
     }
 }
 
@@ -148,10 +152,10 @@ impl MaxUsers {
 /// sibling of the htpasswd file — keeping credentials co-located in
 /// one directory the operator can lock down (`chmod 600`).
 pub(super) fn build_auth_config(file: &AuthFile, base_dir: &Path) -> AuthConfig {
-    let htpasswd_file = file.htpasswd.file.as_deref().map(|raw| resolve_relative(raw, base_dir));
-    let tokens_file = file
-        .tokens
-        .file
+    let htpasswd_file = file.htpasswd.file
+        .as_deref()
+        .map(|raw| resolve_relative(raw, base_dir));
+    let tokens_file = file.tokens.file
         .as_deref()
         .map(|raw| resolve_relative(raw, base_dir))
         .or_else(|| htpasswd_file.as_deref().map(default_tokens_path_sibling_of));
@@ -161,7 +165,9 @@ pub(super) fn build_auth_config(file: &AuthFile, base_dir: &Path) -> AuthConfig 
             file: htpasswd_file,
             max_users: file.htpasswd.max_users.map_or(MaxUsers::Disabled, MaxUsers::from_yaml),
         },
-        tokens: TokensConfig { file: tokens_file },
+        tokens: TokensConfig {
+            file: tokens_file,
+        },
     }
 }
 
@@ -190,16 +196,28 @@ pub(super) fn build_backend_config(
         ));
     }
     if let Some(settings) = file.mysql {
-        selected
-            .push(("mysql", BackendConfig::Mysql(build_sql_backend_settings("mysql", settings)?)));
+        selected.push((
+            "mysql",
+            BackendConfig::Mysql(build_sql_backend_settings("mysql", settings)?),
+        ));
     }
+    select_backend(selected)
+}
+
+fn select_backend(
+    mut selected: Vec<(&str, BackendConfig)>,
+) -> Result<BackendConfig, RegistryError> {
     match selected.len() {
         0 => Err(RegistryError::InvalidConfig {
             reason: "backend must select exactly one database backend".to_string(),
         }),
         1 => Ok(selected.remove(0).1),
         _ => {
-            let names = selected.into_iter().map(|(name, _)| name).collect::<Vec<_>>().join(", ");
+            let names = selected
+                .into_iter()
+                .map(|(name, _)| name)
+                .collect::<Vec<_>>()
+                .join(", ");
             Err(RegistryError::InvalidConfig {
                 reason: format!("backend must select exactly one database backend, got {names}"),
             })
@@ -239,12 +257,14 @@ pub(super) fn parse_backend_interval(
     field: &str,
     raw: Option<&Interval>,
 ) -> Result<Option<Duration>, RegistryError> {
-    raw.map(|Interval(value)| {
-        parse_interval(value).ok_or_else(|| RegistryError::InvalidConfig {
-            reason: format!("backend.{backend}.{field} has an invalid interval {value:?}"),
+    raw
+        .map(|Interval(value)| {
+            parse_interval(value)
+                .ok_or_else(|| RegistryError::InvalidConfig {
+                    reason: format!("backend.{backend}.{field} has an invalid interval {value:?}"),
+                })
         })
-    })
-    .transpose()
+        .transpose()
 }
 
 pub(super) fn resolve_libsql_paths(settings: &mut LibsqlSettings, base_dir: &Path) {
@@ -253,6 +273,10 @@ pub(super) fn resolve_libsql_paths(settings: &mut LibsqlSettings, base_dir: &Pat
     // follow, so `./auth-replica.db` lands next to the config rather
     // than in the process CWD.
     if let Some(path) = settings.replica_path.take() {
-        settings.replica_path = Some(if path.is_absolute() { path } else { base_dir.join(path) });
+        settings.replica_path = Some(if path.is_absolute() {
+            path
+        } else {
+            base_dir.join(path)
+        });
     }
 }

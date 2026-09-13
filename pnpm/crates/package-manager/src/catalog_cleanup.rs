@@ -64,8 +64,11 @@ pub(crate) fn write_workspace_catalogs(
         Some(dir) => dir.to_path_buf(),
         None => derive_workspace_dir(current_manifest)?,
     };
-    let projects =
-        if config.catalog_prune { load_cleanup_projects(&workspace_dir)? } else { Vec::new() };
+    let projects = if config.catalog_prune {
+        load_cleanup_projects(&workspace_dir)?
+    } else {
+        Vec::new()
+    };
     let all_projects = manifest_refs_with_current(&projects, current_manifest);
     update_workspace_manifest(
         &workspace_dir,
@@ -90,8 +93,10 @@ pub(crate) fn write_workspace_catalogs_selected(
     if updated_catalogs.is_empty() && !config.catalog_prune {
         return Ok(());
     }
-    let all_projects: Vec<&PackageManifest> =
-        projects.iter().map(|project| &project.manifest).collect();
+    let all_projects: Vec<&PackageManifest> = projects
+        .iter()
+        .map(|project| &project.manifest)
+        .collect();
     update_workspace_manifest(
         workspace_dir,
         &UpdateWorkspaceManifestOptions {
@@ -176,12 +181,20 @@ pub(crate) fn post_install_prune(
 /// can (a versioned entry is pruned).
 fn resolved_package_versions(lockfile: &Lockfile) -> ResolvedPackageVersions {
     let mut resolved = ResolvedPackageVersions::new();
-    for key in lockfile.snapshots.iter().flat_map(|snapshots| snapshots.keys()) {
-        let versions = resolved.entry(key.name.to_string()).or_default();
-        let version = key
-            .suffix
+    for key in lockfile.snapshots
+        .iter()
+        .flat_map(|snapshots| snapshots.keys())
+    {
+        let versions = resolved
+            .entry(key.name.to_string())
+            .or_default();
+        let version = key.suffix
             .version_semver()
-            .or_else(|| key.suffix.registry_qualified().map(|(_, version)| version));
+            .or_else(|| {
+                key.suffix
+                    .registry_qualified()
+                    .map(|(_, version)| version)
+            });
         if let Some(version) = version {
             versions.insert(version.to_string());
         }

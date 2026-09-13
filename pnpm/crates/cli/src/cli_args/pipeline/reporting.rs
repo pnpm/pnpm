@@ -12,8 +12,12 @@ pub(super) struct StatusCounts {
 
 impl StatusCounts {
     pub(super) fn of(statuses: &IndexMap<String, ExecutionStatus>) -> Self {
-        let count =
-            |wanted: Status| statuses.values().filter(|status| status.status == wanted).count();
+        let count = |wanted: Status| {
+            statuses
+                .values()
+                .filter(|status| status.status == wanted)
+                .count()
+        };
         StatusCounts {
             failed: count(Status::Failure),
             passed: count(Status::Passed),
@@ -36,9 +40,15 @@ pub(super) fn print_dry_run(
 ) -> miette::Result<()> {
     if invocation.json {
         let document = task_graph_to_json(task_graph, workspace_root);
-        println!("{}", serde_json::to_string_pretty(&document).into_diagnostic()?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&document).into_diagnostic()?,
+        );
     } else {
-        println!("{}", render_task_graph_dry_run(task_graph, sequenced_tasks, workspace_root));
+        println!(
+            "{}",
+            render_task_graph_dry_run(task_graph, sequenced_tasks, workspace_root),
+        );
     }
     Ok(())
 }
@@ -64,7 +74,11 @@ pub(super) fn record_task_outcome(
     };
     let failed = status.status == Status::Failure;
     statuses.lock().expect("status lock is not poisoned")[summary_key] = status;
-    if failed { TaskCompletion::Failed } else { TaskCompletion::Passed }
+    if failed {
+        TaskCompletion::Failed
+    } else {
+        TaskCompletion::Passed
+    }
 }
 
 /// Pass-through tasks contribute keys to invalidate their dependents.
@@ -80,8 +94,7 @@ pub(super) fn compute_task_keys(
         let node = &task_graph[key];
         let manifest = graph[node.project.as_path()].package.project.manifest.value();
         let script_bodies = task_script_bodies(node, manifest, config.enable_pre_post_scripts);
-        let Some(mut dependency_keys) = node
-            .dependencies
+        let Some(mut dependency_keys) = node.dependencies
             .iter()
             .map(|dependency| keys[dependency].as_deref())
             .collect::<Option<Vec<&str>>>()
@@ -114,7 +127,11 @@ fn task_script_bodies(
     let mut bodies: Vec<(String, String)> = Vec::new();
     for script in &node.scripts {
         let stages: Vec<String> = if enable_pre_post_scripts {
-            vec![format!("pre{script}"), script.clone(), format!("post{script}")]
+            vec![
+                format!("pre{script}"),
+                script.clone(),
+                format!("post{script}"),
+            ]
         } else {
             vec![script.clone()]
         };

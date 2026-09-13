@@ -81,7 +81,10 @@ impl Package {
     /// registry didn't report one for that pin.
     #[must_use]
     pub fn published_at(&self, version: &str) -> Option<&str> {
-        self.time.as_ref()?.get(version)?.as_str()
+        self.time
+            .as_ref()?
+            .get(version)?
+            .as_str()
     }
 
     /// Drop `time` unless it carries a publish timestamp for every
@@ -106,10 +109,17 @@ impl Package {
     /// is nothing for the map to be incomplete about — and a version whose
     /// entry is an empty string counts as absent.
     pub fn drop_incomplete_publish_times(&mut self) {
-        let Some(time) = self.time.as_ref() else { return };
-        let complete = self.versions.keys().all(|version| {
-            time.get(version).and_then(serde_json::Value::as_str).is_some_and(|at| !at.is_empty())
-        });
+        let Some(time) = self.time.as_ref() else {
+            return;
+        };
+        let complete = self.versions
+            .keys()
+            .all(|version| {
+                time
+                    .get(version)
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(|at| !at.is_empty())
+            });
         if !complete {
             self.time = None;
         }
@@ -128,7 +138,9 @@ impl Package {
     /// past the cutoff. Iteration order is undefined (`HashMap`), so
     /// callers that need a stable rewrite are expected to sort.
     pub fn dist_tags(&self) -> impl Iterator<Item = (&str, &str)> {
-        self.dist_tags.iter().map(|(tag, version)| (tag.as_str(), version.as_str()))
+        self.dist_tags
+            .iter()
+            .map(|(tag, version)| (tag.as_str(), version.as_str()))
     }
 }
 
@@ -201,7 +213,10 @@ impl DerivedPackuments {
 }
 
 fn find(memo: &DerivedMemo, policy_key: &str) -> Option<Arc<Package>> {
-    memo.iter().find(|(key, _)| key == policy_key).map(|(_, derived)| Arc::clone(derived))
+    memo
+        .iter()
+        .find(|(key, _)| key == policy_key)
+        .map(|(_, derived)| Arc::clone(derived))
 }
 
 impl Package {
@@ -213,15 +228,20 @@ impl Package {
     ) -> Result<Self, RegistryError> {
         let encoded_name = pnpm_network::encode_package_name(name);
         let url = format!("{registry}{encoded_name}"); // TODO: use reqwest URL directly
-        let network_error = |error| NetworkError { error, url: url.clone() };
+        let network_error = |error| NetworkError {
+            error,
+            url: url.clone(),
+        };
         // Hold the semaphore permit across send + body consumption so the
         // socket-bound stays effective under concurrent fan-out. See the
         // doc comment on `ThrottledClientGuard`.
         let guard = http_client.acquire_for_url(&url).await;
-        let mut request = guard.get(&url).header(
-            "accept",
-            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
-        );
+        let mut request = guard
+            .get(&url)
+            .header(
+                "accept",
+                "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+            );
         if let Some(value) = auth_headers.for_url_with_package(&url, Some(name)) {
             request = request.header("authorization", value);
         }
@@ -244,18 +264,20 @@ impl Package {
         let range: node_semver::Range = version_range.parse().ok()?;
         // Match on the version *strings* so only winning manifests
         // hydrate from their raw fragments.
-        let mut satisfying = self
-            .versions
+        let mut satisfying = self.versions
             .keys()
             .filter_map(|key| {
-                key.parse::<node_semver::Version>()
+                key
+                    .parse::<node_semver::Version>()
                     .ok()
                     .filter(|version| version.satisfies(&range))
                     .map(|version| (version, key))
             })
             .collect::<Vec<_>>();
         satisfying.sort_by(|(left, _), (right, _)| right.partial_cmp(left).unwrap());
-        satisfying.into_iter().find_map(|(_, key)| self.versions.get(key))
+        satisfying
+            .into_iter()
+            .find_map(|(_, key)| self.versions.get(key))
     }
 
     /// Manifest under `dist-tags.latest`, or `None` — registry-served

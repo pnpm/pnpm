@@ -32,7 +32,9 @@ where
         result => return result,
     }
     refuse_occupied_directory(src, dst)?;
-    let parent = dst.parent().unwrap_or_else(|| Path::new("."));
+    let parent = dst
+        .parent()
+        .unwrap_or_else(|| Path::new("."));
     // Dropping the staging directory removes a copy left behind by a
     // failure, and the empty directory itself once the rename below has
     // taken the copy out of it.

@@ -30,7 +30,9 @@ pub(in super::super) async fn warm_children_resolutions<Chain>(
     if ctx.workspace.hooks.manifests.pnpmfile_hook.is_some() {
         return;
     }
-    let NodeSeed::Pending(pending) = seed else { return };
+    let NodeSeed::Pending(pending) = seed else {
+        return;
+    };
     if pending.is_link || !claim_children_warmup(ctx, &pending.identity.id) {
         return;
     }
@@ -100,7 +102,9 @@ pub(super) fn warm_child_specs(
             .filter(|(name, _, optional, _)| *optional || !peer_shadowed.contains(name))
             .collect()
     };
-    let Some(catalogs) = catalogs_for_children(ctx, through_catalogs) else { return Some(specs) };
+    let Some(catalogs) = catalogs_for_children(ctx, through_catalogs) else {
+        return Some(specs);
+    };
     resolve_catalog_child_specs(specs, catalogs).ok()
 }
 

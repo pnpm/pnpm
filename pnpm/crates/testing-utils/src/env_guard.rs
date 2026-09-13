@@ -62,8 +62,14 @@ impl EnvGuard {
         Iter: IntoIterator<Item = &'static str>,
     {
         let lock = env_mutex().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        let saved = vars.into_iter().map(|name| (name, env::var_os(name))).collect();
-        EnvGuard { saved, _lock: lock }
+        let saved = vars
+            .into_iter()
+            .map(|name| (name, env::var_os(name)))
+            .collect();
+        EnvGuard {
+            saved,
+            _lock: lock,
+        }
     }
 
     /// Set a variable under the lock the guard holds. Equivalent to

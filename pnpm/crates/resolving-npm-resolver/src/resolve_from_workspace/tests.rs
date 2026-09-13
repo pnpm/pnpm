@@ -175,7 +175,10 @@ fn no_matching_version_surfaces_pnpm_error_code() {
     let packages = build_packages();
     let opts = opts(&packages);
     let err = try_resolve_from_workspace(&wanted("foo", "workspace:^99.0.0"), &opts).unwrap_err();
-    assert!(matches!(err, ResolveFromWorkspaceError::NoMatchingVersionInsideWorkspace { .. }));
+    assert!(matches!(
+        err,
+        ResolveFromWorkspaceError::NoMatchingVersionInsideWorkspace { .. }
+    ));
 }
 
 #[test]
@@ -184,7 +187,10 @@ fn workspace_packages_unset_surfaces_error() {
     let mut opts = opts(&packages);
     opts.workspace_packages = None;
     let err = try_resolve_from_workspace(&wanted("foo", "workspace:*"), &opts).unwrap_err();
-    assert!(matches!(err, ResolveFromWorkspaceError::WorkspacePackagesNotLoaded));
+    assert!(matches!(
+        err,
+        ResolveFromWorkspaceError::WorkspacePackagesNotLoaded
+    ));
 }
 
 #[test]

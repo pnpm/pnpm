@@ -204,12 +204,9 @@ pub fn build_dependents_tree(opts: &BuildDependentsOptions<'_>) -> Vec<Dependent
 
     let mut trees: Vec<DependentsTree> = Vec::new();
     for node_id in opts.graph.nodes.keys() {
-        let TreeNodeId::Package(dep_path) = node_id else {
+        let Some(dep_path) = installed_dep_path(lockfile, node_id) else {
             continue;
         };
-        if !lockfile.snapshots.as_ref().is_some_and(|snapshots| snapshots.contains_key(dep_path)) {
-            continue;
-        }
         let (name, version) = name_ver_from_dep_path(lockfile, dep_path);
         let Some(resolved) = resolved_nodes.get(node_id) else {
             continue;
@@ -227,8 +224,11 @@ pub fn build_dependents_tree(opts: &BuildDependentsOptions<'_>) -> Vec<Dependent
             peers_suffix_hash: peers_suffix_hash(dep_path),
             dependents: walk_dependents_of(opts, &reverse_map, &resolved_nodes, node_id),
             search_message: matched.message().map(str::to_string),
-            manifest: ManifestProjector { fields: opts.manifest_fields, resolved: &resolved_nodes }
-                .project(node_id),
+            manifest: ManifestProjector {
+                fields: opts.manifest_fields,
+                resolved: &resolved_nodes,
+            }
+            .project(node_id),
         });
     }
 
@@ -258,12 +258,15 @@ fn walk_dependents_of(
 
 fn sort_trees(trees: &mut [DependentsTree]) {
     trees.sort_by(|a, b| {
-        a.name.cmp(&b.name).then_with(|| compare_versions(&a.version, &b.version)).then_with(|| {
-            a.peers_suffix_hash
-                .as_deref()
-                .unwrap_or("")
-                .cmp(b.peers_suffix_hash.as_deref().unwrap_or(""))
-        })
+        a.name
+            .cmp(&b.name)
+            .then_with(|| compare_versions(&a.version, &b.version))
+            .then_with(|| {
+                a.peers_suffix_hash
+                    .as_deref()
+                    .unwrap_or("")
+                    .cmp(b.peers_suffix_hash.as_deref().unwrap_or(""))
+            })
     });
 }
 
@@ -277,7 +280,10 @@ fn invert_graph(graph: &DependencyGraph) -> HashMap<TreeNodeId, Vec<ReverseEdge>
             reverse
                 .entry(target.clone())
                 .or_default()
-                .push(ReverseEdge { parent: parent_id.clone(), alias: edge.alias.clone() });
+                .push(ReverseEdge {
+                    parent: parent_id.clone(),
+                    alias: edge.alias.clone(),
+                });
         }
     }
     reverse
@@ -298,7 +304,11 @@ fn walk_reverse(ctx: &mut WalkCtx<'_>, node_id: &TreeNodeId, depth: usize) -> Ve
     sorted_edges.sort_by(|a, b| {
         resolve_parent_name(ctx, &a.parent)
             .cmp(&resolve_parent_name(ctx, &b.parent))
-            .then_with(|| a.parent.serialize().cmp(&b.parent.serialize()))
+            .then_with(|| {
+                a.parent
+                    .serialize()
+                    .cmp(&b.parent.serialize())
+            })
     });
 
     let mut dependents: Vec<DependentNode> = Vec::new();
@@ -374,9 +384,7 @@ fn importer_node(ctx: &WalkCtx<'_>, importer_id: &str, edge: &ReverseEdge) -> De
         None => (importer_id.to_string(), String::new()),
     };
     let mut node = DependentNode::leaf(name, version);
-    node.dep_field = ctx
-        .lockfile
-        .importers
+    node.dep_field = ctx.lockfile.importers
         .get(importer_id)
         .and_then(|importer| dep_field_for_alias(&edge.alias, importer));
     node
@@ -384,14 +392,11 @@ fn importer_node(ctx: &WalkCtx<'_>, importer_id: &str, edge: &ReverseEdge) -> De
 
 fn resolve_parent_name(ctx: &WalkCtx<'_>, parent: &TreeNodeId) -> String {
     match parent {
-        TreeNodeId::Importer(importer_id) => ctx
-            .importer_info
+        TreeNodeId::Importer(importer_id) => ctx.importer_info
             .get(importer_id)
             .map_or_else(|| importer_id.clone(), |info| info.name.clone()),
         TreeNodeId::Package(dep_path) => {
-            if ctx
-                .lockfile
-                .snapshots
+            if ctx.lockfile.snapshots
                 .as_ref()
                 .is_some_and(|snapshots| snapshots.contains_key(dep_path))
             {
@@ -405,7 +410,11 @@ fn resolve_parent_name(ctx: &WalkCtx<'_>, parent: &TreeNodeId) -> String {
 
 fn dep_field_for_alias(alias: &str, importer: &ProjectSnapshot) -> Option<DepField> {
     let has = |group: Option<&pnpm_lockfile::ResolvedDependencyMap>| {
-        group.is_some_and(|deps| deps.keys().any(|key| key.to_string() == alias))
+        group.is_some_and(|deps| {
+            deps
+                .keys()
+                .any(|key| key.to_string() == alias)
+        })
     };
     if has(importer.dev_dependencies.as_ref()) {
         return Some(DepField::DevDependencies);
@@ -422,3 +431,16 @@ fn dep_field_for_alias(alias: &str, importer: &ProjectSnapshot) -> Option<DepFie
 mod selection;
 
 use selection::{has_snapshot, match_package};
+
+fn installed_dep_path<'node>(
+    lockfile: &pnpm_lockfile::Lockfile,
+    node_id: &'node TreeNodeId,
+) -> Option<&'node pnpm_lockfile::PkgNameVerPeer> {
+    let TreeNodeId::Package(dep_path) = node_id else {
+        return None;
+    };
+    lockfile.snapshots
+        .as_ref()
+        .filter(|snapshots| snapshots.contains_key(dep_path))
+        .map(|_| dep_path)
+}

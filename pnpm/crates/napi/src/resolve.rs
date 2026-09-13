@@ -136,10 +136,7 @@ fn run_resolve_blocking(
     // worker-thread pool (a per-call multi-thread runtime would multiply threads
     // under concurrent resolves). The install path keeps a multi-thread runtime
     // because it fetches packages in parallel.
-    let runtime =
-        tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(|error| {
-            napi::Error::from_reason(format!("failed to build tokio runtime: {error}"))
-        })?;
+    let runtime = resolve_runtime()?;
 
     // The inherent [`DefaultResolver::resolve`] (not the `Resolver`-trait
     // method) is chosen here: it raises `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`
@@ -171,10 +168,28 @@ fn resolve_overlay(options: &ResolveDependencyOptions) -> ConfigOverlay {
     ConfigOverlay {
         store_dir: options.store_dir.as_ref().map(PathBuf::from),
         cache_dir: options.cache_dir.as_ref().map(PathBuf::from),
-        registries: options.registries.as_ref().map(|map| map.clone().into_iter().collect()),
+        registries: options.registries
+            .as_ref()
+            .map(|map| {
+                map
+                    .clone()
+                    .into_iter()
+                    .collect()
+            }),
         offline: options.offline,
         prefer_offline: options.prefer_offline,
-        auth_header_by_uri: options.auth_header_by_uri.clone().map(|map| map.into_iter().collect()),
+        auth_header_by_uri: options.auth_header_by_uri
+            .clone()
+            .map(|map| map.into_iter().collect()),
         ..ConfigOverlay::default()
     }
+}
+
+fn resolve_runtime() -> napi::Result<tokio::runtime::Runtime> {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|error| {
+            napi::Error::from_reason(format!("failed to build tokio runtime: {error}"))
+        })
 }

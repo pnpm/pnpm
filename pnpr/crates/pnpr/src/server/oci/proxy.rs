@@ -40,7 +40,10 @@ impl Request {
         let result = self.load_proxy_manifest(key, source, reference).await;
         let response = match result {
             Ok(Some(response)) => response,
-            Ok(None) => error(ErrorCode::ManifestUnknown, "upstream manifest does not exist"),
+            Ok(None) => error(
+                ErrorCode::ManifestUnknown,
+                "upstream manifest does not exist",
+            ),
             Err(err) => registry_error(err),
         };
         self.caller_scoped(Some(key.as_str()), api_version(response))
@@ -58,7 +61,8 @@ impl Request {
             });
         }
         let (upstream, namespace) = upstream_for(&self.state, &self.identity, source, key)?;
-        let namespace = format!("{namespace}-oci-manifest-{}", sha256_hex(reference.as_bytes()));
+        let reference_key = sha256_hex(reference.as_bytes());
+        let namespace = format!("{namespace}-oci-manifest-{reference_key}");
         let storage = &self.state.inner.storage;
         let ttl = if Digest::parse(reference).is_ok() {
             Duration::MAX
@@ -75,13 +79,12 @@ impl Request {
         {
             return Ok(answered);
         }
-        let fetched = upstream
-            .fetch_oci(
-                key.as_str(),
-                &format!("manifests/{reference}"),
-                &pnpr_oci::MANIFEST_MEDIA_TYPES.join(", "),
-            )
-            .await?;
+        let fetched = upstream.fetch_oci(
+            key.as_str(),
+            &format!("manifests/{reference}"),
+            &pnpr_oci::MANIFEST_MEDIA_TYPES.join(", "),
+        )
+        .await?;
         let response = match fetched {
             FetchOutcome::NotFound => return Ok(None),
             FetchOutcome::Ok(response) => response,
@@ -101,7 +104,12 @@ impl Request {
         let declared = response
             .headers()
             .get(DOCKER_CONTENT_DIGEST)
-            .map(|value| value.to_str().unwrap_or_default().to_string());
+            .map(|value| {
+                value
+                    .to_str()
+                    .unwrap_or_default()
+                    .to_string()
+            });
         let limit = self.state.inner.config.http.oci.max_manifest_bytes;
         let bytes = read_bounded_manifest(response, limit).await?;
         verify_proxied_manifest(&bytes, reference, declared.as_deref())?;
@@ -141,27 +149,43 @@ impl Request {
         if upstream.caches()
             && let Some((file, len)) = storage.open_upstream_blob(namespace, key, &filename).await?
         {
-            return Ok(tarball_response(
-                if self.method == Method::HEAD {
-                    Body::empty()
-                } else {
-                    streaming::stream_file(file)
-                },
-                Some(len),
-            ));
+            let body = if self.method == Method::HEAD {
+                Body::empty()
+            } else {
+                streaming::stream_file(file)
+            };
+            return Ok(tarball_response(body, Some(len)));
         }
         if self.method == Method::HEAD {
             return head_proxy_blob(upstream, key, digest).await;
         }
-        let fetched = upstream
-            .fetch_oci(key.as_str(), &format!("blobs/{digest}"), "application/octet-stream")
-            .await?;
+        let fetched = upstream.fetch_oci(
+            key.as_str(),
+            &format!("blobs/{digest}"),
+            "application/octet-stream",
+        )
+        .await?;
         let response = match fetched {
             FetchOutcome::NotFound => {
-                return Ok(error(ErrorCode::BlobUnknown, "upstream blob does not exist"));
+                return Ok(error(
+                    ErrorCode::BlobUnknown,
+                    "upstream blob does not exist",
+                ));
             }
             FetchOutcome::Ok(response) => response,
         };
+        self.store_proxy_blob(upstream, namespace, key, digest, response).await
+    }
+    async fn store_proxy_blob(
+        &self,
+        upstream: &pnpr_upstream::Upstream,
+        namespace: &str,
+        key: &CanonicalPackageName,
+        digest: &Digest,
+        response: pnpm_network::ThrottledResponse,
+    ) -> Result<Response, RegistryError> {
+        let filename = digest.blob_filename();
+        let storage = &self.state.inner.storage;
         let write = storage.open_upstream_blob_tmp(namespace, key, &filename).await?;
         let integrity = sha256_integrity(digest.hex()).expect("validated SHA-256 digest");
         let limit = self.state.inner.config.http.oci.max_blob_bytes;
@@ -171,22 +195,30 @@ impl Request {
             return Ok(tarball_response(body, None));
         }
         let (file, len, path) =
-            streaming::download_verified_to_temp(response, write, &integrity, limit)
-                .await
+            streaming::download_verified_to_temp(response, write, &integrity, limit).await
                 .map_err(|err| tarball_stream_error(err, key, &filename))?;
-        Ok(tarball_response(streaming::stream_file_and_remove(file, path), Some(len)))
+        Ok(tarball_response(
+            streaming::stream_file_and_remove(file, path),
+            Some(len),
+        ))
     }
 }
 
 fn manifest_response(bytes: Vec<u8>, head: bool) -> Result<Response, RegistryError> {
     let manifest = Manifest::parse(&bytes, None)
-        .map_err(|err| RegistryError::BadRequest { reason: err.to_string() })?;
+        .map_err(|err| RegistryError::BadRequest {
+            reason: err.to_string(),
+        })?;
     Ok(Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, manifest.media_type())
         .header(header::CONTENT_LENGTH, bytes.len())
         .header(DOCKER_CONTENT_DIGEST, Digest::of(&bytes).to_string())
-        .body(if head { Body::empty() } else { Body::from(bytes) })
+        .body(if head {
+            Body::empty()
+        } else {
+            Body::from(bytes)
+        })
         .unwrap_or_else(|_| server_error()))
 }
 
@@ -198,13 +230,12 @@ async fn head_proxy_manifest(
     key: &CanonicalPackageName,
     reference: &str,
 ) -> Result<Option<Option<Response>>, RegistryError> {
-    let fetched = upstream
-        .head_oci(
-            key.as_str(),
-            &format!("manifests/{reference}"),
-            &pnpr_oci::MANIFEST_MEDIA_TYPES.join(", "),
-        )
-        .await?;
+    let fetched = upstream.head_oci(
+        key.as_str(),
+        &format!("manifests/{reference}"),
+        &pnpr_oci::MANIFEST_MEDIA_TYPES.join(", "),
+    )
+    .await?;
     let upstream_response = match fetched {
         FetchOutcome::NotFound => return Ok(Some(None)),
         FetchOutcome::Ok(response) => response,
@@ -212,26 +243,37 @@ async fn head_proxy_manifest(
     let Some(declared) = upstream_response.headers().get(DOCKER_CONTENT_DIGEST) else {
         return Ok(None);
     };
-    let declared =
-        declared.to_str().ok().and_then(|value| Digest::parse(value).ok()).ok_or_else(|| {
-            RegistryError::BadRequest { reason: "invalid upstream manifest digest".to_string() }
+    let declared = declared
+        .to_str()
+        .ok()
+        .and_then(|value| Digest::parse(value).ok())
+        .ok_or_else(|| RegistryError::BadRequest {
+            reason: "invalid upstream manifest digest".to_string(),
         })?;
     if Digest::parse(reference).is_ok_and(|expected| expected != declared) {
         return Err(RegistryError::BadRequest {
             reason: "upstream manifest digest mismatch".to_string(),
         });
     }
+    Ok(Some(Some(manifest_head_response(
+        upstream_response.headers(),
+    ))))
+}
+
+fn manifest_head_response(headers: &axum::http::HeaderMap) -> Response {
     let mut response = Response::new(Body::empty());
     for name in [
         header::CONTENT_TYPE,
         header::CONTENT_LENGTH,
         header::HeaderName::from_static(DOCKER_CONTENT_DIGEST),
     ] {
-        if let Some(value) = upstream_response.headers().get(&name) {
-            response.headers_mut().insert(name, value.clone());
+        if let Some(value) = headers.get(&name) {
+            response
+                .headers_mut()
+                .insert(name, value.clone());
         }
     }
-    Ok(Some(Some(response)))
+    response
 }
 
 /// Read an upstream manifest body, refusing one over `limit` before it is
@@ -270,7 +312,9 @@ fn verify_proxied_manifest(
         });
     }
     Manifest::parse(bytes, None)
-        .map_err(|err| RegistryError::BadRequest { reason: err.to_string() })?;
+        .map_err(|err| RegistryError::BadRequest {
+            reason: err.to_string(),
+        })?;
     Ok(())
 }
 
@@ -281,9 +325,12 @@ async fn head_proxy_blob(
     key: &CanonicalPackageName,
     digest: &Digest,
 ) -> Result<Response, RegistryError> {
-    let fetched = upstream
-        .head_oci(key.as_str(), &format!("blobs/{digest}"), "application/octet-stream")
-        .await?;
+    let fetched = upstream.head_oci(
+        key.as_str(),
+        &format!("blobs/{digest}"),
+        "application/octet-stream",
+    )
+    .await?;
     Ok(match fetched {
         FetchOutcome::NotFound => error(ErrorCode::BlobUnknown, "upstream blob does not exist"),
         FetchOutcome::Ok(response) => tarball_response(

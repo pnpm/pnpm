@@ -12,7 +12,10 @@ pub(super) fn protocol_to_representation(protocol: &str) -> Representation {
 }
 
 pub(super) fn strip_dot_git(project: &str) -> String {
-    project.strip_suffix(".git").unwrap_or(project).to_string()
+    project
+        .strip_suffix(".git")
+        .unwrap_or(project)
+        .to_string()
 }
 
 pub(super) struct ParsedUrl {
@@ -41,8 +44,11 @@ pub(super) fn parse_git_url(giturl: &str) -> Option<ParsedUrl> {
 pub(super) fn whatwg_parse(giturl: &str) -> Option<ParsedUrl> {
     let parsed = reqwest::Url::parse(giturl).ok()?;
     let scheme = parsed.scheme().to_string();
-    let username =
-        if parsed.username().is_empty() { None } else { Some(parsed.username().to_string()) };
+    let username = if parsed.username().is_empty() {
+        None
+    } else {
+        Some(parsed.username().to_string())
+    };
     let password = parsed.password().map(str::to_string);
     let host = parsed.host_str().map(str::to_string);
     let pathname = if parsed.cannot_be_a_base() {
@@ -52,8 +58,17 @@ pub(super) fn whatwg_parse(giturl: &str) -> Option<ParsedUrl> {
     } else {
         parsed.path().to_string()
     };
-    let hash = parsed.fragment().map(|f| format!("#{f}"));
-    Some(ParsedUrl { scheme, username, password, host, pathname, hash })
+    let hash = parsed
+        .fragment()
+        .map(|f| format!("#{f}"));
+    Some(ParsedUrl {
+        scheme,
+        username,
+        password,
+        host,
+        pathname,
+        hash,
+    })
 }
 
 /// Mirrors upstream's
@@ -141,14 +156,16 @@ pub(super) fn shortcut_segments(parsed: &ParsedUrl) -> UrlSegments {
         pathname = &pathname[at + 1..];
     }
     let (user, project) = match pathname.rfind('/') {
-        Some(idx) => (percent_decode(&pathname[..idx]), percent_decode(&pathname[idx + 1..])),
+        Some(idx) => (
+            percent_decode(&pathname[..idx]),
+            percent_decode(&pathname[idx + 1..]),
+        ),
         None => (String::new(), percent_decode(pathname)),
     };
     UrlSegments {
         user,
         project: strip_dot_git(&project),
-        committish: parsed
-            .hash
+        committish: parsed.hash
             .as_ref()
             .map(|hash| percent_decode(hash.strip_prefix('#').unwrap_or(hash)))
             .filter(|committish| !committish.is_empty()),
@@ -164,8 +181,7 @@ pub(super) fn host_segments(host_type: HostedGitType, parsed: &ParsedUrl) -> Opt
     Some(UrlSegments {
         user: percent_decode(&segments.user),
         project: percent_decode(&segments.project),
-        committish: segments
-            .committish
+        committish: segments.committish
             .map(|raw| percent_decode(&raw))
             .filter(|decoded| !decoded.is_empty()),
         representation: protocol_to_representation(&parsed.scheme),
@@ -175,8 +191,10 @@ pub(super) fn host_segments(host_type: HostedGitType, parsed: &ParsedUrl) -> Opt
 /// The `user[:password]` credentials to keep, for the protocols that carry
 /// them. Shortcut forms have already had their auth trimmed off the path.
 pub(super) fn extract_auth(parsed: &ParsedUrl) -> Option<String> {
-    let auth_protocols =
-        matches!(parsed.scheme.as_str(), "git" | "https" | "git+https" | "http" | "git+http");
+    let auth_protocols = matches!(
+        parsed.scheme.as_str(),
+        "git" | "https" | "git+https" | "http" | "git+http",
+    );
     if !auth_protocols {
         return None;
     }
@@ -195,8 +213,11 @@ pub(super) fn is_github_shorthand(arg: &str) -> bool {
     }
     let first_hash = arg.find('#');
     let first_slash = arg.find('/');
-    let second_slash =
-        first_slash.and_then(|first| arg[first + 1..].find('/').map(|rest| first + 1 + rest));
+    let second_slash = first_slash.and_then(|first| {
+        arg[first + 1..]
+            .find('/')
+            .map(|rest| first + 1 + rest)
+    });
 
     let has_slash = first_slash.is_some_and(|first| first > 0);
     let does_not_end_with_slash = match first_hash {
@@ -250,8 +271,14 @@ pub(super) fn extract_github(parsed: &ParsedUrl) -> Option<Segments> {
     }
 
     if r#type.is_none() {
-        committish =
-            parsed.hash.as_deref().map(|hash| hash.strip_prefix('#').unwrap_or(hash).to_string());
+        committish = parsed.hash
+            .as_deref()
+            .map(|hash| {
+                hash
+                    .strip_prefix('#')
+                    .unwrap_or(hash)
+                    .to_string()
+            });
     }
 
     if project.ends_with(".git") {
@@ -262,7 +289,11 @@ pub(super) fn extract_github(parsed: &ParsedUrl) -> Option<Segments> {
         return None;
     }
 
-    Some(Segments { user, project, committish })
+    Some(Segments {
+        user,
+        project,
+        committish,
+    })
 }
 
 /// Port of `gitHosts.bitbucket.extract`.
@@ -282,12 +313,20 @@ pub(super) fn extract_bitbucket(parsed: &ParsedUrl) -> Option<Segments> {
     if user.is_empty() || project.is_empty() {
         return None;
     }
-    let committish = parsed
-        .hash
+    let committish = parsed.hash
         .as_deref()
-        .map(|hash| hash.strip_prefix('#').unwrap_or(hash).to_string())
+        .map(|hash| {
+            hash
+                .strip_prefix('#')
+                .unwrap_or(hash)
+                .to_string()
+        })
         .filter(|committish| !committish.is_empty());
-    Some(Segments { user, project, committish })
+    Some(Segments {
+        user,
+        project,
+        committish,
+    })
 }
 
 /// Port of `gitHosts.gitlab.extract`.
@@ -305,12 +344,20 @@ pub(super) fn extract_gitlab(parsed: &ParsedUrl) -> Option<Segments> {
     if user.is_empty() || project.is_empty() {
         return None;
     }
-    let committish = parsed
-        .hash
+    let committish = parsed.hash
         .as_deref()
-        .map(|hash| hash.strip_prefix('#').unwrap_or(hash).to_string())
+        .map(|hash| {
+            hash
+                .strip_prefix('#')
+                .unwrap_or(hash)
+                .to_string()
+        })
         .filter(|committish| !committish.is_empty());
-    Some(Segments { user, project, committish })
+    Some(Segments {
+        user,
+        project,
+        committish,
+    })
 }
 
 /// Match Node's `decodeURIComponent` for the inputs hosted-git-info
@@ -332,8 +379,10 @@ pub(super) fn percent_decode(input: &str) -> String {
     while idx < bytes.len() {
         if bytes[idx] == b'%'
             && idx + 2 < bytes.len()
-            && let (Some(hi), Some(lo)) =
-                ((bytes[idx + 1] as char).to_digit(16), (bytes[idx + 2] as char).to_digit(16))
+            && let (Some(hi), Some(lo)) = (
+                (bytes[idx + 1] as char).to_digit(16),
+                (bytes[idx + 2] as char).to_digit(16),
+            )
         {
             buf.push((hi * 16 + lo) as u8);
             idx += 3;

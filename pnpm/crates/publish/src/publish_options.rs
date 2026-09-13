@@ -73,7 +73,9 @@ pub fn find_registry_info(
 
     parse_supported_registry_url(&non_normalized)
         .map(|info| info.normalized_url)
-        .ok_or(PublishUnsupportedRegistryProtocolError { registry_url: non_normalized })
+        .ok_or(PublishUnsupportedRegistryProtocolError {
+            registry_url: non_normalized,
+        })
 }
 
 /// The scope of a package name (`@scope/name` → `scope`), or `None` when
@@ -136,14 +138,7 @@ where
     Sys: EnvVar + Clock + OidcFetch,
     Reporter: self::Reporter,
 {
-    let id_token = match get_id_token::<Sys, Reporter>(registry, http).await {
-        Ok(token) => token,
-        Err(GetIdTokenError::IdToken(error)) => {
-            global_warn::<Reporter>(&format!("Skipped OIDC: {}", display_diagnostic(&error)));
-            return Ok(None);
-        }
-        Err(error) => return Err(FetchTokenAndProvenanceError::IdToken(error)),
-    };
+    let id_token = publish_id_token::<Sys, Reporter>(registry, http).await?;
     let Some(id_token) = id_token else {
         // OIDC is simply not applicable (local publish / non-OIDC CI). Stay
         // silent — only configuration errors in a supported CI warn.
@@ -159,11 +154,17 @@ where
     };
 
     if provenance_override.is_some() {
-        return Ok(Some(OidcTokenProvenance { auth_token, provenance: provenance_override }));
+        return Ok(Some(OidcTokenProvenance {
+            auth_token,
+            provenance: provenance_override,
+        }));
     }
 
     match determine_provenance::<Sys>(&auth_token, &id_token, package_name, registry, http).await {
-        Ok(provenance) => Ok(Some(OidcTokenProvenance { auth_token, provenance })),
+        Ok(provenance) => Ok(Some(OidcTokenProvenance {
+            auth_token,
+            provenance,
+        })),
         Err(DetermineProvenanceError::Provenance(error)) => {
             // Keep the OIDC auth token even when provenance can't be decided —
             // the publish itself can still go through, matching the npm CLI.
@@ -171,7 +172,10 @@ where
                 "Skipped setting provenance: {}",
                 display_diagnostic(&error),
             ));
-            Ok(Some(OidcTokenProvenance { auth_token, provenance: None }))
+            Ok(Some(OidcTokenProvenance {
+                auth_token,
+                provenance: None,
+            }))
         }
         Err(error) => Err(FetchTokenAndProvenanceError::Provenance(error)),
     }
@@ -217,7 +221,10 @@ where
         .get("publishConfig")
         .and_then(|config| config.get("registry"))
         .and_then(Value::as_str);
-    let name = manifest.get("name").and_then(Value::as_str).unwrap_or_default();
+    let name = manifest
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
     let registry = find_registry_info(
         name,
         input.default_registry,
@@ -279,3 +286,21 @@ impl From<FetchTokenAndProvenanceError> for CreatePublishOptionsError {
 
 #[cfg(test)]
 mod tests;
+
+async fn publish_id_token<Sys, Reporter>(
+    registry: &str,
+    http: &OidcHttpOptions,
+) -> Result<Option<String>, FetchTokenAndProvenanceError>
+where
+    Sys: EnvVar + Clock + OidcFetch,
+    Reporter: self::Reporter,
+{
+    match get_id_token::<Sys, Reporter>(registry, http).await {
+        Ok(token) => Ok(token),
+        Err(GetIdTokenError::IdToken(error)) => {
+            global_warn::<Reporter>(&format!("Skipped OIDC: {}", display_diagnostic(&error)));
+            Ok(None)
+        }
+        Err(error) => Err(FetchTokenAndProvenanceError::IdToken(error)),
+    }
+}

@@ -6,9 +6,10 @@
 //! Runs immediately after the prefetch, whose results it consumes.
 
 use super::{
-    PackageManifests, RemoteSideEffectsQuarantineBySnapshot, RequiresBuildBySnapshot,
-    SideEffectsBySnapshot, SideEffectsMapsBySnapshot, SnapshotWithCacheKey,
-    StoreIndexKeysBySnapshot, snapshot_needs_build_marker,
+    CreateVirtualStore, PackageManifests, RemoteSideEffectsQuarantineBySnapshot,
+    RequiresBuildBySnapshot, SideEffectsBySnapshot, SideEffectsMapsBySnapshot,
+    SnapshotWithCacheKey, StoreIndexKeysBySnapshot, WantedEntries,
+    publish_planned_canonical_fetches, snapshot_needs_build_marker, snapshot_plan,
 };
 use pnpm_config::NodeLinker;
 use pnpm_lockfile::{PackageKey, SnapshotEntry};
@@ -137,7 +138,9 @@ impl IndexRows {
         marker_rebuilds: &HashSet<PackageKey>,
     ) {
         let snapshot_key = entry.0;
-        let Some(cache_key) = entry.2.as_deref() else { return };
+        let Some(cache_key) = entry.2.as_deref() else {
+            return;
+        };
         self.store_index_keys_by_snapshot.insert(snapshot_key.clone(), cache_key.to_string());
         if let Some(manifest) = prefetch.manifests.get(cache_key) {
             self.package_manifests
@@ -149,16 +152,22 @@ impl IndexRows {
         if !marker_rebuilds.contains(snapshot_key)
             && let Some(maps) = prefetch.side_effects_maps.get(cache_key)
         {
-            self.side_effects_maps_by_snapshot
-                .insert(snapshot_key.clone(), std::sync::Arc::clone(maps));
+            self.side_effects_maps_by_snapshot.insert(
+                snapshot_key.clone(),
+                std::sync::Arc::clone(maps),
+            );
         }
         if let Some(diffs) = prefetch.side_effects.get(cache_key) {
-            self.side_effects_by_snapshot
-                .insert(snapshot_key.clone(), std::sync::Arc::clone(diffs));
+            self.side_effects_by_snapshot.insert(
+                snapshot_key.clone(),
+                std::sync::Arc::clone(diffs),
+            );
         }
         if let Some(quarantine) = prefetch.remote_side_effects_quarantine.get(cache_key) {
-            self.remote_side_effects_quarantine_by_snapshot
-                .insert(snapshot_key.clone(), std::sync::Arc::clone(quarantine));
+            self.remote_side_effects_quarantine_by_snapshot.insert(
+                snapshot_key.clone(),
+                std::sync::Arc::clone(quarantine),
+            );
         }
         if let Some(&requires_build) = prefetch.requires_build.get(cache_key) {
             self.requires_build_by_snapshot.insert(snapshot_key.clone(), requires_build);
@@ -177,8 +186,10 @@ impl IndexRows {
         let (snapshot_key, snapshot, cache_key) = entry;
         let key = cache_key.as_deref()?;
         let cas_paths = prefetch.cas_paths.get(key)?;
-        let requires_build =
-            self.requires_build_by_snapshot.get(*snapshot_key).copied().unwrap_or(false);
+        let requires_build = self.requires_build_by_snapshot
+            .get(*snapshot_key)
+            .copied()
+            .unwrap_or(false);
         Some((
             *snapshot_key,
             *snapshot,
@@ -204,5 +215,39 @@ impl IndexRows {
             store_index_keys_by_snapshot: self.store_index_keys_by_snapshot,
             requires_build_by_snapshot: self.requires_build_by_snapshot,
         }
+    }
+}
+
+impl CreateVirtualStore<'_> {
+    pub(super) fn partition_plan<'p>(
+        &self,
+        wanted: WantedEntries<'_>,
+        plan: &'p snapshot_plan::SnapshotPlan<'p>,
+        prefetched: &'p PrefetchResult,
+    ) -> Partition<'p> {
+        let partition = partition_snapshots(
+            &plan.survivors,
+            &plan.skipped_entries,
+            prefetched,
+            &plan.marker_rebuilds,
+            self.ctx.linker.kind,
+        );
+
+        // Publish the cold-batch fetch plan for the concurrent
+        // verification fan-out: every cold registry-resolved snapshot
+        // with a pinned hash is downloaded from its canonical registry
+        // URL by this run (or fails the install / is dropped as an
+        // uninstallable optional), which is the existence evidence the
+        // npm verifier's age gate may substitute for a metadata body.
+        // First fill wins; entries outside the plan keep the
+        // metadata-backed path.
+        publish_planned_canonical_fetches(
+            self.fetching.planned_canonical_fetches,
+            &partition.cold,
+            wanted.packages,
+            self.fetching.custom_fetcher_session.is_some(),
+        );
+
+        partition
     }
 }

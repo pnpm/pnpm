@@ -1,3 +1,5 @@
+pub(crate) use direct_dependencies::importer_direct_wanted_specs;
+
 pub use update_scope::{UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine};
 
 pub use reuse::real_package_name_of;
@@ -12,6 +14,7 @@ pub(crate) use reuse::{record_changed_direct_deps, unwrap_package_name};
 
 pub(crate) use workspace_ctx::SyncCursor;
 
+mod direct_dependencies;
 mod update_scope;
 
 use derive_more::{Display, Error};
@@ -97,13 +100,34 @@ pub struct ResolveDependencyTreeOptions {
 
 impl std::fmt::Debug for ResolveDependencyTreeOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ResolveDependencyTreeOptions")
+        f
+            .debug_struct("ResolveDependencyTreeOptions")
             .field("base_opts", &self.base_opts)
             .field("patched_dependencies", &self.patched_dependencies)
-            .field("manifest_hook", &self.manifest_hook.as_ref().map(|_| "<hook>"))
-            .field("overrides_hook", &self.overrides_hook.as_ref().map(|_| "<hook>"))
-            .field("pnpmfile_hook", &self.pnpmfile_hook.as_ref().map(|_| "<hook>"))
-            .field("read_package_log", &self.read_package_log.as_ref().map(|_| "<log>"))
+            .field(
+                "manifest_hook",
+                &self.manifest_hook
+                    .as_ref()
+                    .map(|_| "<hook>"),
+            )
+            .field(
+                "overrides_hook",
+                &self.overrides_hook
+                    .as_ref()
+                    .map(|_| "<hook>"),
+            )
+            .field(
+                "pnpmfile_hook",
+                &self.pnpmfile_hook
+                    .as_ref()
+                    .map(|_| "<hook>"),
+            )
+            .field(
+                "read_package_log",
+                &self.read_package_log
+                    .as_ref()
+                    .map(|_| "<log>"),
+            )
             .field("auto_install_peers", &self.auto_install_peers)
             .finish()
     }
@@ -369,8 +393,12 @@ where
         wanted.push((name.to_string(), range.to_string(), optional, injected));
     }
     record_changed_direct_deps(&ctx, pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY, &wanted);
-    let parent_pkg_aliases =
-        ParentPkgAliases::root(wanted.iter().map(|(alias, ..)| alias.clone()).collect());
+    let parent_pkg_aliases = ParentPkgAliases::root(
+        wanted
+            .iter()
+            .map(|(alias, ..)| alias.clone())
+            .collect(),
+    );
     let direct = extend_tree(
         &ctx,
         resolver,
@@ -389,7 +417,10 @@ where
 /// `ResolvedPackage.optional` propagation starts from the right
 /// per-direct-dep value.
 pub(crate) fn importer_optional_dependency_names(manifest: &PackageManifest) -> HashSet<String> {
-    manifest.dependencies([DependencyGroup::Optional]).map(|(name, _)| name.to_string()).collect()
+    manifest
+        .dependencies([DependencyGroup::Optional])
+        .map(|(name, _)| name.to_string())
+        .collect()
 }
 
 /// Collect the names of the importer manifest's `dependenciesMeta` entries
@@ -404,7 +435,8 @@ fn injected_dependency_names(manifest: &Value) -> HashSet<String> {
     let Some(meta) = manifest.get("dependenciesMeta").and_then(Value::as_object) else {
         return HashSet::default();
     };
-    meta.iter()
+    meta
+        .iter()
         .filter(|(_, entry)| dependency_meta_is_injected(entry))
         .map(|(name, _)| name.clone())
         .collect()
@@ -419,74 +451,10 @@ fn dependency_is_injected(manifest: &Value, name: &str) -> bool {
 }
 
 fn dependency_meta_is_injected(meta: &Value) -> bool {
-    meta.get("injected").and_then(Value::as_bool).unwrap_or(false)
-}
-
-/// Build the importer's direct-dependency wanted specs: the manifest's
-/// `dependencies` (plus, when `auto_install_peers`, its own
-/// `peerDependencies`) tagged with the right `optional` / `injected`
-/// flags and with `catalog:` specifiers resolved.
-///
-/// An alias declared in several groups yields one spec, merged by
-/// spreading the groups in order: `peerDependencies` first (when
-/// `auto_install_peers`), then `devDependencies` < `dependencies` <
-/// `optionalDependencies`, a later group's range replacing an earlier
-/// one — matching `filterDependenciesByType` in
-/// `@pnpm/pkg-manifest.utils` (`{...dev, ...prod, ...optional}`), so a
-/// regular dep wins over a devDependency of the same alias, and either
-/// wins over its peer range.
-///
-/// Shared by [`fn@crate::resolve_importer`] (which walks them) and the
-/// `time-based` cutoff pre-pass in [`fn@crate::resolve_workspace`]
-/// (which only needs the resolved direct-dep publish dates), so both
-/// see the identical direct-dep set — the importer-dep computation runs
-/// once before resolving an importer's deps.
-pub(crate) fn importer_direct_wanted_specs<DependencyGroupList>(
-    manifest: &PackageManifest,
-    dependency_groups: DependencyGroupList,
-    auto_install_peers: bool,
-    catalogs: &Catalogs,
-) -> Result<Vec<WantedSpec>, ResolveDependencyTreeError>
-where
-    DependencyGroupList: IntoIterator<Item = DependencyGroup>,
-{
-    let included: Vec<DependencyGroup> = dependency_groups.into_iter().collect();
-    let mut groups: Vec<DependencyGroup> = Vec::new();
-    if auto_install_peers || included.contains(&DependencyGroup::Peer) {
-        groups.push(DependencyGroup::Peer);
-    }
-    groups.extend(
-        [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional]
-            .into_iter()
-            .filter(|group| included.contains(group)),
-    );
-    let optional_names = importer_optional_dependency_names(manifest);
-    let injected_names = importer_injected_dependency_names(manifest);
-    let mut order: Vec<&str> = Vec::new();
-    let mut ranges: HashMap<&str, &str> = HashMap::default();
-    for (name, range) in manifest.dependencies(groups) {
-        if !crate::is_valid_dependency_alias(name) {
-            return Err(ResolveDependencyTreeError::InvalidDependencyName {
-                parent: "The current package".to_string(),
-                alias: name.to_string(),
-            });
-        }
-        if ranges.insert(name, range).is_none() {
-            order.push(name);
-        }
-    }
-    let wanted: Vec<WantedSpec> = order
-        .into_iter()
-        .map(|name| {
-            (
-                name.to_string(),
-                ranges[name].to_string(),
-                optional_names.contains(name),
-                injected_names.contains(name),
-            )
-        })
-        .collect();
-    resolve_catalog_specifiers(wanted, catalogs)
+    meta
+        .get("injected")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
 }
 
 /// One spec carried through [`extend_tree`] and the importer-side
@@ -547,7 +515,9 @@ where
     // Direct deps reuse via the importer's recorded resolution when a
     // prior lockfile exists; without one the gate is a no-op.
     let reuse = if ctx.workspace.reuse.lockfile.is_some() {
-        ReuseSource::Importer { importer_id: importer_id.to_string() }
+        ReuseSource::Importer {
+            importer_id: importer_id.to_string(),
+        }
     } else {
         ReuseSource::Off
     };
@@ -582,7 +552,11 @@ where
     // below it a level at a time.
     let direct =
         walk_from_seeds(ctx, resolver, seeds, children_overlay, children_pkg_aliases).await?;
-    ctx.workspace.versions.record_preferred_version_roots(direct.iter().map(|dep| dep.id.as_str()));
+    ctx.workspace.versions.record_preferred_version_roots(
+        direct
+            .iter()
+            .map(|dep| dep.id.as_str()),
+    );
     // Second bump, after every write of this wave (including the roots
     // above) has landed: a `run_preferred_versions` read racing with
     // this call could bind the entry bump's revision to a partial
@@ -630,3 +604,13 @@ where
 
 #[cfg(test)]
 mod tests;
+
+fn child_ancestor_ids(ancestor_ids: &[String], id: &str) -> Arc<Vec<String>> {
+    Arc::new(
+        ancestor_ids
+            .iter()
+            .cloned()
+            .chain(std::iter::once(id.to_string()))
+            .collect(),
+    )
+}

@@ -113,10 +113,15 @@ const SETTINGS_OF_OTHER_PNPM_VERSIONS: &[(&str, &str)] = &[("confirmModulesPurge
 /// serialization so the set cannot drift from the struct.
 fn settings_field_keys() -> &'static HashSet<String> {
     static SET: OnceLock<HashSet<String>> = OnceLock::new();
-    SET.get_or_init(|| match serde_json::to_value(WorkspaceSettings::default()) {
-        Ok(serde_json::Value::Object(fields)) => fields.into_iter().map(|(key, _)| key).collect(),
-        _ => HashSet::new(),
-    })
+    SET.get_or_init(
+        || match serde_json::to_value(WorkspaceSettings::default()) {
+            Ok(serde_json::Value::Object(fields)) => fields
+                .into_iter()
+                .map(|(key, _)| key)
+                .collect(),
+            _ => HashSet::new(),
+        },
+    )
 }
 
 fn known_setting_keys() -> &'static HashSet<String> {
@@ -137,7 +142,10 @@ fn known_setting_keys() -> &'static HashSet<String> {
 fn known_setting_keys_sorted() -> &'static Vec<String> {
     static LIST: OnceLock<Vec<String>> = OnceLock::new();
     LIST.get_or_init(|| {
-        let mut keys: Vec<String> = known_setting_keys().iter().cloned().collect();
+        let mut keys: Vec<String> = known_setting_keys()
+            .iter()
+            .cloned()
+            .collect();
         keys.sort_unstable();
         keys
     })
@@ -161,12 +169,16 @@ pub fn is_known_setting_key(key: &str) -> bool {
 #[must_use]
 pub fn annotate_unknown_setting(key: &str) -> String {
     let camel = to_camel_case(key);
-    if let Some((_, version)) =
-        SETTINGS_OF_OTHER_PNPM_VERSIONS.iter().find(|(setting, _)| *setting == camel)
+    if let Some((_, version)) = SETTINGS_OF_OTHER_PNPM_VERSIONS
+        .iter()
+        .find(|(setting, _)| *setting == camel)
     {
         return format!(r#""{key}" (a {version} setting)"#);
     }
-    match did_you_mean(&camel, known_setting_keys_sorted().iter().map(String::as_str)) {
+    match did_you_mean(
+        &camel,
+        known_setting_keys_sorted().iter().map(String::as_str),
+    ) {
         Some(suggestion) => format!(r#""{key}" (did you mean "{suggestion}"?)"#),
         None => format!(r#""{key}""#),
     }
@@ -176,25 +188,37 @@ pub fn annotate_unknown_setting(key: &str) -> String {
 /// threshold `didyoumean2` (pnpm's suggester) applies by default:
 /// `1 - distance / max_len >= 0.4`, compared case-insensitively.
 fn did_you_mean<'a>(input: &str, candidates: impl IntoIterator<Item = &'a str>) -> Option<&'a str> {
-    let input_chars: Vec<char> = input.to_lowercase().chars().collect();
+    let input_chars: Vec<char> = input
+        .to_lowercase()
+        .chars()
+        .collect();
     let mut candidate_chars = Vec::new();
     let mut rows = LevenshteinRows::default();
     let mut best: Option<(&str, f64)> = None;
     for candidate in candidates {
         candidate_chars.clear();
         candidate_chars.extend(candidate.chars().flat_map(char::to_lowercase));
-        let max_len = input_chars.len().max(candidate_chars.len());
+        let max_len = input_chars
+            .len()
+            .max(candidate_chars.len());
         if max_len == 0 {
             continue;
         }
         // The distance is at least the length difference, so a candidate whose
         // length alone puts it past the threshold cannot clear it, and the
         // matrix does not have to be filled to find that out.
-        if input_chars.len().abs_diff(candidate_chars.len()) > max_len * 3 / 5 {
+        if input_chars
+            .len()
+            .abs_diff(candidate_chars.len())
+            > max_len * 3 / 5
+        {
             continue;
         }
         let distance = rows.levenshtein(&input_chars, &candidate_chars);
-        #[expect(clippy::cast_precision_loss, reason = "setting names are far shorter than 2^52")]
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "setting names are far shorter than 2^52"
+        )]
         let similarity = 1.0 - distance as f64 / max_len as f64;
         if similarity >= 0.4 && best.is_none_or(|(_, best_similarity)| similarity > best_similarity)
         {

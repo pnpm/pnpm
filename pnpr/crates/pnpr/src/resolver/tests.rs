@@ -43,7 +43,10 @@ fn config() -> PacquetConfig {
 }
 
 fn deps(entries: &[(&str, &str)]) -> BTreeMap<String, String> {
-    entries.iter().map(|(name, spec)| ((*name).to_string(), (*spec).to_string())).collect()
+    entries
+        .iter()
+        .map(|(name, spec)| ((*name).to_string(), (*spec).to_string()))
+        .collect()
 }
 
 fn registry_config() -> RegistryConfig {
@@ -55,11 +58,10 @@ fn registry_config() -> RegistryConfig {
 
 fn public_registry_config(registry: &str) -> RegistryConfig {
     let mut config = registry_config();
-    config
-        .routing
-        .route_policy
-        .public
-        .push(PublicRoute { registry: Some(registry.to_string()), package: None });
+    config.routing.route_policy.public.push(PublicRoute {
+        registry: Some(registry.to_string()),
+        package: None,
+    });
     config
 }
 
@@ -95,8 +97,10 @@ fn upstream_with_access(registry: &str, access: &str) -> UpstreamConfig {
 
 fn upstream_with_token(registry: &str, access: &str, token: &'static str) -> UpstreamConfig {
     let mut headers = reqwest::header::HeaderMap::new();
-    headers
-        .insert(reqwest::header::AUTHORIZATION, reqwest::header::HeaderValue::from_static(token));
+    headers.insert(
+        reqwest::header::AUTHORIZATION,
+        reqwest::header::HeaderValue::from_static(token),
+    );
     let mut upstream = UpstreamConfig::with_defaults(registry.to_string(), headers);
     upstream.access = Some(AccessList::from_tokens([access]));
     upstream
@@ -115,7 +119,9 @@ fn private_alias_footprint(alias: &str) -> Footprint {
 fn private_hosted_footprint(registry: &str, package: &str) -> Footprint {
     let mut footprint = Footprint::default();
     // Registry-qualified, matching `hosted_policy_id` in the route module.
-    footprint.add(PrivateAccessDescriptor::Hosted { policy_id: format!("{registry}\0{package}") });
+    footprint.add(PrivateAccessDescriptor::Hosted {
+        policy_id: format!("{registry}\0{package}"),
+    });
     footprint
 }
 
@@ -133,9 +139,7 @@ fn set_local_hosted_rules(config: &mut RegistryConfig, pattern: &str, access: &s
         }],
         None,
     );
-    config
-        .routing
-        .hosted
+    config.routing.hosted
         .get_mut("local")
         .expect("proxy config has a local hosted registry")
         .rules = rules;
@@ -154,8 +158,10 @@ fn package_lockfile(name: &str, version: &str) -> Lockfile {
         }),
     );
     let mut dependencies = serde_json::Map::new();
-    dependencies
-        .insert(name.to_string(), serde_json::json!({ "specifier": "^1.0.0", "version": version }));
+    dependencies.insert(
+        name.to_string(),
+        serde_json::json!({ "specifier": "^1.0.0", "version": version }),
+    );
     serde_json::from_value(serde_json::json!({
         "lockfileVersion": "9.0",
         "importers": {
@@ -168,7 +174,10 @@ fn package_lockfile(name: &str, version: &str) -> Lockfile {
 
 fn lockfile_tarball_url(lockfile: &Lockfile, key: &str) -> String {
     let value = serde_json::to_value(lockfile).expect("lockfile serializes");
-    value["packages"][key]["resolution"]["tarball"].as_str().expect("tarball URL").to_string()
+    value["packages"][key]["resolution"]["tarball"]
+        .as_str()
+        .expect("tarball URL")
+        .to_string()
 }
 
 #[derive(Debug)]

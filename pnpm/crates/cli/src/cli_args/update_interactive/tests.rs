@@ -52,8 +52,10 @@ importers:
     config.registry = registry;
     config.cache_dir = temp.path().join("cache");
     config.minimum_release_age = Some(60);
-    let projects =
-        [InteractiveUpdateProject { manifest: &manifest, importer_id: "packages/a".to_string() }];
+    let projects = [InteractiveUpdateProject {
+        manifest: &manifest,
+        importer_id: "packages/a".to_string(),
+    }];
 
     let choices = collect_choices(
         &projects,
@@ -115,8 +117,14 @@ importers:
     config.registry = registry;
     config.cache_dir = temp.path().join("cache");
     let projects = [
-        InteractiveUpdateProject { manifest: &foo, importer_id: "packages/a".to_string() },
-        InteractiveUpdateProject { manifest: &bar, importer_id: "packages/b".to_string() },
+        InteractiveUpdateProject {
+            manifest: &foo,
+            importer_id: "packages/a".to_string(),
+        },
+        InteractiveUpdateProject {
+            manifest: &bar,
+            importer_id: "packages/b".to_string(),
+        },
     ];
 
     let choices = collect_choices(
@@ -131,13 +139,19 @@ importers:
     .expect("collect interactive choices");
 
     assert_eq!(
-        choices.iter().map(|choice| choice.alias.as_str()).collect::<Vec<_>>(),
+        choices
+            .iter()
+            .map(|choice| choice.alias.as_str())
+            .collect::<Vec<_>>(),
         vec!["foo", "bar"],
     );
     // Each entry remembers the project it came from, which is what the
     // interactive list's `Workspace` column shows.
     assert_eq!(
-        choices.iter().map(|choice| choice.metadata.workspace.as_deref()).collect::<Vec<_>>(),
+        choices
+            .iter()
+            .map(|choice| choice.metadata.workspace.as_deref())
+            .collect::<Vec<_>>(),
         vec![Some("packages-a"), Some("packages-b")],
     );
     foo_mock.assert_async().await;
@@ -181,8 +195,14 @@ importers:
     config.registry = registry;
     config.cache_dir = temp.path().join("cache");
     let projects = [
-        InteractiveUpdateProject { manifest: &direct, importer_id: "packages/a".to_string() },
-        InteractiveUpdateProject { manifest: &alias, importer_id: "packages/b".to_string() },
+        InteractiveUpdateProject {
+            manifest: &direct,
+            importer_id: "packages/a".to_string(),
+        },
+        InteractiveUpdateProject {
+            manifest: &alias,
+            importer_id: "packages/b".to_string(),
+        },
     ];
 
     let choices = collect_choices(
@@ -197,7 +217,10 @@ importers:
     .expect("collect interactive choices");
 
     assert_eq!(
-        choices.iter().map(|choice| choice.alias.as_str()).collect::<Vec<_>>(),
+        choices
+            .iter()
+            .map(|choice| choice.alias.as_str())
+            .collect::<Vec<_>>(),
         vec!["foo", "fooAlias"],
     );
     foo_mock.assert_async().await;
@@ -242,8 +265,14 @@ importers:
     config.registry = registry;
     config.cache_dir = temp.path().join("cache");
     let projects = [
-        InteractiveUpdateProject { manifest: &first, importer_id: "packages/a".to_string() },
-        InteractiveUpdateProject { manifest: &second, importer_id: "packages/b".to_string() },
+        InteractiveUpdateProject {
+            manifest: &first,
+            importer_id: "packages/a".to_string(),
+        },
+        InteractiveUpdateProject {
+            manifest: &second,
+            importer_id: "packages/b".to_string(),
+        },
     ];
 
     let choices = collect_choices(
@@ -258,7 +287,10 @@ importers:
     .expect("collect interactive choices");
 
     assert_eq!(
-        choices.iter().map(|choice| choice.metadata.workspace.as_deref()).collect::<Vec<_>>(),
+        choices
+            .iter()
+            .map(|choice| choice.metadata.workspace.as_deref())
+            .collect::<Vec<_>>(),
         vec![Some("packages-a"), Some("packages-b")],
     );
     // And they render as one row naming both.
@@ -322,7 +354,10 @@ importers:
         .expect("collect interactive choices");
 
         assert_eq!(
-            choices.iter().map(|choice| choice.metadata.workspace.as_deref()).collect::<Vec<_>>(),
+            choices
+                .iter()
+                .map(|choice| choice.metadata.workspace.as_deref())
+                .collect::<Vec<_>>(),
             vec![Some("packages/a")],
             "a {name:?} name should fall back to the importer path",
         );
@@ -442,8 +477,10 @@ mod selection {
     /// them outright.
     #[test]
     fn headings_and_headers_select_nothing() {
-        let groups =
-            [group("dependencies", &[("Package Current", None), ("foo 1 ❯ 2", Some("foo"))])];
+        let groups = [group(
+            "dependencies",
+            &[("Package Current", None), ("foo 1 ❯ 2", Some("foo"))],
+        )];
 
         let rows = flatten_groups(&groups);
 
@@ -459,7 +496,10 @@ mod selection {
     fn a_package_checked_twice_is_returned_once() {
         let groups = [
             group("dependencies", &[("hdr", None), ("foo", Some("foo"))]),
-            group("devDependencies", &[("hdr", None), ("bar", Some("bar")), ("foo", Some("foo"))]),
+            group(
+                "devDependencies",
+                &[("hdr", None), ("bar", Some("bar")), ("foo", Some("foo"))],
+            ),
         ];
 
         let rows = flatten_groups(&groups);
@@ -474,7 +514,10 @@ mod selection {
     /// An out-of-range index cannot panic the selection.
     #[test]
     fn an_unknown_index_is_ignored() {
-        let groups = [group("dependencies", &[("hdr", None), ("foo", Some("foo"))])];
+        let groups = [group(
+            "dependencies",
+            &[("hdr", None), ("foo", Some("foo"))],
+        )];
 
         let rows = flatten_groups(&groups);
 
@@ -507,8 +550,10 @@ struct PromptScript {
     seen: Vec<SeenPrompt>,
 }
 
-static SCRIPT: Mutex<PromptScript> =
-    Mutex::new(PromptScript { answers: VecDeque::new(), seen: Vec::new() });
+static SCRIPT: Mutex<PromptScript> = Mutex::new(PromptScript {
+    answers: VecDeque::new(),
+    seen: Vec::new(),
+});
 
 fn script() -> std::sync::MutexGuard<'static, PromptScript> {
     SCRIPT.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -534,15 +579,24 @@ fn scripted_prompts() -> ScriptedPrompts {
     script.answers.clear();
     script.seen.clear();
     drop(script);
-    ScriptedPrompts { script: &SCRIPT, _claim: claim }
+    ScriptedPrompts {
+        script: &SCRIPT,
+        _claim: claim,
+    }
 }
 
 impl ScriptedPrompts {
     /// Answer the next prompt by checking the rows for these packages,
     /// the way the upstream suite resolves its `@inquirer/prompts` mock.
     fn answer_next(&self, packages: &[&str]) {
-        let answer = packages.iter().map(|package| (*package).to_string()).collect();
-        self.claimed().answers.push_back(ScriptedAnswer::Check(answer));
+        let answer = packages
+            .iter()
+            .map(|package| (*package).to_string())
+            .collect();
+        self
+            .claimed()
+            .answers
+            .push_back(ScriptedAnswer::Check(answer));
     }
 
     /// Leave the next prompt with Ctrl-C.
@@ -562,8 +616,7 @@ impl ScriptedPrompts {
 
 pub(super) fn answer_prompt(message: &str, rows: &[PromptRow]) -> Option<Vec<usize>> {
     let mut script = script();
-    let answer = script
-        .answers
+    let answer = script.answers
         .pop_front()
         .unwrap_or_else(|| panic!("the test scripted no answer for the prompt {message:?}"));
     script.seen.push(SeenPrompt {
@@ -576,7 +629,9 @@ pub(super) fn answer_prompt(message: &str, rows: &[PromptRow]) -> Option<Vec<usi
             })
             .collect(),
     });
-    let ScriptedAnswer::Check(answer) = answer else { return None };
+    let ScriptedAnswer::Check(answer) = answer else {
+        return None;
+    };
     Some(
         rows.iter()
             .enumerate()
@@ -592,14 +647,19 @@ pub(super) fn answer_prompt(message: &str, rows: &[PromptRow]) -> Option<Vec<usi
 /// versions are read back out of the padded label; how that table is laid
 /// out is pinned by the `choices` ports.
 fn offered(prompt: &SeenPrompt) -> Vec<(String, String, String)> {
-    prompt
-        .rows
+    prompt.rows
         .iter()
         .filter_map(|(label, value)| {
             let package = value.as_ref()?;
             let columns = label.split_whitespace().collect::<Vec<_>>();
-            let arrow = columns.iter().position(|column| *column == "❯")?;
-            Some((package.clone(), columns[arrow - 1].to_string(), columns[arrow + 1].to_string()))
+            let arrow = columns
+                .iter()
+                .position(|column| *column == "❯")?;
+            Some((
+                package.clone(),
+                columns[arrow - 1].to_string(),
+                columns[arrow + 1].to_string(),
+            ))
         })
         .collect()
 }
@@ -607,8 +667,7 @@ fn offered(prompt: &SeenPrompt) -> Vec<(String, String, String)> {
 /// The group headings a prompt showed, in order: the separators drawn
 /// as `── heading ──`.
 fn headings(prompt: &SeenPrompt) -> Vec<String> {
-    prompt
-        .rows
+    prompt.rows
         .iter()
         .filter(|(_, value)| value.is_none())
         .filter_map(|(label, _)| {
@@ -650,14 +709,23 @@ impl UpdateFixture {
         let cache_dir = dir.path().join("cache");
         let mut config = Config::new();
         config.registry = registry.url();
-        config.store_dir = dir.path().join("store").into();
+        config.store_dir = dir
+            .path()
+            .join("store")
+            .into();
         config.cache_dir = cache_dir.clone();
         config.modules_dir = project.join("node_modules");
         config.virtual_store_dir = project.join("node_modules/.pnpm");
         config.enable_global_virtual_store = false;
         customize(&mut config);
         let config = Config::leak(config);
-        Self { _dir: dir, project, cache_dir, config, registry }
+        Self {
+            _dir: dir,
+            project,
+            cache_dir,
+            config,
+            registry,
+        }
     }
 
     fn write_manifest(&self, dependencies: &Value) {
@@ -702,8 +770,7 @@ impl UpdateFixture {
         let text = fs::read_to_string(self.project.join("pnpm-lock.yaml"))
             .expect("read the wanted lockfile");
         let lockfile: Lockfile = serde_saphyr::from_str(&text).expect("parse the wanted lockfile");
-        let mut keys = lockfile
-            .packages
+        let mut keys = lockfile.packages
             .into_iter()
             .flatten()
             .map(|(key, _)| key.to_string())
@@ -735,13 +802,25 @@ async fn interactively_update() {
     assert_eq!(
         offered(&prompts[0]),
         [
-            (MULTI_A.to_string(), "1.0.0".to_string(), "1.0.1".to_string()),
-            (MULTI_C.to_string(), "3.0.0".to_string(), "3.1.10".to_string()),
+            (
+                MULTI_A.to_string(),
+                "1.0.0".to_string(),
+                "1.0.1".to_string()
+            ),
+            (
+                MULTI_C.to_string(),
+                "3.0.0".to_string(),
+                "3.1.10".to_string()
+            ),
         ],
     );
     assert_eq!(
         fixture.lockfile_packages(),
-        [format!("{MULTI_A}@1.0.1"), format!("{MULTI_B}@2.0.0"), format!("{MULTI_C}@3.0.0")],
+        [
+            format!("{MULTI_A}@1.0.1"),
+            format!("{MULTI_B}@2.0.0"),
+            format!("{MULTI_C}@3.0.0")
+        ],
     );
 
     scripted.answer_next(&[MULTI_A]);
@@ -752,14 +831,30 @@ async fn interactively_update() {
     assert_eq!(
         offered(&prompts[0]),
         [
-            (MULTI_A.to_string(), "1.0.1".to_string(), "2.1.0".to_string()),
-            (MULTI_B.to_string(), "2.0.0".to_string(), "3.1.0".to_string()),
-            (MULTI_C.to_string(), "3.0.0".to_string(), "4.0.0".to_string()),
+            (
+                MULTI_A.to_string(),
+                "1.0.1".to_string(),
+                "2.1.0".to_string()
+            ),
+            (
+                MULTI_B.to_string(),
+                "2.0.0".to_string(),
+                "3.1.0".to_string()
+            ),
+            (
+                MULTI_C.to_string(),
+                "3.0.0".to_string(),
+                "4.0.0".to_string()
+            ),
         ],
     );
     assert_eq!(
         fixture.lockfile_packages(),
-        [format!("{MULTI_A}@2.1.0"), format!("{MULTI_B}@2.0.0"), format!("{MULTI_C}@3.0.0")],
+        [
+            format!("{MULTI_A}@2.1.0"),
+            format!("{MULTI_B}@2.0.0"),
+            format!("{MULTI_C}@3.0.0")
+        ],
     );
 }
 
@@ -783,11 +878,19 @@ async fn interactively_update_skips_ignored_dependencies() {
     assert_eq!(prompts.len(), 1);
     assert_eq!(
         offered(&prompts[0]),
-        [(MULTI_C.to_string(), "3.0.0".to_string(), "3.1.10".to_string())],
+        [(
+            MULTI_C.to_string(),
+            "3.0.0".to_string(),
+            "3.1.10".to_string()
+        )],
     );
     assert_eq!(
         fixture.lockfile_packages(),
-        [format!("{MULTI_A}@1.0.0"), format!("{MULTI_B}@2.0.0"), format!("{MULTI_C}@3.1.10")],
+        [
+            format!("{MULTI_A}@1.0.0"),
+            format!("{MULTI_B}@2.0.0"),
+            format!("{MULTI_C}@3.1.10")
+        ],
     );
 }
 
@@ -801,7 +904,10 @@ async fn interactive_update_leaves_without_an_error_when_the_prompt_is_canceled(
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -845,7 +951,10 @@ async fn global_interactive_update_handles_an_empty_global_directory() {
     .expect("select global package groups");
 
     assert!(selected.is_none());
-    assert!(scripted.seen().is_empty(), "an empty global directory must not prompt");
+    assert!(
+        scripted.seen().is_empty(),
+        "an empty global directory must not prompt",
+    );
 }
 
 /// Ports `interactive recursive should not error on git specifier
@@ -873,8 +982,10 @@ importers:
     // Any request would be a bug: a resolution that names no version has
     // nothing to compare a registry version against.
     config.registry = "http://127.0.0.1:1/".to_string();
-    let projects =
-        [InteractiveUpdateProject { manifest: &manifest, importer_id: "project-1".to_string() }];
+    let projects = [InteractiveUpdateProject {
+        manifest: &manifest,
+        importer_id: "project-1".to_string(),
+    }];
 
     let choices = collect_choices(
         &projects,

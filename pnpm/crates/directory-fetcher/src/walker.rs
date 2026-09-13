@@ -40,13 +40,24 @@ pub(crate) fn walk_all_files(
 ) -> Result<FilesMap, DirectoryFetcherError> {
     let mut out = FilesMap::new();
     let mut visited = HashSet::new();
-    let confined_root = if allow_path_escape { None } else { Some(canonicalize_path(dir)?) };
+    let confined_root = if allow_path_escape {
+        None
+    } else {
+        Some(canonicalize_path(dir)?)
+    };
     // Descending the resolved root rather than `dir` keeps the tree
     // being read the one the containment check approved: retargeting a
     // linked `dir` mid-walk would otherwise feed entries that are
     // ordinary files, and so never checked against the root at all.
     let root = confined_root.as_deref().unwrap_or(dir);
-    walk_all_inner(root, "", resolve_symlinks, confined_root.as_deref(), &mut visited, &mut out)?;
+    walk_all_inner(
+        root,
+        "",
+        resolve_symlinks,
+        confined_root.as_deref(),
+        &mut visited,
+        &mut out,
+    )?;
     Ok(out)
 }
 
@@ -70,30 +81,14 @@ fn walk_all_inner(
     visited: &mut HashSet<PathBuf>,
     out: &mut FilesMap,
 ) -> Result<(), DirectoryFetcherError> {
-    // Symlink-cycle guard. Pnpm's directory-fetcher recurses without
-    // a visited-set so a `foo -> .` (or any ancestor-pointing
-    // symlink) sinks the whole walk into infinite recursion until the
-    // path exceeds OS limits and `read_dir` finally errors with
-    // ENAMETOOLONG. Stack overflow is also reachable on platforms
-    // where the path-too-long error has a higher ceiling than the
-    // default Rust stack. Skip-on-revisit instead, matching the
-    // pattern `pnpm_git_fetcher::packlist` already uses for
-    // `bundleDependencies` cycles. The check is keyed off
-    // `fs::canonicalize` so an unresolved symlink and its target
-    // share one entry; canonicalisation failure (permission denied,
-    // for example) falls back to the raw path so the guard still
-    // catches identity loops.
-    let canonical = fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf());
-    if !visited.insert(canonical) {
-        tracing::warn!(
-            target: "pacquet::directory_fetcher",
-            dir = %dir.display(),
-            "symlink cycle: directory already visited at this canonical path; skipping",
-        );
+    if !visit_directory(dir, visited) {
         return Ok(());
     }
     let entries = fs::read_dir(dir)
-        .map_err(|source| DirectoryFetcherError::Io { dir: dir.display().to_string(), source })?;
+        .map_err(|source| DirectoryFetcherError::Io {
+            dir: dir.display().to_string(),
+            source,
+        })?;
     for entry in entries {
         let entry = entry.map_err(|source| DirectoryFetcherError::Io {
             dir: dir.display().to_string(),
@@ -106,7 +101,14 @@ fn walk_all_inner(
             continue;
         };
         if resolved.metadata.is_dir() {
-            walk_all_inner(&resolved.path, &rel, resolve_symlinks, confined_root, visited, out)?;
+            walk_all_inner(
+                &resolved.path,
+                &rel,
+                resolve_symlinks,
+                confined_root,
+                visited,
+                out,
+            )?;
         } else {
             out.insert(rel, resolved.path);
         }
@@ -155,9 +157,15 @@ fn resolve_entry(
     // for the *type* decision but reports a broken symlink's ENOENT, which
     // the caller treats as "skip".
     match fs::metadata(path) {
-        Ok(metadata) => Ok(Some(ResolvedEntry { path: path.to_path_buf(), metadata })),
+        Ok(metadata) => Ok(Some(ResolvedEntry {
+            path: path.to_path_buf(),
+            metadata,
+        })),
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(skip_broken_symlink(path)),
-        Err(source) => Err(DirectoryFetcherError::Io { dir: path.display().to_string(), source }),
+        Err(source) => Err(DirectoryFetcherError::Io {
+            dir: path.display().to_string(),
+            source,
+        }),
     }
 }
 
@@ -171,7 +179,10 @@ fn resolve_confined_entry(
         return Ok(None);
     };
     if !is_linked_entry(&lstat) {
-        return Ok(Some(ResolvedEntry { path: path.to_path_buf(), metadata: lstat }));
+        return Ok(Some(ResolvedEntry {
+            path: path.to_path_buf(),
+            metadata: lstat,
+        }));
     }
     let Some(real) = stat_or_skip(path, |path| fs::canonicalize(path))? else {
         return Ok(None);
@@ -185,7 +196,10 @@ fn resolve_confined_entry(
     let Some(metadata) = stat_or_skip(&real, |path| fs::metadata(path))? else {
         return Ok(None);
     };
-    Ok(Some(ResolvedEntry { path: real, metadata }))
+    Ok(Some(ResolvedEntry {
+        path: real,
+        metadata,
+    }))
 }
 
 /// Resolve an entry through its link target, skipping a broken symlink.
@@ -194,19 +208,31 @@ fn resolve_followed_entry(path: &Path) -> Result<Option<ResolvedEntry>, Director
         return Ok(None);
     };
     if !is_linked_entry(&lstat) {
-        return Ok(Some(ResolvedEntry { path: path.to_path_buf(), metadata: lstat }));
+        return Ok(Some(ResolvedEntry {
+            path: path.to_path_buf(),
+            metadata: lstat,
+        }));
     }
     let real = match fs::canonicalize(path) {
         Ok(real) => real,
         Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(skip_broken_symlink(path)),
         Err(source) => {
-            return Err(DirectoryFetcherError::Io { dir: path.display().to_string(), source });
+            return Err(DirectoryFetcherError::Io {
+                dir: path.display().to_string(),
+                source,
+            });
         }
     };
     match fs::metadata(&real) {
-        Ok(metadata) => Ok(Some(ResolvedEntry { path: real, metadata })),
+        Ok(metadata) => Ok(Some(ResolvedEntry {
+            path: real,
+            metadata,
+        })),
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(skip_broken_symlink(path)),
-        Err(source) => Err(DirectoryFetcherError::Io { dir: real.display().to_string(), source }),
+        Err(source) => Err(DirectoryFetcherError::Io {
+            dir: real.display().to_string(),
+            source,
+        }),
     }
 }
 
@@ -221,7 +247,10 @@ where
     match stat(path) {
         Ok(value) => Ok(Some(value)),
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
-        Err(source) => Err(DirectoryFetcherError::Io { dir: path.display().to_string(), source }),
+        Err(source) => Err(DirectoryFetcherError::Io {
+            dir: path.display().to_string(),
+            source,
+        }),
     }
 }
 
@@ -256,7 +285,10 @@ pub(crate) fn resolve_paths_in_directory(
 
 fn canonicalize_path(path: &Path) -> Result<PathBuf, DirectoryFetcherError> {
     fs::canonicalize(path)
-        .map_err(|source| DirectoryFetcherError::Io { dir: path.display().to_string(), source })
+        .map_err(|source| DirectoryFetcherError::Io {
+            dir: path.display().to_string(),
+            source,
+        })
 }
 
 /// Read the manifest for packlist filtering, run
@@ -283,3 +315,29 @@ pub(crate) fn walk_package_files(dir: &Path) -> Result<FilesMap, DirectoryFetche
 
 #[cfg(test)]
 mod tests;
+
+fn visit_directory(dir: &Path, visited: &mut HashSet<PathBuf>) -> bool {
+    // Symlink-cycle guard. Pnpm's directory-fetcher recurses without
+    // a visited-set so a `foo -> .` (or any ancestor-pointing
+    // symlink) sinks the whole walk into infinite recursion until the
+    // path exceeds OS limits and `read_dir` finally errors with
+    // ENAMETOOLONG. Stack overflow is also reachable on platforms
+    // where the path-too-long error has a higher ceiling than the
+    // default Rust stack. Skip-on-revisit instead, matching the
+    // pattern `pnpm_git_fetcher::packlist` already uses for
+    // `bundleDependencies` cycles. The check is keyed off
+    // `fs::canonicalize` so an unresolved symlink and its target
+    // share one entry; canonicalisation failure (permission denied,
+    // for example) falls back to the raw path so the guard still
+    // catches identity loops.
+    let canonical = fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf());
+    if !visited.insert(canonical) {
+        tracing::warn!(
+            target: "pacquet::directory_fetcher",
+            dir = %dir.display(),
+            "symlink cycle: directory already visited at this canonical path; skipping",
+        );
+        return false;
+    }
+    true
+}

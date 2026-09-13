@@ -50,7 +50,12 @@ async fn retries_other_4xx_codes() {
 async fn retry_exhaustion_returns_last_error() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
     let mut server = mockito::Server::new_async().await;
-    let mock = server.mock("GET", "/pkg.tgz").with_status(500).expect(3).create_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(500)
+        .expect(3)
+        .create_async()
+        .await;
 
     let url = format!("{}/pkg.tgz", server.url());
     let client = ThrottledClient::default();
@@ -137,8 +142,12 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                     .find(|url| url != &url1 && mem_cache.determine_map(url) == target_shard)
                     .expect("no colliding URL within 10000 candidates");
 
-                let path1 = url1.trim_start_matches(server.url().as_str()).to_string();
-                let path2 = url2.trim_start_matches(server.url().as_str()).to_string();
+                let path1 = url1
+                    .trim_start_matches(server.url().as_str())
+                    .to_string();
+                let path2 = url2
+                    .trim_start_matches(server.url().as_str())
+                    .to_string();
                 // Both endpoints are expected to be hit exactly once: A
                 // for url1, C for url2. B uses the in-memory cache and
                 // never reaches the network. Asserting hit counts guards
@@ -182,7 +191,10 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                     fetching: crate::ArchiveFetchOptions {
                         http_client: client,
                         auth_headers,
-                        retry_opts: RetryOpts { retries: 0, ..RetryOpts::default() },
+                        retry_opts: RetryOpts {
+                            retries: 0,
+                            ..RetryOpts::default()
+                        },
                         offline: false,
                     },
                     package: crate::TarballPackage {
@@ -207,7 +219,9 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                     ignore_file_pattern: None,
 
                     progress_reported: None,
-                    store_projection: ArchiveStoreProjection::Package { append_manifest: None },
+                    store_projection: ArchiveStoreProjection::Package {
+                        append_manifest: None,
+                    },
                 };
 
                 // Spawn each task and yield once before the next so the
@@ -245,10 +259,12 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
         })
         .expect("spawn regression-test thread");
 
-    rx.recv_timeout(TEST_TIMEOUT).expect(
-        "run_with_mem_cache deadlocked on DashMap shard contention; \
+    rx
+        .recv_timeout(TEST_TIMEOUT)
+        .expect(
+            "run_with_mem_cache deadlocked on DashMap shard contention; \
          single-worker runtime did not finish within the timeout",
-    );
+        );
 }
 
 /// `retries: 0` (the value the existing fall-through tests use)
@@ -259,12 +275,20 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
 async fn zero_retries_makes_a_single_attempt() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
     let mut server = mockito::Server::new_async().await;
-    let mock = server.mock("GET", "/pkg.tgz").with_status(500).expect(1).create_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(500)
+        .expect(1)
+        .create_async()
+        .await;
 
     let url = format!("{}/pkg.tgz", server.url());
     let client = ThrottledClient::default();
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
-    let opts = RetryOpts { retries: 0, ..fast_retry_opts() };
+    let opts = RetryOpts {
+        retries: 0,
+        ..fast_retry_opts()
+    };
 
     fetch_and_extract_with_retry::<SilentReporter>(
         &client,
@@ -358,7 +382,9 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
         ignore_file_pattern: None,
 
         progress_reported: None,
-        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
+        store_projection: ArchiveStoreProjection::Package {
+            append_manifest: None,
+        },
     };
 
     // Drive both calls concurrently. One hits the `else` branch and
@@ -394,8 +420,14 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
     // task drove the network fetch (gets HttpStatus 404) and which
     // parked on Notify (gets SiblingFetchFailed). Pin only the
     // "both errored, neither hung" invariant.
-    assert!(result_a.is_err(), "task_a must surface the 404 (or sibling failure)");
-    assert!(result_b.is_err(), "task_b must surface the 404 (or sibling failure)");
+    assert!(
+        result_a.is_err(),
+        "task_a must surface the 404 (or sibling failure)",
+    );
+    assert!(
+        result_b.is_err(),
+        "task_b must surface the 404 (or sibling failure)",
+    );
 
     drop(store_dir_keep);
 }
@@ -417,7 +449,10 @@ async fn started_fires_for_connection_level_failures() {
     struct RecordingReporter;
     impl pnpm_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -430,7 +465,10 @@ async fn started_fires_for_connection_level_failures() {
     let client = ThrottledClient::default();
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
 
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
     let _ = fetch_and_extract_with_retry::<RecordingReporter>(
         &client,
         "http://127.0.0.1:1/pkg.tgz", // port 1 is reserved → connect-refused
@@ -440,7 +478,10 @@ async fn started_fires_for_connection_level_failures() {
         "test-pkg",
         "/proj",
         store_path,
-        RetryOpts { retries: 0, ..fast_retry_opts() },
+        RetryOpts {
+            retries: 0,
+            ..fast_retry_opts()
+        },
         &AuthHeaders::default(),
         None,
         None,
@@ -495,7 +536,10 @@ async fn found_in_store_event_fires_on_cache_hit() {
     struct RecordingReporter;
     impl pnpm_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -548,7 +592,9 @@ async fn found_in_store_event_fires_on_cache_hit() {
         ignore_file_pattern: None,
 
         progress_reported: None,
-        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
+        store_projection: ArchiveStoreProjection::Package {
+            append_manifest: None,
+        },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -569,7 +615,10 @@ async fn found_in_store_event_fires_on_cache_hit() {
     .expect("spawn_blocking")
     .expect("index opens after the first install");
 
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
     IngestTarballToStore {
         fetching: crate::ArchiveFetchOptions {
             http_client: &client,
@@ -599,7 +648,9 @@ async fn found_in_store_event_fires_on_cache_hit() {
         ignore_file_pattern: None,
 
         progress_reported: None,
-        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
+        store_projection: ArchiveStoreProjection::Package {
+            append_manifest: None,
+        },
     }
     .run_without_mem_cache::<RecordingReporter>()
     .await
@@ -607,22 +658,26 @@ async fn found_in_store_event_fires_on_cache_hit() {
 
     let captured = EVENTS.lock().unwrap();
     assert!(
-        captured.iter().any(|e| matches!(
-            e,
-            LogEvent::Progress(log)
-                if matches!(
-                    &log.message,
-                    ProgressMessage::FoundInStore { package_id, requester }
-                        if package_id == "@fastify/error@3.3.0" && requester == "/proj",
-                )
-        )),
+        captured
+            .iter()
+            .any(|e| matches!(
+                e,
+                LogEvent::Progress(log)
+                    if matches!(
+                        &log.message,
+                        ProgressMessage::FoundInStore { package_id, requester }
+                            if package_id == "@fastify/error@3.3.0" && requester == "/proj",
+                    )
+            )),
         "found_in_store must fire on cache hit; got {captured:?}",
     );
     assert!(
-        !captured.iter().any(|e| matches!(
-            e,
-            LogEvent::Progress(log) if matches!(&log.message, ProgressMessage::Fetched { .. })
-        )),
+        !captured
+            .iter()
+            .any(|e| matches!(
+                e,
+                LogEvent::Progress(log) if matches!(&log.message, ProgressMessage::Fetched { .. })
+            )),
         "fetched must NOT fire on cache hit; got {captured:?}",
     );
 
@@ -646,13 +701,21 @@ async fn request_retry_event_fires_per_retried_attempt() {
     struct RecordingReporter;
     impl pnpm_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
     let mut server = mockito::Server::new_async().await;
-    let fail = server.mock("GET", "/pkg.tgz").with_status(503).expect(1).create_async().await;
+    let fail = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(503)
+        .expect(1)
+        .create_async()
+        .await;
     let ok = server
         .mock("GET", "/pkg.tgz")
         .with_status(200)
@@ -665,7 +728,10 @@ async fn request_retry_event_fires_per_retried_attempt() {
     let client = ThrottledClient::default();
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
 
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
 
     fetch_and_extract_with_retry::<RecordingReporter>(
         &client,
@@ -696,7 +762,11 @@ async fn request_retry_event_fires_per_retried_attempt() {
             _ => None,
         })
         .collect();
-    assert_eq!(retries.len(), 1, "exactly one retry emit expected; got {captured:?}");
+    assert_eq!(
+        retries.len(),
+        1,
+        "exactly one retry emit expected; got {captured:?}",
+    );
 
     let retry = retries[0];
     // attempt is one-indexed (the failed attempt). With one transient
@@ -735,7 +805,10 @@ fn write_zip_entry_to_cas_stops_reading_an_entry_longer_than_it_claims() {
     let (tempdir, store_path) = tempdir_with_leaked_path();
 
     for declared_size in [16, STREAM_ENTRY_BUFFER_MAX + 1] {
-        let mut liar = EndlessReader { bytes_read: 0, cap: declared_size * 8 };
+        let mut liar = EndlessReader {
+            bytes_read: 0,
+            cap: declared_size * 8,
+        };
         let err = write_zip_entry_to_cas(
             &mut liar,
             declared_size,
@@ -773,8 +846,12 @@ async fn offline_mode_skips_network_on_cache_miss() {
     // `.expect(0)` — if the fetcher attempts the network at all,
     // mockito's drop checker fails the test on the `.assert_async`
     // call below.
-    let must_not_fire =
-        server.mock("GET", "/pkg.tgz").with_status(200).expect(0).create_async().await;
+    let must_not_fire = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .expect(0)
+        .create_async()
+        .await;
 
     let url = format!("{}/pkg.tgz", server.url());
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
@@ -809,7 +886,9 @@ async fn offline_mode_skips_network_on_cache_miss() {
         ignore_file_pattern: None,
 
         progress_reported: None,
-        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
+        store_projection: ArchiveStoreProjection::Package {
+            append_manifest: None,
+        },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -824,7 +903,10 @@ async fn offline_mode_skips_network_on_cache_miss() {
     };
     assert_eq!(package_id, pkg_id);
     assert_eq!(errored_url, &url);
-    let code = err.code().map(|c| c.to_string()).unwrap_or_default();
+    let code = err
+        .code()
+        .map(|c| c.to_string())
+        .unwrap_or_default();
     assert_eq!(
         code, "ERR_PNPM_NO_OFFLINE_TARBALL",
         "diagnostic code is part of the user-facing surface; must stay stable",
@@ -848,8 +930,12 @@ async fn offline_mode_still_uses_prefetched_cache() {
     // Server with `.expect(0)` — the prefetched-CAS-paths branch must
     // short-circuit before any HTTP call.
     let mut server = mockito::Server::new_async().await;
-    let must_not_fire =
-        server.mock("GET", "/pkg.tgz").with_status(200).expect(0).create_async().await;
+    let must_not_fire = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .expect(0)
+        .create_async()
+        .await;
 
     let url = format!("{}/pkg.tgz", server.url());
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
@@ -892,7 +978,9 @@ async fn offline_mode_still_uses_prefetched_cache() {
         ignore_file_pattern: None,
 
         progress_reported: None,
-        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
+        store_projection: ArchiveStoreProjection::Package {
+            append_manifest: None,
+        },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -901,7 +989,10 @@ async fn offline_mode_still_uses_prefetched_cache() {
     // Prefetched seed used a placeholder empty map; the return must
     // surface that empty map (the offline gate didn't fire, the
     // prefetch lookup did).
-    assert!(cas_paths.is_empty(), "got the prefetched-empty map back: {cas_paths:?}");
+    assert!(
+        cas_paths.is_empty(),
+        "got the prefetched-empty map back: {cas_paths:?}",
+    );
     must_not_fire.assert_async().await;
 
     drop(store_dir_keep);

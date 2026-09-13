@@ -82,7 +82,11 @@ fn run_waits_for_the_interrupted_script_to_shut_down() {
         workspace.join("shut-down.txt").exists(),
         "the script must have finished shutting down before pnpm exited",
     );
-    assert_eq!(status.code(), Some(0), "the script exited 0, so pnpm does too");
+    assert_eq!(
+        status.code(),
+        Some(0),
+        "the script exited 0, so pnpm does too",
+    );
 
     drop(root);
 }
@@ -100,7 +104,11 @@ fn run_ends_with_the_signal_that_killed_the_script() {
     interrupt(&process);
     let status = wait_for_shutdown(&mut process);
 
-    assert_eq!(status.signal(), Some(libc::SIGUSR2), "pnpm should end the way the script did");
+    assert_eq!(
+        status.signal(),
+        Some(libc::SIGUSR2),
+        "pnpm should end the way the script did",
+    );
 
     drop(root);
 }
@@ -130,7 +138,10 @@ fn a_parallel_run_relays_the_interrupt_to_every_project() {
 
     for project in PROJECTS {
         assert!(
-            workspace.join(project).join("shut-down.txt").exists(),
+            workspace
+                .join(project)
+                .join("shut-down.txt")
+                .exists(),
             "{project} should have finished shutting down before pnpm exited",
         );
     }
@@ -149,7 +160,10 @@ fn a_third_interrupt_ends_pnpm_even_when_the_script_ignores_them() {
     // The script outlives pnpm here by design, so its stdio is discarded
     // rather than left holding the test harness's pipes open.
     let mut process = interruptible(
-        pacquet.with_args(["run", "dev"]).with_stdout(Stdio::null()).with_stderr(Stdio::null()),
+        pacquet
+            .with_args(["run", "dev"])
+            .with_stdout(Stdio::null())
+            .with_stderr(Stdio::null()),
     );
     wait_for_file(&workspace.join("started.txt"), &mut process);
     for _ in 0..3 {
@@ -184,7 +198,9 @@ fn a_later_script_still_gets_a_plain_first_interrupt() {
     fs::write(workspace.join("dev.js"), GRACEFUL_SCRIPT).expect("write the script");
 
     let mut process = interruptible(
-        pacquet.with_env("PNPM_CONFIG_ENABLE_PRE_POST_SCRIPTS", "true").with_args(["run", "dev"]),
+        pacquet
+            .with_env("PNPM_CONFIG_ENABLE_PRE_POST_SCRIPTS", "true")
+            .with_args(["run", "dev"]),
     );
     wait_for_file(&workspace.join("pre-started.txt"), &mut process);
     interrupt(&process);
@@ -196,7 +212,11 @@ fn a_later_script_still_gets_a_plain_first_interrupt() {
         workspace.join("shut-down.txt").exists(),
         "the main script should have handled an interrupt, not been terminated outright",
     );
-    assert_eq!(status.code(), Some(0), "the script exited 0, so pnpm does too");
+    assert_eq!(
+        status.code(),
+        Some(0),
+        "the script exited 0, so pnpm does too",
+    );
 
     drop(root);
 }
@@ -209,7 +229,10 @@ fn write_project(dir: &Path, name: &str, script: &str) {
 }
 
 fn write_workspace(workspace: &Path, projects: &[&str], script: &str) {
-    let packages = projects.iter().map(|name| format!("  - {name}")).collect::<Vec<_>>();
+    let packages = projects
+        .iter()
+        .map(|name| format!("  - {name}"))
+        .collect::<Vec<_>>();
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         format!("packages:\n{}\n", packages.join("\n")),
@@ -236,7 +259,11 @@ fn interruptible(mut command: Command) -> Child {
         command.pre_exec(|| {
             let mut unblocked: libc::sigset_t = std::mem::zeroed();
             libc::sigemptyset(&raw mut unblocked);
-            libc::sigprocmask(libc::SIG_SETMASK, &raw const unblocked, std::ptr::null_mut());
+            libc::sigprocmask(
+                libc::SIG_SETMASK,
+                &raw const unblocked,
+                std::ptr::null_mut(),
+            );
             for signal in [libc::SIGINT, libc::SIGTERM, libc::SIGHUP] {
                 libc::signal(signal, libc::SIG_DFL);
             }

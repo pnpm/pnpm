@@ -43,12 +43,20 @@ pub(crate) fn remove_unused_catalogs(
 }
 
 fn is_referenced(references: &CatalogReferences, pkg: &str, specs: &[&str]) -> bool {
-    references.get(pkg).is_some_and(|refs| specs.iter().any(|spec| refs.contains(*spec)))
+    references
+        .get(pkg)
+        .is_some_and(|refs| {
+            specs
+                .iter()
+                .any(|spec| refs.contains(*spec))
+        })
 }
 
 fn remove_unused_default_catalog(manifest: &mut Manifest, references: &CatalogReferences) -> bool {
     const BLOCK: &str = "catalog";
-    let Some(catalog) = manifest.catalogs.default.as_ref() else { return false };
+    let Some(catalog) = manifest.catalogs.default.as_ref() else {
+        return false;
+    };
     let to_remove: Vec<String> = catalog
         .keys()
         .filter(|pkg| !is_referenced(references, pkg, &["catalog:"]))
@@ -77,7 +85,9 @@ fn remove_unused_default_catalog(manifest: &mut Manifest, references: &CatalogRe
 
 fn remove_unused_named_catalogs(manifest: &mut Manifest, references: &CatalogReferences) -> bool {
     const BLOCK: &str = "catalogs";
-    let Some(catalogs) = manifest.catalogs.named.as_ref() else { return false };
+    let Some(catalogs) = manifest.catalogs.named.as_ref() else {
+        return false;
+    };
 
     let (names_to_drop, entry_removals) = unreferenced_catalog_entries(catalogs, references);
 
@@ -146,9 +156,7 @@ fn remove_catalog_entries(
         &[block, name],
         to_remove,
     ));
-    let entries = manifest
-        .catalogs
-        .named
+    let entries = manifest.catalogs.named
         .as_mut()
         .and_then(|catalogs| catalogs.get_mut(name))
         .expect("named catalog presence checked above");

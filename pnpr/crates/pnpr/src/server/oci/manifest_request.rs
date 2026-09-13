@@ -71,13 +71,14 @@ impl Request {
             Ok(staged) => staged,
             Err(refusal) => return refusal.respond(),
         };
-        match super::super::publishing::commit_publishes(&self.state, vec![staged])
-            .await
+        match super::super::publishing::commit_publishes(&self.state, vec![staged]).await
             .and_then(super::super::publishing::report_unrecorded)
         {
             Ok(()) => {
-                let mut response =
-                    created(&format!("{}/{}/manifests/{digest}", self.base, key.as_str()), &digest);
+                let mut response = created(
+                    &format!("{}/{}/manifests/{digest}", self.base, key.as_str()),
+                    &digest,
+                );
                 if let Some(subject) = subject {
                     insert_header(&mut response, "oci-subject", &subject.to_string());
                 }
@@ -102,18 +103,22 @@ impl Request {
             return registry_error(err);
         }
         let _guard = self.state.inner.locks.packages.lock(repo.key.as_str()).await;
-        let outcome = repo
-            .storage
-            .update_hosted_document_with_retry(&repo.key, DOCUMENT_WRITE_RETRIES, |existing| {
-                let Some(bytes) = existing else { return Ok(None) };
+        let outcome = repo.storage.update_hosted_document_with_retry(
+            &repo.key,
+            DOCUMENT_WRITE_RETRIES,
+            |existing| {
+                let Some(bytes) = existing else {
+                    return Ok(None);
+                };
                 let mut document = ImageDocument::parse(bytes).map_err(RegistryError::Json)?;
                 let removed = match Digest::parse(reference) {
                     Ok(digest) => document.remove_manifest(&digest),
                     Err(_) => document.remove_tag(reference),
                 };
                 Ok(removed.then(|| document.to_bytes()))
-            })
-            .await;
+            },
+        )
+        .await;
         match outcome {
             Ok(DocumentUpdate::Written) => no_content(StatusCode::ACCEPTED),
             Ok(_) => error(ErrorCode::ManifestUnknown, "no such manifest or tag"),
@@ -128,8 +133,9 @@ impl Request {
         body: Body,
     ) -> Result<OciPublication, Refusal> {
         let (key, org) = self.publish_target(name)?;
-        let content_type =
-            self.headers.get(header::CONTENT_TYPE).and_then(|value| value.to_str().ok());
+        let content_type = self.headers
+            .get(header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok());
         let bytes = collect_body(body, self.state.inner.config.http.oci.max_manifest_bytes).await?;
         OciPublication::new(
             (key, org),

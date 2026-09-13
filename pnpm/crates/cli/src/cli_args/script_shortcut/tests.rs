@@ -30,9 +30,11 @@ fn stop_runs_declared_script() {
         }),
     );
     let config = test_config();
-    ScriptShortcutArgs { args: vec![] }
-        .run("stop", false, dir, &config, ReporterType::Silent)
-        .expect("stop should succeed");
+    ScriptShortcutArgs {
+        args: vec![],
+    }
+    .run("stop", false, dir, &config, ReporterType::Silent)
+    .expect("stop should succeed");
     assert!(marker.exists(), "stop script should have run");
 }
 
@@ -43,9 +45,11 @@ fn stop_with_if_present_skips_missing_script() {
     let dir = tmp.path();
     setup_project(dir, &json!({}));
     let config = test_config();
-    ScriptShortcutArgs { args: vec![] }
-        .run("stop", true, dir, &config, ReporterType::Silent)
-        .expect("--if-present should succeed when script is missing");
+    ScriptShortcutArgs {
+        args: vec![],
+    }
+    .run("stop", true, dir, &config, ReporterType::Silent)
+    .expect("--if-present should succeed when script is missing");
 }
 
 #[cfg(unix)]
@@ -55,8 +59,10 @@ fn stop_fails_on_missing_script_without_if_present() {
     let dir = tmp.path();
     setup_project(dir, &json!({}));
     let config = test_config();
-    let res =
-        ScriptShortcutArgs { args: vec![] }.run("stop", false, dir, &config, ReporterType::Silent);
+    let res = ScriptShortcutArgs {
+        args: vec![],
+    }
+    .run("stop", false, dir, &config, ReporterType::Silent);
     assert!(res.is_err(), "should fail because script is missing");
 }
 

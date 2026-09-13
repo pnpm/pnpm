@@ -29,7 +29,10 @@ impl MockResolver {
     }
 
     fn without_hook() -> Self {
-        MockResolver { has_should_refresh_resolution: false, ..Self::refreshing(false) }
+        MockResolver {
+            has_should_refresh_resolution: false,
+            ..Self::refreshing(false)
+        }
     }
 
     fn failing(message: &str) -> Self {
@@ -63,7 +66,10 @@ impl CustomResolver for MockResolver {
         pkg_snapshot: Value,
     ) -> Result<bool, HookError> {
         self.call_count.fetch_add(1, Ordering::SeqCst);
-        self.calls.lock().unwrap().push((dep_path.to_string(), pkg_snapshot));
+        self.calls
+            .lock()
+            .unwrap()
+            .push((dep_path.to_string(), pkg_snapshot));
         self.refresh_outcome.clone()
     }
 }
@@ -90,7 +96,10 @@ fn lockfile_with_one_package() -> Lockfile {
 }
 
 fn resolvers(items: Vec<MockResolver>) -> Vec<Arc<dyn CustomResolver>> {
-    items.into_iter().map(|item| Arc::new(item) as Arc<dyn CustomResolver>).collect()
+    items
+        .into_iter()
+        .map(|item| Arc::new(item) as Arc<dyn CustomResolver>)
+        .collect()
 }
 
 #[tokio::test]
@@ -149,7 +158,10 @@ async fn returns_true_when_hook_returns_true() {
 #[tokio::test]
 async fn returns_true_when_any_resolver_among_multiple_returns_true() {
     let result = check_custom_resolver_force_resolve(
-        &resolvers(vec![MockResolver::refreshing(false), MockResolver::refreshing(true)]),
+        &resolvers(vec![
+            MockResolver::refreshing(false),
+            MockResolver::refreshing(true),
+        ]),
         &lockfile_with_one_package(),
     )
     .await
@@ -197,6 +209,9 @@ async fn passes_dep_path_and_merged_package_snapshot() {
     let calls = resolver.calls.lock().unwrap();
     let (dep_path, snapshot) = calls.first().expect("hook called once");
     assert_eq!(dep_path, "test-pkg@1.0.0(peer@2.0.0)");
-    assert_eq!(snapshot["resolution"]["tarball"], json!("http://example.com/test-pkg-1.0.0.tgz"));
+    assert_eq!(
+        snapshot["resolution"]["tarball"],
+        json!("http://example.com/test-pkg-1.0.0.tgz"),
+    );
     assert_eq!(snapshot["dependencies"]["peer"], json!("2.0.0"));
 }

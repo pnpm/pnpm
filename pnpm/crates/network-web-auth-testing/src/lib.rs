@@ -37,7 +37,9 @@ pub enum FakeOtpError {
 impl OtpError for FakeOtpError {
     fn as_otp_challenge(&self) -> Option<OtpChallenge> {
         match self {
-            FakeOtpError::Otp { body } => Some(OtpChallenge { body: body.clone() }),
+            FakeOtpError::Otp { body } => Some(OtpChallenge {
+                body: body.clone(),
+            }),
             FakeOtpError::Other(_) => None,
         }
     }

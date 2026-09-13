@@ -17,15 +17,20 @@ pub(super) async fn apply_before_packing<Reporter: self::Reporter>(
 ) -> Result<Value, PackError> {
     let prefix = project_dir.to_string_lossy();
     for hook in hooks {
-        let pnpmfile = hook.source_path().unwrap_or_else(|| Path::new("<pnpmfile>"));
-        let ctx =
-            HookContext { log: before_packing_logger::<Reporter>(pnpmfile, &prefix), dir: None };
-        manifest = hook.before_packing(manifest, publish_dir, ctx).await.map_err(|err| {
-            PackError::BeforePacking {
+        let pnpmfile = hook
+            .source_path()
+            .unwrap_or_else(|| Path::new("<pnpmfile>"));
+        let ctx = HookContext {
+            log: before_packing_logger::<Reporter>(pnpmfile, &prefix),
+            dir: None,
+        };
+        manifest = hook
+            .before_packing(manifest, publish_dir, ctx)
+            .await
+            .map_err(|err| PackError::BeforePacking {
                 pnpmfile: pnpmfile.display().to_string(),
                 message: err.to_string(),
-            }
-        })?;
+            })?;
     }
     Ok(manifest)
 }
@@ -57,7 +62,10 @@ impl PackScripts {
         manifest: &Value,
     ) -> Result<(), PackError> {
         let scripts = manifest.get("scripts");
-        if !script_names.iter().any(|name| script_body(scripts, name).is_some()) {
+        if !script_names
+            .iter()
+            .any(|name| script_body(scripts, name).is_some())
+        {
             return Ok(());
         }
 
@@ -90,7 +98,9 @@ impl PackScripts {
         let parent_env: HashMap<String, String> = std::env::vars().collect();
 
         for &script_name in script_names {
-            let Some(script) = script_body(scripts, script_name) else { continue };
+            let Some(script) = script_body(scripts, script_name) else {
+                continue;
+            };
             run_lifecycle_hook::<Reporter>(script_name, script, &run_opts, manifest, &parent_env)
                 .map_err(PackError::Lifecycle)?;
         }
@@ -100,5 +110,8 @@ impl PackScripts {
 
 /// The body of `scripts.<name>` when it is a non-empty string.
 pub(super) fn script_body<'a>(scripts: Option<&'a Value>, name: &str) -> Option<&'a str> {
-    scripts?.get(name).and_then(Value::as_str).filter(|script| !script.is_empty())
+    scripts?
+        .get(name)
+        .and_then(Value::as_str)
+        .filter(|script| !script.is_empty())
 }

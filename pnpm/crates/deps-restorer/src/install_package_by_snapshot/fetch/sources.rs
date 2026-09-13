@@ -23,7 +23,10 @@ impl InstallPackageBySnapshot<'_> {
         download: &IngestTarballToStore<'_>,
     ) -> Result<CustomFetched, InstallPackageBySnapshotError> {
         let Some(session) = self.fetching.custom_fetcher_session else {
-            return Ok(CustomFetched { resolution: None, cas_paths: None });
+            return Ok(CustomFetched {
+                resolution: None,
+                cas_paths: None,
+            });
         };
         let config = self.ctx.config;
         let opts = serde_json::json!({
@@ -39,16 +42,11 @@ impl InstallPackageBySnapshot<'_> {
                 false, package_id, !config.ignore_scripts,
             ),
         });
-        Ok(match session.fetch::<Reporter>(download.clone(), &metadata.resolution, opts).await? {
-            CustomFetchOutcome::Declined(resolution)
-            | CustomFetchOutcome::Delegate { delegate: resolution, .. } => {
-                CustomFetched { resolution: Some(resolution), cas_paths: None }
-            }
-            CustomFetchOutcome::Fetched { tarball, .. } => {
-                CustomFetched { resolution: None, cas_paths: Some(tarball.files_map.clone()) }
-            }
-        })
+        let outcome =
+            session.fetch::<Reporter>(download.clone(), &metadata.resolution, opts).await?;
+        Ok(custom_fetched(outcome))
     }
+
     pub(in super::super) async fn fetch_binary<Reporter: self::Reporter>(
         &self,
         binary: &BinaryResolution,
@@ -145,8 +143,7 @@ impl InstallPackageBySnapshot<'_> {
         };
         let raw_cas_paths = download_tarball::<Reporter>(
             download,
-            self.fetching
-                .tarball_mem_cache
+            self.fetching.tarball_mem_cache
                 .filter(|_| matches!(fetch.resolution, LockfileResolution::Registry(_)))
                 .map(std::convert::AsRef::as_ref),
             revision_addressed,
@@ -206,5 +203,19 @@ impl InstallPackageBySnapshot<'_> {
         .await
         .map_err(InstallPackageBySnapshotError::GitFetch)?;
         Ok(cas_paths)
+    }
+}
+
+fn custom_fetched(outcome: CustomFetchOutcome) -> CustomFetched {
+    match outcome {
+        CustomFetchOutcome::Declined(resolution)
+        | CustomFetchOutcome::Delegate { delegate: resolution, .. } => CustomFetched {
+            resolution: Some(resolution),
+            cas_paths: None,
+        },
+        CustomFetchOutcome::Fetched { tarball, .. } => CustomFetched {
+            resolution: None,
+            cas_paths: Some(tarball.files_map.clone()),
+        },
     }
 }

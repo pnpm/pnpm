@@ -65,7 +65,9 @@ impl ShimTarget {
 
     fn decode(bytes: &[u8]) -> Option<Self> {
         let raw = decode_os(bytes)?;
-        if let Some(package) = raw.to_str().and_then(|raw| raw.strip_prefix(VIRTUAL_TARGET_PREFIX))
+        if let Some(package) = raw
+            .to_str()
+            .and_then(|raw| raw.strip_prefix(VIRTUAL_TARGET_PREFIX))
         {
             return is_valid_old_npm_package_name(package)
                 .then(|| ShimTarget::Virtual(package.to_string()));
@@ -113,13 +115,14 @@ pub(crate) fn install_native_shim_from(
     let target_file = target_file_path(bin_dir, name);
     let executable = executable_path(bin_dir, name);
     pnpm_fs::write_atomic(&target_file, &target.encode())?;
-    crate::executable_link::replace_executable(source, &executable).inspect_err(|_| {
-        // A sidecar without an executable would list as a shim; a sidecar
-        // beside an older executable is a live shim with its new target.
-        if !executable.exists() {
-            let _ = fs::remove_file(&target_file);
-        }
-    })
+    crate::executable_link::replace_executable(source, &executable)
+        .inspect_err(|_| {
+            // A sidecar without an executable would list as a shim; a sidecar
+            // beside an older executable is a live shim with its new target.
+            if !executable.exists() {
+                let _ = fs::remove_file(&target_file);
+            }
+        })
 }
 
 /// Remove the shim `name` and its sidecar. A missing shim is not an error.
@@ -137,12 +140,14 @@ pub(crate) fn native_shim_target(bin_dir: &Path, name: &str) -> io::Result<Optio
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error),
     };
-    ShimTarget::decode(&bytes).map(Some).ok_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("{} does not hold a shim target", target_file.display()),
-        )
-    })
+    ShimTarget::decode(&bytes)
+        .map(Some)
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("{} does not hold a shim target", target_file.display()),
+            )
+        })
 }
 
 pub(crate) fn native_shim_is_installed(bin_dir: &Path, name: &str) -> bool {
@@ -176,7 +181,10 @@ pub(crate) fn native_shims(bin_dir: &Path) -> io::Result<Vec<String>> {
 
 /// The files a shim `name` occupies: its executable and its sidecar.
 pub(crate) fn native_shim_paths(bin_dir: &Path, name: &str) -> [PathBuf; 2] {
-    [executable_path(bin_dir, name), target_file_path(bin_dir, name)]
+    [
+        executable_path(bin_dir, name),
+        target_file_path(bin_dir, name),
+    ]
 }
 
 /// Republish every shim in `bin_dir` from `source`, migrating legacy
@@ -204,7 +212,10 @@ pub(crate) fn migrate_legacy_shims_from(source: &Path, bin_dir: &Path) -> io::Re
     };
     for entry in entries {
         let file_name = entry.file_name();
-        let Some(name) = file_name.to_str().filter(|name| is_safe_bin_name(name)) else {
+        let Some(name) = file_name
+            .to_str()
+            .filter(|name| is_safe_bin_name(name))
+        else {
             continue;
         };
         // Migrating one shim removes its Windows siblings, which the
@@ -214,8 +225,10 @@ pub(crate) fn migrate_legacy_shims_from(source: &Path, bin_dir: &Path) -> io::Re
         };
         install_native_shim_from(source, bin_dir, name, &target)?;
     }
-    let dispatcher =
-        bin_dir.join(format!("{LEGACY_DISPATCHER_NAME}{}", std::env::consts::EXE_SUFFIX));
+    let dispatcher = bin_dir.join(format!(
+        "{LEGACY_DISPATCHER_NAME}{}",
+        std::env::consts::EXE_SUFFIX,
+    ));
     // The dispatcher may still be executing on behalf of a shim launched
     // before the migration, which Windows reports as a sharing violation;
     // the next migration pass removes it.
@@ -247,7 +260,10 @@ fn legacy_shim_target(path: &Path) -> io::Result<Option<ShimTarget>> {
         return Ok(None);
     }
     let body = String::from_utf8_lossy(&bytes);
-    if !body.lines().any(|line| line == LEGACY_CONTEXT_AWARE_MARKER) {
+    if !body
+        .lines()
+        .any(|line| line == LEGACY_CONTEXT_AWARE_MARKER)
+    {
         return Ok(None);
     }
     let target = body
@@ -278,12 +294,18 @@ pub(super) fn dispatch_legacy_shim(rest: &[OsString]) -> i32 {
     };
     try_migrate_legacy_shims(&bin_dir);
     let settings = trusted_shim_settings();
-    let invocation = super::ShimInvocation { name, bin_dir: &bin_dir, target: &target };
+    let invocation = super::ShimInvocation {
+        name,
+        bin_dir: &bin_dir,
+        target: &target,
+    };
     dispatch_target(&invocation, args, &settings.shims, &settings.state_dir)
 }
 
 fn executing_dispatcher_bin_dir(shim: &Path) -> Option<PathBuf> {
-    let supplied_bin_dir = shim.parent().filter(|dir| !dir.as_os_str().is_empty())?;
+    let supplied_bin_dir = shim
+        .parent()
+        .filter(|dir| !dir.as_os_str().is_empty())?;
     let dispatcher = std::env::current_exe().ok()?;
     let dispatcher_name = format!("{LEGACY_DISPATCHER_NAME}{}", std::env::consts::EXE_SUFFIX);
     if dispatcher.file_name() != Some(OsStr::new(&dispatcher_name)) {
@@ -326,7 +348,9 @@ fn parse_legacy_shim_argv(rest: &[OsString]) -> Option<(&str, &Path, ShimTarget,
     if separator.to_str() != Some("--") {
         return None;
     }
-    let name = name.to_str().filter(|name| is_safe_bin_name(name))?;
+    let name = name
+        .to_str()
+        .filter(|name| is_safe_bin_name(name))?;
     let target = match target.to_str() {
         Some(target) => ShimTarget::from_legacy_marker(target)?,
         None => ShimTarget::Installed(PathBuf::from(target)),
@@ -355,9 +379,20 @@ pub(super) fn try_native_dispatch(argv: &[OsString]) -> Option<i32> {
         return Some(1);
     }
     let settings = trusted_shim_settings();
-    let invocation = super::ShimInvocation { name: &name, bin_dir, target: &target };
-    let args = argv.get(1..).unwrap_or_default();
-    Some(dispatch_target(&invocation, args, &settings.shims, &settings.state_dir))
+    let invocation = super::ShimInvocation {
+        name: &name,
+        bin_dir,
+        target: &target,
+    };
+    let args = argv
+        .get(1..)
+        .unwrap_or_default();
+    Some(dispatch_target(
+        &invocation,
+        args,
+        &settings.shims,
+        &settings.state_dir,
+    ))
 }
 
 fn executable_path(bin_dir: &Path, name: &str) -> PathBuf {
@@ -380,7 +415,9 @@ fn remove_if_exists(path: &Path) -> io::Result<()> {
 fn shim_name(file_name: &OsStr) -> Option<String> {
     let file_name = file_name.to_str()?;
     let name = file_name.get(..file_name.len().checked_sub(4)?)?;
-    file_name[name.len()..].eq_ignore_ascii_case(".exe").then(|| name.to_string())
+    file_name[name.len()..]
+        .eq_ignore_ascii_case(".exe")
+        .then(|| name.to_string())
 }
 
 #[cfg(not(windows))]
@@ -403,7 +440,10 @@ fn decode_os(bytes: &[u8]) -> Option<OsString> {
 #[cfg(windows)]
 fn encode_os(value: &OsStr) -> Vec<u8> {
     use std::os::windows::ffi::OsStrExt as _;
-    value.encode_wide().flat_map(u16::to_le_bytes).collect()
+    value
+        .encode_wide()
+        .flat_map(u16::to_le_bytes)
+        .collect()
 }
 
 #[cfg(windows)]
@@ -411,7 +451,13 @@ fn decode_os(bytes: &[u8]) -> Option<OsString> {
     use std::os::windows::ffi::OsStringExt as _;
     let mut chunks = bytes.chunks_exact(2);
     let value = OsString::from_wide(
-        &chunks.by_ref().map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]])).collect::<Vec<_>>(),
+        &chunks
+            .by_ref()
+            .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
+            .collect::<Vec<_>>(),
     );
-    chunks.remainder().is_empty().then_some(value)
+    chunks
+        .remainder()
+        .is_empty()
+        .then_some(value)
 }

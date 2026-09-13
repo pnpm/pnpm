@@ -1,7 +1,6 @@
 pub use arguments::{
     InstallFetchArgs, InstallLockfileArgs, InstallMaterializationArgs, LockfileUpdateArgs,
 };
-
 pub(crate) use pnpr_resolution::{install_selected_via_pnpr, install_via_pnpr};
 
 mod arguments;
@@ -245,13 +244,13 @@ impl InstallArgs {
     ) -> PnprLink<'a> {
         PnprLink {
             dependency_groups: self.dependency_options.dependency_groups(config.optional).collect(),
-            supported_architectures: self
-                .supported_architectures
-                .apply_to(config.supported_architectures.clone()),
-            node_linker: self
-                .materialization
-                .node_linker
-                .map_or(config.node_linker, NodeLinkerArg::into_config),
+            supported_architectures: self.supported_architectures.apply_to(
+                config.supported_architectures.clone(),
+            ),
+            node_linker: self.materialization.node_linker.map_or(
+                config.node_linker,
+                NodeLinkerArg::into_config,
+            ),
             skip_runtimes: config.skip_runtimes || self.materialization.no_runtime,
             lockfile_path: Some(lockfile_path),
             use_state_lockfile: true,
@@ -348,7 +347,9 @@ impl InstallArgs {
         if !ci_default {
             return Ok(false);
         }
-        Ok(state.lockfile.get()?.is_some_and(|lockfile| !lockfile.is_empty()))
+        Ok(state.lockfile
+            .get()?
+            .is_some_and(|lockfile| !lockfile.is_empty()))
     }
 }
 
@@ -362,14 +363,16 @@ pub(crate) fn workspace_install_selection(
         selected_dirs: selection.selected_dirs.as_ref(),
         install_dirs: selection.install_dirs.as_ref(),
         active_manifest_is_standin: selection.active_manifest_is_standin,
-        workspace_cycles: selection.workspace_cycles.as_ref().map_or(
-            pnpm_package_manager::PrecomputedWorkspaceCycles::Unknown,
-            |cycles| {
-                pnpm_package_manager::PrecomputedWorkspaceCycles::Known(
-                    (!cycles.is_empty()).then_some(cycles.as_slice()),
-                )
-            },
-        ),
+        workspace_cycles: selection.workspace_cycles
+            .as_ref()
+            .map_or(
+                pnpm_package_manager::PrecomputedWorkspaceCycles::Unknown,
+                |cycles| {
+                    pnpm_package_manager::PrecomputedWorkspaceCycles::Known(
+                        (!cycles.is_empty()).then_some(cycles.as_slice()),
+                    )
+                },
+            ),
     }
 }
 

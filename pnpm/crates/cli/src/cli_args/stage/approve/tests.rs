@@ -28,7 +28,13 @@ fn order(stage_ids: &[&str], dependencies: &[(&str, &[&str])]) -> StageApprovalO
         dependency_stage_ids: dependencies
             .iter()
             .map(|(stage_id, deps)| {
-                ((*stage_id).to_owned(), deps.iter().map(|dep| (*dep).to_owned()).collect())
+                (
+                    (*stage_id).to_owned(),
+                    deps
+                        .iter()
+                        .map(|dep| (*dep).to_owned())
+                        .collect(),
+                )
             })
             .collect(),
         package_names: HashMap::from([("id-dependency".to_owned(), "dependency".to_owned())]),
@@ -41,10 +47,16 @@ fn selected_dependencies_are_approved_before_their_dependents() {
         item("id-dependent", Some("dependent"), Some("1.0.0")),
         item("id-dependency", Some("dependency"), Some("1.0.0")),
     ];
-    let order = order(&["id-dependency", "id-dependent"], &[("id-dependent", &["id-dependency"])]);
+    let order = order(
+        &["id-dependency", "id-dependent"],
+        &[("id-dependent", &["id-dependency"])],
+    );
     let sorted = sort_items_for_approval(items, &order);
     assert_eq!(
-        sorted.iter().map(|item| item.id.as_str()).collect::<Vec<_>>(),
+        sorted
+            .iter()
+            .map(|item| item.id.as_str())
+            .collect::<Vec<_>>(),
         ["id-dependency", "id-dependent"],
     );
 }
@@ -59,14 +71,20 @@ fn packages_without_dependencies_keep_their_selection_order() {
     let order = order(&["id-external", "id-unlisted", "id-dependency"], &[]);
     let sorted = sort_items_for_approval(items, &order);
     assert_eq!(
-        sorted.iter().map(|item| item.id.as_str()).collect::<Vec<_>>(),
+        sorted
+            .iter()
+            .map(|item| item.id.as_str())
+            .collect::<Vec<_>>(),
         ["id-external", "id-unlisted", "id-dependency"],
     );
 }
 
 #[test]
 fn a_dependent_of_an_unpublished_package_is_blocked() {
-    let order = order(&["id-dependency", "id-dependent"], &[("id-dependent", &["id-dependency"])]);
+    let order = order(
+        &["id-dependency", "id-dependent"],
+        &[("id-dependent", &["id-dependency"])],
+    );
     let unpublished: HashSet<String> = std::iter::once("id-dependency".to_owned()).collect();
     assert_eq!(
         unavailable_dependencies(
@@ -103,7 +121,10 @@ fn npm_aliases_to_tags_keep_their_alias_name() {
         "version": "1.0.0",
         "dependencies": { "local-name": "npm:dependency@latest" },
     }));
-    assert_eq!(manifest["dependencies"], json!({ "local-name": "npm:dependency@latest" }));
+    assert_eq!(
+        manifest["dependencies"],
+        json!({ "local-name": "npm:dependency@latest" }),
+    );
 }
 
 #[test]
@@ -144,9 +165,16 @@ fn a_repeated_stage_id_is_approved_once_whatever_its_spelling() {
 
 #[test]
 fn a_staged_version_is_named_by_its_package_and_falls_back_to_its_id() {
-    let named = item("1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f", Some("foo"), Some("1.0.0"));
+    let named = item(
+        "1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f",
+        Some("foo"),
+        Some("1.0.0"),
+    );
     assert_eq!(named.label(), "foo@1.0.0");
-    assert_eq!(named.reference(), "foo@1.0.0 (1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f)");
+    assert_eq!(
+        named.reference(),
+        "foo@1.0.0 (1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f)",
+    );
     let unlisted = item("1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f", None, None);
     assert_eq!(unlisted.label(), "1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f");
     assert_eq!(unlisted.reference(), "1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f");

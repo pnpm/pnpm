@@ -105,13 +105,21 @@ impl PrefetchIntegrityCheck {
     /// [`Self::Eager`] under `verifyStoreIntegrity`, else [`Self::Skip`].
     #[must_use]
     pub fn eager_if(verify_store_integrity: bool) -> Self {
-        if verify_store_integrity { Self::Eager } else { Self::Skip }
+        if verify_store_integrity {
+            Self::Eager
+        } else {
+            Self::Skip
+        }
     }
 
     /// [`Self::Deferred`] under `verifyStoreIntegrity`, else [`Self::Skip`].
     #[must_use]
     pub fn deferred_if(verify_store_integrity: bool) -> Self {
-        if verify_store_integrity { Self::Deferred } else { Self::Skip }
+        if verify_store_integrity {
+            Self::Deferred
+        } else {
+            Self::Skip
+        }
     }
 }
 
@@ -199,7 +207,9 @@ pub async fn prefetch_cas_paths(
     integrity_check: PrefetchIntegrityCheck,
     verified_files_cache: SharedVerifiedFilesCache,
 ) -> PrefetchResult {
-    let Some(index) = index else { return PrefetchResult::default() };
+    let Some(index) = index else {
+        return PrefetchResult::default();
+    };
     if cache_keys.is_empty() {
         return PrefetchResult::default();
     }
@@ -240,7 +250,13 @@ fn prefetch_cas_paths_blocking(
     let decoded: Vec<DecodedPrefetchRow> = raw
         .into_par_iter()
         .filter_map(|(cache_key, bytes)| {
-            decode_prefetch_row(cache_key, &bytes, store_dir, integrity_check, verified_files_cache)
+            decode_prefetch_row(
+                cache_key,
+                &bytes,
+                store_dir,
+                integrity_check,
+                verified_files_cache,
+            )
         })
         .collect();
     tracing::debug!(
@@ -286,9 +302,10 @@ fn decode_prefetch_row(
                 pnpm_store_dir::defer_pkg_files_integrity(store_dir, entry);
             (verify_result, Some(pending_check))
         }
-        PrefetchIntegrityCheck::Skip => {
-            (pnpm_store_dir::build_file_maps_from_index(store_dir, entry), None)
-        }
+        PrefetchIntegrityCheck::Skip => (
+            pnpm_store_dir::build_file_maps_from_index(store_dir, entry),
+            None,
+        ),
     };
     Some(DecodedPrefetchRow {
         cache_key,
@@ -337,33 +354,7 @@ fn collect_prefetch_result(decoded: Vec<DecodedPrefetchRow>) -> PrefetchResult {
         ..PrefetchResult::default()
     };
     for row in decoded {
-        let DecodedPrefetchRow {
-            cache_key,
-            manifest,
-            stored_requires_build,
-            stored_requires_prepare,
-            mut verify_result,
-            pending_check,
-        } = row;
-        if !verify_result.passed {
-            continue;
-        }
-        if let Some(pending_check) = pending_check {
-            result.pending_checks.insert(cache_key.clone(), pending_check);
-        }
-        let calculated_requires_build = stored_requires_build.unwrap_or_else(|| {
-            manifest.as_deref().is_some_and(manifest_requires_build)
-                || files_include_install_scripts(verify_result.files_map.keys())
-        });
-        if let Some(manifest) = manifest {
-            result.manifests.insert(cache_key.clone(), manifest);
-        }
-        insert_side_effects(&mut result, &cache_key, &mut verify_result);
-        result.requires_build.insert(cache_key.clone(), calculated_requires_build);
-        if let Some(requires_prepare_value) = stored_requires_prepare {
-            result.requires_prepare.insert(cache_key.clone(), requires_prepare_value);
-        }
-        result.cas_paths.insert(cache_key, Arc::new(verify_result.files_map));
+        insert_prefetch_row(&mut result, row);
     }
     result
 }
@@ -374,14 +365,19 @@ fn insert_side_effects(
     cache_key: &str,
     verify_result: &mut pnpm_store_dir::VerifyResult,
 ) {
-    if let Some(maps) = verify_result.side_effects_maps.take().filter(|maps| !maps.is_empty()) {
+    if let Some(maps) = verify_result.side_effects_maps
+        .take()
+        .filter(|maps| !maps.is_empty())
+    {
         result.side_effects_maps.insert(cache_key.to_string(), Arc::new(maps));
     }
-    if let Some(diffs) = verify_result.side_effects.take().filter(|diffs| !diffs.is_empty()) {
+    if let Some(diffs) = verify_result.side_effects
+        .take()
+        .filter(|diffs| !diffs.is_empty())
+    {
         result.side_effects.insert(cache_key.to_string(), Arc::new(diffs));
     }
-    if let Some(quarantine) = verify_result
-        .remote_side_effects_quarantine
+    if let Some(quarantine) = verify_result.remote_side_effects_quarantine
         .take()
         .filter(|quarantine| !quarantine.is_empty())
     {
@@ -391,3 +387,33 @@ fn insert_side_effects(
 
 mod cached_rows;
 use cached_rows::read_raw_rows_under_lock;
+
+fn insert_prefetch_row(result: &mut PrefetchResult, row: DecodedPrefetchRow) {
+    let DecodedPrefetchRow {
+        cache_key,
+        manifest,
+        stored_requires_build,
+        stored_requires_prepare,
+        mut verify_result,
+        pending_check,
+    } = row;
+    if !verify_result.passed {
+        return;
+    }
+    if let Some(pending_check) = pending_check {
+        result.pending_checks.insert(cache_key.clone(), pending_check);
+    }
+    let calculated_requires_build = stored_requires_build.unwrap_or_else(|| {
+        manifest.as_deref().is_some_and(manifest_requires_build)
+            || files_include_install_scripts(verify_result.files_map.keys())
+    });
+    if let Some(manifest) = manifest {
+        result.manifests.insert(cache_key.clone(), manifest);
+    }
+    insert_side_effects(result, &cache_key, &mut verify_result);
+    result.requires_build.insert(cache_key.clone(), calculated_requires_build);
+    if let Some(requires_prepare_value) = stored_requires_prepare {
+        result.requires_prepare.insert(cache_key.clone(), requires_prepare_value);
+    }
+    result.cas_paths.insert(cache_key, Arc::new(verify_result.files_map));
+}

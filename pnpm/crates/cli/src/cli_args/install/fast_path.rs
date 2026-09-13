@@ -21,8 +21,7 @@ fn report_up_to_date_install(
         level: pnpm_reporter::LogLevel::Debug,
         selected: up_to_date.project_count.unwrap_or(1),
         total: up_to_date.project_count,
-        workspace_prefix: config
-            .workspace_dir
+        workspace_prefix: config.workspace_dir
             .as_deref()
             .map(|dir| dir.to_string_lossy().into_owned()),
     }));
@@ -32,10 +31,12 @@ fn report_up_to_date_install(
         message: "Already up to date".to_string(),
         prefix: prefix.clone(),
     }));
-    emit(&pnpm_reporter::LogEvent::Summary(pnpm_reporter::SummaryLog {
-        level: pnpm_reporter::LogLevel::Debug,
-        prefix,
-    }));
+    emit(&pnpm_reporter::LogEvent::Summary(
+        pnpm_reporter::SummaryLog {
+            level: pnpm_reporter::LogLevel::Debug,
+            prefix,
+        },
+    ));
 }
 
 impl InstallArgs {
@@ -93,9 +94,9 @@ impl InstallArgs {
             manifest: &manifest,
             dependency_groups: self.dependency_options.dependency_groups(config.optional).collect(),
             node_linker,
-            supported_architectures: self
-                .supported_architectures
-                .apply_to(config.supported_architectures.clone()),
+            supported_architectures: self.supported_architectures.apply_to(
+                config.supported_architectures.clone(),
+            ),
         }) else {
             return false;
         };

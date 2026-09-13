@@ -1,3 +1,5 @@
+mod records;
+
 mod revision_refs;
 
 mod hosted_backend;
@@ -148,7 +150,11 @@ impl Store {
             fs::create_dir_all(parent).await?;
         }
         let (file, tmp_path) = create_tmp_file(&final_path).await?;
-        Ok(BlobWrite { file: Some(file), tmp_path: Some(tmp_path), final_path })
+        Ok(BlobWrite {
+            file: Some(file),
+            tmp_path: Some(tmp_path),
+            final_path,
+        })
     }
 
     /// Reserve a tmp path in the destination package directory so the
@@ -247,17 +253,28 @@ impl Store {
         entry: &fs::DirEntry,
         name: &str,
     ) -> Result<IndexEntry> {
-        let component = entry.file_name().to_string_lossy().into_owned();
+        let component = entry
+            .file_name()
+            .to_string_lossy()
+            .into_owned();
         if component == ".present" {
             // A marker whose document is gone is a stale index entry.
-            let present = !name.is_empty()
-                && fs::try_exists(self.root.join(name).join(DOCUMENT_FILE)).await?;
-            return Ok(if present { IndexEntry::Package } else { IndexEntry::Ignored });
+            let present =
+                !name.is_empty() && fs::try_exists(self.root.join(name).join(DOCUMENT_FILE)).await?;
+            return Ok(if present {
+                IndexEntry::Package
+            } else {
+                IndexEntry::Ignored
+            });
         }
         if component.starts_with('.') || !entry.file_type().await?.is_dir() {
             return Ok(IndexEntry::Ignored);
         }
-        let child = if name.is_empty() { component } else { format!("{name}/{component}") };
+        let child = if name.is_empty() {
+            component
+        } else {
+            format!("{name}/{component}")
+        };
         Ok(IndexEntry::Child(entry.path(), child))
     }
 
@@ -299,84 +316,10 @@ impl Store {
     }
 
     pub(super) fn revision_blob_path(&self, digest: &str) -> PathBuf {
-        self.root.join(".revisions").join("sha512").join(digest)
-    }
-
-    /// A record's path. The key's `/` separators become path components, so a
-    /// key never rides into a path as one string on a platform that would read
-    /// it differently.
-    pub(super) fn record_path(&self, namespace: &str, key: &str) -> PathBuf {
-        let mut path = self.root.join(namespace);
-        path.extend(key.split('/'));
-        path
-    }
-
-    pub(super) async fn read_record(&self, namespace: &str, key: &str) -> Result<Option<Vec<u8>>> {
-        match fs::read(self.record_path(namespace, key)).await {
-            Ok(bytes) => Ok(Some(bytes)),
-            Err(err) if err.kind() == ErrorKind::NotFound => Ok(None),
-            Err(err) => Err(err.into()),
-        }
-    }
-
-    pub(super) async fn create_record(
-        &self,
-        namespace: &str,
-        key: &str,
-        bytes: &[u8],
-    ) -> Result<bool> {
-        match write_atomic_new(&self.record_path(namespace, key), bytes).await {
-            Ok(()) => Ok(true),
-            Err(RegistryError::Io(err)) if err.kind() == ErrorKind::AlreadyExists => Ok(false),
-            Err(err) => Err(err),
-        }
-    }
-
-    pub(super) async fn replace_record_if_current(
-        &self,
-        namespace: &str,
-        key: &str,
-        expected: &[u8],
-        bytes: &[u8],
-    ) -> Result<DocumentWrite> {
-        let _guard = self.record_write_lock.lock().await;
-        if self.read_record(namespace, key).await?.as_deref() != Some(expected) {
-            return Ok(DocumentWrite::Conflict);
-        }
-        write_atomic(&self.record_path(namespace, key), bytes).await?;
-        Ok(DocumentWrite::Written)
-    }
-
-    /// Under the record-write lock, so a removal cannot land between a
-    /// conditional replace's comparison and its write and see the record it
-    /// deleted written back.
-    pub(super) async fn remove_record(&self, namespace: &str, key: &str) -> Result<bool> {
-        let _guard = self.record_write_lock.lock().await;
-        match fs::remove_file(self.record_path(namespace, key)).await {
-            Ok(()) => Ok(true),
-            Err(err) if err.kind() == ErrorKind::NotFound => Ok(false),
-            Err(err) => Err(err.into()),
-        }
-    }
-
-    pub(super) async fn list_record_keys(&self, namespace: &str) -> Result<Vec<String>> {
-        let root = self.root.join(namespace);
-        let mut keys = Vec::new();
-        let mut pending = vec![(root, String::new())];
-        while let Some((dir, prefix)) = pending.pop() {
-            let Some(mut entries) = read_dir_if_present(&dir).await? else {
-                continue;
-            };
-            while let Some(entry) = entries.next_entry().await? {
-                let key = record_key(&prefix, &entry.file_name());
-                if entry.file_type().await?.is_dir() {
-                    pending.push((entry.path(), key));
-                } else {
-                    keys.push(key);
-                }
-            }
-        }
-        Ok(keys)
+        self.root
+            .join(".revisions")
+            .join("sha512")
+            .join(digest)
     }
 }
 
@@ -416,11 +359,23 @@ pub(super) async fn classify_hosted_entry(
     if name.starts_with('.') {
         return HostedEntry::Ignored;
     }
-    if !entry.file_type().await.is_ok_and(|kind| kind.is_dir()) {
-        return if depth > 1 { HostedEntry::EndOfPackageDir } else { HostedEntry::Ignored };
+    if !entry
+        .file_type()
+        .await
+        .is_ok_and(|kind| kind.is_dir())
+    {
+        return if depth > 1 {
+            HostedEntry::EndOfPackageDir
+        } else {
+            HostedEntry::Ignored
+        };
     }
     let path = entry.path();
-    let name = if prefix.is_empty() { name.into_owned() } else { format!("{prefix}/{name}") };
+    let name = if prefix.is_empty() {
+        name.into_owned()
+    } else {
+        format!("{prefix}/{name}")
+    };
     if fs::try_exists(path.join(DOCUMENT_FILE)).await.unwrap_or(false) {
         return HostedEntry::Package(name);
     }
@@ -440,7 +395,11 @@ pub(super) async fn next_blob_file(
             directories.pop();
             continue;
         };
-        if entry.file_name().to_string_lossy().starts_with('.') {
+        if entry
+            .file_name()
+            .to_string_lossy()
+            .starts_with('.')
+        {
             continue;
         }
         let kind = entry.file_type().await?;
@@ -461,13 +420,21 @@ pub(super) async fn blob_file(root: &Path, entry: &fs::DirEntry) -> Result<Hoste
         .expect("entry is below the store root")
         .to_string_lossy()
         .replace('\\', "/");
-    Ok(HostedBlobFile { path, modified: metadata.modified()?, size: metadata.len() })
+    Ok(HostedBlobFile {
+        path,
+        modified: metadata.modified()?,
+        size: metadata.len(),
+    })
 }
 
 /// A record key from the walk's directory prefix and one entry name.
 pub(super) fn record_key(prefix: &str, name: &std::ffi::OsStr) -> String {
     let name = name.to_string_lossy();
-    if prefix.is_empty() { name.into_owned() } else { format!("{prefix}/{name}") }
+    if prefix.is_empty() {
+        name.into_owned()
+    } else {
+        format!("{prefix}/{name}")
+    }
 }
 
 /// The directory's entries, or `None` when the directory does not exist.

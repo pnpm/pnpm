@@ -28,12 +28,18 @@ use text_block_macros::text_block;
 #[tokio::test]
 async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -51,8 +57,11 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
     // on disk (a missing lockfile triggers `throwLockfileNotFound`).
     // Write a minimal v9 lockfile next to the manifest so the freshness
     // gate passes — the fast path only checks existence, not contents.
-    std::fs::write(dirs.project_root.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\n")
-        .expect("seed pnpm-lock.yaml");
+    std::fs::write(
+        dirs.project_root.join("pnpm-lock.yaml"),
+        "lockfileVersion: '9.0'\n",
+    )
+    .expect("seed pnpm-lock.yaml");
 
     let mut config = Config::new();
     config.lockfile = false;
@@ -89,7 +98,10 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
         hoist_pattern: config.hoist_pattern.clone(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         store_dir: config.store_dir.display().to_string(),
-        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir: config
+            .effective_virtual_store_dir()
+            .to_string_lossy()
+            .into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
         ..Default::default()
     };
@@ -179,10 +191,12 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
 
     let captured = EVENTS.lock().unwrap();
     assert!(
-        captured.iter().any(|event| matches!(
-            event,
-            LogEvent::Pnpm(log) if log.message == "Already up to date"
-        )),
+        captured
+            .iter()
+            .any(|event| matches!(
+                event,
+                LogEvent::Pnpm(log) if log.message == "Already up to date"
+            )),
         r#"expected `name: "pnpm" / level: "info"` 'Already up to date' log; got events: {captured:#?}"#,
     );
 
@@ -218,12 +232,18 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest.add_dependency("sibling", "link:../sibling", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
-    std::fs::write(project_root.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\n")
-        .expect("seed pnpm-lock.yaml");
+    std::fs::write(
+        project_root.join("pnpm-lock.yaml"),
+        "lockfileVersion: '9.0'\n",
+    )
+    .expect("seed pnpm-lock.yaml");
 
     let mut config = Config::new();
     config.lockfile = false;
-    config.store_dir = dir.path().join("pacquet-store").into();
+    config.store_dir = dir
+        .path()
+        .join("pacquet-store")
+        .into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = modules_dir.join(".pacquet");
     let config = config.leak();
@@ -271,7 +291,9 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
     };
     let root = install_already_up_to_date(&check);
     assert_eq!(
-        root.map(|up_to_date| up_to_date.root).as_deref(),
+        root
+            .map(|up_to_date| up_to_date.root)
+            .as_deref(),
         Some(&*project_root),
         "fresh state must short-circuit",
     );
@@ -283,7 +305,10 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
     // The manifest content still matches no lockfile (config.lockfile
     // is off and no current lockfile exists), so the content re-check
     // cannot vouch for it either.
-    assert!(install_already_up_to_date(&check).is_none(), "modified manifest must fall through");
+    assert!(
+        install_already_up_to_date(&check).is_none(),
+        "modified manifest must fall through",
+    );
 }
 /// `add` / `remove` mutate the manifest in memory and persist it only
 /// after `Install::run` returns, so the on-disk mtimes the optimistic
@@ -296,12 +321,18 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
 #[tokio::test]
 async fn partial_install_disables_optimistic_short_circuit() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -348,7 +379,10 @@ async fn partial_install_disables_optimistic_short_circuit() {
         hoist_pattern: config.hoist_pattern.clone(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         store_dir: config.store_dir.display().to_string(),
-        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir: config
+            .effective_virtual_store_dir()
+            .to_string_lossy()
+            .into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
         ..Default::default()
     };
@@ -440,10 +474,12 @@ async fn partial_install_disables_optimistic_short_circuit() {
 
     let captured = EVENTS.lock().unwrap();
     assert!(
-        !captured.iter().any(|event| matches!(
-            event,
-            LogEvent::Pnpm(log) if log.message == "Already up to date"
-        )),
+        !captured
+            .iter()
+            .any(|event| matches!(
+                event,
+                LogEvent::Pnpm(log) if log.message == "Already up to date"
+            )),
         "the optimistic 'Already up to date' log MUST NOT fire for a partial install; got events: {captured:#?}",
     );
 }
@@ -457,19 +493,29 @@ async fn partial_install_disables_optimistic_short_circuit() {
 #[tokio::test]
 async fn optimistic_repeat_install_short_circuits_offline_when_touched_manifest_is_unchanged() {
     let (dir, offline_config, manifest) = install_then_go_offline().await;
-    let project_root = manifest.path().parent().unwrap().to_path_buf();
+    let project_root = manifest
+        .path()
+        .parent()
+        .unwrap()
+        .to_path_buf();
     let touched_manifest = touch_manifest(&manifest);
     let lockfile_path = project_root.join(Lockfile::FILE_NAME);
     let wanted_lockfile =
         Lockfile::load_wanted_from_dir(&project_root).expect("load wanted lockfile").unwrap();
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -526,10 +572,12 @@ async fn optimistic_repeat_install_short_circuits_offline_when_touched_manifest_
 
     let captured = EVENTS.lock().unwrap();
     assert!(
-        captured.iter().any(|event| matches!(
-            event,
-            LogEvent::Pnpm(log) if log.message == "Already up to date"
-        )),
+        captured
+            .iter()
+            .any(|event| matches!(
+                event,
+                LogEvent::Pnpm(log) if log.message == "Already up to date"
+            )),
         "the touched-but-unchanged manifest must take the fast path; got {captured:#?}",
     );
     let pipeline_emits = captured
@@ -551,14 +599,12 @@ async fn optimistic_repeat_install_short_circuits_offline_when_touched_manifest_
 #[tokio::test]
 async fn fresh_install_applies_builtin_compatibility_db_to_dependency_manifest() {
     let (_dir, lockfile) = fresh_lockfile_only_with_compatibility_db(false).await;
-    let metadata = lockfile
-        .packages
+    let metadata = lockfile.packages
         .as_ref()
         .and_then(|packages| packages.get(&"debug@4.0.0".parse().unwrap()))
         .expect("debug package metadata recorded");
     assert_eq!(
-        metadata
-            .peer_dependencies_meta
+        metadata.peer_dependencies_meta
             .as_ref()
             .and_then(|meta| meta.get("supports-color"))
             .map(|meta| meta.optional),
@@ -569,8 +615,7 @@ async fn fresh_install_applies_builtin_compatibility_db_to_dependency_manifest()
 #[tokio::test]
 async fn fresh_install_skips_builtin_compatibility_db_when_ignored() {
     let (_dir, lockfile) = fresh_lockfile_only_with_compatibility_db(true).await;
-    let metadata = lockfile
-        .packages
+    let metadata = lockfile.packages
         .as_ref()
         .and_then(|packages| packages.get(&"debug@4.0.0".parse().unwrap()))
         .expect("debug package metadata recorded");
@@ -597,7 +642,11 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
     let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
-        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .add_dependency(
+            "@pnpm.e2e/hello-world-js-bin",
+            "1.0.0",
+            DependencyGroup::Prod,
+        )
         .unwrap();
     manifest.save().unwrap();
 
@@ -614,7 +663,9 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
     let mut peers_meta = std::collections::BTreeMap::new();
     peers_meta.insert(
         "synthetic-peer".to_string(),
-        pnpm_config::PeerDependencyMeta { optional: Some(true) },
+        pnpm_config::PeerDependencyMeta {
+            optional: Some(true),
+        },
     );
     let mut extensions = indexmap::IndexMap::new();
     extensions.insert(
@@ -686,8 +737,7 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
     let packages = lockfile.packages.as_ref().expect("packages map populated");
     let pkg_key: pnpm_lockfile::PackageKey = "@pnpm.e2e/hello-world-js-bin@1.0.0".parse().unwrap();
     let metadata = packages.get(&pkg_key).expect("packages entry recorded");
-    let peers = metadata
-        .peer_dependencies
+    let peers = metadata.peer_dependencies
         .as_ref()
         .expect("packageExtensions added peerDependencies must be recorded");
     assert_eq!(peers.get("synthetic-peer").map(String::as_str), Some("*"));
@@ -695,8 +745,7 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
     // The lockfile must also carry the `packageExtensionsChecksum`
     // (sha256-prefixed) so a subsequent frozen install can detect
     // drift.
-    let checksum = lockfile
-        .package_extensions_checksum
+    let checksum = lockfile.package_extensions_checksum
         .as_deref()
         .expect("packageExtensionsChecksum must be recorded");
     assert!(
@@ -714,7 +763,10 @@ fn a_tie_in_the_seconds_rounds_up() {
         files: 7,
         duration: Duration::from_millis(2250),
     });
-    assert_eq!(messages, vec!["The integrity of 7 files was checked in 2.3s.".to_string()]);
+    assert_eq!(
+        messages,
+        vec!["The integrity of 7 files was checked in 2.3s.".to_string()],
+    );
 }
 #[test]
 fn remove_modules_dir_names_the_entry_and_carries_the_diagnostic_code() {
@@ -755,8 +807,17 @@ fn the_purge_diagnostics_render_copy_pasteable_windows_paths() {
 
     for error in errors {
         let rendered = error.to_string();
-        assert!(rendered.contains(r"C:\project\node_modules"), "got: {rendered}");
-        assert!(!rendered.contains(r"\\?\"), "verbatim prefix must not reach the user: {rendered}");
-        assert!(!rendered.contains(r"\\"), "separators must not be escaped: {rendered}");
+        assert!(
+            rendered.contains(r"C:\project\node_modules"),
+            "got: {rendered}",
+        );
+        assert!(
+            !rendered.contains(r"\\?\"),
+            "verbatim prefix must not reach the user: {rendered}",
+        );
+        assert!(
+            !rendered.contains(r"\\"),
+            "separators must not be escaped: {rendered}",
+        );
     }
 }

@@ -97,16 +97,24 @@ pub(crate) fn update_choices(
             &package.target,
             package.github_action,
         );
-        let index = *seen.entry(key).or_insert_with(|| {
-            let index = choices.len();
-            choices.push(Choice { package, workspaces: Vec::new() });
-            let kind = ChoiceGroupKind::of(package);
-            match grouped.iter_mut().find(|(group, _)| *group == kind) {
-                Some((_, indices)) => indices.push(index),
-                None => grouped.push((kind, vec![index])),
-            }
-            index
-        });
+        let index = *seen
+            .entry(key)
+            .or_insert_with(|| {
+                let index = choices.len();
+                choices.push(Choice {
+                    package,
+                    workspaces: Vec::new(),
+                });
+                let kind = ChoiceGroupKind::of(package);
+                match grouped
+                    .iter_mut()
+                    .find(|(group, _)| *group == kind)
+                {
+                    Some((_, indices)) => indices.push(index),
+                    None => grouped.push((kind, vec![index])),
+                }
+                index
+            });
         // Collect every project the collapsed entries came from, so the
         // `Workspace` column names all of them rather than whichever was
         // seen first — selecting the row updates the package in each.
@@ -117,16 +125,7 @@ pub(crate) fn update_choices(
         }
     }
 
-    grouped
-        .into_iter()
-        .map(|(kind, indices)| ChoiceGroup {
-            message: kind.message().to_string(),
-            rows: render_rows(
-                &indices.into_iter().map(|index| &choices[index]).collect::<Vec<_>>(),
-                workspaces_enabled,
-            ),
-        })
-        .collect()
+    render_choice_groups(grouped, &choices, workspaces_enabled)
 }
 
 /// One offered dependency, with every workspace project it was found in.
@@ -140,26 +139,40 @@ type ChoiceKey<'a> = (&'a str, &'a str, &'a Version, &'a Version, bool);
 /// The header row plus one row per offered dependency, padded so every
 /// column lines up within the group.
 fn render_rows(choices: &[&Choice<'_>], workspaces_enabled: bool) -> Vec<ChoiceRow> {
-    let mut header =
-        vec!["Package".to_string(), "Current".to_string(), String::new(), "Target".to_string()];
+    let mut header = vec![
+        "Package".to_string(),
+        "Current".to_string(),
+        String::new(),
+        "Target".to_string(),
+    ];
     if workspaces_enabled {
         header.push("Workspace".to_string());
     }
     header.push("URL".to_string());
 
     let mut cells = vec![header];
-    cells.extend(choices.iter().map(|choice| choice_cells(choice, workspaces_enabled)));
+    cells.extend(
+        choices
+            .iter()
+            .map(|choice| choice_cells(choice, workspaces_enabled)),
+    );
 
     let widths = column_widths(&cells);
-    let mut rows =
-        cells.into_iter().map(|row| ChoiceRow { label: pad_row(&row, &widths), value: None });
+    let mut rows = cells
+        .into_iter()
+        .map(|row| ChoiceRow {
+            label: pad_row(&row, &widths),
+            value: None,
+        });
     let header = rows.next().expect("the header row is always pushed first");
     std::iter::once(header)
         .chain(
-            rows.zip(choices).map(|(row, choice)| ChoiceRow {
-                value: Some(choice.package.alias.clone()),
-                ..row
-            }),
+            rows
+                .zip(choices)
+                .map(|(row, choice)| ChoiceRow {
+                    value: Some(choice.package.alias.clone()),
+                    ..row
+                }),
         )
         .collect()
 }
@@ -168,7 +181,11 @@ fn render_rows(choices: &[&Choice<'_>], workspaces_enabled: bool) -> Vec<ChoiceR
 /// escapes `colorize_target` embeds do not inflate the padding and a name
 /// made of wide characters is not measured as narrower than it renders.
 fn column_widths(cells: &[Vec<String>]) -> Vec<usize> {
-    let column_count = cells.iter().map(Vec::len).max().unwrap_or_default();
+    let column_count = cells
+        .iter()
+        .map(Vec::len)
+        .max()
+        .unwrap_or_default();
     (0..column_count)
         .map(|column| {
             cells
@@ -208,7 +225,12 @@ fn pad_row(row: &[String], widths: &[usize]) -> String {
             .get(index)
             .copied()
             .unwrap_or_default()
-            .max(MIN_COLUMN_WIDTHS.get(index).copied().unwrap_or_default());
+            .max(
+                MIN_COLUMN_WIDTHS
+                    .get(index)
+                    .copied()
+                    .unwrap_or_default(),
+            );
         let padding = width.saturating_sub(measure_text_width(cell));
         if index == CURRENT_COLUMN {
             line.extend(std::iter::repeat_n(' ', padding));
@@ -243,8 +265,7 @@ fn choice_cells(choice: &Choice<'_>, workspaces_enabled: bool) -> Vec<String> {
     ];
     if workspaces_enabled {
         row.push(
-            choice
-                .workspaces
+            choice.workspaces
                 .iter()
                 .map(|workspace| sanitize_inline(workspace))
                 .collect::<Vec<_>>()
@@ -252,7 +273,31 @@ fn choice_cells(choice: &Choice<'_>, workspaces_enabled: bool) -> Vec<String> {
         );
     }
     row.push(
-        package.metadata.homepage.as_deref().map(sanitize_inline).unwrap_or_default().into_owned(),
+        package.metadata.homepage
+            .as_deref()
+            .map(sanitize_inline)
+            .unwrap_or_default()
+            .into_owned(),
     );
     row
+}
+
+fn render_choice_groups(
+    grouped: Vec<(ChoiceGroupKind, Vec<usize>)>,
+    choices: &[Choice<'_>],
+    workspaces_enabled: bool,
+) -> Vec<ChoiceGroup> {
+    grouped
+        .into_iter()
+        .map(|(kind, indices)| ChoiceGroup {
+            message: kind.message().to_string(),
+            rows: render_rows(
+                &indices
+                    .into_iter()
+                    .map(|index| &choices[index])
+                    .collect::<Vec<_>>(),
+                workspaces_enabled,
+            ),
+        })
+        .collect()
 }

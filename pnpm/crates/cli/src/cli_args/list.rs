@@ -128,20 +128,28 @@ impl ListArgs {
             self.run_recursive(config, dir).await?
         } else {
             let lockfile_dir = local_lockfile_dir(config, dir);
-            self.render_projects(config, &[dir.to_path_buf()], &self.packages, &lockfile_dir, true)
-                .await?
+            self.render_projects(
+                config,
+                &[dir.to_path_buf()],
+                &self.packages,
+                &lockfile_dir,
+                true,
+            )
+            .await?
         };
         print_output(&output);
         Ok(())
     }
 
     async fn run_global(&self, config: &Config) -> miette::Result<String> {
-        let global_pkg_dir = config.global_pkg_dir.clone().ok_or_else(|| {
-            miette::miette!(
-                code = "ERR_PNPM_NO_GLOBAL_BIN_DIR",
-                "Unable to find the global packages directory"
-            )
-        })?;
+        let global_pkg_dir = config.global_pkg_dir
+            .clone()
+            .ok_or_else(|| {
+                miette::miette!(
+                    code = "ERR_PNPM_NO_GLOBAL_BIN_DIR",
+                    "Unable to find the global packages directory"
+                )
+            })?;
 
         if (matches!(self.graph.depth, RecursionLimit::Levels(n) if n > 0)
             || self.graph.depth == RecursionLimit::Unlimited)
@@ -202,7 +210,13 @@ impl ListArgs {
             // install group; passing them on would activate search
             // semantics, which prune the matched package's children.
             return self
-                .render_projects(config, std::slice::from_ref(install_dir), &[], install_dir, true)
+                .render_projects(
+                    config,
+                    std::slice::from_ref(install_dir),
+                    &[],
+                    install_dir,
+                    true,
+                )
                 .await
                 .map(Some);
         }
@@ -210,44 +224,42 @@ impl ListArgs {
     }
 
     async fn run_recursive(&self, config: &Config, dir: &Path) -> miette::Result<String> {
-        let workspace_root = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
-        let (projects, _) = discover_workspace_projects(&workspace_root, config)?;
-        let selection =
-            select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
-        let project_dirs: Vec<PathBuf> = selection.selected.keys().cloned().collect();
+        let (workspace_root, project_dirs) = listed_project_dirs(config, dir)?;
 
         let always_print_root_package = self.graph.depth == RecursionLimit::ProjectsOnly;
 
         if config.shares_one_lockfile() {
-            return self
-                .render_projects(
-                    config,
-                    &project_dirs,
-                    &self.packages,
-                    config.lockfile_dir_for(&workspace_root),
-                    always_print_root_package,
-                )
-                .await;
+            return self.render_projects(
+                config,
+                &project_dirs,
+                &self.packages,
+                config.lockfile_dir_for(&workspace_root),
+                always_print_root_package,
+            )
+            .await;
         }
 
         // Per-project lockfiles: each project renders independently
         // (with its own legend and summary).
         let mut outputs = Vec::new();
         for project_dir in project_dirs {
-            let output = self
-                .render_projects(
-                    config,
-                    std::slice::from_ref(&project_dir),
-                    &self.packages,
-                    &project_dir,
-                    always_print_root_package,
-                )
-                .await?;
+            let output = self.render_projects(
+                config,
+                std::slice::from_ref(&project_dir),
+                &self.packages,
+                &project_dir,
+                always_print_root_package,
+            )
+            .await?;
             if !output.is_empty() {
                 outputs.push(output);
             }
         }
-        let joiner = if self.graph.depth == RecursionLimit::ProjectsOnly { "\n" } else { "\n\n" };
+        let joiner = if self.graph.depth == RecursionLimit::ProjectsOnly {
+            "\n"
+        } else {
+            "\n\n"
+        };
         Ok(outputs.join(joiner))
     }
 
@@ -272,145 +284,6 @@ impl ListArgs {
                 include_optional,
             ),
         }
-    }
-
-    async fn render_projects(
-        &self,
-        config: &Config,
-        project_dirs: &[PathBuf],
-        params: &[String],
-        lockfile_dir: &Path,
-        always_print_root_package: bool,
-    ) -> miette::Result<String> {
-        let state = LoadedState::load(
-            lockfile_dir,
-            Some(config.modules_dir.as_path()),
-            self.graph.lockfile_only,
-        )?;
-        let env = state.env(
-            lockfile_dir,
-            config.virtual_store_dir_max_length as usize,
-            &config.resolved_registries(),
-            config.registry_options_by_url.clone(),
-        );
-
-        let hierarchies =
-            match env.as_ref().filter(|_| self.graph.depth != RecursionLimit::ProjectsOnly) {
-                Some(env) => {
-                    self.build_hierarchies(config, &state, env, project_dirs, lockfile_dir, params)
-                        .await?
-                }
-                // Without a materialized `node_modules` there is no tree to
-                // walk; every project reports its own line and nothing under
-                // it.
-                None => project_dirs
-                    .iter()
-                    .map(|project_dir| (project_dir.clone(), DependenciesHierarchy::default()))
-                    .collect(),
-            };
-
-        let projects: Vec<ProjectHierarchy> = hierarchies
-            .into_iter()
-            .map(|(project_dir, hierarchy)| {
-                let manifest =
-                    crate::cli_args::deps_tree::build::read_project_manifest(&project_dir);
-                ProjectHierarchy {
-                    name: manifest.name,
-                    version: manifest.version,
-                    private: manifest.private,
-                    path: project_dir.to_string_lossy().into_owned(),
-                    hierarchy,
-                }
-            })
-            .collect();
-
-        self.render_project_hierarchies(&projects, always_print_root_package)
-    }
-    fn render_project_hierarchies(
-        &self,
-        projects: &[ProjectHierarchy],
-        always_print_root_package: bool,
-    ) -> miette::Result<String> {
-        Ok(match self.report_as() {
-            ReportAs::Tree => render::render_tree(
-                projects,
-                &RenderTreeOptions {
-                    always_print_root_package,
-                    depth_above_projects_only: self.graph.depth != RecursionLimit::ProjectsOnly,
-                    long: self.output.long,
-                    show_extraneous: false,
-                    show_summary: true,
-                },
-            ),
-            ReportAs::Parseable => render::render_parseable(
-                projects,
-                &RenderParseableOptions { long: self.output.long, always_print_root_package },
-            ),
-            ReportAs::Json => render::render_json(projects, self.output.long),
-        })
-    }
-
-    /// Walk the dependency graph of every listed project, applying the
-    /// search queries and `--find-by` finders when the command has any.
-    async fn build_hierarchies(
-        &self,
-        config: &Config,
-        state: &LoadedState,
-        env: &pnpm_deps_inspection::pkg_info::PkgInfoEnv<'_>,
-        project_dirs: &[PathBuf],
-        lockfile_dir: &Path,
-        params: &[String],
-    ) -> miette::Result<Vec<(PathBuf, DependenciesHierarchy)>> {
-        let include = self.include(config.optional);
-        let root_ids = importer_root_ids(env.current_lockfile, lockfile_dir, project_dirs);
-        let graph = build_dependency_graph(
-            &root_ids,
-            &BuildGraphOptions {
-                lockfile: env.current_lockfile,
-                include,
-                only_projects: self.graph.only_projects,
-            },
-        );
-        let searcher = self.build_searcher(config, env, &graph, lockfile_dir, params).await?;
-        build_dependencies_tree(
-            state,
-            env,
-            &graph,
-            project_dirs,
-            &BuildTreeOptions {
-                lockfile_dir,
-                depth: self.graph.depth.max_depth(),
-                include,
-                exclude_peer_dependencies: self.exclude_peers,
-                only_projects: self.graph.only_projects,
-                search: searcher.as_ref(),
-                show_deduped_search_matches: searcher.is_some(),
-                modules_dir_opt: Some(config.modules_dir.as_path()),
-            },
-        )
-    }
-
-    /// The searcher the tree walk filters through. `None` when the
-    /// command named no query and no finder.
-    async fn build_searcher(
-        &self,
-        config: &Config,
-        env: &pnpm_deps_inspection::pkg_info::PkgInfoEnv<'_>,
-        graph: &pnpm_deps_inspection::graph::DependencyGraph,
-        lockfile_dir: &Path,
-        params: &[String],
-    ) -> miette::Result<Option<Searcher>> {
-        if params.is_empty() && self.find_by.is_empty() {
-            return Ok(None);
-        }
-        let mut searcher = Searcher::from_queries(params)?;
-        if !self.find_by.is_empty() {
-            let finders = resolve_finders(config, lockfile_dir, &self.find_by).await?;
-            let candidates = finder_candidates(env, graph);
-            let results = evaluate_finders(env, &finders, candidates).await?;
-            searcher.set_finder_results(results);
-        }
-        Ok(Some(searcher))
     }
 }
 
@@ -449,3 +322,31 @@ pub(crate) fn print_output(output: &str) {
 
 #[cfg(test)]
 mod tests;
+
+fn listed_project_dirs(config: &Config, dir: &Path) -> miette::Result<(PathBuf, Vec<PathBuf>)> {
+    let workspace_root = config.workspace_dir
+        .clone()
+        .unwrap_or_else(|| dir.to_path_buf());
+    let (projects, _) = discover_workspace_projects(&workspace_root, config)?;
+    let selection = select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
+    let project_dirs: Vec<PathBuf> = selection.selected
+        .keys()
+        .cloned()
+        .collect();
+    Ok((workspace_root, project_dirs))
+}
+
+fn project_hierarchy(
+    (project_dir, hierarchy): (PathBuf, DependenciesHierarchy),
+) -> ProjectHierarchy {
+    let manifest = crate::cli_args::deps_tree::build::read_project_manifest(&project_dir);
+    ProjectHierarchy {
+        name: manifest.name,
+        version: manifest.version,
+        private: manifest.private,
+        path: project_dir.to_string_lossy().into_owned(),
+        hierarchy,
+    }
+}
+
+mod listing;

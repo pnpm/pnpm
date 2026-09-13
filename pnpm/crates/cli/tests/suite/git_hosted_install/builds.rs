@@ -13,8 +13,13 @@ use assert_cmd::assert::OutputAssertExt;
 /// packs it, and the lifecycle runs again for the installed package.
 #[test]
 fn run_prepare_script_for_git_hosted_dependencies() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let repo = GitRepoFixture::init(root.path(), "test-git-fetch");
     repo.write_file(
         "append.js",
@@ -36,7 +41,10 @@ fn run_prepare_script_for_git_hosted_dependencies() {
     write_dependencies(&workspace, &[("test-git-fetch", &spec)]);
     allow_builds(&workspace, &[&format!("test-git-fetch@{spec}")]);
 
-    pacquet.with_args(["install"]).assert().success();
+    pacquet
+        .with_args(["install"])
+        .assert()
+        .success();
 
     let output: Value = serde_json::from_str(
         &std::fs::read_to_string(workspace.join("node_modules/test-git-fetch/output.json"))
@@ -61,8 +69,13 @@ fn run_prepare_script_for_git_hosted_dependencies() {
 
 #[test]
 fn prepared_git_package_in_shared_store_still_requires_project_approval() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let repo = GitRepoFixture::init(root.path(), "shared-prepare");
     repo.write_file(
         "package.json",
@@ -73,15 +86,21 @@ fn prepared_git_package_in_shared_store_still_requires_project_approval() {
     write_dependencies(&workspace, &[("shared-prepare", &spec)]);
     allow_builds(&workspace, &[&format!("shared-prepare@{spec}")]);
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     assert!(workspace.join("node_modules/shared-prepare/prepare.txt").exists());
 
     let workspace_b = root.path().join("workspace-b");
     fs::create_dir(&workspace_b).expect("create second workspace");
     fs::copy(workspace.join(".npmrc"), workspace_b.join(".npmrc"))
         .expect("copy shared-store npmrc");
-    fs::copy(workspace.join("pnpm-workspace.yaml"), workspace_b.join("pnpm-workspace.yaml"))
-        .expect("copy shared-store workspace config");
+    fs::copy(
+        workspace.join("pnpm-workspace.yaml"),
+        workspace_b.join("pnpm-workspace.yaml"),
+    )
+    .expect("copy shared-store workspace config");
     let workspace_b_yaml = fs::read_to_string(workspace_b.join("pnpm-workspace.yaml"))
         .expect("read second workspace config");
     let (workspace_b_yaml, _) = workspace_b_yaml
@@ -91,10 +110,15 @@ fn prepared_git_package_in_shared_store_still_requires_project_approval() {
         .expect("remove build approval from second workspace");
     write_dependencies(&workspace_b, &[("shared-prepare", &spec)]);
 
-    let output =
-        pnpm_at(&workspace_b).with_arg("install").output().expect("install from warm store");
+    let output = pnpm_at(&workspace_b)
+        .with_arg("install")
+        .output()
+        .expect("install from warm store");
     dbg!(&output);
-    assert!(!output.status.success(), "the unapproved warm-store install unexpectedly succeeded");
+    assert!(
+        !output.status.success(),
+        "the unapproved warm-store install unexpectedly succeeded",
+    );
     assert!(
         String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED"),
         "stderr did not report the build-policy failure",
@@ -120,10 +144,15 @@ fn prepared_git_package_in_shared_store_still_requires_project_approval() {
         .expect("write workspace config without build approval");
     write_dependencies(&workspace_c, &[("shared-prepare", &spec)]);
 
-    let output =
-        pnpm_at(&workspace_c).with_arg("install").output().expect("install from legacy store");
+    let output = pnpm_at(&workspace_c)
+        .with_arg("install")
+        .output()
+        .expect("install from legacy store");
     dbg!(&output);
-    assert!(!output.status.success(), "the unapproved legacy-store install unexpectedly succeeded");
+    assert!(
+        !output.status.success(),
+        "the unapproved legacy-store install unexpectedly succeeded",
+    );
     assert!(
         String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED"),
         "stderr did not report the build-policy failure",
@@ -135,8 +164,13 @@ fn prepared_git_package_in_shared_store_still_requires_project_approval() {
 
 #[test]
 fn type_git_dependency_reuses_side_effects_on_warm_install() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let repo = GitRepoFixture::init(root.path(), "git-side-effects");
     let lifecycle_log = root.path().join("git-side-effects-builds.log");
     let script = format!(
@@ -157,12 +191,18 @@ fn type_git_dependency_reuses_side_effects_on_warm_install() {
     write_dependencies(&workspace, &[("git-side-effects", &spec)]);
     allow_builds(&workspace, &[&format!("git-side-effects@{spec}")]);
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     let builds_after_cold_install =
         fs::read_to_string(&lifecycle_log).expect("read cold-install lifecycle log");
 
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
-    pnpm_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pnpm_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     assert_eq!(
         fs::read_to_string(&lifecycle_log).expect("read warm-install lifecycle log"),
@@ -192,8 +232,13 @@ fn git_dependency_is_built_on_hoisted_reinstall() {
 /// `package.json` too, so the alias never enters the build policy.
 #[test]
 fn an_aliased_git_dependency_is_gated_on_its_manifest_name() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let repo = GitRepoFixture::init(root.path(), "hi");
     repo.write_file(
         "package.json",
@@ -204,10 +249,16 @@ fn an_aliased_git_dependency_is_gated_on_its_manifest_name() {
     write_dependencies(&workspace, &[("say-hi", &spec)]);
     allow_builds(&workspace, &[&format!("hi@{spec}")]);
 
-    pacquet.with_args(["install"]).assert().success();
+    pacquet
+        .with_args(["install"])
+        .assert()
+        .success();
 
     let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
-    assert_eq!(importer_version(&lockfile, ".", "say-hi"), format!("hi@{spec}"));
+    assert_eq!(
+        importer_version(&lockfile, ".", "say-hi"),
+        format!("hi@{spec}"),
+    );
     assert!(
         workspace.join("node_modules/say-hi/prepare.txt").exists(),
         "the manifest-name allowBuilds entry must let `prepare` run under the alias",
@@ -270,12 +321,19 @@ fn a_git_dependency_is_prepared_with_the_package_manager_it_pins() {
     );
     // And it was pnpm's own Yarn that ran: the engine is in the store
     // this test pinned, which a host Yarn would have left empty.
-    let engine_store = root.path().join("pnpm-home").join("package-manager-store");
+    let engine_store = root
+        .path()
+        .join("pnpm-home")
+        .join("package-manager-store");
     let provisioned = walkdir::WalkDir::new(&engine_store)
         .into_iter()
         .flatten()
         .any(|entry| entry.file_name() == "yarn.js");
-    assert!(provisioned, "no provisioned yarn under {}", engine_store.display());
+    assert!(
+        provisioned,
+        "no provisioned yarn under {}",
+        engine_store.display(),
+    );
 
     drop((root, npmrc_info));
 }

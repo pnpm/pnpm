@@ -94,9 +94,10 @@ fn split_npm_alias(
         return (Some(alias.to_string()), aliased.to_string());
     }
     match aliased.rfind('@') {
-        Some(index) if index >= 1 => {
-            (Some(aliased[..index].to_string()), aliased[index + 1..].to_string())
-        }
+        Some(index) if index >= 1 => (
+            Some(aliased[..index].to_string()),
+            aliased[index + 1..].to_string(),
+        ),
         _ => (Some(aliased.to_string()), default_tag.to_string()),
     }
 }
@@ -259,7 +260,10 @@ fn split_named_registry_body(
         if last_at == 0 {
             return Some((body.to_string(), None));
         }
-        return Some((body[..last_at].to_string(), Some(body[last_at + 1..].to_string())));
+        return Some((
+            body[..last_at].to_string(),
+            Some(body[last_at + 1..].to_string()),
+        ));
     }
     // `<alias>:<tag>` paired with a scoped alias — body is a version
     // selector (tag/dist-tag). Mirrors GitHub Packages, where the package is
@@ -269,9 +273,10 @@ fn split_named_registry_body(
     }
     // `<alias>:<name>[@<version_selector>]` — unscoped package in body.
     match body.rfind('@') {
-        Some(index) if index >= 1 => {
-            Some((body[..index].to_string(), Some(body[index + 1..].to_string())))
-        }
+        Some(index) if index >= 1 => Some((
+            body[..index].to_string(),
+            Some(body[index + 1..].to_string()),
+        )),
         _ if body.is_empty() => None,
         _ => Some((body.to_string(), None)),
     }
@@ -325,7 +330,9 @@ fn parse_revision_selector(
     let digits = build.strip_prefix('r')?;
     if digits.is_empty()
         || digits.contains('.')
-        || !digits.bytes().all(|byte| byte.is_ascii_digit())
+        || !digits
+            .bytes()
+            .all(|byte| byte.is_ascii_digit())
     {
         return None;
     }
@@ -346,13 +353,15 @@ fn parse_revision_selector(
 /// `/`, `:`, spaces) bumps the candidate out of the tag bucket so
 /// protocol-prefixed specifiers fall through to the next resolver.
 fn is_valid_dist_tag(selector: &str) -> bool {
-    selector.bytes().all(|byte| {
-        matches!(byte,
+    selector
+        .bytes()
+        .all(|byte| {
+            matches!(byte,
             b'A'..=b'Z'
             | b'a'..=b'z'
             | b'0'..=b'9'
             | b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')')
-    })
+        })
 }
 
 struct NpmTarballUrl {
@@ -375,7 +384,9 @@ fn parse_npm_tarball_url(url: &str) -> Option<NpmTarballUrl> {
     if parts.len() != 2 {
         return None;
     }
-    let raw_name = parts[0].strip_prefix('/').unwrap_or(parts[0]);
+    let raw_name = parts[0]
+        .strip_prefix('/')
+        .unwrap_or(parts[0]);
     if raw_name.is_empty() {
         return None;
     }
@@ -383,16 +394,25 @@ fn parse_npm_tarball_url(url: &str) -> Option<NpmTarballUrl> {
     if name.is_empty() {
         return None;
     }
-    let path_with_no_ext = parts[1].strip_suffix(".tgz").unwrap_or(parts[1]);
+    let path_with_no_ext = parts[1]
+        .strip_suffix(".tgz")
+        .unwrap_or(parts[1]);
     // The tarball filename always starts with the scopeless name
     // followed by `-`. Anchor on that prefix instead of slicing by
     // length so a registry that returns `foo/-/bar-1.0.0.tgz` (name
     // mismatch) doesn't get accepted and mapped to the wrong package.
-    let scopeless_name = name.rsplit('/').next().unwrap_or(name.as_str());
-    let version =
-        path_with_no_ext.strip_prefix(scopeless_name).and_then(|rest| rest.strip_prefix('-'))?;
+    let scopeless_name = name
+        .rsplit('/')
+        .next()
+        .unwrap_or(name.as_str());
+    let version = path_with_no_ext
+        .strip_prefix(scopeless_name)
+        .and_then(|rest| rest.strip_prefix('-'))?;
     Version::parse(version).ok()?;
-    Some(NpmTarballUrl { name, version: version.to_string() })
+    Some(NpmTarballUrl {
+        name,
+        version: version.to_string(),
+    })
 }
 
 #[cfg(test)]

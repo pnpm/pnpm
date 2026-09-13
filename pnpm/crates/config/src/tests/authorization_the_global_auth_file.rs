@@ -21,7 +21,10 @@ pub fn the_global_auth_file_routes_what_nothing_else_declares() {
 /// declaration, and a stored credential must not quietly replace it.
 #[test]
 pub fn a_registry_pinned_to_the_default_still_beats_the_global_auth_file() {
-    let config = load_with_auth_file(STORED_LOGIN, Some("registry: https://registry.npmjs.org/\n"));
+    let config = load_with_auth_file(
+        STORED_LOGIN,
+        Some("registry: https://registry.npmjs.org/\n"),
+    );
 
     assert_eq!(config.registry, "https://registry.npmjs.org/");
 }
@@ -58,7 +61,10 @@ pub fn an_npmrc_registry_beats_the_global_auth_file() {
         config.auth_headers.for_url("https://private.example/is-positive").as_deref(),
         Some("Bearer stored-token"),
     );
-    assert_eq!(config.auth_headers.for_url("https://project-choice.example/is-positive"), None);
+    assert_eq!(
+        config.auth_headers.for_url("https://project-choice.example/is-positive"),
+        None,
+    );
 }
 
 #[test]
@@ -73,16 +79,16 @@ pub fn an_npmrc_scope_route_beats_the_global_auth_file() {
     // The default registry is not declared, so the stored credential still routes it.
     assert_eq!(config.registry, "https://private.example/");
     assert_eq!(
-        config
-            .auth_headers
+        config.auth_headers
             .for_url_with_package("https://private.example/@org%2Fpkg", Some("@org/pkg"))
             .as_deref(),
         Some("Bearer stored-org-token"),
     );
     assert_eq!(
-        config
-            .auth_headers
-            .for_url_with_package("https://from-npmrc.example/@org%2Fpkg", Some("@org/pkg")),
+        config.auth_headers.for_url_with_package(
+            "https://from-npmrc.example/@org%2Fpkg",
+            Some("@org/pkg")
+        ),
         None,
     );
 }
@@ -103,20 +109,32 @@ pub fn an_npmrc_registry_beats_the_global_auth_file_in_the_bootstrap() {
 
     let project = tempdir().expect("project tempdir");
     set_fake_env(&[
-        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        (
+            "XDG_CONFIG_HOME",
+            xdg
+                .path()
+                .to_str()
+                .unwrap(),
+        ),
         ("PNPM_CONFIG_NPMRC_AUTH_FILE", auth_file.to_str().unwrap()),
     ]);
 
     let config = load_with_fake_env(project.path());
 
     assert_eq!(config.registry, "https://user-choice.example/");
-    assert_eq!(config.package_manager_bootstrap.registry, "https://user-choice.example/");
+    assert_eq!(
+        config.package_manager_bootstrap.registry,
+        "https://user-choice.example/",
+    );
     let bootstrap_headers = &config.package_manager_bootstrap.auth_headers;
     assert_eq!(
         bootstrap_headers.for_url("https://private.example/@pnpm%2Fexe").as_deref(),
         Some("Bearer stored-token"),
     );
-    assert_eq!(bootstrap_headers.for_url("https://user-choice.example/@pnpm%2Fexe"), None);
+    assert_eq!(
+        bootstrap_headers.for_url("https://user-choice.example/@pnpm%2Fexe"),
+        None,
+    );
 }
 
 /// The older `registries: { default: … }` spelling names the default

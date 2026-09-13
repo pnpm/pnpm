@@ -20,7 +20,11 @@ fn same_package_child_does_not_shadow_inherited_parent_and_bubbles_by_name() {
 
     let mut tree = ResolvedTree {
         direct: vec![
-            DirectDep { alias: "x".to_string(), node_id: x1.clone(), id: "x@1.0.0".to_string() },
+            DirectDep {
+                alias: "x".to_string(),
+                node_id: x1.clone(),
+                id: "x@1.0.0".to_string(),
+            },
             DirectDep {
                 alias: "p".to_string(),
                 node_id: p_root.clone(),
@@ -35,8 +39,14 @@ fn same_package_child_does_not_shadow_inherited_parent_and_bubbles_by_name() {
         packages: HashMap::from_iter([
             ("x@1.0.0".into(), package("x", "1.0.0", &[], true)),
             ("x@2.0.0".into(), package("x", "2.0.0", &[], true)),
-            ("p@1.0.0".into(), package("p", "1.0.0", &[("x", "*")], false)),
-            ("plugin@1.0.0".into(), package("plugin", "1.0.0", &[("p", "*")], false)),
+            (
+                "p@1.0.0".into(),
+                package("p", "1.0.0", &[("x", "*")], false),
+            ),
+            (
+                "plugin@1.0.0".into(),
+                package("plugin", "1.0.0", &[("p", "*")], false),
+            ),
             ("mid@1.0.0".into(), package("mid", "1.0.0", &[], false)),
         ]),
         dependencies_tree: HashMap::from_iter([
@@ -55,7 +65,10 @@ fn same_package_child_does_not_shadow_inherited_parent_and_bubbles_by_name() {
 
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
 
-    assert_eq!(result.direct_dependencies_by_alias.get("mid"), Some(&DepPath::from("mid@1.0.0")));
+    assert_eq!(
+        result.direct_dependencies_by_alias.get("mid"),
+        Some(&DepPath::from("mid@1.0.0")),
+    );
     assert!(
         result.graph.contains_key(&DepPath::from("plugin@1.0.0(p@1.0.0(x@1.0.0))")),
         "plugin should resolve p from the inherited root context: {:#?}",
@@ -91,7 +104,10 @@ fn pruned_hoisted_provider_falls_back_to_root_resolution() {
         ],
         packages: HashMap::from_iter([
             ("prov@1.0.0".into(), package("prov", "1.0.0", &[], true)),
-            ("consumer@1.0.0".into(), package("consumer", "1.0.0", &[("prov", "*")], false)),
+            (
+                "consumer@1.0.0".into(),
+                package("consumer", "1.0.0", &[("prov", "*")], false),
+            ),
         ]),
         dependencies_tree: HashMap::from_iter([
             (prov.clone(), tree_node("prov@1.0.0", BTreeMap::new(), 1)),
@@ -211,7 +227,9 @@ fn realizing_children_shares_the_edge_package_id() {
         parent.clone(),
         crate::resolved_tree::DependenciesTreeNode::new(
             "parent@1.0.0".into(),
-            crate::resolved_tree::TreeChildren::Lazy { parent_ids: Arc::new(Vec::new()).into() },
+            crate::resolved_tree::TreeChildren::Lazy {
+                parent_ids: Arc::new(Vec::new()).into(),
+            },
             0,
             true,
         ),
@@ -242,10 +260,15 @@ fn a_backedge_cut_member_merges_to_a_bare_dep_path() {
         &order_test_shape(false),
     );
     assert!(
-        first_order.iter().any(|key| key == "ring02@1.0.0"),
+        first_order
+            .iter()
+            .any(|key| key == "ring02@1.0.0"),
         "ring members merge to bare depPaths; got {first_order:#?}",
     );
-    assert_eq!(first_order, second_order, "the graph must not depend on the entries' walk order");
+    assert_eq!(
+        first_order, second_order,
+        "the graph must not depend on the entries' walk order",
+    );
 }
 
 /// Nearest-wins is untouched at walked positions: an importer-level
@@ -261,19 +284,30 @@ fn an_importer_provider_does_not_shadow_a_nearer_entry_provider() {
         importer_w_version: Some("9.9.9"),
         ..Default::default()
     };
-    let first_order =
-        peer_cycle_graph_keys(&[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")], &shape());
-    let second_order =
-        peer_cycle_graph_keys(&[("entry01", 2, "2.0.0"), ("entry00", 0, "1.0.0")], &shape());
+    let first_order = peer_cycle_graph_keys(
+        &[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")],
+        &shape(),
+    );
+    let second_order = peer_cycle_graph_keys(
+        &[("entry01", 2, "2.0.0"), ("entry00", 0, "1.0.0")],
+        &shape(),
+    );
     assert!(
-        first_order.iter().any(|key| key == "ring01@1.0.0(p@1.0.0)(w@1.0.0)"),
+        first_order
+            .iter()
+            .any(|key| key == "ring01@1.0.0(p@1.0.0)(w@1.0.0)"),
         "a walked position binds its entry's nearer w; got {first_order:#?}",
     );
     assert!(
-        first_order.iter().any(|key| key == "ring01@1.0.0(p@1.0.0)(w@9.9.9)"),
+        first_order
+            .iter()
+            .any(|key| key == "ring01@1.0.0(p@1.0.0)(w@9.9.9)"),
         "the positionless back-edge occurrence binds the importer's w; got {first_order:#?}",
     );
-    assert_eq!(first_order, second_order, "the graph must not depend on the entries' walk order");
+    assert_eq!(
+        first_order, second_order,
+        "the graph must not depend on the entries' walk order",
+    );
 }
 
 /// The regression behind the canonical cut's record-only back-edges: a
@@ -283,12 +317,14 @@ fn an_importer_provider_does_not_shadow_a_nearer_entry_provider() {
 fn a_backedge_dependency_stays_in_the_graph() {
     let mut tree = peer_cycle_fixture(
         &[("entry00", 0, "1.0.0")],
-        &PeerCycleShape { wc_members: vec![1], ..Default::default() },
+        &PeerCycleShape {
+            wc_members: vec![1],
+            ..Default::default()
+        },
     );
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
 
-    let (_, ring03) = result
-        .graph
+    let (_, ring03) = result.graph
         .iter()
         .find(|(path, _)| path.as_str().starts_with("ring03@1.0.0"))
         .expect("ring03 is walked");
@@ -307,7 +343,11 @@ fn a_backedge_dependency_stays_in_the_graph() {
 fn a_backedge_cut_subtree_is_pure() {
     let mut tree = peer_cycle_fixture(
         &[("entry00", 0, "1.0.0")],
-        &PeerCycleShape { wc_members: vec![1], wc_w_range: "<3.0.0", ..Default::default() },
+        &PeerCycleShape {
+            wc_members: vec![1],
+            wc_w_range: "<3.0.0",
+            ..Default::default()
+        },
     );
     let direct = tree.direct.clone();
     let mut walker = crate::resolve_peers::test_support::walker_for_tests(&mut tree);
@@ -330,10 +370,17 @@ fn a_backedge_cut_subtree_is_pure() {
         walker.caches.pure_pkgs.contains_key("ring02@1.0.0"),
         "ring02's canonical subtree reaches no peer consumer, so it is pure",
     );
-    let cached_mentions_w = walker.caches.peers_cache.get("ring02@1.0.0").is_some_and(|items| {
-        items.iter().any(|item| {
-            item.resolved_peers.contains_key("w") || item.missing_peers.contains_key("w")
-        })
-    });
-    assert!(!cached_mentions_w, "no cached ring02 verdict mentions the consumer behind the cut");
+    let cached_mentions_w = walker.caches.peers_cache
+        .get("ring02@1.0.0")
+        .is_some_and(|items| {
+            items
+                .iter()
+                .any(|item| {
+                    item.resolved_peers.contains_key("w") || item.missing_peers.contains_key("w")
+                })
+        });
+    assert!(
+        !cached_mentions_w,
+        "no cached ring02 verdict mentions the consumer behind the cut",
+    );
 }

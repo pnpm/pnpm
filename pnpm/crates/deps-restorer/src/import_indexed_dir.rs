@@ -124,7 +124,10 @@ enum Placement {
 enum PreservedModules {
     None,
     Directory,
-    Merged { backup: PathBuf, moved_entries: Vec<OsString> },
+    Merged {
+        backup: PathBuf,
+        moved_entries: Vec<OsString>,
+    },
 }
 
 impl PreservedModules {
@@ -146,7 +149,11 @@ impl Placement {
     /// How much an import into an occupied target may assume about what
     /// is already there, given whether the target is shared.
     fn for_target(safe_to_skip: bool) -> Self {
-        if safe_to_skip { Placement::Repair } else { Placement::Fresh }
+        if safe_to_skip {
+            Placement::Repair
+        } else {
+            Placement::Fresh
+        }
     }
 }
 
@@ -245,7 +252,10 @@ fn existing_dirent_kind(path: &Path) -> Result<Option<fs::FileType>, ImportIndex
     match fs::symlink_metadata(path) {
         Ok(meta) => Ok(Some(meta.file_type())),
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(ImportIndexedDirError::InspectTarget { path: path.to_path_buf(), error }),
+        Err(error) => Err(ImportIndexedDirError::InspectTarget {
+            path: path.to_path_buf(),
+            error,
+        }),
     }
 }
 
@@ -274,24 +284,32 @@ fn import_into_shared_dir<Reporter: self::Reporter>(
     if all_files_match(dir_path, cas_paths) {
         return Ok(());
     }
-    populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths, Placement::Repair)
+    populate_dir::<Reporter>(
+        logged_methods,
+        import_method,
+        dir_path,
+        cas_paths,
+        Placement::Repair,
+    )
 }
 
 /// Create `dir_path`, reporting whether this call is the one that created
 /// it. `create_dir_all` cannot answer that — it succeeds either way.
 fn claim_dir(dir_path: &Path) -> Result<bool, ImportIndexedDirError> {
     if let Some(parent) = dir_path.parent() {
-        fs::create_dir_all(parent).map_err(|error| ImportIndexedDirError::CreateDir {
-            dirname: parent.to_path_buf(),
-            error,
-        })?;
+        fs::create_dir_all(parent)
+            .map_err(|error| ImportIndexedDirError::CreateDir {
+                dirname: parent.to_path_buf(),
+                error,
+            })?;
     }
     match fs::create_dir(dir_path) {
         Ok(()) => Ok(true),
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => Ok(false),
-        Err(error) => {
-            Err(ImportIndexedDirError::CreateDir { dirname: dir_path.to_path_buf(), error })
-        }
+        Err(error) => Err(ImportIndexedDirError::CreateDir {
+            dirname: dir_path.to_path_buf(),
+            error,
+        }),
     }
 }
 
@@ -345,10 +363,18 @@ fn replace_non_dir<Reporter: self::Reporter>(
     cas_paths: &HashMap<String, PathBuf>,
     file_type: fs::FileType,
 ) -> Result<(), ImportIndexedDirError> {
-    remove_non_dir_dirent(dir_path, file_type).map_err(|error| {
-        ImportIndexedDirError::ClearNonDirEntry { path: dir_path.to_path_buf(), error }
-    })?;
-    populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths, Placement::Fresh)
+    remove_non_dir_dirent(dir_path, file_type)
+        .map_err(|error| ImportIndexedDirError::ClearNonDirEntry {
+            path: dir_path.to_path_buf(),
+            error,
+        })?;
+    populate_dir::<Reporter>(
+        logged_methods,
+        import_method,
+        dir_path,
+        cas_paths,
+        Placement::Fresh,
+    )
 }
 
 /// Remove a non-directory dirent at `path`.

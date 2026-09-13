@@ -112,7 +112,11 @@ pub enum RunError {
 
     #[display("Some scripts failed: {failed} of {total}")]
     #[diagnostic(code(ERR_PNPM_RUN_FAILED), help("{hint}"))]
-    SomeScriptsFailed { failed: usize, total: usize, hint: String },
+    SomeScriptsFailed {
+        failed: usize,
+        total: usize,
+        hint: String,
+    },
 
     #[display("The --dry-run option is only supported with recursive runs")]
     #[diagnostic(
@@ -142,7 +146,9 @@ impl RunArgs {
 
     /// The arguments to forward to the script, verbatim.
     pub(super) fn script_args(&self) -> &[String] {
-        self.script.get(1..).unwrap_or_default()
+        self.script
+            .get(1..)
+            .unwrap_or_default()
     }
 
     /// Execute the subcommand in `dir`. `silent` suppresses the
@@ -232,8 +238,12 @@ impl RunArgs {
     ) -> miette::Result<()> {
         let extra_env = script_extra_env(config, dir);
         let init_cwd: PathBuf = env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
-        let concurrency =
-            script_concurrency(config, specified.len(), self.workspace.parallel, self.sequential);
+        let concurrency = script_concurrency(
+            config,
+            specified.len(),
+            self.workspace.parallel,
+            self.sequential,
+        );
         // Several scripts running at once share this process's terminal,
         // so their output is prefixed. Their children are tracked only
         // when a failure should cancel the siblings still running, which
@@ -250,7 +260,10 @@ impl RunArgs {
             extra_env: &extra_env,
             silent: matches!(reporter, ReporterType::Silent),
             output: if interleaved {
-                ScriptOutput::Streamed { dep_path: &dep_path, emit: reporter_emit(reporter) }
+                ScriptOutput::Streamed {
+                    dep_path: &dep_path,
+                    emit: reporter_emit(reporter),
+                }
             } else {
                 ScriptOutput::Inherit
             },

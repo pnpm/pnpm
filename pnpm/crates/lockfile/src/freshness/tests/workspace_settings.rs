@@ -89,7 +89,10 @@ fn check_settings_returns_drift_when_catalog_snapshot_specifier_changes() {
         Some("^18.2.0"),
     );
     assert_eq!(
-        config.get("default").and_then(|catalog| catalog.get("react")).map(String::as_str),
+        config
+            .get("default")
+            .and_then(|catalog| catalog.get("react"))
+            .map(String::as_str),
         Some("^19.0.0"),
     );
 }
@@ -165,7 +168,10 @@ fn check_settings_returns_drift_when_config_enables_inject_workspace_packages() 
     .expect_err("enabling inject must surface drift");
     assert_eq!(
         err,
-        StalenessReason::InjectWorkspacePackagesChanged { lockfile: false, config: true },
+        StalenessReason::InjectWorkspacePackagesChanged {
+            lockfile: false,
+            config: true
+        },
     );
 }
 
@@ -192,6 +198,9 @@ fn check_settings_returns_drift_when_config_disables_inject_workspace_packages()
     .expect_err("disabling inject must surface drift");
     assert_eq!(
         err,
-        StalenessReason::InjectWorkspacePackagesChanged { lockfile: true, config: false },
+        StalenessReason::InjectWorkspacePackagesChanged {
+            lockfile: true,
+            config: false
+        },
     );
 }

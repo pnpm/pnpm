@@ -15,7 +15,11 @@ pub(super) fn no_proxy_scalar(value: &serde_json::Value) -> String {
 pub(super) fn has_env_placeholder(value: &str) -> bool {
     value
         .match_indices("${")
-        .any(|(start, _)| value[start + 2..].find('}').is_some_and(|end| end > 0))
+        .any(|(start, _)| {
+            value[start + 2..]
+                .find('}')
+                .is_some_and(|end| end > 0)
+        })
 }
 
 pub(super) fn substitute_optional_string<Sys: EnvVar>(value: &mut Option<String>) {
@@ -50,7 +54,8 @@ pub(super) fn substitute_registry_entries<Sys: EnvVar>(
 ) {
     let Some(map) = value.take() else { return };
     *value = Some(
-        map.into_iter()
+        map
+            .into_iter()
             .map(|(key, entry)| match entry {
                 RegistryEntry::ScopeRoute(url) => {
                     let (substituted, _) = env_replace_lossy::<Sys>(&url);
@@ -73,5 +78,9 @@ pub(super) fn substitute_optional_inner_string<Sys: EnvVar>(value: &mut Option<O
 }
 
 pub(super) fn normalize_registry_url(registry: &str) -> String {
-    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
+    if registry.ends_with('/') {
+        registry.to_string()
+    } else {
+        format!("{registry}/")
+    }
 }

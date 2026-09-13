@@ -49,7 +49,10 @@ fn picks_the_right_checksum_for_a_file() {
 ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  foo.tar.gz
 be127be1d98cad94c56f46245d0f2de89934d300028694456861a6d5ac558bf3  foo.msi";
     let integrity = pick_file_checksum_from_shasums_file(body, "foo.tar.gz").unwrap();
-    assert_eq!(integrity, "sha256-7VIjkpStUX++kaJoFG1dKqihfS1i1khz5DIZB4unHE4=");
+    assert_eq!(
+        integrity,
+        "sha256-7VIjkpStUX++kaJoFG1dKqihfS1i1khz5DIZB4unHE4=",
+    );
 }
 
 #[test]
@@ -143,7 +146,11 @@ async fn missing_node_shasums_signature_fails() {
 
     assert!(matches!(
         err,
-        FetchVerifiedNodeShasumsError::StatusNotOk { what: "SHASUMS256.txt.sig", status: 404, .. },
+        FetchVerifiedNodeShasumsError::StatusNotOk {
+            what: "SHASUMS256.txt.sig",
+            status: 404,
+            ..
+        },
     ));
 }
 
@@ -206,8 +213,14 @@ async fn authenticated_verified_fetch_bypasses_the_cache() {
     let client = pnpm_network::ThrottledClient::new_for_installs();
     let url = format!("{}/download/release/v22.11.0/SHASUMS256.txt", server.url());
     let auth_headers = AuthHeaders::from_creds_map([
-        (nerf_dart(&format!("{url}/")), "Bearer shasums-token".to_string()),
-        (nerf_dart(&format!("{url}.sig/")), "Bearer signature-token".to_string()),
+        (
+            nerf_dart(&format!("{url}/")),
+            "Bearer shasums-token".to_string(),
+        ),
+        (
+            nerf_dart(&format!("{url}.sig/")),
+            "Bearer signature-token".to_string(),
+        ),
     ]);
 
     for _ in 0..2 {
@@ -361,8 +374,7 @@ async fn verified_fetch_does_not_cache_an_unverified_body() {
     let url = format!("{}/download/release/v22.11.0/SHASUMS256.txt", server.url());
 
     for _ in 0..2 {
-        fetch_verified_node_shasums_file_cached(&client, &url, Some(cache_dir.path()))
-            .await
+        fetch_verified_node_shasums_file_cached(&client, &url, Some(cache_dir.path())).await
             .expect_err("missing signature must fail");
     }
     signature.assert_async().await;
@@ -382,11 +394,9 @@ async fn plain_fetch_caches_the_body() {
     let client = pnpm_network::ThrottledClient::new_for_installs();
     let url = format!("{}/download/v1.2.3/SHASUMS256.txt", server.url());
 
-    let fetched = fetch_shasums_file_cached(&client, &url, Some(cache_dir.path()))
-        .await
+    let fetched = fetch_shasums_file_cached(&client, &url, Some(cache_dir.path())).await
         .expect("fetch the body");
-    let cached = fetch_shasums_file_cached(&client, &url, Some(cache_dir.path()))
-        .await
+    let cached = fetch_shasums_file_cached(&client, &url, Some(cache_dir.path())).await
         .expect("serve from cache");
 
     assert_eq!(fetched, cached);
@@ -460,8 +470,7 @@ async fn authenticated_plain_fetch_reselects_auth_after_redirects() {
     let auth_headers =
         AuthHeaders::from_creds_map([(nerf_dart(&url), "Bearer mirror-token".to_string())]);
 
-    fetch_shasums_file_cached_with_auth_headers(&client, &url, None, &auth_headers)
-        .await
+    fetch_shasums_file_cached_with_auth_headers(&client, &url, None, &auth_headers).await
         .expect("fetch redirected checksums");
 
     redirect.assert_async().await;
@@ -568,7 +577,11 @@ async fn seeded_verified_cache_without_valid_signature_is_refetched() {
         .expect("genuine pair now serves from the cache");
 
     assert_eq!(refetched, cached);
-    assert!(refetched.iter().any(|item| item.file_name == "node-v22.11.0-linux-x64.tar.gz"));
+    assert!(
+        refetched
+            .iter()
+            .any(|item| item.file_name == "node-v22.11.0-linux-x64.tar.gz"),
+    );
     shasums.assert_async().await;
     signature.assert_async().await;
 }

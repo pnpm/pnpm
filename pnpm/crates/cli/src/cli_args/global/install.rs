@@ -55,8 +55,7 @@ pub(super) async fn pins_for_downgrades<Reporter: self::Reporter + 'static>(
     }
     let versions_before = installed_versions(&pkg.install_dir);
     // Nothing to compare a resolution against, so nothing to resolve.
-    if !pkg
-        .dependencies
+    if !pkg.dependencies
         .iter()
         .any(|(alias, spec)| is_plain_version_spec(spec) && versions_before.contains_key(alias))
     {
@@ -75,8 +74,7 @@ pub(super) async fn pins_for_downgrades<Reporter: self::Reporter + 'static>(
     .await?;
     let resolved = resolved_direct_versions(install_dir);
 
-    Ok(pkg
-        .dependencies
+    Ok(pkg.dependencies
         .iter()
         .filter(|(_, spec)| is_plain_version_spec(spec))
         .filter_map(|(alias, _)| {
@@ -98,8 +96,7 @@ fn resolved_direct_versions(install_dir: &Path) -> HashMap<String, Version> {
     let Some(importer) = lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY) else {
         return HashMap::new();
     };
-    importer
-        .dependencies
+    importer.dependencies
         .iter()
         .flatten()
         .filter_map(|(alias, resolved)| match &resolved.version {
@@ -154,8 +151,7 @@ pub(super) async fn run_group_install<Reporter: self::Reporter + 'static>(
 
     let config: &'static Config = Config::leak(cfg);
 
-    let selectors = install
-        .selectors
+    let selectors = install.selectors
         .iter()
         .map(|selector| infer_local_package_alias(selector))
         .collect::<miette::Result<Vec<_>>>()?;

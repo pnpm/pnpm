@@ -36,13 +36,21 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
     struct RecordingReporter;
     impl pnpm_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
     let mut server = mockito::Server::new_async().await;
-    let fail = server.mock("GET", "/pkg.tgz").with_status(503).expect(1).create_async().await;
+    let fail = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(503)
+        .expect(1)
+        .create_async()
+        .await;
     let ok = server
         .mock("GET", "/pkg.tgz")
         .with_status(200)
@@ -55,7 +63,10 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
     let client = ThrottledClient::default();
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
 
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
     let _ = RecordingReporter::emit; // referenced via turbofish below
 
     fetch_and_extract_with_retry::<RecordingReporter>(
@@ -93,8 +104,15 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
             _ => None,
         })
         .collect();
-    let attempts: Vec<u32> = started.iter().map(|(result_a, _)| *result_a).collect();
-    assert_eq!(attempts, vec![1, 2], "started must fire once per attempt; got {captured:?}");
+    let attempts: Vec<u32> = started
+        .iter()
+        .map(|(result_a, _)| *result_a)
+        .collect();
+    assert_eq!(
+        attempts,
+        vec![1, 2],
+        "started must fire once per attempt; got {captured:?}",
+    );
     // Both attempts have a response head (mockito sends Content-Length
     // for `with_body(...)` and `with_status(503)` likewise), so both
     // `started` events must carry a populated `size`. This guards
@@ -102,7 +120,10 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
     // which would leave `size` always-`null` (Copilot review on
     // <https://github.com/pnpm/pacquet/pull/372>).
     for (attempt, size) in &started {
-        assert!(size.is_some(), "attempt {attempt} should expose Content-Length, got null");
+        assert!(
+            size.is_some(),
+            "attempt {attempt} should expose Content-Length, got null",
+        );
     }
 
     let fetched_count = captured
@@ -115,7 +136,10 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
             )
         })
         .count();
-    assert_eq!(fetched_count, 1, "fetched must fire exactly once on success");
+    assert_eq!(
+        fetched_count, 1,
+        "fetched must fire exactly once on success",
+    );
 
     drop(store_dir_keep);
 }
@@ -142,10 +166,18 @@ fn extract_zip_strips_prefix_from_entry_paths() {
     .expect("happy-path zip extraction");
 
     dbg!(&cas_paths);
-    assert!(cas_paths.contains_key("bin/node"), "prefix should be stripped");
-    assert!(cas_paths.contains_key("LICENSE"), "prefix should be stripped");
     assert!(
-        !cas_paths.keys().any(|k| k.starts_with("node-v22")),
+        cas_paths.contains_key("bin/node"),
+        "prefix should be stripped",
+    );
+    assert!(
+        cas_paths.contains_key("LICENSE"),
+        "prefix should be stripped",
+    );
+    assert!(
+        !cas_paths
+            .keys()
+            .any(|k| k.starts_with("node-v22")),
         "no entry should retain the prefix",
     );
     assert_eq!(pkg_files_idx.files.len(), 2);
@@ -163,7 +195,10 @@ fn extract_zip_applies_ignore_filter_on_stripped_path() {
     let (tempdir, store_path) = tempdir_with_leaked_path();
     let bytes = build_zip(&[
         ("node-v22.0.0-darwin-arm64/bin/node", b"binary"),
-        ("node-v22.0.0-darwin-arm64/lib/node_modules/npm/package.json", b"{}"),
+        (
+            "node-v22.0.0-darwin-arm64/lib/node_modules/npm/package.json",
+            b"{}",
+        ),
         ("node-v22.0.0-darwin-arm64/LICENSE", b"license"),
     ]);
     let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).expect("open zip");
@@ -206,14 +241,22 @@ fn extract_zip_rejects_parent_dir_component() {
     let bytes = build_zip(&[("../evil.txt", b"evil")]);
     let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).expect("open zip");
 
-    let err =
-        extract_zip_entries(&mut archive, "https://example.test/evil.zip", store_path, None, None)
-            .expect_err("escaping zip entry must be rejected, not normalized");
+    let err = extract_zip_entries(
+        &mut archive,
+        "https://example.test/evil.zip",
+        store_path,
+        None,
+        None,
+    )
+    .expect_err("escaping zip entry must be rejected, not normalized");
 
     match err {
         TarballError::PathTraversal { url, entry_path, reason } => {
             assert_eq!(url, "https://example.test/evil.zip");
-            assert!(entry_path.contains(".."), "raw entry path should be surfaced: {entry_path}");
+            assert!(
+                entry_path.contains(".."),
+                "raw entry path should be surfaced: {entry_path}",
+            );
             assert!(!reason.is_empty());
         }
         other => panic!("expected PathTraversal, got: {other:?}"),
@@ -261,7 +304,10 @@ fn extract_zip_rejects_directory_entry_with_parent_component() {
     match err {
         TarballError::PathTraversal { url, entry_path, reason } => {
             assert_eq!(url, "https://example.test/evil-dir.zip");
-            assert!(entry_path.contains(".."), "raw entry path should be surfaced: {entry_path}");
+            assert!(
+                entry_path.contains(".."),
+                "raw entry path should be surfaced: {entry_path}",
+            );
             assert!(!reason.is_empty());
         }
         other => panic!("expected PathTraversal, got: {other:?}"),
@@ -276,9 +322,14 @@ fn extract_zip_uses_entry_path_when_no_prefix() {
     let bytes = build_zip(&[("bin/tool", b"x"), ("README.md", b"docs")]);
     let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).expect("open zip");
 
-    let (cas_paths, _) =
-        extract_zip_entries(&mut archive, "https://example.test/flat.zip", store_path, None, None)
-            .expect("flat zip extraction");
+    let (cas_paths, _) = extract_zip_entries(
+        &mut archive,
+        "https://example.test/flat.zip",
+        store_path,
+        None,
+        None,
+    )
+    .expect("flat zip extraction");
 
     dbg!(&cas_paths);
     assert!(cas_paths.contains_key("bin/tool"));
@@ -314,9 +365,20 @@ fn extract_zip_normalizes_dot_segments_in_entry_paths() {
     .expect("zip with `.` segments");
 
     dbg!(&cas_paths);
-    assert!(cas_paths.contains_key("bin/node"), "`.` segment must be collapsed");
-    assert!(cas_paths.contains_key("lib/README"), "`.` segment must be collapsed");
-    assert!(!cas_paths.keys().any(|k| k.contains("/./")), "no entry should retain a `.` segment");
+    assert!(
+        cas_paths.contains_key("bin/node"),
+        "`.` segment must be collapsed",
+    );
+    assert!(
+        cas_paths.contains_key("lib/README"),
+        "`.` segment must be collapsed",
+    );
+    assert!(
+        !cas_paths
+            .keys()
+            .any(|k| k.contains("/./")),
+        "no entry should retain a `.` segment",
+    );
 
     drop(tempdir);
 }
@@ -381,7 +443,9 @@ fn extract_joins_nested_entry_paths_with_forward_slashes() {
         header.set_entry_type(tar::EntryType::Regular);
         header.set_path("package/bin/nested/tool.js").expect("set entry path");
         header.set_cksum();
-        builder.append(&header, &b"hi\n"[..]).expect("append entry");
+        builder
+            .append(&header, &b"hi\n"[..])
+            .expect("append entry");
         builder.finish().expect("finalize tar");
     }
 
@@ -394,7 +458,9 @@ fn extract_joins_nested_entry_paths_with_forward_slashes() {
         cas_paths.keys().collect::<Vec<_>>(),
     );
     assert!(
-        !cas_paths.keys().any(|key| key.contains('\\')),
+        !cas_paths
+            .keys()
+            .any(|key| key.contains('\\')),
         "no key may carry a platform separator, got {:?}",
         cas_paths.keys().collect::<Vec<_>>(),
     );
@@ -417,7 +483,10 @@ async fn in_progress_events_fire_only_for_big_tarballs() {
     struct RecordingReporter;
     impl pnpm_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -437,13 +506,18 @@ async fn in_progress_events_fire_only_for_big_tarballs() {
     }
 
     fn last_in_progress_bytes() -> Option<u64> {
-        EVENTS.lock().unwrap().iter().rev().find_map(|event| match event {
-            LogEvent::FetchingProgress(log) => match log.message {
-                FetchingProgressMessage::InProgress { downloaded, .. } => Some(downloaded),
-                FetchingProgressMessage::Started { .. } => None,
-            },
-            _ => None,
-        })
+        EVENTS
+            .lock()
+            .unwrap()
+            .iter()
+            .rev()
+            .find_map(|event| match event {
+                LogEvent::FetchingProgress(log) => match log.message {
+                    FetchingProgressMessage::InProgress { downloaded, .. } => Some(downloaded),
+                    FetchingProgressMessage::Started { .. } => None,
+                },
+                _ => None,
+            })
     }
 
     async fn download_body<Reporter: pnpm_reporter::Reporter>(
@@ -485,9 +559,15 @@ async fn in_progress_events_fire_only_for_big_tarballs() {
 
     let big = incompressible_tarball(6 * 1024 * 1024);
     let big_len = big.len() as u64;
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
     download_body::<RecordingReporter>(big, store_path).await;
-    assert!(in_progress_count() > 0, "a tarball over the threshold must report download progress");
+    assert!(
+        in_progress_count() > 0,
+        "a tarball over the threshold must report download progress",
+    );
     // Trailing edge: the last event carries the true total rather than
     // whatever the final throttle window happened to observe.
     assert_eq!(
@@ -496,7 +576,10 @@ async fn in_progress_events_fire_only_for_big_tarballs() {
         "the final progress event must report the whole body",
     );
 
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
     download_body::<RecordingReporter>(incompressible_tarball(16 * 1024), store_path).await;
     assert_eq!(
         in_progress_count(),
@@ -542,7 +625,11 @@ async fn streaming_download_extracts_a_big_pinned_tarball() {
     .expect("a well-formed pinned tarball must download and extract");
     mock.assert_async().await;
 
-    assert_eq!(verified.to_string(), pinned.to_string(), "the pinned integrity is what verifies");
+    assert_eq!(
+        verified.to_string(),
+        pinned.to_string(),
+        "the pinned integrity is what verifies",
+    );
 
     let (reference_keep, reference_store) = tempdir_with_leaked_path();
     let (reference_paths, reference_idx) =
@@ -615,7 +702,11 @@ async fn chunked_download_extracts_a_body_past_the_buffering_threshold() {
     mock.assert_async().await;
 
     assert_eq!(verified.to_string(), pinned.to_string());
-    assert!(cas_paths.contains_key("noise.bin"), "got {:?}", cas_paths.keys().collect::<Vec<_>>());
+    assert!(
+        cas_paths.contains_key("noise.bin"),
+        "got {:?}",
+        cas_paths.keys().collect::<Vec<_>>(),
+    );
     drop(store_dir_keep);
 }
 
@@ -679,7 +770,9 @@ fn extract_keeps_only_regular_file_entries() {
         file.set_entry_type(tar::EntryType::Regular);
         file.set_path("package/real.txt").expect("set file path");
         file.set_cksum();
-        builder.append(&file, &b"hi\n"[..]).expect("append file");
+        builder
+            .append(&file, &b"hi\n"[..])
+            .expect("append file");
 
         let mut dir = tar::Header::new_gnu();
         dir.set_size(0);
@@ -687,7 +780,9 @@ fn extract_keeps_only_regular_file_entries() {
         dir.set_entry_type(tar::EntryType::Directory);
         dir.set_path("package/sub/").expect("set dir path");
         dir.set_cksum();
-        builder.append(&dir, std::io::empty()).expect("append dir");
+        builder
+            .append(&dir, std::io::empty())
+            .expect("append dir");
 
         let mut link = tar::Header::new_gnu();
         link.set_size(0);
@@ -696,7 +791,9 @@ fn extract_keeps_only_regular_file_entries() {
         link.set_path("package/link.txt").expect("set link path");
         link.set_link_name("real.txt").expect("set link target");
         link.set_cksum();
-        builder.append(&link, std::io::empty()).expect("append symlink");
+        builder
+            .append(&link, std::io::empty())
+            .expect("append symlink");
 
         builder.finish().expect("finalize tar");
     }
@@ -721,8 +818,14 @@ fn extract_strips_only_one_component_from_a_dot_prefixed_entry_path() {
     let (cas_paths, pkg_files_idx) =
         extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
 
-    assert_eq!(cas_paths.keys().collect::<Vec<_>>(), vec!["package/package.json"]);
-    assert_eq!(pkg_files_idx.files.keys().collect::<Vec<_>>(), vec!["package/package.json"]);
+    assert_eq!(
+        cas_paths.keys().collect::<Vec<_>>(),
+        vec!["package/package.json"],
+    );
+    assert_eq!(
+        pkg_files_idx.files.keys().collect::<Vec<_>>(),
+        vec!["package/package.json"],
+    );
     assert!(pkg_files_idx.manifest.is_none());
 
     drop(tempdir);
@@ -743,9 +846,14 @@ fn extract_keys_a_root_level_entry_by_its_own_name() {
 
     let mut keys = cas_paths.keys().collect::<Vec<_>>();
     keys.sort();
-    assert_eq!(keys, vec!["._package", "README", "index.js", "package.json"]);
     assert_eq!(
-        pkg_files_idx.manifest.as_ref().and_then(|manifest| manifest["name"].as_str()),
+        keys,
+        vec!["._package", "README", "index.js", "package.json"],
+    );
+    assert_eq!(
+        pkg_files_idx.manifest
+            .as_ref()
+            .and_then(|manifest| manifest["name"].as_str()),
         Some("pkg-root-entry"),
         "the manifest under `package/` is still the one captured",
     );
@@ -766,7 +874,10 @@ fn streaming_extract_keys_a_root_level_entry_by_its_own_name() {
 
     let mut keys = cas_paths.keys().collect::<Vec<_>>();
     keys.sort();
-    assert_eq!(keys, vec!["._package", "README", "index.js", "package.json"]);
+    assert_eq!(
+        keys,
+        vec!["._package", "README", "index.js", "package.json"],
+    );
 
     drop(tempdir);
 }

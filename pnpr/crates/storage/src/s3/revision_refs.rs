@@ -10,7 +10,10 @@ impl S3Store {
         let Some((index, _)) = self.read_revision_ref_index(digest).await? else {
             return Ok(Vec::new());
         };
-        Ok(index.bodies().map(<[u8]>::to_vec).collect())
+        Ok(index
+            .bodies()
+            .map(<[u8]>::to_vec)
+            .collect())
     }
 
     pub async fn write_revision_ref(
@@ -46,7 +49,9 @@ impl S3Store {
         if outcome != HostedRevisionRefWrite::Claimed {
             return Ok(outcome);
         }
-        Err(RegistryError::RevisionReferenceWriteConflict { digest: digest.to_string() })
+        Err(RegistryError::RevisionReferenceWriteConflict {
+            digest: digest.to_string(),
+        })
     }
 
     pub async fn remove_revision_ref(&self, digest: &str, ref_id: &str, owner: &str) -> Result<()> {
@@ -71,7 +76,9 @@ impl S3Store {
         {
             return Ok(());
         }
-        Err(RegistryError::RevisionReferenceWriteConflict { digest: digest.to_string() })
+        Err(RegistryError::RevisionReferenceWriteConflict {
+            digest: digest.to_string(),
+        })
     }
 
     pub async fn commit_revision_ref(&self, digest: &str, ref_id: &str, owner: &str) -> Result<()> {
@@ -99,7 +106,9 @@ impl S3Store {
         if !index.commit_if_owned(ref_id, owner)? {
             return Ok(());
         }
-        Err(RegistryError::RevisionReferenceWriteConflict { digest: digest.to_string() })
+        Err(RegistryError::RevisionReferenceWriteConflict {
+            digest: digest.to_string(),
+        })
     }
 
     /// Write the revision-reference index back under `mode`, reporting whether
@@ -111,14 +120,15 @@ impl S3Store {
         index: &HostedRevisionRefIndex,
         mode: PutMode,
     ) -> Result<bool> {
-        match self
-            .store
-            .put_opts(
-                &self.revision_ref_index_key(digest),
-                PutPayload::from(index.to_bytes()),
-                PutOptions { mode, ..PutOptions::default() },
-            )
-            .await
+        match self.store.put_opts(
+            &self.revision_ref_index_key(digest),
+            PutPayload::from(index.to_bytes()),
+            PutOptions {
+                mode,
+                ..PutOptions::default()
+            },
+        )
+        .await
         {
             Ok(_) => Ok(true),
             Err(

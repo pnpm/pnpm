@@ -35,14 +35,24 @@ impl ProjectRefIndex {
     pub fn ref_to_dirs(&self, reference: &str) -> Vec<String> {
         if is_dir_ref(reference) {
             let dir = normalize_project_dir(reference);
-            return if self.dirs.contains(&dir) { vec![dir] } else { Vec::new() };
+            return if self.dirs.contains(&dir) {
+                vec![dir]
+            } else {
+                Vec::new()
+            };
         }
-        self.dirs_by_name.get(reference).cloned().unwrap_or_default()
+        self.dirs_by_name
+            .get(reference)
+            .cloned()
+            .unwrap_or_default()
     }
 
     #[must_use]
     pub fn name_to_dirs(&self, name: &str) -> Vec<String> {
-        self.dirs_by_name.get(name).cloned().unwrap_or_default()
+        self.dirs_by_name
+            .get(name)
+            .cloned()
+            .unwrap_or_default()
     }
 }
 
@@ -54,10 +64,16 @@ pub fn index_project_refs(projects: &[WorkspaceProject], workspace_dir: &Path) -
         let dir = to_project_dir(workspace_dir, &project.root_dir);
         dirs.insert(dir.clone());
         if let Some(name) = &project.name {
-            dirs_by_name.entry(name.clone()).or_default().push(dir);
+            dirs_by_name
+                .entry(name.clone())
+                .or_default()
+                .push(dir);
         }
     }
-    ProjectRefIndex { dirs, dirs_by_name }
+    ProjectRefIndex {
+        dirs,
+        dirs_by_name,
+    }
 }
 
 pub(super) fn collect_participants<'a>(
@@ -67,20 +83,28 @@ pub(super) fn collect_participants<'a>(
     versioning: Option<&VersioningSettings>,
 ) -> Result<BTreeMap<String, Participant<'a>>, VersioningError> {
     let mut ignored_dirs: HashSet<String> = HashSet::new();
-    for reference in versioning.map(|settings| settings.ignore.as_slice()).unwrap_or_default() {
+    for reference in versioning
+        .map(|settings| settings.ignore.as_slice())
+        .unwrap_or_default()
+    {
         ignored_dirs.extend(resolve_config_ref(refs, reference, "versioning.ignore")?);
     }
 
     let mut participants = releasable_participants(projects, workspace_dir, &ignored_dirs);
-    let participant_dirs: HashSet<String> = participants.keys().cloned().collect();
+    let participant_dirs: HashSet<String> = participants
+        .keys()
+        .cloned()
+        .collect();
     for project in projects {
         let dir = to_project_dir(workspace_dir, &project.root_dir);
         if !participant_dirs.contains(&dir) {
             continue;
         }
         let internal_deps = internal_deps_of(project, &participants, &participant_dirs, refs)?;
-        participants.get_mut(dir.as_str()).expect("participant exists").internal_deps =
-            internal_deps;
+        participants
+            .get_mut(dir.as_str())
+            .expect("participant exists")
+            .internal_deps = internal_deps;
     }
     Ok(participants)
 }
@@ -137,11 +161,21 @@ fn internal_deps_of<'a>(
             .collect();
         let target_dir = match target_dirs.len() {
             0 => continue,
-            1 => target_dirs.into_iter().next().expect("one element"),
+            1 => target_dirs
+                .into_iter()
+                .next()
+                .expect("one element"),
             // A workspace: range naming an ambiguous package cannot be
             // linked at install time, so the release engine never
             // legitimately sees one.
-            _ => return Err(ambiguous_package(project, participants, target_name, target_dirs)),
+            _ => {
+                return Err(ambiguous_package(
+                    project,
+                    participants,
+                    target_name,
+                    target_dirs,
+                ));
+            }
         };
         internal_deps.push(InternalDep {
             target_dir,
@@ -191,9 +225,15 @@ fn internal_dep_target_name(alias: &str, spec: &str, refs: &ProjectRefIndex) -> 
 /// `WorkspaceSpec.parse` from `@pnpm/workspace.spec-parser`: the alias must
 /// not start with `.`, `_`, or `/` and ends at the last `@`.
 pub(super) fn parse_workspace_spec_alias(rest: &str) -> Option<&str> {
-    let at_index = rest.rfind('@').filter(|&index| index > 0)?;
+    let at_index = rest
+        .rfind('@')
+        .filter(|&index| index > 0)?;
     let alias = &rest[..at_index];
-    if alias.starts_with(['.', '_', '/']) || alias.chars().skip(1).any(|character| character == '@')
+    if alias.starts_with(['.', '_', '/'])
+        || alias
+            .chars()
+            .skip(1)
+            .any(|character| character == '@')
     {
         return None;
     }

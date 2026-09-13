@@ -60,12 +60,20 @@ fn calc_pnpmfile_paths_skips_non_plugins_and_missing_dirs() {
     // directory was never installed (skipped silently).
     std::fs::create_dir_all(config_modules.join("@pnpm.e2e/foo")).unwrap();
 
-    let names = ["pnpm-plugin-a", "@scope/pnpm-plugin-b", "@pnpm.e2e/foo", "pnpm-plugin-missing"];
+    let names = [
+        "pnpm-plugin-a",
+        "@scope/pnpm-plugin-b",
+        "@pnpm.e2e/foo",
+        "pnpm-plugin-missing",
+    ];
     let paths = finder::calc_pnpmfile_paths_of_plugin_deps(&config_modules, names);
 
     assert_eq!(
         paths,
-        vec![mjs_plugin.join("pnpmfile.mjs"), cjs_plugin.join("pnpmfile.cjs")],
+        vec![
+            mjs_plugin.join("pnpmfile.mjs"),
+            cjs_plugin.join("pnpmfile.cjs")
+        ],
         "plugins sort lexically; mjs is preferred; non-plugins and missing dirs are dropped",
     );
 }
@@ -93,7 +101,15 @@ export const fetchers = [{
 
     assert_eq!(fetchers.len(), 1);
     let resolution = serde_json::json!({ "type": "@custom/esm" });
-    assert!(fetchers[0].can_fetch("x@1.0.0", resolution.clone()).await.unwrap());
-    let result = fetchers[0].fetch("x@1.0.0", resolution, serde_json::json!({})).await.unwrap();
+    assert!(
+        fetchers[0]
+            .can_fetch("x@1.0.0", resolution.clone())
+            .await
+            .unwrap(),
+    );
+    let result = fetchers[0]
+        .fetch("x@1.0.0", resolution, serde_json::json!({}))
+        .await
+        .unwrap();
     assert_eq!(result["filesIndex"]["main.js"]["integrity"], "sha512-esm");
 }

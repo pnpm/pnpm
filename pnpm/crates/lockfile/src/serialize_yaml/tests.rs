@@ -19,7 +19,10 @@ fn splice_ignores_decoy_markers() {
     let mut remaining = maps.len();
     splice_lowered_maps(&mut document, nonce, &mut maps, &mut remaining);
     assert_eq!(remaining, 0);
-    assert_eq!(document, json!({ "a": decoy_high, "b": decoy_text, "c": {"real": true} }));
+    assert_eq!(
+        document,
+        json!({ "a": decoy_high, "b": decoy_text, "c": {"real": true} }),
+    );
 }
 
 /// Each stash entry splices at most once; a repeat of a marker is
@@ -38,5 +41,9 @@ fn duplicate_markers_and_missing_markers_are_survivable() {
     splice_lowered_maps(&mut document, nonce, &mut maps, &mut remaining);
     assert_eq!(remaining, 1, "the orphaned entry's marker never surfaced");
     assert_eq!(document["a"], json!({"real": true}));
-    assert_eq!(document["z"], json!(format!("{nonce}0")), "the repeat stays data");
+    assert_eq!(
+        document["z"],
+        json!(format!("{nonce}0")),
+        "the repeat stays data",
+    );
 }

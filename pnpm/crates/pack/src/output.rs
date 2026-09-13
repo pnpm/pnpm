@@ -8,10 +8,23 @@ use super::{
 pub fn to_pack_result_json(result: &PackResult) -> PackResultJson {
     let manifest = &result.published_manifest;
     PackResultJson {
-        name: manifest.get("name").and_then(Value::as_str).unwrap_or_default().to_string(),
-        version: manifest.get("version").and_then(Value::as_str).unwrap_or_default().to_string(),
+        name: manifest
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        version: manifest
+            .get("version")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
         filename: result.tarball_path.clone(),
-        files: result.contents.iter().map(|path| PackFile { path: path.clone() }).collect(),
+        files: result.contents
+            .iter()
+            .map(|path| PackFile {
+                path: path.clone(),
+            })
+            .collect(),
     }
 }
 
@@ -37,8 +50,7 @@ pub fn format_pack_output(results: &[PackResultJson], json: bool, unicode: bool)
             // manifest- and filesystem-derived, so strip control
             // characters before they reach the terminal — a file named
             // with raw ANSI escapes would otherwise spoof the output.
-            let files = result
-                .files
+            let files = result.files
                 .iter()
                 .map(|file| sanitize_for_terminal(&file.path))
                 .collect::<Vec<_>>()
@@ -64,7 +76,8 @@ fn sanitize_for_terminal(text: &str) -> std::borrow::Cow<'_, str> {
         .any(|character| character.is_control() && character != '\n' && character != '\t')
     {
         std::borrow::Cow::Owned(
-            text.chars()
+            text
+                .chars()
                 .filter(|character| {
                     !character.is_control() || *character == '\n' || *character == '\t'
                 })
@@ -118,15 +131,23 @@ fn resolve_output_values(
     // `--out .`, `--out ..`, or `--out ""` resolve to no filename; the
     // join would then target a directory and the write would fail with a
     // confusing OS error, so reject the option up front.
-    let Some(tarball_name) =
-        prepared_path.file_name().map(|name| name.to_string_lossy().into_owned())
+    let Some(tarball_name) = prepared_path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
     else {
-        return Err(PackError::InvalidOut { out: out.to_owned() });
+        return Err(PackError::InvalidOut {
+            out: out.to_owned(),
+        });
     };
-    let parent =
-        prepared_path.parent().map(|dir| dir.to_string_lossy().into_owned()).unwrap_or_default();
-    let pack_destination =
-        if parent.is_empty() { pack_destination.map(str::to_owned) } else { Some(parent) };
+    let parent = prepared_path
+        .parent()
+        .map(|dir| dir.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let pack_destination = if parent.is_empty() {
+        pack_destination.map(str::to_owned)
+    } else {
+        Some(parent)
+    };
     Ok((tarball_name, pack_destination))
 }
 
@@ -144,7 +165,9 @@ pub fn pack_output_path(
     let version = strip_build_metadata(published_version);
     let (tarball_name, destination) =
         resolve_output_values(out, pack_destination, &normalized_name, version)?;
-    Ok(lexical_normalize(&resolve_dest_dir(project_dir, destination.as_deref()).join(tarball_name)))
+    Ok(lexical_normalize(
+        &resolve_dest_dir(project_dir, destination.as_deref()).join(tarball_name),
+    ))
 }
 
 /// Resolve the directory the tarball is written into.
@@ -165,7 +188,10 @@ pub(super) fn packed_tarball_path(
     tarball_name: &str,
 ) -> String {
     if project_dir != dest_dir {
-        return dest_dir.join(tarball_name).display().to_string();
+        return dest_dir
+            .join(tarball_name)
+            .display()
+            .to_string();
     }
     pathdiff::diff_paths(publish_dir.join(tarball_name), project_dir)
         .unwrap_or_else(|| PathBuf::from(tarball_name))
@@ -175,7 +201,9 @@ pub(super) fn packed_tarball_path(
 
 /// `version` without its `+<build>` metadata segment.
 pub(super) fn strip_build_metadata(version: &str) -> &str {
-    version.split_once('+').map_or(version, |(base, _)| base)
+    version
+        .split_once('+')
+        .map_or(version, |(base, _)| base)
 }
 
 /// Resolve a path's realpath, falling back to the input when it doesn't

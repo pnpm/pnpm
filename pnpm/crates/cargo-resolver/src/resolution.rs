@@ -99,31 +99,28 @@ fn validate_selected_graph(
     solution: &pubgrub::SelectedDependencies<PackageKey, Version>,
     feature_selections: &BTreeMap<PackageKey, FeatureSelection>,
 ) -> Result<Option<pubgrub::SelectedDependencies<PackageKey, Version>>> {
-    let Some(root_version) = solution.get(&PackageKey::Root) else { return Ok(None) };
+    let Some(root_version) = solution.get(&PackageKey::Root) else {
+        return Ok(None);
+    };
     let mut validated = BTreeMap::from([(PackageKey::Root, root_version.clone())]);
     let mut pending = VecDeque::from(root_dependencies.to_vec());
 
     while let Some(dependency) = pending.pop_front() {
         let package = package_key(registry, &dependency)?;
-        let Some(selected_version) = solution.get(&package) else { return Ok(None) };
+        let Some(selected_version) = solution.get(&package) else {
+            return Ok(None);
+        };
         if !dependency.requirement.matches(selected_version) {
             return Ok(None);
         }
         if validated.contains_key(&package) {
             continue;
         }
-        let selected = registry
-            .package(&dependency.name)?
-            .iter()
-            .find(|candidate| !candidate.yanked && candidate.version == *selected_version)
-            .ok_or_else(|| {
-                miette::miette!(
-                    "selected {} {} is absent from the index",
-                    dependency.name,
-                    selected_version,
-                )
-            })?;
-        let selection = feature_selections.get(&package).cloned().unwrap_or_default();
+        let selected = selected_registry_version(registry, &dependency.name, selected_version)?;
+        let selection = feature_selections
+            .get(&package)
+            .cloned()
+            .unwrap_or_default();
         if !supports_features(selected, &selection) {
             return Ok(None);
         }
@@ -149,7 +146,10 @@ fn resolve_with_features(
         if !registered.insert(package.clone()) {
             continue;
         }
-        let selection = feature_selections.get(&package).cloned().unwrap_or_default();
+        let selection = feature_selections
+            .get(&package)
+            .cloned()
+            .unwrap_or_default();
         register_candidates(registry, &package, &selection, &mut provider, &mut pending)?;
     }
 
@@ -183,15 +183,20 @@ fn register_candidates(
         return Ok(());
     };
     let versions = registry.package(name)?;
-    let candidates = versions.iter().filter(|version| {
-        !version.yanked && compatibility_line(&version.version) == *compatibility
-    });
+    let candidates = versions
+        .iter()
+        .filter(|version| {
+            !version.yanked && compatibility_line(&version.version) == *compatibility
+        });
     for version in candidates {
         if !supports_features(version, selection) {
             continue;
         }
         let dependencies = active_dependencies(version, selection)?;
-        if dependencies.iter().any(|dependency| registry.versions(&dependency.name).is_none()) {
+        if dependencies
+            .iter()
+            .any(|dependency| registry.versions(&dependency.name).is_none())
+        {
             continue;
         }
         let constraints = constraints_for(registry, &dependencies, pending)?;
@@ -209,7 +214,9 @@ fn constraints_for(
     for dependency in dependencies {
         let package = package_key(registry, dependency)?;
         let versions = registry.package(&dependency.name)?;
-        let PackageKey::Registry { compatibility, .. } = &package else { unreachable!() };
+        let PackageKey::Registry { compatibility, .. } = &package else {
+            unreachable!()
+        };
         let allowed = matching_versions(versions, &dependency.requirement)
             .filter(|version| compatibility_line(&version.version) == *compatibility)
             .fold(Ranges::empty(), |range, version| {
@@ -237,5 +244,26 @@ fn package_key(registry: &Registry, dependency: &RegistryDependency) -> Result<P
                     dependency.requirement,
                 )
             })?;
-    Ok(PackageKey::Registry { name: dependency.name.clone(), compatibility })
+    Ok(PackageKey::Registry {
+        name: dependency.name.clone(),
+        compatibility,
+    })
+}
+
+fn selected_registry_version<'registry>(
+    registry: &'registry Registry,
+    name: &str,
+    selected_version: &Version,
+) -> Result<&'registry crate::model::RegistryVersion> {
+    registry
+        .package(name)?
+        .iter()
+        .find(|candidate| !candidate.yanked && candidate.version == *selected_version)
+        .ok_or_else(|| {
+            miette::miette!(
+                "selected {} {} is absent from the index",
+                name,
+                selected_version,
+            )
+        })
 }

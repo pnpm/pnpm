@@ -31,9 +31,14 @@ fn select_patch_target_uses_default_when_only_one_candidate_matches() {
 #[test]
 fn prompt_selection_without_apply_to_all_selects_exact_target() {
     let set = prompt_candidate_set();
-    let target =
-        select_patch_target_with_prompt(&set, &FakePrompt { selected: 1, apply_to_all: false })
-            .expect("select target");
+    let target = select_patch_target_with_prompt(
+        &set,
+        &FakePrompt {
+            selected: 1,
+            apply_to_all: false,
+        },
+    )
+    .expect("select target");
 
     assert_eq!(target.version, "5.3.0");
     assert_eq!(target.bare_specifier, "5.3.0");
@@ -43,9 +48,14 @@ fn prompt_selection_without_apply_to_all_selects_exact_target() {
 #[test]
 fn prompt_selection_with_apply_to_all_selects_name_target() {
     let set = prompt_candidate_set();
-    let target =
-        select_patch_target_with_prompt(&set, &FakePrompt { selected: 1, apply_to_all: true })
-            .expect("select target");
+    let target = select_patch_target_with_prompt(
+        &set,
+        &FakePrompt {
+            selected: 1,
+            apply_to_all: true,
+        },
+    )
+    .expect("select target");
 
     assert_eq!(target.version, "5.3.0");
     assert_eq!(target.bare_specifier, "5.3.0");
@@ -57,9 +67,14 @@ fn prompt_selection_uses_git_tarball_url_as_bare_specifier() {
     let tarball = "https://codeload.github.com/example/hi/tar.gz/deadbeef";
     let mut set = prompt_candidate_set();
     set.preferred_versions[1].git_tarball_url = Some(tarball.to_string());
-    let target =
-        select_patch_target_with_prompt(&set, &FakePrompt { selected: 1, apply_to_all: false })
-            .expect("select target");
+    let target = select_patch_target_with_prompt(
+        &set,
+        &FakePrompt {
+            selected: 1,
+            apply_to_all: false,
+        },
+    )
+    .expect("select target");
 
     assert_eq!(target.version, "5.3.0");
     assert_eq!(target.bare_specifier, tarball);
@@ -69,14 +84,23 @@ fn prompt_selection_uses_git_tarball_url_as_bare_specifier() {
 
 #[test]
 fn select_patch_target_uses_dialoguer_when_no_default_target() {
-    assert!(!std::io::stdin().is_terminal(), "test requires non-interactive stdin");
+    assert!(
+        !std::io::stdin().is_terminal(),
+        "test requires non-interactive stdin",
+    );
 
-    assert!(matches!(select_patch_target(&prompt_candidate_set()), Err(PatchError::Canceled)));
+    assert!(matches!(
+        select_patch_target(&prompt_candidate_set()),
+        Err(PatchError::Canceled)
+    ));
 }
 
 #[test]
 fn dialoguer_prompt_reports_cancellation_when_stdin_is_not_interactive() {
-    assert!(!std::io::stdin().is_terminal(), "test requires non-interactive stdin");
+    assert!(
+        !std::io::stdin().is_terminal(),
+        "test requires non-interactive stdin",
+    );
 
     let prompt = DialoguerPatchPrompt;
     let mut git_candidate = prompt_candidate("chalk@5.3.0");
@@ -87,7 +111,10 @@ fn dialoguer_prompt_reports_cancellation_when_stdin_is_not_interactive() {
         prompt.select_version(&[git_candidate, prompt_candidate("chalk@4.1.2")]),
         Err(PatchError::Canceled),
     ));
-    assert!(matches!(prompt.confirm_apply_to_all(), Err(PatchError::Canceled)));
+    assert!(matches!(
+        prompt.confirm_apply_to_all(),
+        Err(PatchError::Canceled)
+    ));
 }
 
 #[test]
@@ -96,7 +123,10 @@ fn success_message_colors_edit_dir_and_commit_command_when_enabled() {
     let rendered = render_success(edit_dir, true);
     let quote = if cfg!(windows) { r#"""# } else { "'" };
 
-    assert!(rendered.contains("\u{1b}[34m/tmp/edit-dir\u{1b}[39m"), "{rendered:?}");
+    assert!(
+        rendered.contains("\u{1b}[34m/tmp/edit-dir\u{1b}[39m"),
+        "{rendered:?}",
+    );
     assert!(
         rendered.contains(&format!(
             "\u{1b}[32mpnpm patch-commit {quote}/tmp/edit-dir{quote}\u{1b}[39m",
@@ -125,7 +155,10 @@ fn success_message_shell_quotes_single_quotes_in_edit_dir() {
     let edit_dir = Path::new("/tmp/patch user's dir");
     let rendered = render_success(edit_dir, false);
 
-    assert!(rendered.contains(r"pnpm patch-commit '/tmp/patch user'\''s dir'"), "{rendered}");
+    assert!(
+        rendered.contains(r"pnpm patch-commit '/tmp/patch user'\''s dir'"),
+        "{rendered}",
+    );
 }
 
 #[cfg(unix)]
@@ -220,7 +253,10 @@ fn default_edit_dir_name_falls_back_to_alias_then_requested_package() {
     assert_eq!(default_edit_dir_name("chalk", &target), "chalk");
 
     target.alias.clear();
-    assert_eq!(default_edit_dir_name("chalk@npm:chalk@5.3.0", &target), "chalk@npm:chalk@5.3.0");
+    assert_eq!(
+        default_edit_dir_name("chalk@npm:chalk@5.3.0", &target),
+        "chalk@npm:chalk@5.3.0",
+    );
 }
 
 struct FakePrompt {
@@ -239,7 +275,10 @@ impl PatchPrompt for FakePrompt {
 }
 
 fn prompt_candidate_set() -> PatchCandidateSet {
-    let candidates = vec![prompt_candidate("chalk@4.1.2"), prompt_candidate("chalk@5.3.0")];
+    let candidates = vec![
+        prompt_candidate("chalk@4.1.2"),
+        prompt_candidate("chalk@5.3.0"),
+    ];
     PatchCandidateSet {
         alias: "chalk".to_string(),
         requested: "chalk".to_string(),
@@ -251,6 +290,15 @@ fn prompt_candidate_set() -> PatchCandidateSet {
 
 fn prompt_candidate(key: &str) -> PatchCandidate {
     let package_key = key.parse().expect("package key");
-    let version = key.rsplit('@').next().expect("version").to_string();
-    PatchCandidate { name: "chalk".to_string(), version, git_tarball_url: None, package_key }
+    let version = key
+        .rsplit('@')
+        .next()
+        .expect("version")
+        .to_string();
+    PatchCandidate {
+        name: "chalk".to_string(),
+        version,
+        git_tarball_url: None,
+        package_key,
+    }
 }

@@ -18,7 +18,10 @@ use std::{fs, path::Path};
 /// Write a `pnpm-workspace.yaml` listing `names` as packages, plus a
 /// `package.json` per name under its own subdirectory of `workspace`.
 fn write_workspace(workspace: &Path, manifests: &[(&str, Value)]) {
-    let packages = manifests.iter().map(|(name, _)| format!("  - {name}")).collect::<Vec<_>>();
+    let packages = manifests
+        .iter()
+        .map(|(name, _)| format!("  - {name}"))
+        .collect::<Vec<_>>();
     let workspace_yaml = format!("packages:\n{}\n", packages.join("\n"));
     fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml)
         .expect("write pnpm-workspace.yaml");
@@ -61,7 +64,10 @@ fn recursive_publish_filter_no_match_is_a_noop() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(
         &workspace,
-        &[("project-1", private_pkg("project-1")), ("project-2", private_pkg("project-2"))],
+        &[
+            ("project-1", private_pkg("project-1")),
+            ("project-2", private_pkg("project-2")),
+        ],
     );
 
     pacquet
@@ -89,7 +95,10 @@ fn recursive_publish_all_private_writes_empty_summary() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(
         &workspace,
-        &[("project-1", private_pkg("project-1")), ("project-2", private_pkg("project-2"))],
+        &[
+            ("project-1", private_pkg("project-1")),
+            ("project-2", private_pkg("project-2")),
+        ],
     );
 
     pacquet
@@ -106,7 +115,10 @@ fn recursive_publish_all_private_writes_empty_summary() {
         .expect("read pnpm-publish-summary.json");
     let value: Value = serde_json::from_str(&summary).expect("parse publish summary");
     assert_eq!(
-        value["publishedPackages"].as_array().expect("publishedPackages is an array").len(),
+        value["publishedPackages"]
+            .as_array()
+            .expect("publishedPackages is an array")
+            .len(),
         0,
         "no package should be published when all are private",
     );
@@ -122,7 +134,10 @@ fn recursive_publish_json_prints_empty_array_when_nothing_published() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(
         &workspace,
-        &[("project-1", private_pkg("project-1")), ("project-2", private_pkg("project-2"))],
+        &[
+            ("project-1", private_pkg("project-1")),
+            ("project-2", private_pkg("project-2")),
+        ],
     );
 
     let assert = pacquet
@@ -138,7 +153,9 @@ fn recursive_publish_json_prints_empty_array_when_nothing_published() {
     // `publishedPackages`, and disappears if that print is dropped.
     let stdout = assert.get_output().stdout.pipe_as_ref(String::from_utf8_lossy);
     assert!(
-        stdout.lines().any(|line| line.trim() == "[]"),
+        stdout
+            .lines()
+            .any(|line| line.trim() == "[]"),
         "recursive --json must print the published-packages array (empty here) on stdout, got: {stdout:?}",
     );
 
@@ -153,7 +170,10 @@ fn recursive_publish_batches_selected_packages() {
     let mut server = mockito::Server::new();
     write_workspace(
         &workspace,
-        &[("project-1", public_pkg("project-1")), ("project-2", public_pkg("project-2"))],
+        &[
+            ("project-1", public_pkg("project-1")),
+            ("project-2", public_pkg("project-2")),
+        ],
     );
     write_registry_npmrc(&workspace, &format!("{}/", server.url()));
     let batch = server
@@ -168,8 +188,10 @@ fn recursive_publish_batches_selected_packages() {
         .with_body(r#"{"ok":true}"#)
         .expect(1)
         .create();
-    let individual =
-        server.mock("PUT", Matcher::Regex(r"^/project-[12]$".to_string())).expect(0).create();
+    let individual = server
+        .mock("PUT", Matcher::Regex(r"^/project-[12]$".to_string()))
+        .expect(0)
+        .create();
 
     clear_ci(pacquet)
         .with_arg("-r")
@@ -244,7 +266,10 @@ fn recursive_batch_publish_runs_completed_group_postpublish_scripts_before_a_lat
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
-    assert!(first_batch.matched(), "the first registry was not published: {stderr}");
+    assert!(
+        first_batch.matched(),
+        "the first registry was not published: {stderr}",
+    );
     first_batch.assert();
     second_batch.assert();
     assert!(workspace.join("project-1/post-published").exists());
@@ -259,7 +284,10 @@ fn recursive_batch_publish_rejects_mixed_credentials_for_one_registry() {
     let mut server = mockito::Server::new();
     write_workspace(
         &workspace,
-        &[("project-1", public_pkg("@scope/project-1")), ("project-2", public_pkg("project-2"))],
+        &[
+            ("project-1", public_pkg("@scope/project-1")),
+            ("project-2", public_pkg("project-2")),
+        ],
     );
     let registry = format!("{}/", server.url());
     let host = registry.strip_prefix("http://").unwrap_or(&registry);
@@ -270,7 +298,10 @@ fn recursive_batch_publish_rejects_mixed_credentials_for_one_registry() {
         ),
     )
     .expect("write .npmrc");
-    let batch = server.mock("PUT", "/-/pnpm/v1/publish").expect(0).create();
+    let batch = server
+        .mock("PUT", "/-/pnpm/v1/publish")
+        .expect(0)
+        .create();
 
     let assert = clear_ci(pacquet)
         .with_args(["-r", "publish", "--batch", "--force", "--no-git-checks"])
@@ -278,7 +309,10 @@ fn recursive_batch_publish_rejects_mixed_credentials_for_one_registry() {
         .failure();
     batch.assert();
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
-    assert!(stderr.contains("ERR_PNPM_BATCH_PUBLISH_CONFLICTING_CREDENTIALS"), "stderr: {stderr}");
+    assert!(
+        stderr.contains("ERR_PNPM_BATCH_PUBLISH_CONFLICTING_CREDENTIALS"),
+        "stderr: {stderr}",
+    );
 
     drop(root);
 }
@@ -324,7 +358,11 @@ fn recursive_batch_publish_reports_an_unsupported_registry() {
     let mut server = mockito::Server::new();
     write_workspace(&workspace, &[("project-1", public_pkg("project-1"))]);
     write_registry_npmrc(&workspace, &format!("{}/", server.url()));
-    let batch = server.mock("PUT", "/-/pnpm/v1/publish").with_status(404).expect(1).create();
+    let batch = server
+        .mock("PUT", "/-/pnpm/v1/publish")
+        .with_status(404)
+        .expect(1)
+        .create();
 
     let assert = clear_ci(pacquet)
         .with_args(["-r", "publish", "--batch", "--force", "--no-git-checks"])
@@ -332,7 +370,10 @@ fn recursive_batch_publish_reports_an_unsupported_registry() {
         .failure();
     batch.assert();
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
-    assert!(stderr.contains("ERR_PNPM_BATCH_PUBLISH_UNSUPPORTED"), "stderr: {stderr}");
+    assert!(
+        stderr.contains("ERR_PNPM_BATCH_PUBLISH_UNSUPPORTED"),
+        "stderr: {stderr}",
+    );
 
     drop(root);
 }
@@ -348,7 +389,10 @@ fn filter_without_recursive_flag_enters_recursive_publish() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(
         &workspace,
-        &[("project-1", private_pkg("project-1")), ("project-2", private_pkg("project-2"))],
+        &[
+            ("project-1", private_pkg("project-1")),
+            ("project-2", private_pkg("project-2")),
+        ],
     );
 
     pacquet
@@ -376,7 +420,10 @@ fn filter_exclusion_without_recursive_flag_publishes_nothing() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(
         &workspace,
-        &[("project-1", private_pkg("project-1")), ("project-2", private_pkg("project-2"))],
+        &[
+            ("project-1", private_pkg("project-1")),
+            ("project-2", private_pkg("project-2")),
+        ],
     );
 
     pacquet
@@ -393,7 +440,10 @@ fn filter_exclusion_without_recursive_flag_publishes_nothing() {
         .expect("read pnpm-publish-summary.json");
     let value: Value = serde_json::from_str(&summary).expect("parse publish summary");
     assert_eq!(
-        value["publishedPackages"].as_array().expect("publishedPackages is an array").len(),
+        value["publishedPackages"]
+            .as_array()
+            .expect("publishedPackages is an array")
+            .len(),
         0,
         "every selected package is private, so nothing is published",
     );
@@ -410,10 +460,18 @@ fn recursive_publish_short_flag_after_subcommand() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(
         &workspace,
-        &[("project-1", private_pkg("project-1")), ("project-2", private_pkg("project-2"))],
+        &[
+            ("project-1", private_pkg("project-1")),
+            ("project-2", private_pkg("project-2")),
+        ],
     );
 
-    pacquet.with_arg("publish").with_arg("-r").with_arg("--no-git-checks").assert().success();
+    pacquet
+        .with_arg("publish")
+        .with_arg("-r")
+        .with_arg("--no-git-checks")
+        .assert()
+        .success();
 
     drop(root);
 }
@@ -451,16 +509,33 @@ fn recursive_publish_pushes_each_eligible_package() {
     let mut server = mockito::Server::new();
     write_workspace(
         &workspace,
-        &[("project-1", public_pkg("project-1")), ("project-2", public_pkg("project-2"))],
+        &[
+            ("project-1", public_pkg("project-1")),
+            ("project-2", public_pkg("project-2")),
+        ],
     );
     write_registry_npmrc(&workspace, &format!("{}/", server.url()));
 
-    let probe_1 = server.mock("GET", "/project-1").with_status(404).create();
-    let probe_2 = server.mock("GET", "/project-2").with_status(404).create();
-    let put_1 =
-        server.mock("PUT", "/project-1").with_status(200).with_body("{}").expect(1).create();
-    let put_2 =
-        server.mock("PUT", "/project-2").with_status(200).with_body("{}").expect(1).create();
+    let probe_1 = server
+        .mock("GET", "/project-1")
+        .with_status(404)
+        .create();
+    let probe_2 = server
+        .mock("GET", "/project-2")
+        .with_status(404)
+        .create();
+    let put_1 = server
+        .mock("PUT", "/project-1")
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+    let put_2 = server
+        .mock("PUT", "/project-2")
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
 
     clear_ci(pacquet)
         .with_arg("-r")
@@ -484,7 +559,10 @@ fn recursive_publish_skips_already_published_packages() {
     let mut server = mockito::Server::new();
     write_workspace(
         &workspace,
-        &[("project-1", public_pkg("project-1")), ("project-2", public_pkg("project-2"))],
+        &[
+            ("project-1", public_pkg("project-1")),
+            ("project-2", public_pkg("project-2")),
+        ],
     );
     write_registry_npmrc(&workspace, &format!("{}/", server.url()));
 
@@ -504,11 +582,25 @@ fn recursive_publish_skips_already_published_packages() {
             },
         },
     });
-    server.mock("GET", "/project-1").with_status(200).with_body(packument.to_string()).create();
-    server.mock("GET", "/project-2").with_status(404).create();
-    let put_1 = server.mock("PUT", "/project-1").expect(0).create();
-    let put_2 =
-        server.mock("PUT", "/project-2").with_status(200).with_body("{}").expect(1).create();
+    server
+        .mock("GET", "/project-1")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .create();
+    server
+        .mock("GET", "/project-2")
+        .with_status(404)
+        .create();
+    let put_1 = server
+        .mock("PUT", "/project-1")
+        .expect(0)
+        .create();
+    let put_2 = server
+        .mock("PUT", "/project-2")
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
 
     clear_ci(pacquet)
         .with_arg("-r")
@@ -562,8 +654,14 @@ fn recursive_publish_probes_a_renamed_project_under_its_published_name() {
         .with_status(200)
         .with_body(packument.to_string())
         .create();
-    let workspace_name_probe = server.mock("GET", "/workspace-only-name").expect(0).create();
-    let put = server.mock("PUT", Matcher::Any).expect(0).create();
+    let workspace_name_probe = server
+        .mock("GET", "/workspace-only-name")
+        .expect(0)
+        .create();
+    let put = server
+        .mock("PUT", Matcher::Any)
+        .expect(0)
+        .create();
 
     clear_ci(pacquet)
         .with_arg("-r")
@@ -587,8 +685,16 @@ fn recursive_publish_force_republishes_without_probing() {
     write_workspace(&workspace, &[("project-1", public_pkg("project-1"))]);
     write_registry_npmrc(&workspace, &format!("{}/", server.url()));
 
-    let probe = server.mock("GET", Matcher::Any).expect(0).create();
-    let put = server.mock("PUT", "/project-1").with_status(200).with_body("{}").expect(1).create();
+    let probe = server
+        .mock("GET", Matcher::Any)
+        .expect(0)
+        .create();
+    let put = server
+        .mock("PUT", "/project-1")
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
 
     clear_ci(pacquet)
         .with_arg("-r")
@@ -611,12 +717,22 @@ fn recursive_publish_report_summary_lists_the_published_packages() {
     let mut server = mockito::Server::new();
     write_workspace(
         &workspace,
-        &[("project-1", public_pkg("project-1")), ("project-2", public_pkg("project-2"))],
+        &[
+            ("project-1", public_pkg("project-1")),
+            ("project-2", public_pkg("project-2")),
+        ],
     );
     write_registry_npmrc(&workspace, &format!("{}/", server.url()));
 
-    server.mock("GET", Matcher::Any).with_status(404).create();
-    server.mock("PUT", Matcher::Any).with_status(200).with_body("{}").create();
+    server
+        .mock("GET", Matcher::Any)
+        .with_status(404)
+        .create();
+    server
+        .mock("PUT", Matcher::Any)
+        .with_status(200)
+        .with_body("{}")
+        .create();
 
     clear_ci(pacquet)
         .with_arg("-r")
@@ -633,8 +749,10 @@ fn recursive_publish_report_summary_lists_the_published_packages() {
     let value: Value = serde_json::from_str(&summary).expect("parse publish summary");
     let published = value["publishedPackages"].as_array().expect("publishedPackages is an array");
     assert_eq!(published.len(), 2, "both packages should be recorded");
-    let mut names: Vec<&str> =
-        published.iter().map(|entry| entry["name"].as_str().expect("name")).collect();
+    let mut names: Vec<&str> = published
+        .iter()
+        .map(|entry| entry["name"].as_str().expect("name"))
+        .collect();
     names.sort_unstable();
     assert_eq!(names, ["project-1", "project-2"]);
     assert_eq!(published[0]["version"], "1.0.0");
@@ -649,12 +767,22 @@ fn recursive_publish_json_prints_the_published_array() {
     let mut server = mockito::Server::new();
     write_workspace(
         &workspace,
-        &[("project-1", public_pkg("project-1")), ("project-2", public_pkg("project-2"))],
+        &[
+            ("project-1", public_pkg("project-1")),
+            ("project-2", public_pkg("project-2")),
+        ],
     );
     write_registry_npmrc(&workspace, &format!("{}/", server.url()));
 
-    server.mock("GET", Matcher::Any).with_status(404).create();
-    server.mock("PUT", Matcher::Any).with_status(200).with_body("{}").create();
+    server
+        .mock("GET", Matcher::Any)
+        .with_status(404)
+        .create();
+    server
+        .mock("PUT", Matcher::Any)
+        .with_status(200)
+        .with_body("{}")
+        .create();
 
     let assert = clear_ci(pacquet)
         .with_arg("-r")

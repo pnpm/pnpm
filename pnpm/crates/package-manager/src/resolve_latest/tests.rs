@@ -71,7 +71,10 @@ async fn an_undecodable_latest_manifest_is_reported_instead_of_an_empty_tag() {
     };
     assert_eq!(name, "acme");
     assert_eq!(version, "1.0.0");
-    assert!(error.contains("integrity"), "the error names the field pnpm choked on: {error}");
+    assert!(
+        error.contains("integrity"),
+        "the error names the field pnpm choked on: {error}",
+    );
 }
 
 /// `dist-tags.latest` and the decoder's quoting of the value it rejected

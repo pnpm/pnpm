@@ -74,7 +74,13 @@ impl InstallDirs {
         let project_root = dir.path().join("project");
         let modules_dir = project_root.join("node_modules");
         let virtual_store_dir = modules_dir.join(".pacquet");
-        Self { dir, store_dir, project_root, modules_dir, virtual_store_dir }
+        Self {
+            dir,
+            store_dir,
+            project_root,
+            modules_dir,
+            virtual_store_dir,
+        }
     }
 
     fn path(&self) -> &Path {
@@ -84,7 +90,11 @@ impl InstallDirs {
 
 fn empty_test_lockfile() -> Lockfile {
     Lockfile {
-        lockfile_version: LockfileVersion::<9>::try_from(ComVer { major: 9, minor: 0 }).unwrap(),
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer {
+            major: 9,
+            minor: 0,
+        })
+        .unwrap(),
         settings: None,
         catalogs: None,
         overrides: None,
@@ -110,9 +120,12 @@ fn is_modules_yaml_consistent(
     node_linker: pnpm_config::NodeLinker,
     included: pnpm_modules_yaml::IncludedDependencies,
 ) -> bool {
-    pnpm_modules_yaml::read_modules_layout::<Host>(modules_dir).ok().flatten().is_some_and(
-        |modules| super::modules_consistent_with(&modules, config, node_linker, included),
-    )
+    pnpm_modules_yaml::read_modules_layout::<Host>(modules_dir)
+        .ok()
+        .flatten()
+        .is_some_and(|modules| {
+            super::modules_consistent_with(&modules, config, node_linker, included)
+        })
 }
 
 /// Reading wrapper over [`super::modules_layout_consistent_with`] — the
@@ -183,8 +196,11 @@ mod build_workspace_state_tests {
 
     fn write_manifest(dir: &std::path::Path, name: &str, version: &str) -> PackageManifest {
         let manifest_path = dir.join("package.json");
-        std::fs::write(&manifest_path, format!(r#"{{"name":"{name}","version":"{version}"}}"#))
-            .unwrap();
+        std::fs::write(
+            &manifest_path,
+            format!(r#"{{"name":"{name}","version":"{version}"}}"#),
+        )
+        .unwrap();
         PackageManifest::from_path(manifest_path).unwrap()
     }
 
@@ -271,7 +287,10 @@ mod build_workspace_state_tests {
         // A manifest dated ahead of the filesystem clock keeps its own
         // mtime as the baseline.
         let manifest_ms = pnpm_testing_utils::fs::mtime_ms(manifest.path());
-        assert_eq!(build(Some(manifest_ms - 1)).last_validated_timestamp, manifest_ms);
+        assert_eq!(
+            build(Some(manifest_ms - 1)).last_validated_timestamp,
+            manifest_ms,
+        );
     }
 
     /// Every project in the list lands in `state.projects` keyed by its
@@ -285,14 +304,19 @@ mod build_workspace_state_tests {
         let manifests: Vec<(PathBuf, PackageManifest)> = packages
             .iter()
             .map(|name| {
-                let project_dir = dir.path().join("packages").join(name);
+                let project_dir = dir
+                    .path()
+                    .join("packages")
+                    .join(name);
                 std::fs::create_dir_all(&project_dir).unwrap();
                 let manifest = write_manifest(&project_dir, name, "1.0.0");
                 (project_dir, manifest)
             })
             .collect();
-        let project_manifests: Vec<(PathBuf, &PackageManifest)> =
-            manifests.iter().map(|(p, m)| (p.clone(), m)).collect();
+        let project_manifests: Vec<(PathBuf, &PackageManifest)> = manifests
+            .iter()
+            .map(|(p, m)| (p.clone(), m))
+            .collect();
 
         let config = config_for(dir.path());
         let state = build_workspace_state::<FrozenClock>(
@@ -310,8 +334,7 @@ mod build_workspace_state_tests {
         assert_eq!(state.projects.len(), packages.len());
         for (project_dir, _) in &manifests {
             let key = project_dir.to_string_lossy().into_owned();
-            let entry = state
-                .projects
+            let entry = state.projects
                 .get(&key)
                 .unwrap_or_else(|| panic!("project entry for {key:?} should exist"));
             assert_eq!(entry.version.as_deref(), Some("1.0.0"));
@@ -377,7 +400,10 @@ const PARTIAL_INSTALL_LOCKFILE: &str = text_block! {
 /// dirent is enough — the skip check only stats the directory, it
 /// doesn't read CAS contents.
 fn seed_placeholder_virtual_store_slot(virtual_store_dir: &std::path::Path) {
-    let slot = virtual_store_dir.join("placeholder@1.0.0").join("node_modules").join("placeholder");
+    let slot = virtual_store_dir
+        .join("placeholder@1.0.0")
+        .join("node_modules")
+        .join("placeholder");
     std::fs::create_dir_all(&slot).expect("create placeholder virtual-store slot");
 }
 
@@ -485,7 +511,11 @@ async fn install_then_go_offline() -> (tempfile::TempDir, &'static Config, Packa
     let manifest_path = project_root.join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
-        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .add_dependency(
+            "@pnpm.e2e/hello-world-js-bin",
+            "1.0.0",
+            DependencyGroup::Prod,
+        )
         .unwrap();
     manifest.save().unwrap();
 
@@ -672,7 +702,9 @@ async fn fresh_lockfile_only_with_overrides(
 fn assert_package_present(lockfile: &Lockfile, key: &str) {
     let key: pnpm_lockfile::PackageKey = key.parse().unwrap();
     assert!(
-        lockfile.packages.as_ref().is_some_and(|packages| packages.contains_key(&key)),
+        lockfile.packages
+            .as_ref()
+            .is_some_and(|packages| packages.contains_key(&key)),
         "expected packages to contain {key}",
     );
 }
@@ -680,7 +712,9 @@ fn assert_package_present(lockfile: &Lockfile, key: &str) {
 fn assert_package_absent(lockfile: &Lockfile, key: &str) {
     let key: pnpm_lockfile::PackageKey = key.parse().unwrap();
     assert!(
-        lockfile.packages.as_ref().is_none_or(|packages| !packages.contains_key(&key)),
+        lockfile.packages
+            .as_ref()
+            .is_none_or(|packages| !packages.contains_key(&key)),
         "expected packages not to contain {key}",
     );
 }
@@ -873,7 +907,11 @@ async fn install_workspace_member_with_pnpmfile(
 ) -> Result<(), InstallError> {
     let member_dir = root.join("packages/member");
     std::fs::create_dir_all(&member_dir).unwrap();
-    std::fs::write(root.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n").unwrap();
+    std::fs::write(
+        root.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\n",
+    )
+    .unwrap();
 
     let dependencies: serde_json::Map<_, _> = member_deps
         .iter()
@@ -988,24 +1026,41 @@ fn recorded_verified_file_integrity_report(verified: VerifiedFileIntegrity) -> V
         fn emit(event: &LogEvent) {
             if let LogEvent::Global(log) = event {
                 assert_eq!(log.level, LogLevel::Info);
-                MESSAGES.lock().unwrap().push(log.message.clone());
+                MESSAGES
+                    .lock()
+                    .unwrap()
+                    .push(log.message.clone());
             }
         }
     }
 
     let _guard = RECORDER.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    MESSAGES.lock().unwrap().clear();
+    MESSAGES
+        .lock()
+        .unwrap()
+        .clear();
     report_verified_file_integrity::<RecordingReporter>(verified);
-    let messages = MESSAGES.lock().unwrap().clone();
+    let messages = MESSAGES
+        .lock()
+        .unwrap()
+        .clone();
     dbg!(messages)
 }
 
 fn assert_purge_diagnostic(error: &InstallError, path: &std::path::Path) {
     let rendered = error.to_string();
-    assert!(rendered.contains(&path.display().to_string()), "got: {rendered}");
-    assert!(rendered.contains("denied"), "source error must survive: {rendered}");
+    assert!(
+        rendered.contains(&path.display().to_string()),
+        "got: {rendered}",
+    );
+    assert!(
+        rendered.contains("denied"),
+        "source error must survive: {rendered}",
+    );
     assert_eq!(
-        miette::Diagnostic::code(error).map(|code| code.to_string()).as_deref(),
+        miette::Diagnostic::code(error)
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_PACKAGE_MANAGER_REMOVE_MODULES_DIR"),
     );
 

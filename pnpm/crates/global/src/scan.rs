@@ -33,13 +33,18 @@ impl GlobalPackageInfo {
     /// Whether `alias` is one of this group's direct dependencies.
     #[must_use]
     pub fn has_alias(&self, alias: &str) -> bool {
-        self.dependencies.iter().any(|(name, _)| name == alias)
+        self.dependencies
+            .iter()
+            .any(|(name, _)| name == alias)
     }
 
     /// The direct-dependency aliases of this group.
     #[must_use]
     pub fn aliases(&self) -> Vec<String> {
-        self.dependencies.iter().map(|(name, _)| name.clone()).collect()
+        self.dependencies
+            .iter()
+            .map(|(name, _)| name.clone())
+            .collect()
     }
 }
 
@@ -70,14 +75,21 @@ pub fn scan_global_packages(global_dir: &Path) -> io::Result<Vec<GlobalPackageIn
         let Ok(true) = is_symlink_or_junction(&link_path) else {
             continue;
         };
-        let Ok(install_dir) = std::fs::canonicalize(&link_path) else { continue };
-        let Some(manifest) = read_package_json(&install_dir) else { continue };
+        let Ok(install_dir) = std::fs::canonicalize(&link_path) else {
+            continue;
+        };
+        let Some(manifest) = read_package_json(&install_dir) else {
+            continue;
+        };
         let dependencies = dependencies_of(&manifest);
         if dependencies.is_empty() {
             continue;
         }
         result.push(GlobalPackageInfo {
-            hash: entry.file_name().to_string_lossy().into_owned(),
+            hash: entry
+                .file_name()
+                .to_string_lossy()
+                .into_owned(),
             install_dir,
             dependencies,
         });
@@ -90,7 +102,9 @@ pub fn find_global_package(
     global_dir: &Path,
     alias: &str,
 ) -> io::Result<Option<GlobalPackageInfo>> {
-    Ok(scan_global_packages(global_dir)?.into_iter().find(|pkg| pkg.has_alias(alias)))
+    Ok(scan_global_packages(global_dir)?
+        .into_iter()
+        .find(|pkg| pkg.has_alias(alias)))
 }
 
 /// Read the installed details (alias, version, manifest) for every direct
@@ -119,9 +133,16 @@ fn installed_packages(
         .iter()
         .filter_map(|(alias, _)| {
             let manifest = read_package_json(&modules_dir.join(alias))?;
-            let version =
-                manifest.get("version").and_then(Value::as_str).unwrap_or_default().to_string();
-            Some(InstalledGlobalPackage { alias: alias.clone(), version, manifest })
+            let version = manifest
+                .get("version")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            Some(InstalledGlobalPackage {
+                alias: alias.clone(),
+                version,
+                manifest,
+            })
         })
         .collect()
 }
@@ -149,9 +170,15 @@ where
         let dep_dir = modules_dir.join(alias);
         let manifest_path = dep_dir.join("package.json");
         let bytes = Sys::read_file(&manifest_path)
-            .map_err(|source| PackageManifestError::Read { path: manifest_path.clone(), source })?;
+            .map_err(|source| PackageManifestError::Read {
+                path: manifest_path.clone(),
+                source,
+            })?;
         let manifest = parse_manifest_bytes(&bytes)
-            .map_err(|source| PackageManifestError::Parse { path: manifest_path, source })?;
+            .map_err(|source| PackageManifestError::Parse {
+                path: manifest_path,
+                source,
+            })?;
         for command in get_bins_from_package_manifest::<Sys>(&manifest, &dep_dir) {
             bins.insert(command.name);
         }
@@ -163,7 +190,9 @@ where
 /// [`PackageBinSource`]s for bin linking / conflict checks.
 #[must_use]
 pub fn read_installed_packages(install_dir: &Path) -> Vec<PackageBinSource> {
-    let Some(manifest) = read_package_json(install_dir) else { return Vec::new() };
+    let Some(manifest) = read_package_json(install_dir) else {
+        return Vec::new();
+    };
     let modules_dir = install_dir.join("node_modules");
     dependencies_of(&manifest)
         .into_iter()
@@ -181,7 +210,10 @@ pub fn read_installed_packages(install_dir: &Path) -> Vec<PackageBinSource> {
 /// is read, so it is included alongside regular dependencies.
 #[must_use]
 pub fn read_direct_dependency_aliases(install_dir: &Path) -> Vec<String> {
-    read_direct_dependencies(install_dir).into_iter().map(|(alias, _)| alias).collect()
+    read_direct_dependencies(install_dir)
+        .into_iter()
+        .map(|(alias, _)| alias)
+        .collect()
 }
 
 /// The validated `(alias, spec)` pairs of an install directory's direct
@@ -189,14 +221,18 @@ pub fn read_direct_dependency_aliases(install_dir: &Path) -> Vec<String> {
 /// callers can distinguish them from same-named registry packages.
 #[must_use]
 pub fn read_direct_dependencies(install_dir: &Path) -> Vec<(String, String)> {
-    let Some(manifest) = read_package_json(install_dir) else { return Vec::new() };
+    let Some(manifest) = read_package_json(install_dir) else {
+        return Vec::new();
+    };
     dependencies_of(&manifest)
 }
 
 /// Remove install directories under `global_dir` that no hash symlink
 /// points at.
 pub fn clean_orphaned_install_dirs(global_dir: &Path) {
-    let Ok(entries) = std::fs::read_dir(global_dir) else { return };
+    let Ok(entries) = std::fs::read_dir(global_dir) else {
+        return;
+    };
     let entries: Vec<_> = entries.flatten().collect();
     let referenced = symlink_targets(&entries);
 
@@ -232,24 +268,35 @@ fn is_orphaned_install_dir(
     now: SystemTime,
 ) -> bool {
     const SAFETY_WINDOW: Duration = Duration::from_mins(5);
-    let Ok(file_type) = entry.file_type() else { return false };
+    let Ok(file_type) = entry.file_type() else {
+        return false;
+    };
     if !file_type.is_dir() {
         return false;
     }
     let dir_path = entry.path();
-    let Ok(canonical) = std::fs::canonicalize(&dir_path) else { return false };
+    let Ok(canonical) = std::fs::canonicalize(&dir_path) else {
+        return false;
+    };
     !referenced.contains(&canonical) && !recently_created(&dir_path, now, SAFETY_WINDOW)
 }
 
 fn recently_created(dir_path: &Path, now: SystemTime, window: Duration) -> bool {
-    let Ok(metadata) = std::fs::metadata(dir_path) else { return true };
+    let Ok(metadata) = std::fs::metadata(dir_path) else {
+        return true;
+    };
     // Use max(created, modified) as the dir's age — the closest portable
     // proxies std exposes for birthtime / ctime.
     let created = metadata.created().ok();
     let modified = metadata.modified().ok();
-    let newest = [created, modified].into_iter().flatten().max();
+    let newest = [created, modified]
+        .into_iter()
+        .flatten()
+        .max();
     match newest {
-        Some(time) => now.duration_since(time).map_or(true, |age| age < window),
+        Some(time) => now
+            .duration_since(time)
+            .map_or(true, |age| age < window),
         None => true,
     }
 }
@@ -269,9 +316,18 @@ fn dependencies_of(manifest: &Value) -> Vec<(String, String)> {
         .get("dependencies")
         .and_then(Value::as_object)
         .map(|deps| {
-            deps.iter()
+            deps
+                .iter()
                 .filter(|(alias, _)| is_valid_dependency_alias(alias))
-                .map(|(alias, spec)| (alias.clone(), spec.as_str().unwrap_or_default().to_string()))
+                .map(|(alias, spec)| {
+                    (
+                        alias.clone(),
+                        spec
+                            .as_str()
+                            .unwrap_or_default()
+                            .to_string(),
+                    )
+                })
                 .collect()
         })
         .unwrap_or_default()

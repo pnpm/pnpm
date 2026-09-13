@@ -12,7 +12,10 @@ fn changed_workspace_importer_invalidates_lockfile() {
     );
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     fs::write(
         workspace.join("pkg-a/package.json"),
@@ -27,13 +30,19 @@ fn changed_workspace_importer_invalidates_lockfile() {
 
     assert_frozen_outdated(&workspace);
 
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     let linked_pkg = workspace.join("pkg-a/node_modules/pkg-b");
     assert!(
         is_symlink_or_junction(&linked_pkg).expect("query pkg-b link"),
         "normal install did not link the dependency added to pkg-a",
     );
-    assert!(linked_pkg.join("package.json").exists(), "pkg-b link is dangling");
+    assert!(
+        linked_pkg.join("package.json").exists(),
+        "pkg-b link is dangling",
+    );
 
     drop((root, mock_instance));
 }
@@ -54,7 +63,10 @@ fn changed_registry_specifier_in_workspace_importer_invalidates_lockfile() {
     );
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     fs::write(
         workspace.join("pkg-a/package.json"),
         serde_json::json!({
@@ -67,7 +79,10 @@ fn changed_registry_specifier_in_workspace_importer_invalidates_lockfile() {
     .expect("update pkg-a/package.json");
 
     assert_frozen_outdated(&workspace);
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     drop((root, mock_instance));
 }
@@ -85,8 +100,14 @@ fn workspace_importer_dependencies_meta_is_checked() {
     );
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    pacquet_at(&workspace).with_arg("install").assert().success();
-    pacquet_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
     fs::write(
         workspace.join("pkg-a/package.json"),
         serde_json::json!({
@@ -115,7 +136,10 @@ fn missing_workspace_importer_is_not_accepted_by_frozen_install() {
     );
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let mut lockfile: pnpm_lockfile::Lockfile =
         serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml"))
@@ -128,7 +152,10 @@ fn missing_workspace_importer_is_not_accepted_by_frozen_install() {
         .output()
         .expect("run frozen install");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(!output.status.success(), "frozen install accepted a missing importer");
+    assert!(
+        !output.status.success(),
+        "frozen install accepted a missing importer",
+    );
     assert!(
         stderr.contains("ERR_PNPM_PACKAGE_MANAGER_NO_IMPORTER") && stderr.contains("pkg-a"),
         "missing importer returned the wrong error\nstderr:\n{stderr}",
@@ -145,7 +172,10 @@ fn normal_install_accepts_missing_dependency_free_workspace_importer() {
     );
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let mut lockfile: pnpm_lockfile::Lockfile =
         serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml"))
@@ -153,7 +183,10 @@ fn normal_install_accepts_missing_dependency_free_workspace_importer() {
     lockfile.importers.remove("pkg-b").expect("pkg-b importer exists");
     lockfile.save_to_path(&lockfile_path).expect("save lockfile without pkg-b importer");
 
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     let retained: pnpm_lockfile::Lockfile = serde_saphyr::from_str(
         &fs::read_to_string(&lockfile_path).expect("read retained pnpm-lock.yaml"),
     )
@@ -183,7 +216,10 @@ fn normal_install_accepts_missing_importer_with_only_ignored_optional_dependenci
     workspace_yaml.push_str("ignoredOptionalDependencies:\n  - is-positive\n");
     fs::write(&workspace_yaml_path, workspace_yaml).expect("write ignored optional config");
 
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let mut lockfile: pnpm_lockfile::Lockfile =
         serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml"))
@@ -191,7 +227,10 @@ fn normal_install_accepts_missing_importer_with_only_ignored_optional_dependenci
     lockfile.importers.remove("pkg-a").expect("pkg-a importer exists");
     lockfile.save_to_path(&lockfile_path).expect("save lockfile without pkg-a importer");
 
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     let retained: pnpm_lockfile::Lockfile = serde_saphyr::from_str(
         &fs::read_to_string(&lockfile_path).expect("read retained pnpm-lock.yaml"),
     )

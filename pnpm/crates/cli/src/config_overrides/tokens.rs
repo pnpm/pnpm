@@ -11,9 +11,12 @@ pub(super) fn is_forwarded(passthrough_from: Option<usize>, index: usize) -> boo
 /// Presence-only, like pnpm's `!= null` check: an empty value still
 /// overrides (it disables the gate on the env-overlay side).
 pub(super) fn verify_deps_env_is_set() -> bool {
-    ["PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN", pnpm_executor::VERIFY_DEPS_BEFORE_RUN_ENV]
-        .iter()
-        .any(|name| std::env::var(name).is_ok())
+    [
+        "PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN",
+        pnpm_executor::VERIFY_DEPS_BEFORE_RUN_ENV,
+    ]
+    .iter()
+    .any(|name| std::env::var(name).is_ok())
 }
 
 pub(super) enum ConfigToken<'a> {
@@ -65,16 +68,13 @@ pub(super) fn classify<'a>(arg: &'a OsStr, claimed_by_command: &HashSet<&str>) -
         && let Some((key, SettingArity::Boolean | SettingArity::BooleanOr { .. })) =
             setting(negated)
     {
-        return ConfigToken::WellFormed { key, value: "false" };
+        return ConfigToken::WellFormed {
+            key,
+            value: "false",
+        };
     }
     let Some((key, value)) = flag.split_once('=') else {
-        return match setting(flag) {
-            Some((key, SettingArity::Boolean | SettingArity::BooleanOr { .. })) => {
-                ConfigToken::BooleanFollows(key)
-            }
-            Some((key, _)) => ConfigToken::ValueFollows(key),
-            None => ConfigToken::NotOurs,
-        };
+        return classify_bare_flag(setting(flag));
     };
     classify_valued_flag(key, value, setting(key))
 }
@@ -94,7 +94,10 @@ fn classify_dotted(rest: &str) -> ConfigToken<'_> {
     if !setting_takes(key, value) {
         return ConfigToken::NotOurs;
     }
-    ConfigToken::WellFormed { key, value }
+    ConfigToken::WellFormed {
+        key,
+        value,
+    }
 }
 
 /// A `--<setting>=<value>` token, given what the setting table says about
@@ -111,7 +114,10 @@ fn classify_valued_flag<'a>(
             ConfigToken::NotOurs
         }
         Some(_) if !setting_takes(key, value) => ConfigToken::NotOurs,
-        Some((key, _)) => ConfigToken::WellFormed { key, value },
+        Some((key, _)) => ConfigToken::WellFormed {
+            key,
+            value,
+        },
         None => ConfigToken::NotOurs,
     }
 }
@@ -136,7 +142,10 @@ pub(super) enum SettingArity {
     /// `--config.` form.
     ///
     /// [`Boolean`]: Self::Boolean
-    BooleanOr { takes: fn(&str) -> bool, bare_keyword: bool },
+    BooleanOr {
+        takes: fn(&str) -> bool,
+        bare_keyword: bool,
+    },
     /// A path, a glob pattern, or another free-form value: every spelling
     /// is one the setting takes, so the token after the flag is claimed
     /// only when it cannot be anything else — see [`claims_as_value`].
@@ -170,7 +179,10 @@ pub(super) const BARE_SETTING_FLAGS: [(&str, SettingArity); 39] = [
     ("ignore-scripts", SettingArity::Boolean),
     (
         "link-workspace-packages",
-        SettingArity::BooleanOr { takes: is_enum::<LinkWorkspacePackages>, bare_keyword: true },
+        SettingArity::BooleanOr {
+            takes: is_enum::<LinkWorkspacePackages>,
+            bare_keyword: true,
+        },
     ),
     ("lockfile", SettingArity::Boolean),
     ("lockfile-include-tarball-url", SettingArity::Boolean),
@@ -179,15 +191,24 @@ pub(super) const BARE_SETTING_FLAGS: [(&str, SettingArity); 39] = [
     ("node-experimental-package-map", SettingArity::Boolean),
     ("offline", SettingArity::Boolean),
     ("optimistic-repeat-install", SettingArity::Boolean),
-    ("package-import-method", SettingArity::Parsed(is_enum::<PackageImportMethod>)),
+    (
+        "package-import-method",
+        SettingArity::Parsed(is_enum::<PackageImportMethod>),
+    ),
     ("pm-on-fail", SettingArity::Parsed(is_enum::<PmOnFail>)),
     ("prefer-frozen-lockfile", SettingArity::Boolean),
     ("prefer-offline", SettingArity::Boolean),
     ("public-hoist-pattern", SettingArity::Text),
-    ("runtime-on-fail", SettingArity::Parsed(is_enum::<RuntimeOnFail>)),
+    (
+        "runtime-on-fail",
+        SettingArity::Parsed(is_enum::<RuntimeOnFail>),
+    ),
     (
         "save-workspace-protocol",
-        SettingArity::BooleanOr { takes: is_enum::<SaveWorkspaceProtocol>, bare_keyword: false },
+        SettingArity::BooleanOr {
+            takes: is_enum::<SaveWorkspaceProtocol>,
+            bare_keyword: false,
+        },
     ),
     ("shamefully-hoist", SettingArity::Boolean),
     ("shared-workspace-lockfile", SettingArity::Boolean),
@@ -217,7 +238,9 @@ fn is_enum<Value: serde::de::DeserializeOwned>(value: &str) -> bool {
 }
 
 fn named_bare_setting_flag(key: &str) -> Option<(&'static str, SettingArity)> {
-    BARE_SETTING_FLAGS.into_iter().find(|&(name, _)| name == key)
+    BARE_SETTING_FLAGS
+        .into_iter()
+        .find(|&(name, _)| name == key)
 }
 
 /// Whether `value` is a spelling the `key` setting takes. `true` for a
@@ -288,7 +311,8 @@ pub(crate) fn bare_setting_flag_width(flag: &str, next: Option<&str>) -> usize {
 }
 
 pub(super) fn scoped_registry_key(key: &str) -> Option<&str> {
-    key.strip_suffix(":registry")
+    key
+        .strip_suffix(":registry")
         .filter(|scope| scope.starts_with('@') && scope.len() > 1 && !scope.contains('/'))
 }
 
@@ -315,5 +339,15 @@ pub(crate) fn parse_bool(value: &str) -> Option<bool> {
         "true" | "1" => Some(true),
         "false" | "0" => Some(false),
         _ => None,
+    }
+}
+
+fn classify_bare_flag(setting: Option<(&'static str, SettingArity)>) -> ConfigToken<'static> {
+    match setting {
+        Some((key, SettingArity::Boolean | SettingArity::BooleanOr { .. })) => {
+            ConfigToken::BooleanFollows(key)
+        }
+        Some((key, _)) => ConfigToken::ValueFollows(key),
+        None => ConfigToken::NotOurs,
     }
 }

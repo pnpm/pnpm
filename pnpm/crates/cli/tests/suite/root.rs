@@ -20,13 +20,19 @@ fn canonicalize(path: &Path) -> PathBuf {
 fn root_prints_the_local_node_modules_dir() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
 
-    let output = pacquet.with_args(["root"]).output().expect("run pacquet root");
+    let output = pacquet
+        .with_args(["root"])
+        .output()
+        .expect("run pacquet root");
     dbg!(&output);
     assert!(output.status.success(), "pacquet root should succeed");
 
     // Deliberately not trimmed, unlike `store path` — pnpm's `root` handler
     // emits the path with its trailing newline (`${path}\n`).
-    let expected = format!("{}\n", canonicalize(&workspace).join("node_modules").display());
+    let expected = format!(
+        "{}\n",
+        canonicalize(&workspace).join("node_modules").display(),
+    );
     assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
 
     drop(root);
@@ -38,14 +44,23 @@ fn root_ignores_a_custom_modules_dir() {
     // modules-dir must NOT change its output. pacquet matches by anchoring on
     // `--dir` and never reading `config.modules_dir` in this command.
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    fs::write(workspace.join("pnpm-workspace.yaml"), "modulesDir: custom_nm\n")
-        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "modulesDir: custom_nm\n",
+    )
+    .expect("write pnpm-workspace.yaml");
 
-    let output = pacquet.with_args(["root"]).output().expect("run pacquet root");
+    let output = pacquet
+        .with_args(["root"])
+        .output()
+        .expect("run pacquet root");
     dbg!(&output);
     assert!(output.status.success(), "pacquet root should succeed");
 
-    let expected = format!("{}\n", canonicalize(&workspace).join("node_modules").display());
+    let expected = format!(
+        "{}\n",
+        canonicalize(&workspace).join("node_modules").display(),
+    );
     assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
 
     drop(root);
@@ -83,10 +98,16 @@ fn root_global_prints_the_global_packages_dir() {
 
     let expected = format!(
         "{}\n",
-        pnpm_home.join("global").join(pnpm_config::GLOBAL_LAYOUT_VERSION).display(),
+        pnpm_home
+            .join("global")
+            .join(pnpm_config::GLOBAL_LAYOUT_VERSION)
+            .display(),
     );
     assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
-    assert!(global_bin.is_dir(), "pacquet root -g should create the global bin dir");
+    assert!(
+        global_bin.is_dir(),
+        "pacquet root -g should create the global bin dir",
+    );
 
     drop(root);
 }
@@ -101,8 +122,11 @@ fn root_global_prints_the_global_packages_dir() {
 #[test]
 fn root_global_writes_warnings_to_stderr_so_stdout_stays_a_clean_path() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    fs::write(workspace.join("package.json"), r#"{ "packageManager": "pnpm@0.0.0" }"#)
-        .expect("write package.json");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{ "packageManager": "pnpm@0.0.0" }"#,
+    )
+    .expect("write package.json");
     let pnpm_home = root.path().join("pnpm-home");
     let global_bin = pnpm_home.join("bin");
     let existing_path = std::env::var("PATH").unwrap_or_default();
@@ -126,7 +150,10 @@ fn root_global_writes_warnings_to_stderr_so_stdout_stays_a_clean_path() {
 
     let expected = format!(
         "{}\n",
-        pnpm_home.join("global").join(pnpm_config::GLOBAL_LAYOUT_VERSION).display(),
+        pnpm_home
+            .join("global")
+            .join(pnpm_config::GLOBAL_LAYOUT_VERSION)
+            .display(),
     );
     assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -155,14 +182,23 @@ fn root_global_writes_warnings_to_stderr_so_stdout_stays_a_clean_path() {
 fn root_matches_pnpm_from_a_workspace_subdir() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
 
-    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - \"packages/*\"\n")
-        .expect("write pnpm-workspace.yaml");
-    fs::write(workspace.join("package.json"), r#"{ "name": "wsroot", "version": "1.0.0" }"#)
-        .expect("write workspace-root package.json");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - \"packages/*\"\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "wsroot", "version": "1.0.0" }"#,
+    )
+    .expect("write workspace-root package.json");
     let member = workspace.join("packages/foo");
     fs::create_dir_all(&member).expect("create workspace member dir");
-    fs::write(member.join("package.json"), r#"{ "name": "foo", "version": "1.0.0" }"#)
-        .expect("write member package.json");
+    fs::write(
+        member.join("package.json"),
+        r#"{ "name": "foo", "version": "1.0.0" }"#,
+    )
+    .expect("write member package.json");
 
     let pacquet_out = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
@@ -170,7 +206,10 @@ fn root_matches_pnpm_from_a_workspace_subdir() {
         .with_args(["root"])
         .output()
         .expect("run pacquet root in the subdir");
-    assert!(pacquet_out.status.success(), "pacquet root should succeed in the subdir");
+    assert!(
+        pacquet_out.status.success(),
+        "pacquet root should succeed in the subdir",
+    );
 
     let pnpm_out = Command::new("pnpm")
         .with_current_dir(&member)

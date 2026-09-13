@@ -10,7 +10,11 @@ use super::{
 #[test]
 fn find_propagates_when_manifest_path_is_a_directory() {
     let tmp = tempfile::tempdir().unwrap();
-    tmp.path().join(WORKSPACE_MANIFEST_FILENAME).pipe(fs::create_dir).unwrap();
+    tmp
+        .path()
+        .join(WORKSPACE_MANIFEST_FILENAME)
+        .pipe(fs::create_dir)
+        .unwrap();
 
     let err = tmp
         .path()
@@ -56,7 +60,11 @@ fn resolves_script_shell_from_the_manifest_found_above_a_nested_package() {
     let root = tempfile::tempdir().unwrap();
     let nested = root.path().join("packages/nested");
     fs::create_dir_all(&nested).unwrap();
-    fs::write(root.path().join(WORKSPACE_MANIFEST_FILENAME), "scriptShell: ./a.sh\n").unwrap();
+    fs::write(
+        root.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "scriptShell: ./a.sh\n",
+    )
+    .unwrap();
 
     let (manifest, mut settings) =
         WorkspaceSettings::find_and_load(&nested).unwrap().expect("ancestor workspace manifest");
@@ -65,6 +73,10 @@ fn resolves_script_shell_from_the_manifest_found_above_a_nested_package() {
     let mut config = Config::new();
     settings.resolve_script_shell(root.path());
     settings.apply_to(&mut config, root.path());
-    let expected = root.path().join("a.sh").to_string_lossy().into_owned();
+    let expected = root
+        .path()
+        .join("a.sh")
+        .to_string_lossy()
+        .into_owned();
     assert_eq!(config.script_shell.as_deref(), Some(expected.as_str()));
 }

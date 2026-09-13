@@ -112,7 +112,10 @@ async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
     .await;
 
     let err = result.expect_err("invalid exclude pattern must surface");
-    assert!(matches!(err, InstallError::BuildVerifiers(_)), "expected BuildVerifiers, got {err:?}");
+    assert!(
+        matches!(err, InstallError::BuildVerifiers(_)),
+        "expected BuildVerifiers, got {err:?}",
+    );
     assert!(
         !dirs.project_root.join("node_modules/.pacquet").exists(),
         "BuildVerifiers must abort before virtual-store materialization",
@@ -142,7 +145,11 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
     let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
-        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .add_dependency(
+            "@pnpm.e2e/hello-world-js-bin",
+            "1.0.0",
+            DependencyGroup::Prod,
+        )
         .unwrap();
     manifest.save().unwrap();
 
@@ -209,7 +216,10 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
     .expect("install should succeed");
 
     let lockfile_path = dirs.path().join(Lockfile::FILE_NAME);
-    assert!(lockfile_path.is_file(), "pnpm-lock.yaml must be written next to the manifest");
+    assert!(
+        lockfile_path.is_file(),
+        "pnpm-lock.yaml must be written next to the manifest",
+    );
 
     let content = std::fs::read_to_string(&lockfile_path).expect("read lockfile");
     let lockfile: Lockfile = serde_saphyr::from_str(&content).expect("parse fresh lockfile");
@@ -225,7 +235,10 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
     let packages = lockfile.packages.as_ref().expect("packages map populated");
     let pkg_key: pnpm_lockfile::PackageKey = "@pnpm.e2e/hello-world-js-bin@1.0.0".parse().unwrap();
     let metadata = packages.get(&pkg_key).expect("packages entry");
-    assert!(metadata.resolution.integrity().is_some(), "registry resolution carries integrity");
+    assert!(
+        metadata.resolution.integrity().is_some(),
+        "registry resolution carries integrity",
+    );
 
     let snapshots = lockfile.snapshots.as_ref().expect("snapshots map populated");
     assert!(
@@ -249,7 +262,11 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
     let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
-        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .add_dependency(
+            "@pnpm.e2e/hello-world-js-bin",
+            "1.0.0",
+            DependencyGroup::Prod,
+        )
         .unwrap();
     manifest.add_dependency("@pnpm/xyz", "1.0.0", DependencyGroup::Dev).unwrap();
     manifest.save().unwrap();
@@ -325,7 +342,10 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
     let hello_key = pnpm_lockfile::PkgName::parse("@pnpm.e2e/hello-world-js-bin").unwrap();
     let xyz_key = pnpm_lockfile::PkgName::parse("@pnpm/xyz").unwrap();
     assert!(prod.contains_key(&hello_key));
-    assert!(!prod.contains_key(&xyz_key), "dev dep stays out of the prod section");
+    assert!(
+        !prod.contains_key(&xyz_key),
+        "dev dep stays out of the prod section",
+    );
     let dev = importer.dev_dependencies.as_ref().expect("dev section");
     assert!(dev.contains_key(&xyz_key));
 
@@ -346,7 +366,11 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
     let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
-        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .add_dependency(
+            "@pnpm.e2e/hello-world-js-bin",
+            "1.0.0",
+            DependencyGroup::Prod,
+        )
         .unwrap();
     manifest.add_dependency("@pnpm/xyz", "1.0.0", DependencyGroup::Optional).unwrap();
     manifest.save().unwrap();
@@ -460,10 +484,18 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
     let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
-        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .add_dependency(
+            "@pnpm.e2e/hello-world-js-bin",
+            "1.0.0",
+            DependencyGroup::Prod,
+        )
         .unwrap();
     manifest
-        .add_dependency("@pnpm.e2e/not-compatible-with-any-os", "1.0.0", DependencyGroup::Optional)
+        .add_dependency(
+            "@pnpm.e2e/not-compatible-with-any-os",
+            "1.0.0",
+            DependencyGroup::Optional,
+        )
         .unwrap();
     manifest.save().unwrap();
 
@@ -531,9 +563,9 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
     .expect("install should succeed");
 
     assert!(
-        is_symlink_or_junction(
-            &dirs.project_root.join("node_modules/@pnpm.e2e/hello-world-js-bin")
-        )
+        is_symlink_or_junction(&dirs.project_root.join(
+            "node_modules/@pnpm.e2e/hello-world-js-bin"
+        ))
         .unwrap(),
         "compatible prod dependency should be linked",
     );
@@ -557,13 +589,15 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
                 && key.name.bare == "not-compatible-with-any-os"
         })
         .map(|(key, snapshot)| {
-            assert!(snapshot.optional, "lockfile snapshot should stay marked optional");
+            assert!(
+                snapshot.optional,
+                "lockfile snapshot should stay marked optional",
+            );
             key.clone()
         })
         .expect("optional dependency should stay in the lockfile");
 
-    let written = dirs
-        .modules_dir
+    let written = dirs.modules_dir
         .pipe_as_ref(read_modules_manifest::<Host>)
         .expect("read .modules.yaml")
         .expect("modules manifest exists");
@@ -571,7 +605,10 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
     // optional's own dependency is not materialized either.
     assert_eq!(
         written.skipped,
-        ["@pnpm.e2e/dep-of-optional-pkg@1.0.0".to_string(), skipped_key.to_string()],
+        [
+            "@pnpm.e2e/dep-of-optional-pkg@1.0.0".to_string(),
+            skipped_key.to_string()
+        ],
     );
 
     let current_lockfile_path = dirs.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
@@ -614,7 +651,10 @@ fn is_modules_yaml_consistent_returns_true_when_settings_match() {
     let modules_dir = dir.path().join("node_modules");
 
     let mut config = Config::new();
-    config.store_dir = dir.path().join("pacquet-store").into();
+    config.store_dir = dir
+        .path()
+        .join("pacquet-store")
+        .into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = modules_dir.join(".pacquet");
     let config = config.leak();
@@ -632,7 +672,10 @@ fn is_modules_yaml_consistent_returns_true_when_settings_match() {
         hoist_pattern: config.hoist_pattern.clone(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         store_dir: config.store_dir.display().to_string(),
-        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir: config
+            .effective_virtual_store_dir()
+            .to_string_lossy()
+            .into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
         ..Default::default()
     };
@@ -655,7 +698,10 @@ fn is_modules_yaml_consistent_returns_false_when_included_drifts() {
     let modules_dir = dir.path().join("node_modules");
 
     let mut config = Config::new();
-    config.store_dir = dir.path().join("pacquet-store").into();
+    config.store_dir = dir
+        .path()
+        .join("pacquet-store")
+        .into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = modules_dir.join(".pacquet");
     let config = config.leak();
@@ -678,7 +724,10 @@ fn is_modules_yaml_consistent_returns_false_when_included_drifts() {
         hoist_pattern: config.hoist_pattern.clone(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         store_dir: config.store_dir.display().to_string(),
-        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir: config
+            .effective_virtual_store_dir()
+            .to_string_lossy()
+            .into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
         ..Default::default()
     };
@@ -705,7 +754,10 @@ fn included_drift_alone_does_not_make_the_layout_inconsistent() {
     let modules_dir = dir.path().join("node_modules");
 
     let mut config = Config::new();
-    config.store_dir = dir.path().join("pacquet-store").into();
+    config.store_dir = dir
+        .path()
+        .join("pacquet-store")
+        .into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = modules_dir.join(".pacquet");
     let config = config.leak();
@@ -728,7 +780,10 @@ fn included_drift_alone_does_not_make_the_layout_inconsistent() {
         hoist_pattern: config.hoist_pattern.clone(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         store_dir: config.store_dir.display().to_string(),
-        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir: config
+            .effective_virtual_store_dir()
+            .to_string_lossy()
+            .into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
         ..Default::default()
     };
@@ -758,7 +813,10 @@ fn layout_drift_still_makes_the_layout_inconsistent() {
     let modules_dir = dir.path().join("node_modules");
 
     let mut config = Config::new();
-    config.store_dir = dir.path().join("pacquet-store").into();
+    config.store_dir = dir
+        .path()
+        .join("pacquet-store")
+        .into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = modules_dir.join(".pacquet");
     let config = config.leak();
@@ -769,7 +827,10 @@ fn layout_drift_still_makes_the_layout_inconsistent() {
         hoist_pattern: config.hoist_pattern.clone(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         store_dir: config.store_dir.display().to_string(),
-        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir: config
+            .effective_virtual_store_dir()
+            .to_string_lossy()
+            .into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
         ..Default::default()
     };

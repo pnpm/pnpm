@@ -42,7 +42,10 @@ fn now() -> DateTime<Utc> {
 /// expected to attach to every request.
 fn auth_and_custom_headers() -> HeaderMap {
     let mut headers = HeaderMap::new();
-    headers.insert(AUTHORIZATION, HeaderValue::from_static("Bearer secret-token"));
+    headers.insert(
+        AUTHORIZATION,
+        HeaderValue::from_static("Bearer secret-token"),
+    );
     headers.insert("x-org", HeaderValue::from_static("acme"));
     headers
 }
@@ -99,7 +102,13 @@ async fn assert_redirect_timeout(delay_body: bool) {
         let FetchOutcome::Ok(response) = result.unwrap() else {
             panic!("expected artifact response")
         };
-        assert!(response.bytes().await.unwrap_err().is_timeout());
+        assert!(
+            response
+                .bytes()
+                .await
+                .unwrap_err()
+                .is_timeout(),
+        );
     } else {
         assert!(
             matches!(result, Err(RegistryError::Upstream { source, .. }) if source.is_timeout()),

@@ -67,7 +67,11 @@ fn cas_path_digest_round_trips_through_write_cas_file() {
 
     let (exec_path, exec_hash) = store_dir.write_cas_file(b"#!/bin/sh\n", true).unwrap();
     let digest = cas_path_digest(&exec_path).expect("round-trip exec");
-    assert_eq!(digest, format!("{exec_hash:x}"), "`-exec` suffix must be stripped before parse");
+    assert_eq!(
+        digest,
+        format!("{exec_hash:x}"),
+        "`-exec` suffix must be stripped before parse",
+    );
 }
 
 #[test]
@@ -164,8 +168,20 @@ fn materialize_into_rejects_traversal() {
     assert_invalid_input(err);
     // The `escape` file must not exist anywhere — neither in the
     // target dir nor in its parent.
-    assert!(!target.path().join("escape").exists());
-    assert!(!target.path().parent().unwrap().join("escape").exists());
+    assert!(
+        !target
+            .path()
+            .join("escape")
+            .exists(),
+    );
+    assert!(
+        !target
+            .path()
+            .parent()
+            .unwrap()
+            .join("escape")
+            .exists(),
+    );
 }
 
 /// Strip the store file's exec bit first so the assertion proves restoration,
@@ -190,8 +206,22 @@ fn materialize_into_restores_exec_bit_from_cas_suffix() {
 
     materialize_into(&cas_paths, target.path()).unwrap();
 
-    let exec_mode = fs::metadata(target.path().join("bin/run")).unwrap().permissions().mode();
-    assert_eq!(exec_mode & 0o777, 0o755, "exec-suffixed CAS file must materialize as 0o755");
-    let regular_mode = fs::metadata(target.path().join("README.md")).unwrap().permissions().mode();
-    assert_eq!(regular_mode & 0o777, 0o600, "non-exec file must keep its restrictive mode");
+    let exec_mode = fs::metadata(target.path().join("bin/run"))
+        .unwrap()
+        .permissions()
+        .mode();
+    assert_eq!(
+        exec_mode & 0o777,
+        0o755,
+        "exec-suffixed CAS file must materialize as 0o755",
+    );
+    let regular_mode = fs::metadata(target.path().join("README.md"))
+        .unwrap()
+        .permissions()
+        .mode();
+    assert_eq!(
+        regular_mode & 0o777,
+        0o600,
+        "non-exec file must keep its restrictive mode",
+    );
 }

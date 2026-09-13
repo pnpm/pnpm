@@ -118,7 +118,10 @@ fn manifest_adds_dep_returns_specifier_diff() {
     let StalenessReason::SpecifiersDiffer(diff) = err else {
         panic!("expected SpecifiersDiffer, got {err:?}");
     };
-    assert_eq!(diff.added.get("lodash").map(String::as_str), Some("^4.17.21"));
+    assert_eq!(
+        diff.added.get("lodash").map(String::as_str),
+        Some("^4.17.21"),
+    );
     assert!(diff.removed.is_empty());
     assert!(diff.modified.is_empty());
 }
@@ -153,7 +156,10 @@ fn manifest_drops_dep_returns_specifier_diff() {
     let StalenessReason::SpecifiersDiffer(diff) = err else {
         panic!("expected SpecifiersDiffer, got {err:?}");
     };
-    assert_eq!(diff.removed.get("lodash").map(String::as_str), Some("^4.17.21"));
+    assert_eq!(
+        diff.removed.get("lodash").map(String::as_str),
+        Some("^4.17.21"),
+    );
 }
 
 #[test]
@@ -216,7 +222,13 @@ fn manifest_optional_only_but_lockfile_records_prod_is_stale() {
     let err = satisfies_package_manifest(importer, &manifest, true, &|_: &str| false)
         .expect_err("a dep the manifest lists only as optional but the lockfile records under dependencies must be stale");
     assert!(
-        matches!(err, StalenessReason::DepSpecifierMismatch { field: "dependencies", .. }),
+        matches!(
+            err,
+            StalenessReason::DepSpecifierMismatch {
+                field: "dependencies",
+                ..
+            }
+        ),
         "got: {err:?}",
     );
 }

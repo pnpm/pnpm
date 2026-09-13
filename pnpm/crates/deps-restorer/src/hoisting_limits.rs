@@ -46,7 +46,10 @@ pub fn get_hoisting_limits(
         let mut importer_border: BTreeSet<String> = BTreeSet::new();
         collect_direct_dep_names(importer, &mut importer_border);
         limits.insert(
-            format!("{}@workspace:{importer_id}", percent_encode_path(importer_id)),
+            format!(
+                "{}@workspace:{importer_id}",
+                percent_encode_path(importer_id),
+            ),
             importer_border,
         );
     }

@@ -104,7 +104,9 @@ fn full_pkg_id_keeps_patch_hash_when_present() {
         Some(&packages),
         None,
     );
-    let node = graph.get(&patched_key.to_string()).expect("patched snapshot node");
+    let node = graph
+        .get(&patched_key.to_string())
+        .expect("patched snapshot node");
     assert!(
         node.full_pkg_id.starts_with("foo@1.0.0(patch_hash=abc):"),
         "full_pkg_id must keep the patch-hash segment; got {:?}",
@@ -118,7 +120,11 @@ fn link_hash_matches_the_shared_typescript_fixture() {
         "/../../../fixtures/gvs-link-hash-parity.json"
     )))
     .expect("parse shared GVS link hash fixture");
-    let cases = if cfg!(windows) { &fixture.win32 } else { &fixture.posix };
+    let cases = if cfg!(windows) {
+        &fixture.win32
+    } else {
+        &fixture.posix
+    };
     let package_key: PackageKey = fixture.package.key.parse().expect("parse fixture package key");
     let packages = HashMap::from([(
         package_key.without_peer(),
@@ -150,7 +156,11 @@ fn link_hash_matches_the_shared_typescript_fixture() {
             .get(&fixture.package.key)
             .and_then(|node| node.children.get(&fixture.package.alias))
             .unwrap_or_else(|| panic!("{}: fixture link node", case.name));
-        assert_eq!(link_node, &case.expected_link_node, "{}: normalized link node", case.name);
+        assert_eq!(
+            link_node, &case.expected_link_node,
+            "{}: normalized link node",
+            case.name,
+        );
 
         let slot = VirtualStoreLayout::new(
             &config,
@@ -166,7 +176,11 @@ fn link_hash_matches_the_shared_typescript_fixture() {
             .unwrap_or_else(|_| panic!("{}: strip GVS root from {slot:?}", case.name))
             .to_string_lossy()
             .replace(std::path::MAIN_SEPARATOR, "/");
-        assert_eq!(relative_slot, case.expected_slot, "{}: GVS slot hash", case.name);
+        assert_eq!(
+            relative_slot, case.expected_slot,
+            "{}: GVS slot hash",
+            case.name,
+        );
         assert_eq!(
             package_key.name.to_string(),
             fixture.package.name,

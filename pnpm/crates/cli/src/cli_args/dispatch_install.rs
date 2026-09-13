@@ -108,7 +108,9 @@ fn prepare_add_config(
     // `allowBuilds` is persisted to `pnpm-workspace.yaml`, which stays
     // at the workspace root even when `lockfileDir` moved the config
     // root elsewhere.
-    let allow_build_root = cfg.workspace_dir.clone().unwrap_or_else(|| config_root.clone());
+    let allow_build_root = cfg.workspace_dir
+        .clone()
+        .unwrap_or_else(|| config_root.clone());
     apply_allow_build(cfg, &args.install.allow_build, &allow_build_root)?;
     Ok((config_root, recursive_sort))
 }
@@ -140,7 +142,9 @@ fn add_global<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFutu
 /// before that.
 fn check_specifier_combination(args: &AddArgs, plan: &PackageSpecifierPlan) -> miette::Result<()> {
     if args.dependency_options.save_build() && !plan.has_cargo() {
-        return Err(miette::miette!("--save-build requires at least one crate: dependency"));
+        return Err(miette::miette!(
+            "--save-build requires at least one crate: dependency"
+        ));
     }
     if args.target.workspace && (plan.has_cargo() || plan.has_python()) {
         return Err(miette::miette!(
@@ -148,7 +152,9 @@ fn check_specifier_combination(args: &AddArgs, plan: &PackageSpecifierPlan) -> m
         ));
     }
     if args.target.workspace && args.target.config {
-        return Err(miette::miette!("`pnpm add --config` cannot be combined with --workspace."));
+        return Err(miette::miette!(
+            "`pnpm add --config` cannot be combined with --workspace."
+        ));
     }
     check_non_npm_targets(args, plan)
 }
@@ -158,10 +164,14 @@ fn check_specifier_combination(args: &AddArgs, plan: &PackageSpecifierPlan) -> m
 fn check_non_npm_targets(args: &AddArgs, plan: &PackageSpecifierPlan) -> miette::Result<()> {
     if args.target.global {
         if plan.has_cargo() {
-            return Err(miette::miette!("crate: dependencies cannot be installed globally"));
+            return Err(miette::miette!(
+                "crate: dependencies cannot be installed globally"
+            ));
         }
         if plan.has_python() {
-            return Err(miette::miette!("pypi: dependencies cannot be installed globally"));
+            return Err(miette::miette!(
+                "pypi: dependencies cannot be installed globally"
+            ));
         }
     }
     if args.target.config {
@@ -171,7 +181,9 @@ fn check_non_npm_targets(args: &AddArgs, plan: &PackageSpecifierPlan) -> miette:
             ));
         }
         if plan.has_python() {
-            return Err(miette::miette!("pypi: dependencies cannot be configuration dependencies"));
+            return Err(miette::miette!(
+                "pypi: dependencies cannot be configuration dependencies"
+            ));
         }
     }
     Ok(())
@@ -209,14 +221,7 @@ pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<C
             manifest_path: manifest_path.to_path_buf(),
             recursive_sort,
         };
-        match reporter {
-            ReporterType::Default | ReporterType::AppendOnly => {
-                Box::pin(pipeline.run::<DefaultReporter>()).await?;
-            }
-            ReporterType::Ndjson => Box::pin(pipeline.run::<NdjsonReporter>()).await?,
-            ReporterType::Silent => Box::pin(pipeline.run::<SilentReporter>()).await?,
-        }
-        Ok(())
+        run_update_pipeline(pipeline, reporter).await
     }))
 }
 
@@ -410,3 +415,17 @@ mod maintenance;
 mod pipeline;
 
 mod patches;
+
+async fn run_update_pipeline(
+    pipeline: UpdatePipeline,
+    reporter: ReporterType,
+) -> miette::Result<()> {
+    match reporter {
+        ReporterType::Default | ReporterType::AppendOnly => {
+            Box::pin(pipeline.run::<DefaultReporter>()).await?;
+        }
+        ReporterType::Ndjson => Box::pin(pipeline.run::<NdjsonReporter>()).await?,
+        ReporterType::Silent => Box::pin(pipeline.run::<SilentReporter>()).await?,
+    }
+    Ok(())
+}

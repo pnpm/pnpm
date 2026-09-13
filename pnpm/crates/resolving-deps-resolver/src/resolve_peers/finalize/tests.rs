@@ -26,15 +26,30 @@ fn final_graph_keeps_first_equal_depth_payload_and_unions_transitive_peers() {
     let mut tree = ResolvedTree {
         direct: Vec::new(),
         packages: HashMap::from_iter([
-            ("same@1.0.0".into(), package("same", "1.0.0", &[("peer", "*")], false)),
-            ("child-a@1.0.0".into(), package("child-a", "1.0.0", &[], true)),
-            ("child-b@1.0.0".into(), package("child-b", "1.0.0", &[], true)),
+            (
+                "same@1.0.0".into(),
+                package("same", "1.0.0", &[("peer", "*")], false),
+            ),
+            (
+                "child-a@1.0.0".into(),
+                package("child-a", "1.0.0", &[], true),
+            ),
+            (
+                "child-b@1.0.0".into(),
+                package("child-b", "1.0.0", &[], true),
+            ),
         ]),
         dependencies_tree: HashMap::from_iter([
             (first.clone(), tree_node("same@1.0.0", BTreeMap::new(), 1)),
             (second.clone(), tree_node("same@1.0.0", BTreeMap::new(), 1)),
-            (first_child.clone(), tree_node("child-a@1.0.0", BTreeMap::new(), 2)),
-            (second_child.clone(), tree_node("child-b@1.0.0", BTreeMap::new(), 2)),
+            (
+                first_child.clone(),
+                tree_node("child-a@1.0.0", BTreeMap::new(), 2),
+            ),
+            (
+                second_child.clone(),
+                tree_node("child-b@1.0.0", BTreeMap::new(), 2),
+            ),
         ]),
         all_peer_dep_names: HashSet::from_iter(["peer".to_string()]),
         policy_violations: Vec::new(),
@@ -105,8 +120,14 @@ fn final_graph_duplicate_parent_prefers_child_variant_matching_parent_peers() {
             package("consumer", "1.0.0", &[], false),
         )]),
         dependencies_tree: HashMap::from_iter([
-            (first.clone(), tree_node("consumer@1.0.0", BTreeMap::new(), 1)),
-            (second.clone(), tree_node("consumer@1.0.0", BTreeMap::new(), 1)),
+            (
+                first.clone(),
+                tree_node("consumer@1.0.0", BTreeMap::new(), 1),
+            ),
+            (
+                second.clone(),
+                tree_node("consumer@1.0.0", BTreeMap::new(), 1),
+            ),
         ]),
         all_peer_dep_names: HashSet::default(),
         policy_violations: Vec::new(),
@@ -194,16 +215,32 @@ fn final_graph_peer_edge_keeps_the_providers_own_peer_suffix() {
                 package(
                     "@webpack-cli/serve",
                     "3.0.1",
-                    &[("webpack", "*"), ("webpack-cli", "*"), ("webpack-dev-server", "*")],
+                    &[
+                        ("webpack", "*"),
+                        ("webpack-cli", "*"),
+                        ("webpack-dev-server", "*"),
+                    ],
                     false,
                 ),
             ),
         ]),
         dependencies_tree: HashMap::from_iter([
-            (provider_analyzer.clone(), tree_node("webpack-cli@6.0.1", BTreeMap::new(), 0)),
-            (provider_bare.clone(), tree_node("webpack-cli@6.0.1", BTreeMap::new(), 0)),
-            (consumer.clone(), tree_node("@webpack-cli/serve@3.0.1", BTreeMap::new(), 1)),
-            (consumer_revisit.clone(), tree_node("@webpack-cli/serve@3.0.1", BTreeMap::new(), 0)),
+            (
+                provider_analyzer.clone(),
+                tree_node("webpack-cli@6.0.1", BTreeMap::new(), 0),
+            ),
+            (
+                provider_bare.clone(),
+                tree_node("webpack-cli@6.0.1", BTreeMap::new(), 0),
+            ),
+            (
+                consumer.clone(),
+                tree_node("@webpack-cli/serve@3.0.1", BTreeMap::new(), 1),
+            ),
+            (
+                consumer_revisit.clone(),
+                tree_node("@webpack-cli/serve@3.0.1", BTreeMap::new(), 0),
+            ),
         ]),
         all_peer_dep_names: HashSet::from_iter([
             "webpack".into(),
@@ -216,10 +253,10 @@ fn final_graph_peer_edge_keeps_the_providers_own_peer_suffix() {
         children_by_id: HashMap::default(),
     };
     let mut walker = walker_for_tests(&mut tree);
-    walker
-        .caches
-        .node_dep_paths
-        .insert(provider_analyzer.clone(), provider_analyzer_dep_path.clone());
+    walker.caches.node_dep_paths.insert(
+        provider_analyzer.clone(),
+        provider_analyzer_dep_path.clone(),
+    );
     walker.caches.node_dep_paths.insert(provider_bare.clone(), provider_bare_dep_path.clone());
     walker.caches.node_dep_paths.insert(consumer.clone(), consumer_dep_path.clone());
     walker.caches.node_dep_paths.insert(consumer_revisit.clone(), consumer_dep_path.clone());
@@ -262,21 +299,36 @@ fn final_graph_peer_edge_keeps_the_providers_own_peer_suffix() {
     walker.nodes.external_peers.insert(
         provider_analyzer.clone(),
         Arc::new(HashMap::from_iter([
-            ("webpack-bundle-analyzer".to_string(), NodeId::leaf("webpack-bundle-analyzer@4.10.2")),
-            ("webpack-dev-server".to_string(), NodeId::leaf("webpack-dev-server@5.2.2")),
+            (
+                "webpack-bundle-analyzer".to_string(),
+                NodeId::leaf("webpack-bundle-analyzer@4.10.2"),
+            ),
+            (
+                "webpack-dev-server".to_string(),
+                NodeId::leaf("webpack-dev-server@5.2.2"),
+            ),
             ("webpack".to_string(), NodeId::leaf("webpack@5.107.2")),
         ])),
     );
     walker.nodes.external_peers.insert(
         provider_bare.clone(),
-        Arc::new(HashMap::from_iter([("webpack".to_string(), NodeId::leaf("webpack@5.107.2"))])),
+        Arc::new(HashMap::from_iter([(
+            "webpack".to_string(),
+            NodeId::leaf("webpack@5.107.2"),
+        )])),
     );
     walker.nodes.external_peers.insert(
         consumer.clone(),
         Arc::new(HashMap::from_iter([
-            ("webpack-bundle-analyzer".to_string(), NodeId::leaf("webpack-bundle-analyzer@4.10.2")),
+            (
+                "webpack-bundle-analyzer".to_string(),
+                NodeId::leaf("webpack-bundle-analyzer@4.10.2"),
+            ),
             ("webpack-cli".to_string(), provider_analyzer.clone()),
-            ("webpack-dev-server".to_string(), NodeId::leaf("webpack-dev-server@5.2.2")),
+            (
+                "webpack-dev-server".to_string(),
+                NodeId::leaf("webpack-dev-server@5.2.2"),
+            ),
             ("webpack".to_string(), NodeId::leaf("webpack@5.107.2")),
         ])),
     );
@@ -344,9 +396,18 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
             ),
         ]),
         dependencies_tree: HashMap::from_iter([
-            (provider.clone(), tree_node("webpack-dev-server@5.2.2", BTreeMap::new(), 1)),
-            (provider_revisit.clone(), tree_node("webpack-dev-server@5.2.2", BTreeMap::new(), 0)),
-            (consumer.clone(), tree_node("webpack-cli@6.0.1", BTreeMap::new(), 0)),
+            (
+                provider.clone(),
+                tree_node("webpack-dev-server@5.2.2", BTreeMap::new(), 1),
+            ),
+            (
+                provider_revisit.clone(),
+                tree_node("webpack-dev-server@5.2.2", BTreeMap::new(), 0),
+            ),
+            (
+                consumer.clone(),
+                tree_node("webpack-cli@6.0.1", BTreeMap::new(), 0),
+            ),
         ]),
         all_peer_dep_names: HashSet::from_iter([
             "bufferutil".into(),
@@ -398,7 +459,10 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
         Arc::new(HashMap::from_iter([
             ("bufferutil".to_string(), NodeId::leaf("bufferutil@4.1.0")),
             ("tslib".to_string(), NodeId::leaf("tslib@2.8.1")),
-            ("utf-8-validate".to_string(), NodeId::leaf("utf-8-validate@5.0.10")),
+            (
+                "utf-8-validate".to_string(),
+                NodeId::leaf("utf-8-validate@5.0.10"),
+            ),
             ("webpack-cli".to_string(), consumer.clone()),
             ("webpack".to_string(), NodeId::leaf("webpack@5.107.2")),
         ])),
@@ -406,7 +470,10 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
     walker.nodes.external_peers.insert(
         consumer.clone(),
         Arc::new(HashMap::from_iter([
-            ("webpack-bundle-analyzer".to_string(), NodeId::leaf("webpack-bundle-analyzer@4.10.2")),
+            (
+                "webpack-bundle-analyzer".to_string(),
+                NodeId::leaf("webpack-bundle-analyzer@4.10.2"),
+            ),
             ("webpack-dev-server".to_string(), provider.clone()),
             ("webpack".to_string(), NodeId::leaf("webpack@5.107.2")),
         ])),

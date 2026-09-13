@@ -115,7 +115,11 @@ pub fn begin_stats() {
 /// Stop accumulating and return the collected stats (default when none were
 /// accumulated).
 pub fn take_stats() -> InstallStats {
-    stats_slot().lock().ok().and_then(|mut guard| guard.take()).unwrap_or_default()
+    stats_slot()
+        .lock()
+        .ok()
+        .and_then(|mut guard| guard.take())
+        .unwrap_or_default()
 }
 
 /// RAII guard over one engine call's global reporter state. Installs `sink`
@@ -145,7 +149,12 @@ impl EngineCallGuard {
             Some(renderer) => (set_global_renderer(renderer), true),
             None => (None, false),
         };
-        Self { prev_sink, installed, prev_renderer, renderer_installed }
+        Self {
+            prev_sink,
+            installed,
+            prev_renderer,
+            renderer_installed,
+        }
     }
 }
 
@@ -172,7 +181,9 @@ impl Drop for EngineCallGuard {
 }
 
 fn accumulate_stats(event: &LogEvent) {
-    let Ok(mut guard) = stats_slot().lock() else { return };
+    let Ok(mut guard) = stats_slot().lock() else {
+        return;
+    };
     let Some(stats) = guard.as_mut() else { return };
     match event {
         LogEvent::Stats(log) => match &log.message {
@@ -198,8 +209,12 @@ impl Reporter for NodeBridgeReporter {
         accumulate_stats(event);
         render_natively(event);
         // Serialize outside the lock; drop the event on any failure.
-        let Ok(value) = serde_json::to_value(event) else { return };
-        let Ok(guard) = sink_slot().read() else { return };
+        let Ok(value) = serde_json::to_value(event) else {
+            return;
+        };
+        let Ok(guard) = sink_slot().read() else {
+            return;
+        };
         if let Some(sink) = guard.as_ref() {
             // Non-blocking enqueue. A closed or saturated queue drops the
             // event rather than blocking a rayon/tokio worker.
@@ -213,7 +228,9 @@ impl Reporter for NodeBridgeReporter {
 /// stops the output rather than propagating: the reporter contract is that
 /// a reporter problem can never fail an install.
 fn render_natively(event: &LogEvent) {
-    let Ok(mut guard) = renderer_slot().lock() else { return };
+    let Ok(mut guard) = renderer_slot().lock() else {
+        return;
+    };
     if let Some(renderer) = guard.as_mut() {
         renderer.handle(event);
     }

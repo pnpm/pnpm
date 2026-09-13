@@ -37,9 +37,7 @@ impl<'a> WorkspaceDirs<'a> {
     //
     // [bunyan]: <https://github.com/trentm/node-bunyan>
     fn find(install: InstallView<'a>) -> Result<Self, InstallError> {
-        let manifest_dir = install
-            .context
-            .manifest
+        let manifest_dir = install.context.manifest
             .path()
             .parent()
             .expect("manifest path always has a parent dir");
@@ -91,21 +89,26 @@ impl ImporterSelection {
     ) -> Self {
         let real_importer_ids = importer_ids(
             workspace_root,
-            project_manifests.iter().map(|(project_dir, _)| project_dir.as_path()),
+            project_manifests
+                .iter()
+                .map(|(project_dir, _)| project_dir.as_path()),
         );
         let filtered_install = selection.is_some_and(|selection| {
-            importer_ids(workspace_root, selection.selected_dirs.iter().map(PathBuf::as_path))
-                != real_importer_ids
+            importer_ids(
+                workspace_root,
+                selection.selected_dirs.iter().map(PathBuf::as_path),
+            ) != real_importer_ids
         });
         Self {
-            requested_importer_ids: filtered_install.then_some(selection).flatten().map(
-                |selection| {
+            requested_importer_ids: filtered_install
+                .then_some(selection)
+                .flatten()
+                .map(|selection| {
                     importer_ids(
                         workspace_root,
                         selection.install_dirs.iter().map(PathBuf::as_path),
                     )
-                },
-            ),
+                }),
             real_importer_ids,
             filtered_install,
         }
@@ -115,7 +118,8 @@ pub(super) fn importer_ids<'d>(
     workspace_root: &Path,
     dirs: impl Iterator<Item = &'d Path>,
 ) -> HashSet<String> {
-    dirs.map(|project_dir| pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir))
+    dirs
+        .map(|project_dir| pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir))
         .collect()
 }
 impl<'a> InstallWorkspace<'a> {
@@ -188,10 +192,12 @@ pub(super) fn report_discovered_scope<Reporter: self::Reporter>(
     dirs: &WorkspaceDirs,
     loaded_workspace_projects: Option<&[pnpm_workspace::Project]>,
 ) {
-    let workspace_projects = options
-        .selection
+    let workspace_projects = options.selection
         .as_ref()
-        .map_or_else(|| loaded_workspace_projects, |selection| Some(selection.all_projects));
+        .map_or_else(
+            || loaded_workspace_projects,
+            |selection| Some(selection.all_projects),
+        );
     if options.selection.is_none() {
         emit_scope_log::<Reporter>(
             install.context.config,
@@ -206,11 +212,13 @@ pub(super) fn resolve_install_catalogs(
     catalogs_override: Option<super::super::Catalogs>,
     workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
 ) -> Result<super::super::Catalogs, InstallError> {
-    Ok(match catalogs_override.or_else(|| config.catalogs.clone()) {
-        Some(catalogs) => catalogs,
-        None => get_catalogs_from_workspace_manifest(workspace_manifest)
-            .map_err(InstallError::InvalidCatalogsConfiguration)?,
-    })
+    Ok(
+        match catalogs_override.or_else(|| config.catalogs.clone()) {
+            Some(catalogs) => catalogs,
+            None => get_catalogs_from_workspace_manifest(workspace_manifest)
+                .map_err(InstallError::InvalidCatalogsConfiguration)?,
+        },
+    )
 }
 /// The projects the run sees: the selection's when one narrows the run,
 /// else what the workspace walk loaded.
@@ -259,7 +267,11 @@ impl<'w> InstallScope<'w> {
             workspace_projects_are_overridden,
             config: install.context.config,
         });
-        Self { project_manifests, importers, prune_stale_importers }
+        Self {
+            project_manifests,
+            importers,
+            prune_stale_importers,
+        }
     }
 
     // Optimistic repeat-install short-circuit. When nothing has
@@ -362,7 +374,10 @@ pub(super) fn emit_scope_log<Reporter: self::Reporter>(
     if !config.shares_one_lockfile() {
         return;
     }
-    let workspace_wide = mutation.is_full_install().then_some(workspace_projects).flatten();
+    let workspace_wide = mutation
+        .is_full_install()
+        .then_some(workspace_projects)
+        .flatten();
     Reporter::emit(&LogEvent::Scope(ScopeLog {
         level: LogLevel::Debug,
         selected: workspace_wide.map_or(1, <[_]>::len),
@@ -404,7 +419,10 @@ pub(super) fn install_project_manifests<'a>(
             // Dedicated per-project lockfiles record a single "." importer per
             // project; sibling projects only feed the `workspace:` resolver,
             // never the importer list.
-            scope.config.shares_one_lockfile().then_some(scope.workspace_projects).flatten(),
+            scope.config
+                .shares_one_lockfile()
+                .then_some(scope.workspace_projects)
+                .flatten(),
         );
     }
     build_project_manifests_list(scope.manifest, scope.workspace_projects)
@@ -446,7 +464,9 @@ pub(super) fn report_install_scope_cycles<Reporter: self::Reporter>(
     if config.ignore_workspace_cycles {
         return Ok(());
     }
-    let Some(workspace_dir) = workspace_dir else { return Ok(()) };
+    let Some(workspace_dir) = workspace_dir else {
+        return Ok(());
+    };
     let (mutation, workspace_projects) = scope;
     let scope = match selection {
         // A plan that already sequenced this very graph hands its cycle report
@@ -469,7 +489,9 @@ pub(super) fn report_install_scope_cycles<Reporter: self::Reporter>(
             .flatten()
             .map(|projects| (projects, None)),
     };
-    let Some((projects, selected_dirs)) = scope else { return Ok(()) };
+    let Some((projects, selected_dirs)) = scope else {
+        return Ok(());
+    };
     let cycles = crate::install_scope_cycles(config, projects, selected_dirs);
     crate::report_workspace_cycles::<Reporter>(config, workspace_dir, cycles.as_deref())
         .map_err(InstallError::CyclicWorkspaceDependencies)

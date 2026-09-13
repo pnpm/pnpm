@@ -1,7 +1,7 @@
 use super::{
     AuditError, AuditGraph, AuditReport, AuditVulnerabilityCounts, BTreeMap, Config,
-    ConfigAuditLevel, DepKind, Duration, Edge, EnvLockfile, GraphImporter, HashMap, HashSet,
-    Include, Lockfile, PackageKey, PackumentPublishInfo, Range, RawBulkAdvisory, RetryOpts,
+    ConfigAuditLevel, DepKind, Edge, EnvLockfile, GraphImporter, HashMap, HashSet, Include,
+    Lockfile, PackageKey, PackumentPublishInfo, Range, RawBulkAdvisory, RetryOpts,
     append_snapshot_edges, bulk_response_to_audit_report, empty_snapshots, env_roots,
     fetch_publish_times, importer_roots, lockfile_to_audit_request, normalize_ghsa_id,
     normalize_registry, pick_registry_for_package, redact_url_userinfo, sanitize_response_body,
@@ -21,65 +21,55 @@ pub(super) async fn audit(
         .expect("audit request is a map of package names to version strings");
     let authorization = config.auth_headers.for_url(&registry);
     let request_url = redact_url_userinfo(&format!("{registry}-/npm/v1/security/advisories/bulk"));
-    let (_, response) =
-        send_with_retry(http_client, &request_url, retry_opts_from_config(config), |client| {
-            let mut request = client
-                .post(&request_url)
-                .header("content-type", "application/json")
-                .body(body.clone());
-            if let Some(value) = &authorization {
-                request = request.header("authorization", value);
-            }
-            request
-        })
-        .await
-        .map_err(|source| AuditError::Network { url: request_url.clone(), source })?;
+    let (_, response) = send_with_retry(
+        http_client,
+        &request_url,
+        retry_opts_from_config(config),
+        |client| bulk_advisories_request(client, &request_url, &body, authorization.as_deref()),
+    )
+    .await
+    .map_err(|source| AuditError::Network {
+        url: request_url.clone(),
+        source,
+    })?;
 
     let status = response.status().as_u16();
     let raw_body = response
         .text()
         .await
-        .map_err(|source| AuditError::Network { url: request_url.clone(), source })?;
-    match status {
-        200 => Ok(bulk_response_to_audit_report(
-            parse_bulk_advisories(&raw_body, &request_url)?,
-            &audit_request,
-            lockfile,
-            env_lockfile,
-            include,
-        )),
-        404 => Err(AuditError::EndpointNotExists { url: request_url }),
-        _ => Err(AuditError::BadStatus {
-            url: request_url,
-            status,
-            body: sanitize_response_body(&raw_body),
-        }),
-    }
+        .map_err(|source| AuditError::Network {
+            url: request_url.clone(),
+            source,
+        })?;
+    let advisories = parse_audit_response(status, &raw_body, request_url)?;
+    Ok(bulk_response_to_audit_report(
+        advisories,
+        &audit_request,
+        lockfile,
+        env_lockfile,
+        include,
+    ))
 }
 
 fn parse_bulk_advisories(
     raw_body: &str,
     url: &str,
 ) -> Result<BTreeMap<String, Vec<RawBulkAdvisory>>, AuditError> {
-    let parsed: serde_json::Value =
-        serde_json::from_str(raw_body).map_err(|source| AuditError::InvalidJson {
+    let parsed: serde_json::Value = serde_json::from_str(raw_body)
+        .map_err(|source| AuditError::InvalidJson {
             url: url.to_string(),
             reason: source.to_string(),
             body: sanitize_response_body(raw_body),
         })?;
-    serde_json::from_value(parsed.clone()).map_err(|_| AuditError::UnexpectedBody {
-        url: url.to_string(),
-        body: sanitize_response_body(&parsed.to_string()),
-    })
+    serde_json::from_value(parsed.clone())
+        .map_err(|_| AuditError::UnexpectedBody {
+            url: url.to_string(),
+            body: sanitize_response_body(&parsed.to_string()),
+        })
 }
 
 pub(super) fn retry_opts_from_config(config: &Config) -> RetryOpts {
-    RetryOpts {
-        retries: config.fetch_retries,
-        factor: config.fetch_retry_factor,
-        min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-        max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-    }
+    config.retry_opts()
 }
 
 /// Corrects inferred `patched_versions` ranges against the registry: the
@@ -99,8 +89,7 @@ pub(super) async fn correct_inferred_patched_versions(
     config: &Config,
     http_client: &pnpm_network::ThrottledClient,
 ) -> HashMap<String, Option<PackumentPublishInfo>> {
-    let names: HashSet<&str> = report
-        .advisories
+    let names: HashSet<&str> = report.advisories
         .values()
         .filter(|advisory| advisory.patched_versions.is_some())
         .map(|advisory| advisory.module_name.trim())
@@ -108,29 +97,24 @@ pub(super) async fn correct_inferred_patched_versions(
     if names.is_empty() {
         return HashMap::new();
     }
-    let registries: HashMap<String, String> = config.resolved_registries().into_iter().collect();
-    let fetches = names.into_iter().map(|name| {
-        let registry = pick_registry_for_package(&registries, name, None);
-        async move {
-            (name.to_string(), fetch_publish_times(name, &registry, config, http_client).await)
-        }
-    });
+    let registries: HashMap<String, String> = config
+        .resolved_registries()
+        .into_iter()
+        .collect();
+    let fetches = names
+        .into_iter()
+        .map(|name| {
+            let registry = pick_registry_for_package(&registries, name, None);
+            async move {
+                (
+                    name.to_string(),
+                    fetch_publish_times(name, &registry, config, http_client).await,
+                )
+            }
+        });
     let publish_infos: HashMap<String, Option<PackumentPublishInfo>> =
         futures_util::future::join_all(fetches).await.into_iter().collect();
-    for advisory in report.advisories.values_mut() {
-        let Some(patched) = advisory.patched_versions.as_deref() else { continue };
-        let Some(Some(info)) = publish_infos.get(advisory.module_name.trim()) else { continue };
-        let Ok(range) = patched.parse::<Range>() else { continue };
-        match info.lowest_non_deprecated_version(&range) {
-            None => {
-                advisory.patched_versions = None;
-                advisory.patched_versions_unpublished = Some(true);
-            }
-            Some((_, lowest)) => {
-                advisory.patched_versions = Some(format!(">={lowest}"));
-            }
-        }
-    }
+    correct_patched_ranges(report, &publish_infos);
     publish_infos
 }
 
@@ -138,28 +122,36 @@ impl<'a> AuditGraph<'a> {
     pub(super) fn main(lockfile: &'a Lockfile) -> Self {
         let empty = empty_snapshots();
         let snapshots = lockfile.snapshots.as_ref().unwrap_or(empty);
-        let importers = lockfile
-            .importers
+        let importers = lockfile.importers
             .iter()
             .map(|(id, importer)| GraphImporter {
                 path_segment: id.replace('/', "__"),
                 roots: importer_roots(importer),
             })
             .collect();
-        Self { importers, snapshots }
+        Self {
+            importers,
+            snapshots,
+        }
     }
 
     pub(super) fn env(env_lockfile: &'a EnvLockfile) -> Self {
         let importer = env_lockfile.importers.get(EnvLockfile::ROOT_IMPORTER_KEY);
         let mut importers = Vec::new();
         let Some(importer) = importer else {
-            return Self { importers, snapshots: &env_lockfile.snapshots };
+            return Self {
+                importers,
+                snapshots: &env_lockfile.snapshots,
+            };
         };
         let config_roots = env_roots(&importer.config_dependencies);
         if !config_roots.is_empty() {
             importers.push(GraphImporter {
                 path_segment: "configDependencies".to_string(),
-                roots: config_roots.into_iter().map(|edge| (DepKind::Prod, edge)).collect(),
+                roots: config_roots
+                    .into_iter()
+                    .map(|edge| (DepKind::Prod, edge))
+                    .collect(),
             });
         }
         if let Some(package_manager_dependencies) = &importer.package_manager_dependencies {
@@ -175,11 +167,16 @@ impl<'a> AuditGraph<'a> {
             }
         }
 
-        Self { importers, snapshots: &env_lockfile.snapshots }
+        Self {
+            importers,
+            snapshots: &env_lockfile.snapshots,
+        }
     }
 
     pub(super) fn children(&self, key: &PackageKey, include_optional_edges: bool) -> Vec<Edge> {
-        let Some(snapshot) = self.snapshots.get(key) else { return Vec::new() };
+        let Some(snapshot) = self.snapshots.get(key) else {
+            return Vec::new();
+        };
         let mut children = Vec::new();
         append_snapshot_edges(&mut children, snapshot.dependencies.as_ref());
         if include_optional_edges {
@@ -193,9 +190,7 @@ pub(super) fn filter_ignored_advisories(
     report: &mut AuditReport,
     config: &Config,
 ) -> AuditVulnerabilityCounts {
-    let ignore_set = config
-        .audit_config
-        .ignore_ghsas
+    let ignore_set = config.audit_config.ignore_ghsas
         .iter()
         .filter_map(|ghsa| {
             let ghsa_id = normalize_ghsa_id(ghsa);
@@ -246,4 +241,64 @@ pub(super) fn severity_name(level: ConfigAuditLevel) -> &'static str {
         ConfigAuditLevel::High => "high",
         ConfigAuditLevel::Critical => "critical",
     }
+}
+
+fn correct_patched_ranges(
+    report: &mut AuditReport,
+    publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
+) {
+    for advisory in report.advisories.values_mut() {
+        let Some(patched) = advisory.patched_versions.as_deref() else {
+            continue;
+        };
+        let Some(Some(info)) = publish_infos.get(advisory.module_name.trim()) else {
+            continue;
+        };
+        let Ok(range) = patched.parse::<Range>() else {
+            continue;
+        };
+        match info.lowest_non_deprecated_version(&range) {
+            None => {
+                advisory.patched_versions = None;
+                advisory.patched_versions_unpublished = Some(true);
+            }
+            Some((_, lowest)) => {
+                advisory.patched_versions = Some(format!(">={lowest}"));
+            }
+        }
+    }
+}
+
+fn parse_audit_response(
+    status: u16,
+    raw_body: &str,
+    request_url: String,
+) -> Result<BTreeMap<String, Vec<RawBulkAdvisory>>, AuditError> {
+    match status {
+        200 => parse_bulk_advisories(raw_body, &request_url),
+        404 => Err(AuditError::EndpointNotExists {
+            url: request_url,
+        }),
+        _ => Err(AuditError::BadStatus {
+            url: request_url,
+            status,
+            body: sanitize_response_body(raw_body),
+        }),
+    }
+}
+
+fn bulk_advisories_request(
+    client: &reqwest::Client,
+    request_url: &str,
+    body: &[u8],
+    authorization: Option<&str>,
+) -> reqwest::RequestBuilder {
+    let mut request = client
+        .post(request_url)
+        .header("content-type", "application/json")
+        .body(body.to_vec());
+    if let Some(value) = authorization {
+        request = request.header("authorization", value);
+    }
+    request
 }

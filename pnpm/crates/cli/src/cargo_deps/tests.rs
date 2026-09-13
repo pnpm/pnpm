@@ -53,8 +53,8 @@ checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
         vec![LockedCrate {
             name: "serde".to_string(),
             version: "1.0.228".to_string(),
-            checksum: "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
-                .to_string(),
+            checksum: "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e".to_string(
+            ),
         }],
     );
 }
@@ -70,7 +70,10 @@ checksum = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 "#;
 
     let error = parse_lockfile(lockfile, CRATES_IO_SPARSE_INDEX).unwrap_err().to_string();
-    assert!(error.contains("does not match the configured Cargo registry"), "{error}");
+    assert!(
+        error.contains("does not match the configured Cargo registry"),
+        "{error}",
+    );
 }
 
 #[test]
@@ -86,7 +89,10 @@ checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
     let error =
         parse_lockfile(lockfile, "https://registry.example.test/index/").unwrap_err().to_string();
 
-    assert!(error.contains("does not match the configured Cargo registry"), "{error}");
+    assert!(
+        error.contains("does not match the configured Cargo registry"),
+        "{error}",
+    );
 }
 
 #[test]
@@ -104,8 +110,8 @@ checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
         vec![LockedCrate {
             name: "serde".to_string(),
             version: "1.0.228".to_string(),
-            checksum: "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
-                .to_string(),
+            checksum: "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e".to_string(
+            ),
         }],
     );
 }
@@ -120,7 +126,10 @@ source = "sparse+https://index.crates.io/"
 checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
 "#;
 
-    assert_eq!(parse_lockfile(lockfile, CRATES_IO_SPARSE_INDEX).unwrap().crates.len(), 1);
+    assert_eq!(
+        parse_lockfile(lockfile, CRATES_IO_SPARSE_INDEX).unwrap().crates.len(),
+        1,
+    );
 }
 
 #[test]
@@ -145,8 +154,8 @@ source = "registry+https://registry.example/index"
         vec![LockedCrate {
             name: "serde".to_string(),
             version: "1.0.228".to_string(),
-            checksum: "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
-                .to_string(),
+            checksum: "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e".to_string(
+            ),
         }],
     );
 }
@@ -174,7 +183,13 @@ fn appends_the_managed_config_without_changing_user_settings() {
     let existing = "[alias]\ncodecov = \"llvm-cov\"\n";
     let updated = update_managed_config(existing, CRATES_IO_SPARSE_INDEX, &[]).unwrap();
 
-    assert_eq!(updated, format!("{existing}\n{}\n", managed_config(CRATES_IO_SPARSE_INDEX, &[])));
+    assert_eq!(
+        updated,
+        format!(
+            "{existing}\n{}\n",
+            managed_config(CRATES_IO_SPARSE_INDEX, &[])
+        ),
+    );
 }
 
 #[test]
@@ -184,7 +199,10 @@ fn replaces_only_the_existing_managed_config() {
 
     assert_eq!(
         updated,
-        format!("before\n{}\nafter\n", managed_config(CRATES_IO_SPARSE_INDEX, &[])),
+        format!(
+            "before\n{}\nafter\n",
+            managed_config(CRATES_IO_SPARSE_INDEX, &[])
+        ),
     );
 }
 
@@ -367,22 +385,37 @@ fn config_with_cargo_credentials(index_url: &str) -> Config {
     let mut config = Config::new();
     config.cargo.index_url = index_url.to_string();
     config.auth_headers = Arc::new(AuthHeaders::from_creds_map([
-        ("//registry.example.test/".to_string(), "Bearer crate-token".to_string()),
-        ("//cdn.example.test/".to_string(), "Bearer unrelated-token".to_string()),
-        ("//127.0.0.1:4873/".to_string(), "Bearer local-token".to_string()),
+        (
+            "//registry.example.test/".to_string(),
+            "Bearer crate-token".to_string(),
+        ),
+        (
+            "//cdn.example.test/".to_string(),
+            "Bearer unrelated-token".to_string(),
+        ),
+        (
+            "//127.0.0.1:4873/".to_string(),
+            "Bearer local-token".to_string(),
+        ),
     ]));
     config
 }
 
 fn registry_config(dl: &str, auth_required: bool) -> RegistryConfig {
-    RegistryConfig { dl: dl.to_string(), api: None, auth_required }
+    RegistryConfig {
+        dl: dl.to_string(),
+        api: None,
+        auth_required,
+    }
 }
 
 #[test]
 fn crate_downloads_keep_credentials_off_plaintext_hosts() {
     let config = config_with_cargo_credentials("https://registry.example.test/index/");
-    let auth_headers =
-        download_auth_headers(&config, &registry_config("https://registry.example.test/dl", false));
+    let auth_headers = download_auth_headers(
+        &config,
+        &registry_config("https://registry.example.test/dl", false),
+    );
 
     assert_eq!(
         auth_headers.for_url_with_package("https://registry.example.test/dl/demo/1.0.0", None),
@@ -409,18 +442,25 @@ fn a_registry_on_loopback_still_authenticates_its_downloads() {
 #[test]
 fn an_unauthenticated_archive_host_carries_no_credential() {
     let config = config_with_cargo_credentials("https://registry.example.test/index/");
-    let auth_headers =
-        download_auth_headers(&config, &registry_config("https://cdn.example.test/{crate}", false));
+    let auth_headers = download_auth_headers(
+        &config,
+        &registry_config("https://cdn.example.test/{crate}", false),
+    );
 
-    assert_eq!(auth_headers.for_url_with_package("https://cdn.example.test/demo", None), None);
+    assert_eq!(
+        auth_headers.for_url_with_package("https://cdn.example.test/demo", None),
+        None,
+    );
     assert!(auth_headers.allows_fetch("https://cdn.example.test/demo"));
 }
 
 #[test]
 fn an_authenticated_archive_host_carries_the_credential_of_the_registry() {
     let config = config_with_cargo_credentials("https://registry.example.test/index/");
-    let auth_headers =
-        download_auth_headers(&config, &registry_config("https://cdn.example.test/{crate}", true));
+    let auth_headers = download_auth_headers(
+        &config,
+        &registry_config("https://cdn.example.test/{crate}", true),
+    );
 
     // The registry's credential, not the one configured for the host it named.
     assert_eq!(
@@ -453,7 +493,10 @@ async fn sparse_index_fetch_uses_configured_request_auth() {
         &ThrottledClient::default(),
         &auth_headers,
         false,
-        RetryOpts { retries: 0, ..RetryOpts::default() },
+        RetryOpts {
+            retries: 0,
+            ..RetryOpts::default()
+        },
     )
     .await
     .unwrap();
@@ -480,10 +523,12 @@ async fn asks_cargo_for_the_workspace_root_of_a_member() {
     .unwrap();
     fs::write(member.join("src/lib.rs"), "").unwrap();
 
-    assert_eq!(workspace_root(&member.join("Cargo.toml")).await.unwrap(), cargo_root);
     assert_eq!(
-        discover_workspace_roots(&[member.join("Cargo.toml"), cargo_root.join("Cargo.toml")])
-            .await
+        workspace_root(&member.join("Cargo.toml")).await.unwrap(),
+        cargo_root,
+    );
+    assert_eq!(
+        discover_workspace_roots(&[member.join("Cargo.toml"), cargo_root.join("Cargo.toml")]).await
             .unwrap(),
         [dunce::canonicalize(cargo_root).unwrap()],
     );
@@ -493,8 +538,11 @@ async fn asks_cargo_for_the_workspace_root_of_a_member() {
 async fn discovers_independent_workspaces_nested_under_workspace_members() {
     let repository = tempfile::tempdir().unwrap();
     let root = repository.path();
-    fs::write(root.join("Cargo.toml"), "[workspace]\nmembers = [\"member\"]\nresolver = \"2\"\n")
-        .unwrap();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"member\"]\nresolver = \"2\"\n",
+    )
+    .unwrap();
     for (path, name, workspace) in [
         (root.join("member"), "member", ""),
         (root.join("member/nested"), "nested", "[workspace]\n"),
@@ -536,7 +584,10 @@ fn rejects_a_symlinked_cargo_source_parent() {
         link_workspace(workspace.path(), &CRATES_SOURCE_DIRECTORY, &[]).unwrap_err().to_string();
 
     assert!(error.contains("must be a real directory"), "{error}");
-    assert_eq!(fs::read_to_string(outside.path().join("keep")).unwrap(), "unchanged");
+    assert_eq!(
+        fs::read_to_string(outside.path().join("keep")).unwrap(),
+        "unchanged",
+    );
 }
 
 #[cfg(unix)]
@@ -568,7 +619,10 @@ fn config_write_stays_in_the_directory_pinned_before_a_parent_swap() {
 
     write_cargo_config_in(&cargo_dir, CRATES_IO_SPARSE_INDEX, &[]).unwrap();
 
-    assert_eq!(fs::read_to_string(outside.path().join("config.toml")).unwrap(), "unchanged\n");
+    assert_eq!(
+        fs::read_to_string(outside.path().join("config.toml")).unwrap(),
+        "unchanged\n",
+    );
     assert!(
         fs::read_to_string(pinned_path.join("config.toml"))
             .unwrap()
@@ -589,8 +643,11 @@ fn crate_link_stays_in_the_directory_pinned_before_a_parent_swap() {
     fs::rename(&source_path, &pinned_path).unwrap();
     symlink(outside.path(), &source_path).unwrap();
 
-    link_workspace_in(&source_dir, &[("example-1.0.0".to_string(), slot.path().to_path_buf())])
-        .unwrap();
+    link_workspace_in(
+        &source_dir,
+        &[("example-1.0.0".to_string(), slot.path().to_path_buf())],
+    )
+    .unwrap();
 
     assert_eq!(fs::read_dir(outside.path()).unwrap().count(), 0);
     assert_eq!(
@@ -617,7 +674,10 @@ fn crate_link_does_not_overwrite_a_nonempty_stale_backup() {
     )
     .unwrap();
 
-    assert_eq!(fs::read_to_string(stale_backup.join("keep")).unwrap(), "unchanged");
+    assert_eq!(
+        fs::read_to_string(stale_backup.join("keep")).unwrap(),
+        "unchanged",
+    );
     assert_eq!(
         fs::read_link(source_path.join("example-1.0.0")).unwrap(),
         pnpm_fs::relative_path(&source_path, slot.path()),
@@ -672,7 +732,10 @@ async fn cargo_resolution_is_offloaded_to_the_pnpr_server() {
         .create_async()
         .await;
     let sent_metadata = pnpm_cargo_resolver::resolve_inputs(METADATA).unwrap();
-    assert!(!sent_metadata.contains("private-workspace"), "{sent_metadata}");
+    assert!(
+        !sent_metadata.contains("private-workspace"),
+        "{sent_metadata}",
+    );
     let resolve = server
         .mock("POST", "/-/pnpr/v0/resolve")
         .match_body(mockito::Matcher::PartialJson(serde_json::json!({
@@ -696,8 +759,11 @@ async fn cargo_resolution_is_offloaded_to_the_pnpr_server() {
 #[tokio::test]
 async fn configured_cargo_registry_is_sent_to_the_pnpr_server() {
     let mut server = mockito::Server::new_async().await;
-    let handshake =
-        server.mock("GET", "/-/pnpr").with_body(handshake_body(&["cargo"])).create_async().await;
+    let handshake = server
+        .mock("GET", "/-/pnpr")
+        .with_body(handshake_body(&["cargo"]))
+        .create_async()
+        .await;
     let resolve = server
         .mock("POST", "/-/pnpr/v0/resolve")
         .match_body(mockito::Matcher::PartialJson(serde_json::json!({
@@ -722,9 +788,16 @@ async fn configured_cargo_registry_is_sent_to_the_pnpr_server() {
 #[tokio::test]
 async fn a_server_without_cargo_support_leaves_resolution_local() {
     let mut server = mockito::Server::new_async().await;
-    let handshake =
-        server.mock("GET", "/-/pnpr").with_body(handshake_body(&["npm"])).create_async().await;
-    let resolve = server.mock("POST", "/-/pnpr/v0/resolve").expect(0).create_async().await;
+    let handshake = server
+        .mock("GET", "/-/pnpr")
+        .with_body(handshake_body(&["npm"]))
+        .create_async()
+        .await;
+    let resolve = server
+        .mock("POST", "/-/pnpr/v0/resolve")
+        .expect(0)
+        .create_async()
+        .await;
 
     let lockfile = resolve_via_pnpr(&config_for_pnpr(&server.url()), "{}").await.unwrap();
 
@@ -752,7 +825,9 @@ async fn an_unterminated_pnpr_response_does_not_grow_without_bound() {
     let error = resolve_via_pnpr(&config_for_pnpr(&server.url()), metadata).await.unwrap_err();
 
     assert!(
-        error.chain().any(|cause| cause.to_string().contains("exceeds the")),
+        error
+            .chain()
+            .any(|cause| cause.to_string().contains("exceeds the")),
         "the oversized body is refused by its size, not by parsing: {error:?}",
     );
     handshake.assert_async().await;
@@ -781,7 +856,9 @@ async fn a_second_terminal_frame_fails_the_resolve() {
     let error = resolve_via_pnpr(&config_for_pnpr(&server.url()), metadata).await.unwrap_err();
 
     assert!(
-        error.chain().any(|cause| cause.to_string().contains("more than one terminal frame")),
+        error
+            .chain()
+            .any(|cause| cause.to_string().contains("more than one terminal frame")),
         "a response that also reports a failure is not a lockfile to write: {error:?}",
     );
     handshake.assert_async().await;
@@ -820,7 +897,12 @@ async fn concurrent_roots_share_one_handshake() {
 async fn concurrent_roots_share_one_failed_handshake() {
     const METADATA: &str = r#"{"packages":[],"workspace_members":[]}"#;
     let mut server = mockito::Server::new_async().await;
-    let handshake = server.mock("GET", "/-/pnpr").with_status(500).expect(1).create_async().await;
+    let handshake = server
+        .mock("GET", "/-/pnpr")
+        .with_status(500)
+        .expect(1)
+        .create_async()
+        .await;
     let config = config_for_pnpr(&server.url());
 
     let roots = (0..4).map(|_| resolve_via_pnpr(&config, METADATA));
@@ -865,7 +947,11 @@ async fn the_handshake_is_asked_once_per_server() {
 #[tokio::test]
 async fn an_offline_install_does_not_reach_the_pnpr_server() {
     let mut server = mockito::Server::new_async().await;
-    let handshake = server.mock("GET", "/-/pnpr").expect(0).create_async().await;
+    let handshake = server
+        .mock("GET", "/-/pnpr")
+        .expect(0)
+        .create_async()
+        .await;
     let mut config = config_for_pnpr(&server.url());
     config.offline = true;
 

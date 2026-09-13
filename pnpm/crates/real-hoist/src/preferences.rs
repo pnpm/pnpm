@@ -31,10 +31,15 @@ impl PreferenceEntry {
 /// Ports
 /// <https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts>.
 pub(super) fn build_hoist_ident_map(root: &Rc<HoisterResult>) -> HashMap<String, VecDeque<String>> {
-    let root_children: Vec<Rc<HoisterResult>> =
-        root.dependencies.borrow().iter().map(|dep| Rc::clone(&dep.0)).collect();
-    let hoistable: Vec<&Rc<HoisterResult>> =
-        root_children.iter().filter(|dep| !root.peer_names.contains(&dep.name)).collect();
+    let root_children: Vec<Rc<HoisterResult>> = root.dependencies
+        .borrow()
+        .iter()
+        .map(|dep| Rc::clone(&dep.0))
+        .collect();
+    let hoistable: Vec<&Rc<HoisterResult>> = root_children
+        .iter()
+        .filter(|dep| !root.peer_names.contains(&dep.name))
+        .collect();
 
     let preference = collect_preferences(root, &hoistable);
     let mut ident_map = seed_ident_map(root, &hoistable);
@@ -77,13 +82,20 @@ fn append_preferred_idents(
     root: &Rc<HoisterResult>,
     preference: &IndexMap<(String, String), PreferenceEntry>,
 ) {
-    let mut keys: Vec<(String, String)> = preference.keys().cloned().collect();
+    let mut keys: Vec<(String, String)> = preference
+        .keys()
+        .cloned()
+        .collect();
     // `hoist_priority` is always 0 in pacquet, so the sort reduces to
     // usage (descending). `sort_by` is stable, so equal-usage keys
     // keep preference-map insertion order (depth-first discovery) —
     // matching yarn's `keyList.sort`, which is likewise stable on
     // equal usage.
-    keys.sort_by(|left, right| preference[right].usages().cmp(&preference[left].usages()));
+    keys.sort_by(|left, right| {
+        preference[right]
+            .usages()
+            .cmp(&preference[left].usages())
+    });
     for (name, ident) in keys {
         if root.peer_names.contains(&name) {
             continue;
@@ -114,8 +126,11 @@ fn add_dependent(
         .insert(dependent_ident.to_string());
 
     if seen.insert(Rc::as_ptr(node)) {
-        let children: Vec<Rc<HoisterResult>> =
-            node.dependencies.borrow().iter().map(|dep| Rc::clone(&dep.0)).collect();
+        let children: Vec<Rc<HoisterResult>> = node.dependencies
+            .borrow()
+            .iter()
+            .map(|dep| Rc::clone(&dep.0))
+            .collect();
         for child in children {
             if node.peer_names.contains(&child.name) {
                 preference
@@ -145,5 +160,9 @@ pub(super) fn is_preferred_ident(
     let Some(preferred) = idents.front() else {
         return true;
     };
-    child.references.borrow().iter().next().is_some_and(|reference| reference == preferred)
+    child.references
+        .borrow()
+        .iter()
+        .next()
+        .is_some_and(|reference| reference == preferred)
 }

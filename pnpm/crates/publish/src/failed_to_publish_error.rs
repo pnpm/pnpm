@@ -25,7 +25,12 @@ impl FailedToPublishError {
     /// a single-line body appended inline.
     #[must_use]
     pub fn new(name: &str, version: &str, status: u16, status_text: String, text: String) -> Self {
-        Self::from_response(&format!("package {name}@{version}"), status, status_text, text)
+        Self::from_response(
+            &format!("package {name}@{version}"),
+            status,
+            status_text,
+            text,
+        )
     }
 
     /// Build the error for one rejected batch request.
@@ -63,7 +68,12 @@ impl FailedToPublishError {
             let _ = write!(message, ": {trimmed}");
         }
 
-        FailedToPublishError { message, status, status_text, text }
+        FailedToPublishError {
+            message,
+            status,
+            status_text,
+            text,
+        }
     }
 }
 

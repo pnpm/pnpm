@@ -22,7 +22,10 @@ fn config_with_extensions(entries: &[(&str, &[(&str, &str)])]) -> Box<Config> {
         }
         extensions.insert(
             (*selector).to_string(),
-            PackageExtension { dependencies: Some(dependencies), ..Default::default() },
+            PackageExtension {
+                dependencies: Some(dependencies),
+                ..Default::default()
+            },
         );
     }
     let mut config = Config::new();
@@ -36,7 +39,10 @@ fn full_workspace_selection_keeps_resolution_prefetch_enabled() {
     let all_selected = real.clone();
     let partial = std::collections::HashSet::from_iter(["a".to_string()]);
 
-    assert!(!is_partial_workspace_selection(Some(&real), Some(&all_selected)));
+    assert!(!is_partial_workspace_selection(
+        Some(&real),
+        Some(&all_selected)
+    ));
     assert!(is_partial_workspace_selection(Some(&real), Some(&partial)));
     assert!(!is_partial_workspace_selection(None, None));
 }
@@ -48,7 +54,10 @@ fn partial_installs_keep_transitive_optional_dependencies() {
 
     assert!(include_transitive_optional_dependencies(false, &prod_only));
     assert!(!include_transitive_optional_dependencies(true, &prod_only));
-    assert!(include_transitive_optional_dependencies(true, &with_optional));
+    assert!(include_transitive_optional_dependencies(
+        true,
+        &with_optional
+    ));
 }
 
 #[tokio::test]
@@ -58,8 +67,7 @@ async fn filtered_repair_verifies_the_merged_lockfile() {
     )
     .expect("parse lockfile");
 
-    let error = verify_merged_repair::<SilentReporter>(&lockfile, &[])
-        .await
+    let error = verify_merged_repair::<SilentReporter>(&lockfile, &[]).await
         .expect_err("the merged lockfile must pass structural verification");
     assert!(matches!(
         error,
@@ -89,7 +97,10 @@ fn compute_checksum_is_order_invariant_across_outer_keys() {
     ]);
     let checksum_a = compute_package_extensions_checksum(&config_a);
     let checksum_b = compute_package_extensions_checksum(&config_b);
-    assert!(checksum_a.is_some(), "configured extensions must hash to Some");
+    assert!(
+        checksum_a.is_some(),
+        "configured extensions must hash to Some",
+    );
     assert_eq!(checksum_a, checksum_b);
 }
 
@@ -124,13 +135,23 @@ fn importer_scoped_update_full_resolution_requires_every_importer_to_disable_reu
     let importer_ids = ["selected", "unselected"];
     let mixed =
         std::collections::BTreeMap::from([("selected".to_string(), UpdateReuseScope::None)]);
-    assert!(!full_resolution_required(true, importer_ids, &UpdateReuseScope::All, &mixed,));
+    assert!(!full_resolution_required(
+        true,
+        importer_ids,
+        &UpdateReuseScope::All,
+        &mixed,
+    ));
 
     let all_none = std::collections::BTreeMap::from([
         ("selected".to_string(), UpdateReuseScope::None),
         ("unselected".to_string(), UpdateReuseScope::None),
     ]);
-    assert!(full_resolution_required(true, importer_ids, &UpdateReuseScope::All, &all_none,));
+    assert!(full_resolution_required(
+        true,
+        importer_ids,
+        &UpdateReuseScope::All,
+        &all_none,
+    ));
     assert!(full_resolution_required(
         false,
         importer_ids,
@@ -189,7 +210,10 @@ fn workspace_manifests(
 
 fn linked_peer_consumers(projects: &[(&str, serde_json::Value)]) -> Vec<String> {
     let owned = workspace_manifests(projects);
-    let borrowed = owned.iter().map(|(id, manifest)| (id.clone(), manifest)).collect();
+    let borrowed = owned
+        .iter()
+        .map(|(id, manifest)| (id.clone(), manifest))
+        .collect();
     let mut consumers: Vec<String> =
         importers_consuming_linked_peers(&borrowed, std::path::Path::new("/repo"))
             .into_iter()
@@ -288,7 +312,10 @@ fn same_named_workspace_projects_count_when_any_version_declares_a_peer() {
                     "peerDependencies": { "react": "^18.0.0" },
                 }),
             ),
-            ("packages/lib-v2", serde_json::json!({ "name": "lib", "version": "2.0.0" })),
+            (
+                "packages/lib-v2",
+                serde_json::json!({ "name": "lib", "version": "2.0.0" })
+            ),
         ]),
         vec!["packages/app".to_string()],
     );

@@ -13,9 +13,18 @@ fn skip_optional_with_wrong_node_engine() {
     reset_events();
     let key = snapshot_key("for-legacy-node@1.0.0");
     let mut snapshots = HashMap::new();
-    snapshots.insert(key.clone(), SnapshotEntry { optional: true, ..Default::default() });
+    snapshots.insert(
+        key.clone(),
+        SnapshotEntry {
+            optional: true,
+            ..Default::default()
+        },
+    );
     let mut packages = HashMap::new();
-    packages.insert(key.clone(), synthetic_metadata(Some(&[("node", "0.10")]), None, None, None));
+    packages.insert(
+        key.clone(),
+        synthetic_metadata(Some(&[("node", "0.10")]), None, None, None),
+    );
 
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
         &no_importers(),
@@ -46,7 +55,10 @@ fn skip_optional_with_wrong_node_engine() {
 fn engines_without_node_or_pnpm_does_not_count_as_constraint() {
     let key = snapshot_key("npm-engine-only@1.0.0");
     let mut packages = HashMap::new();
-    packages.insert(key, synthetic_metadata(Some(&[("npm", ">=8")]), None, None, None));
+    packages.insert(
+        key,
+        synthetic_metadata(Some(&[("npm", ">=8")]), None, None, None),
+    );
     assert!(
         !any_installability_constraint(&HashMap::new(), &packages),
         "engines.npm alone should not block the fast path",
@@ -56,7 +68,10 @@ fn engines_without_node_or_pnpm_does_not_count_as_constraint() {
 fn meaningful_engines_node_triggers_slow_path() {
     let key = snapshot_key("for-legacy-node@1.0.0");
     let mut packages = HashMap::new();
-    packages.insert(key, synthetic_metadata(Some(&[("node", "0.10")]), None, None, None));
+    packages.insert(
+        key,
+        synthetic_metadata(Some(&[("node", "0.10")]), None, None, None),
+    );
     assert!(
         any_installability_constraint(&HashMap::new(), &packages),
         "engines.node must trigger the slow path",

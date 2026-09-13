@@ -59,7 +59,10 @@ pub(crate) fn verify_deps_before_run(
     match config.verify_deps_before_run {
         VerifyDepsBeforeRun::Install => spawn_install(dir, &install_args, reporter),
         VerifyDepsBeforeRun::Prompt => prompt_install(dir, &install_args, reporter, issue),
-        VerifyDepsBeforeRun::Error => Err(VerifyDepsError::OutOfSync { issue }.into()),
+        VerifyDepsBeforeRun::Error => Err(VerifyDepsError::OutOfSync {
+            issue,
+        }
+        .into()),
         VerifyDepsBeforeRun::Warn => {
             warn(
                 matches!(reporter, ReporterType::Silent),
@@ -80,7 +83,10 @@ pub(crate) fn verify_deps_before_run(
 /// The spawned install never re-enters this gate: only `run` / `exec` consult
 /// it. Its up-to-date shortcuts are bypassed because the pre-run check has
 /// already decided that an install is required.
-#[expect(clippy::exit, reason = "a failed spawned install must preserve the child exit code")]
+#[expect(
+    clippy::exit,
+    reason = "a failed spawned install must preserve the child exit code"
+)]
 fn spawn_install(
     dir: &Path,
     install_args: &[String],
@@ -89,7 +95,11 @@ fn spawn_install(
     let exe = std::env::current_exe().into_diagnostic()?;
     let mut command = Command::new(exe);
     command
-        .args(["install", "--verify-deps-before-run-install", "--use-stderr"])
+        .args([
+            "install",
+            "--verify-deps-before-run-install",
+            "--use-stderr",
+        ])
         .args(install_args)
         .current_dir(dir);
     match reporter {
@@ -121,12 +131,16 @@ fn warn(silent: bool, message: &str) {
     if silent {
         return;
     }
-    let colors =
-        Colors { enabled: pnpm_default_reporter::colors_enabled(std::io::stderr().is_terminal()) };
+    let colors = Colors {
+        enabled: pnpm_default_reporter::colors_enabled(std::io::stderr().is_terminal()),
+    };
     eprintln!("{} {message}", colors.warn_label());
 }
 
-#[expect(clippy::exit, reason = "an interrupted prompt exits 1, like pnpm's ExitPromptError")]
+#[expect(
+    clippy::exit,
+    reason = "an interrupted prompt exits 1, like pnpm's ExitPromptError"
+)]
 fn prompt_install(
     dir: &Path,
     install_args: &[String],
@@ -134,7 +148,10 @@ fn prompt_install(
     issue: String,
 ) -> miette::Result<()> {
     if !std::io::stdin().is_terminal() {
-        return Err(VerifyDepsError::CannotPrompt { issue }.into());
+        return Err(VerifyDepsError::CannotPrompt {
+            issue,
+        }
+        .into());
     }
     let command = std::iter::once("install")
         .chain(install_args.iter().map(String::as_str))
@@ -143,7 +160,11 @@ fn prompt_install(
     let message = format!(
         "Your \"node_modules\" directory is out of sync with the \"pnpm-lock.yaml\" file. This can lead to issues during scripts execution.\n\nWould you like to run \"pnpm {command}\" to update your \"node_modules\"?",
     );
-    match Confirm::new().with_prompt(message).default(true).interact() {
+    match Confirm::new()
+        .with_prompt(message)
+        .default(true)
+        .interact()
+    {
         Ok(true) => spawn_install(dir, install_args, reporter),
         Ok(false) => Ok(()),
         // The prompt was interrupted (Esc / Ctrl-C); exit like

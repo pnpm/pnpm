@@ -51,7 +51,11 @@ fn an_explicit_value_set_afterwards_survives_the_removal() {
     guard.set(SETTING, r#"{"node":false}"#);
 
     let stripped = Command::new("pnpm").without_ambient_pnpm_config();
-    assert_eq!(env_value(&stripped, SETTING), None, "the inherited value should be removed");
+    assert_eq!(
+        env_value(&stripped, SETTING),
+        None,
+        "the inherited value should be removed",
+    );
 
     let overridden =
         Command::new("pnpm").without_ambient_pnpm_config().with_env(SETTING, r#"{"node":"auto"}"#);
@@ -69,7 +73,10 @@ fn spawned_pnpm_defaults_to_non_ci_after_ambient_config_is_removed() {
 
     let command = Command::new("pnpm").without_ambient_pnpm_config();
 
-    assert_eq!(env_value(&command, CI_SETTING).as_deref(), Some(OsStr::new("false")));
+    assert_eq!(
+        env_value(&command, CI_SETTING).as_deref(),
+        Some(OsStr::new("false")),
+    );
 }
 
 /// What `command` will pass for `name`: `None` once it is removed, `Some`

@@ -79,8 +79,9 @@ pub(crate) fn apply_install_cli_config(cfg: &mut Config, args: &InstallArgs) {
     if args.lockfile_updates.merge_git_branch_lockfiles {
         cfg.merge_git_branch_lockfiles = true;
     } else if !args.lockfile_updates.merge_git_branch_lockfiles_branch_pattern.is_empty() {
-        cfg.merge_git_branch_lockfiles_branch_pattern
-            .clone_from(&args.lockfile_updates.merge_git_branch_lockfiles_branch_pattern);
+        cfg.merge_git_branch_lockfiles_branch_pattern.clone_from(
+            &args.lockfile_updates.merge_git_branch_lockfiles_branch_pattern,
+        );
         cfg.apply_git_branch_lockfile_derivation::<Host>();
     }
 }

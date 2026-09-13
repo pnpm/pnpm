@@ -46,13 +46,21 @@ fn importer_link(target: &str) -> ResolvedDependencySpec {
 }
 
 fn importer_map(entries: &[(&str, &str)]) -> ResolvedDependencyMap {
-    entries.iter().map(|(n, v)| (pkg(n), importer_dep(v))).collect()
+    entries
+        .iter()
+        .map(|(n, v)| (pkg(n), importer_dep(v)))
+        .collect()
 }
 
 fn snapshot_with_deps(deps: &[(&str, &str)]) -> SnapshotEntry {
-    let map: HashMap<PkgName, SnapshotDepRef> =
-        deps.iter().map(|(n, v)| (pkg(n), SnapshotDepRef::Plain(ver(v)))).collect();
-    SnapshotEntry { dependencies: Some(map), ..Default::default() }
+    let map: HashMap<PkgName, SnapshotDepRef> = deps
+        .iter()
+        .map(|(n, v)| (pkg(n), SnapshotDepRef::Plain(ver(v))))
+        .collect();
+    SnapshotEntry {
+        dependencies: Some(map),
+        ..Default::default()
+    }
 }
 
 fn package_metadata(name: &str) -> PackageMetadata {
@@ -80,7 +88,11 @@ fn package_metadata(name: &str) -> PackageMetadata {
 
 fn empty_lockfile() -> Lockfile {
     Lockfile {
-        lockfile_version: LockfileVersion::<9>::try_from(ComVer { major: 9, minor: 0 }).unwrap(),
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer {
+            major: 9,
+            minor: 0,
+        })
+        .unwrap(),
         settings: None,
         catalogs: None,
         overrides: None,
@@ -97,7 +109,11 @@ fn empty_lockfile() -> Lockfile {
 }
 
 fn include_all() -> IncludedDependencies {
-    IncludedDependencies { dependencies: true, dev_dependencies: true, optional_dependencies: true }
+    IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: true,
+        optional_dependencies: true,
+    }
 }
 
 fn lockfile_with_top_level(marker: &str, minor: u16) -> Lockfile {
@@ -112,7 +128,11 @@ fn lockfile_with_top_level(marker: &str, minor: u16) -> Lockfile {
         )]),
     )]);
     Lockfile {
-        lockfile_version: LockfileVersion::<9>::try_from(ComVer { major: 9, minor }).unwrap(),
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer {
+            major: 9,
+            minor,
+        })
+        .unwrap(),
         settings: Some(LockfileSettings {
             auto_install_peers: marker == "fresh",
             dedupe_peers: Some(marker == "fresh"),

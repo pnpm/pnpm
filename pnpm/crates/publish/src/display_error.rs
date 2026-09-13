@@ -28,7 +28,9 @@ pub fn display_error(code: Option<&str>, body: Option<&str>) -> String {
 /// Render a diagnostic as a short string: its `code` followed by its
 /// message. The miette `code` supplies the code and `Display` the message.
 pub(crate) fn display_diagnostic(error: &impl Diagnostic) -> String {
-    let code = error.code().map(|code| code.to_string());
+    let code = error
+        .code()
+        .map(|code| code.to_string());
     display_error(code.as_deref(), Some(&error.to_string()))
 }
 

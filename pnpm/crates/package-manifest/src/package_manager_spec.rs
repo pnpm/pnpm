@@ -24,7 +24,9 @@ use serde_json::Value;
 #[must_use]
 pub fn split_spec(spec: &str) -> (&str, Option<&str>) {
     let separator = if let Some(rest) = spec.strip_prefix('@') {
-        rest.find('@').map(|index| index + 1)
+        rest
+            .find('@')
+            .map(|index| index + 1)
     } else {
         spec.find('@')
     };
@@ -38,7 +40,9 @@ pub fn split_spec(spec: &str) -> (&str, Option<&str>) {
 /// build corepack records the downloaded artifact with.
 #[must_use]
 pub fn version_without_build(reference: &str) -> &str {
-    reference.split_once('+').map_or(reference, |(version, _)| version)
+    reference
+        .split_once('+')
+        .map_or(reference, |(version, _)| version)
 }
 
 /// Whether `reference` asks for a released version — a version, a range,
@@ -55,13 +59,17 @@ pub fn is_version_request(reference: &str) -> bool {
 /// The `devEngines.packageManager` declarations, in the order the manifest
 /// lists them. The field holds either one entry or a list of them.
 pub fn dev_engines_package_managers(manifest: &Value) -> impl Iterator<Item = &Value> {
-    let declared = manifest.get("devEngines").and_then(|engines| engines.get("packageManager"));
+    let declared = manifest
+        .get("devEngines")
+        .and_then(|engines| engines.get("packageManager"));
     let (single, list) = match declared {
         Some(Value::Array(entries)) => (None, Some(entries)),
         Some(entry) => (Some(entry), None),
         None => (None, None),
     };
-    single.into_iter().chain(list.into_iter().flatten())
+    single
+        .into_iter()
+        .chain(list.into_iter().flatten())
 }
 
 /// The package manager one `devEngines.packageManager` entry declares.

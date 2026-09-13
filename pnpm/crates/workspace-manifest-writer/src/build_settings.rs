@@ -1,6 +1,6 @@
 use super::{
-    Manifest, Path, UpdateWorkspaceManifestError, WORKSPACE_MANIFEST_FILENAME, edit, fs,
-    has_control_char, io, unsupported_inline_key, write_or_remove_manifest,
+    Path, UpdateWorkspaceManifestError, WORKSPACE_MANIFEST_FILENAME, edit, has_control_char,
+    read_manifest, unsupported_inline_key, write_or_remove_manifest,
 };
 
 /// Upsert `name → bool` entries into `dir`'s `pnpm-workspace.yaml`
@@ -54,26 +54,25 @@ where
 {
     let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
 
-    let original = match fs::read_to_string(&path) {
-        Ok(text) => Some(text),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
-        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
-    };
-
-    let mut manifest = Manifest::parse(original.as_deref())
-        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+    let mut manifest = read_manifest(&path)?;
 
     let entries: Vec<(&str, bool)> = entries.into_iter().collect();
     if !entries.is_empty()
         && let Some(key) = unsupported_inline_key(manifest.document.text(), &[&["allowBuilds"]])
     {
-        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
+            path,
+            key,
+        });
     }
 
     // The block-style splice writes `- name: true` on one line, so a control
     // character in `name` (e.g. a newline from a crafted `--allow-build`)
     // would corrupt the document — refuse instead.
-    if let Some((name, _)) = entries.iter().find(|(name, _)| has_control_char(name)) {
+    if let Some((name, _)) = entries
+        .iter()
+        .find(|(name, _)| has_control_char(name))
+    {
         return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
             path,
             value: (*name).to_string(),
@@ -118,20 +117,16 @@ where
 {
     let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
 
-    let original = match fs::read_to_string(&path) {
-        Ok(text) => Some(text),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
-        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
-    };
-
-    let mut manifest = Manifest::parse(original.as_deref())
-        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+    let mut manifest = read_manifest(&path)?;
 
     let names: Vec<&str> = names.into_iter().collect();
     if !names.is_empty()
         && let Some(key) = unsupported_inline_key(manifest.document.text(), &[&["allowBuilds"]])
     {
-        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
+            path,
+            key,
+        });
     }
 
     let mut changed = false;

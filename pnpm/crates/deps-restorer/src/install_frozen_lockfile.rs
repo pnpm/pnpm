@@ -303,13 +303,12 @@ impl<'a> InstallFrozenLockfile<'a> {
         // why it lives here rather than in the plan.
         let allow_build_policy = AllowBuildPolicy::from_config(self.drivers.config)
             .map_err(InstallFrozenLockfileError::VersionPolicy)?;
-        let plan = self
-            .plan_materialization(
-                &allow_build_policy,
-                owned.early_host_detection,
-                owned.node_version,
-            )
-            .await?;
+        let plan = self.plan_materialization(
+            &allow_build_policy,
+            owned.early_host_detection,
+            owned.node_version,
+        )
+        .await?;
 
         self.run_plan::<Reporter>(
             &allow_build_policy,
@@ -361,18 +360,17 @@ impl<'a> InstallFrozenLockfile<'a> {
 
         let settled = self.settle_skip_set::<Reporter>(plan.host, seed_skipped).await?;
 
-        let fetched = self
-            .fetch::<Reporter>(
-                &ctx,
-                FetchInputs {
-                    cas_prefetch: plan.cas_prefetch,
-                    dir_clone_cache: plan.dir_clone_cache.as_ref(),
-                    store_index_writer: &store_index_writer,
-                    skipped: &settled.skipped,
-                    verification_override,
-                },
-            )
-            .await?;
+        let fetched = self.fetch::<Reporter>(
+            &ctx,
+            FetchInputs {
+                cas_prefetch: plan.cas_prefetch,
+                dir_clone_cache: plan.dir_clone_cache.as_ref(),
+                store_index_writer: &store_index_writer,
+                skipped: &settled.skipped,
+                verification_override,
+            },
+        )
+        .await?;
 
         self.finish_materialization::<Reporter>(
             &ctx,
@@ -400,25 +398,19 @@ impl<'a> InstallFrozenLockfile<'a> {
         let linked = self.link_fetched::<Reporter>(ctx, &mut fetched, &mut settled)?;
 
         let phase_start = std::time::Instant::now();
-        let built = self
-            .build::<Reporter>(
-                ctx,
-                BuildInputs {
-                    fetched: &fetched,
-                    linked: &linked,
-                    skipped: &settled.skipped,
-                    store_index_writer: &store_index_writer,
-                    engine_name: settled.engine_name,
-                    deferred_engine_name,
-                },
-            )
-            .await?;
-        tracing::info!(
-            target: "pacquet::install::phase",
-            phase = "build_phase",
-            elapsed_ms = phase_start.elapsed().as_millis() as u64,
-            "phase complete",
-        );
+        let built = self.build::<Reporter>(
+            ctx,
+            BuildInputs {
+                fetched: &fetched,
+                linked: &linked,
+                skipped: &settled.skipped,
+                store_index_writer: &store_index_writer,
+                engine_name: settled.engine_name,
+                deferred_engine_name,
+            },
+        )
+        .await?;
+        report_install_phase("build_phase", phase_start);
 
         // Drop the orchestrator's clone of the writer so the channel
         // closes once every per-snapshot clone has also been dropped
@@ -465,7 +457,11 @@ impl<'a> InstallFrozenLockfile<'a> {
         let phase_start = std::time::Instant::now();
         let linked = self.link::<Reporter>(
             ctx,
-            LinkInputs { fetched, cas_paths_by_pkg_id, host_node: settled.host_node.as_ref() },
+            LinkInputs {
+                fetched,
+                cas_paths_by_pkg_id,
+                host_node: settled.host_node.as_ref(),
+            },
             &mut settled.skipped,
         )?;
         tracing::info!(
@@ -504,4 +500,8 @@ impl<'a> InstallFrozenLockfile<'a> {
     fn take_owned(&mut self) -> crate::FrozenInstallSeed<'a> {
         std::mem::take(&mut self.seed)
     }
+}
+
+fn report_install_phase(phase: &str, started_at: std::time::Instant) {
+    tracing::info!(target: "pacquet::install::phase", phase, elapsed_ms = started_at.elapsed().as_millis() as u64, "phase complete");
 }

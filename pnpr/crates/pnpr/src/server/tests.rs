@@ -56,7 +56,10 @@ fn original_integrity_rejects_an_explicit_null_revision() {
         revision: RevisionField::Present(serde_json::Value::Null),
         revisions: Vec::new(),
     };
-    assert_eq!(original_integrity(&dist).map(|integrity| integrity.to_string()), None);
+    assert_eq!(
+        original_integrity(&dist).map(|integrity| integrity.to_string()),
+        None,
+    );
 }
 
 #[test]
@@ -70,7 +73,10 @@ fn original_integrity_rejects_an_explicit_revision_zero() {
             integrity: Some(integrity),
         }],
     };
-    assert_eq!(original_integrity(&dist).map(|integrity| integrity.to_string()), None);
+    assert_eq!(
+        original_integrity(&dist).map(|integrity| integrity.to_string()),
+        None,
+    );
 }
 
 #[test]
@@ -85,7 +91,10 @@ fn original_integrity_uses_validated_revision_zero_after_replacement() {
                 revision: serde_json::json!(0),
                 integrity: Some(original.clone()),
             },
-            HostedRevisionRecord { revision: serde_json::json!(1), integrity: Some(replacement) },
+            HostedRevisionRecord {
+                revision: serde_json::json!(1),
+                integrity: Some(replacement),
+            },
         ],
     };
     assert_eq!(original_integrity(&dist).unwrap().to_string(), original);
@@ -103,14 +112,20 @@ fn original_integrity_rejects_ambiguous_or_inconsistent_history() {
                 revision: serde_json::json!(0),
                 integrity: Some(original.clone()),
             },
-            HostedRevisionRecord { revision: serde_json::json!(0), integrity: Some(original) },
+            HostedRevisionRecord {
+                revision: serde_json::json!(0),
+                integrity: Some(original),
+            },
             HostedRevisionRecord {
                 revision: serde_json::json!(1),
                 integrity: Some(format!("sha512-{}g==", "C".repeat(85))),
             },
         ],
     };
-    assert_eq!(original_integrity(&dist).map(|integrity| integrity.to_string()), None);
+    assert_eq!(
+        original_integrity(&dist).map(|integrity| integrity.to_string()),
+        None,
+    );
 }
 
 // ---------------------------------------------------------------
@@ -170,15 +185,27 @@ fn canonical_ip_unwraps_ipv4_mapped_v6() {
     assert_eq!(canonical_ip(mapped), ip("203.0.113.7"));
     // A peer arriving as an IPv4-mapped IPv6 address still matches an
     // IPv4 whitelist range.
-    assert!(cidr_whitelist_allows(&["203.0.113.0/24".to_string()], SocketAddr::new(mapped, 443),));
+    assert!(cidr_whitelist_allows(
+        &["203.0.113.0/24".to_string()],
+        SocketAddr::new(mapped, 443),
+    ));
 }
 
 #[test]
 fn cidr_whitelist_allows_requires_some_entry_to_match() {
     let whitelist = ["10.0.0.0/8".to_string(), "192.168.0.0/16".to_string()];
-    assert!(cidr_whitelist_allows(&whitelist, SocketAddr::new(ip("10.9.9.9"), 1)));
-    assert!(cidr_whitelist_allows(&whitelist, SocketAddr::new(ip("192.168.5.5"), 1)));
-    assert!(!cidr_whitelist_allows(&whitelist, SocketAddr::new(ip("203.0.113.1"), 1)));
+    assert!(cidr_whitelist_allows(
+        &whitelist,
+        SocketAddr::new(ip("10.9.9.9"), 1)
+    ));
+    assert!(cidr_whitelist_allows(
+        &whitelist,
+        SocketAddr::new(ip("192.168.5.5"), 1)
+    ));
+    assert!(!cidr_whitelist_allows(
+        &whitelist,
+        SocketAddr::new(ip("203.0.113.1"), 1)
+    ));
 }
 
 // ---------------------------------------------------------------
@@ -202,10 +229,22 @@ fn is_write_request_flags_only_mutating_requests() {
     assert!(!is_write_request(&Method::POST, "/~pypi/legacy/"));
     assert!(!is_write_request(&Method::POST, "/pypi/simple/legacy/"));
     // Starting an image blob upload is the other mutating POST.
-    assert!(is_write_request(&Method::POST, "/v2/acme/app/blobs/uploads/"));
-    assert!(is_write_request(&Method::POST, "/v2/acme/app/blobs/uploads"));
-    assert!(is_write_request(&Method::POST, "/oci/~images/v2/acme/team/app/blobs/uploads/"));
-    assert!(!is_write_request(&Method::POST, "/v2/acme/app/blobs/sha256-abc"));
+    assert!(is_write_request(
+        &Method::POST,
+        "/v2/acme/app/blobs/uploads/"
+    ));
+    assert!(is_write_request(
+        &Method::POST,
+        "/v2/acme/app/blobs/uploads"
+    ));
+    assert!(is_write_request(
+        &Method::POST,
+        "/oci/~images/v2/acme/team/app/blobs/uploads/"
+    ));
+    assert!(!is_write_request(
+        &Method::POST,
+        "/v2/acme/app/blobs/sha256-abc"
+    ));
     assert!(!is_write_request(&Method::POST, "/acme/app/blobs/uploads/"));
 }
 
@@ -220,8 +259,14 @@ fn token_credentials_accepts_every_client_token_shape() {
     // pypi.org's `__token__` user, docker and podman with the name the user
     // typed at login, so the username is not what is checked.
     let basic = |pair: &str| format!("Basic {}", BASE64_STANDARD.encode(pair));
-    assert_eq!(token_credentials(&basic("__token__:abc")), Some("abc".to_string()));
-    assert_eq!(token_credentials(&basic("alice:abc")), Some("abc".to_string()));
+    assert_eq!(
+        token_credentials(&basic("__token__:abc")),
+        Some("abc".to_string()),
+    );
+    assert_eq!(
+        token_credentials(&basic("alice:abc")),
+        Some("abc".to_string()),
+    );
     assert_eq!(token_credentials(&basic(":abc")), Some("abc".to_string()));
     assert_eq!(token_credentials(&basic("__token__:")), None);
     assert_eq!(token_credentials(&basic("alice:")), None);
@@ -250,7 +295,10 @@ fn record(readonly: bool, cidr_whitelist: &[&str]) -> TokenRecord {
         created_at: 1,
         last_used_at: 1,
         readonly,
-        cidr_whitelist: cidr_whitelist.iter().map(|entry| (*entry).to_string()).collect(),
+        cidr_whitelist: cidr_whitelist
+            .iter()
+            .map(|entry| (*entry).to_string())
+            .collect(),
     }
 }
 
@@ -267,7 +315,9 @@ impl TokenBackend for OneToken {
     async fn issue(&self, _username: &str) -> Result<String> {
         // The restriction tests never issue tokens; surface a clear error
         // rather than a panic if that assumption ever breaks.
-        Err(RegistryError::Internal { reason: "OneToken cannot issue tokens".to_string() })
+        Err(RegistryError::Internal {
+            reason: "OneToken cannot issue tokens".to_string(),
+        })
     }
 
     async fn lookup(&self, raw: &str) -> Result<Option<String>> {
@@ -293,12 +343,22 @@ impl TokenBackend for OneToken {
 
 fn app_with_token(tmp: &TempDir, raw: &str, record: TokenRecord) -> axum::Router {
     let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
-    app_with_config_and_token(Config::static_serve(listen, tmp.path().to_path_buf()), raw, record)
+    app_with_config_and_token(
+        Config::static_serve(listen, tmp.path().to_path_buf()),
+        raw,
+        record,
+    )
 }
 
 fn app_with_config_and_token(config: Config, raw: &str, record: TokenRecord) -> axum::Router {
-    let tokens: Arc<dyn TokenBackend> = Arc::new(OneToken { raw: raw.to_string(), record });
-    let auth = AuthState { users: Arc::new(UserStore::in_memory()), tokens };
+    let tokens: Arc<dyn TokenBackend> = Arc::new(OneToken {
+        raw: raw.to_string(),
+        record,
+    });
+    let auth = AuthState {
+        users: Arc::new(UserStore::in_memory()),
+        tokens,
+    };
     router_with_auth(config, auth)
 }
 
@@ -312,12 +372,18 @@ fn signed(method: Method, path: &str, raw: &str) -> Request<Body> {
 }
 
 fn with_peer(mut request: Request<Body>, addr: SocketAddr) -> Request<Body> {
-    request.extensions_mut().insert(ConnectInfo(PeerAddr(addr)));
+    request
+        .extensions_mut()
+        .insert(ConnectInfo(PeerAddr(addr)));
     request
 }
 
 async fn status(app: axum::Router, request: Request<Body>) -> StatusCode {
-    app.oneshot(request).await.unwrap().status()
+    app
+        .oneshot(request)
+        .await
+        .unwrap()
+        .status()
 }
 
 #[tokio::test]
@@ -326,14 +392,21 @@ async fn authenticated_identity_reaches_handlers() {
     let app = app_with_token(&tmp, "tok", record(false, &[]));
     // The middleware resolves the bearer once; whoami reads that identity
     // back out of request extensions rather than re-parsing the header.
-    let response = app.clone().oneshot(signed(Method::GET, "/-/whoami", "tok")).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(signed(Method::GET, "/-/whoami", "tok"))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["username"], "alice");
 
     // An unknown token resolves to anonymous, so whoami is a 401.
-    let anon = app.oneshot(signed(Method::GET, "/-/whoami", "unknown")).await.unwrap();
+    let anon = app
+        .oneshot(signed(Method::GET, "/-/whoami", "unknown"))
+        .await
+        .unwrap();
     assert_eq!(anon.status(), StatusCode::UNAUTHORIZED);
 }
 
@@ -369,9 +442,16 @@ async fn team_tokens_reach_package_authorization() {
     // credentials — rather than masked (masking is the registry-level
     // default's behavior, not an explicit entry's).
     let app = app_with_config_and_token(config, "tok", record(false, &[]));
-    let allowed = app.clone().oneshot(signed(Method::GET, "/@team/missing", "tok")).await.unwrap();
+    let allowed = app
+        .clone()
+        .oneshot(signed(Method::GET, "/@team/missing", "tok"))
+        .await
+        .unwrap();
     assert_eq!(allowed.status(), StatusCode::NOT_FOUND);
-    let anonymous = app.oneshot(signed(Method::GET, "/@team/missing", "unknown")).await.unwrap();
+    let anonymous = app
+        .oneshot(signed(Method::GET, "/@team/missing", "unknown"))
+        .await
+        .unwrap();
     assert_eq!(anonymous.status(), StatusCode::UNAUTHORIZED);
 }
 
@@ -381,7 +461,10 @@ async fn readonly_token_is_refused_for_writes() {
     let app = app_with_token(&tmp, "ro", record(true, &[]));
     // Publish (PUT) and unpublish (DELETE) are rejected before the
     // handler ever reads the body.
-    assert_eq!(status(app.clone(), signed(Method::PUT, "/foo", "ro")).await, StatusCode::FORBIDDEN);
+    assert_eq!(
+        status(app.clone(), signed(Method::PUT, "/foo", "ro")).await,
+        StatusCode::FORBIDDEN,
+    );
     assert_eq!(
         status(app, signed(Method::DELETE, "/foo/-rev/1", "ro")).await,
         StatusCode::FORBIDDEN,
@@ -394,7 +477,10 @@ async fn readonly_token_still_reads() {
     let app = app_with_token(&tmp, "ro", record(true, &[]));
     // A GET is not a write, so the read-only gate lets it through; the
     // package simply isn't published, so it 404s rather than 403s.
-    assert_eq!(status(app, signed(Method::GET, "/foo", "ro")).await, StatusCode::NOT_FOUND);
+    assert_eq!(
+        status(app, signed(Method::GET, "/foo", "ro")).await,
+        StatusCode::NOT_FOUND,
+    );
 }
 
 #[tokio::test]
@@ -415,7 +501,10 @@ async fn cidr_token_is_refused_when_peer_is_unknown() {
     let app = app_with_token(&tmp, "pinned", record(false, &["10.0.0.0/8"]));
     // No ConnectInfo on the request: the restriction can't be checked, so
     // it fails closed even for a read.
-    assert_eq!(status(app, signed(Method::GET, "/foo", "pinned")).await, StatusCode::FORBIDDEN);
+    assert_eq!(
+        status(app, signed(Method::GET, "/foo", "pinned")).await,
+        StatusCode::FORBIDDEN,
+    );
 }
 
 #[tokio::test]
@@ -424,7 +513,11 @@ async fn cidr_token_is_refused_from_outside_the_range() {
     let app = app_with_token(&tmp, "pinned", record(false, &["10.0.0.0/8"]));
     let outside = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 5)), 40000);
     assert_eq!(
-        status(app, with_peer(signed(Method::GET, "/foo", "pinned"), outside)).await,
+        status(
+            app,
+            with_peer(signed(Method::GET, "/foo", "pinned"), outside)
+        )
+        .await,
         StatusCode::FORBIDDEN,
     );
 }
@@ -448,7 +541,9 @@ async fn forwarded_header_cannot_satisfy_a_cidr_restriction() {
     let request = signed(Method::GET, "/foo", "pinned");
     let request = {
         let mut request = request;
-        request.headers_mut().insert("x-forwarded-for", "10.1.2.3".parse().unwrap());
+        request
+            .headers_mut()
+            .insert("x-forwarded-for", "10.1.2.3".parse().unwrap());
         request
     };
     assert_eq!(status(app, request).await, StatusCode::FORBIDDEN);
@@ -457,14 +552,20 @@ async fn forwarded_header_cannot_satisfy_a_cidr_restriction() {
 #[test]
 fn access_log_uri_redacts_the_logout_token_segment() {
     let redact = |raw: &str| super::loggable_uri(&raw.parse().unwrap());
-    assert_eq!(redact("/-/user/token/npm_secret-token-value"), "/-/user/token/<redacted>");
+    assert_eq!(
+        redact("/-/user/token/npm_secret-token-value"),
+        "/-/user/token/<redacted>",
+    );
     assert_eq!(
         redact("/~corp/-/user/token/npm_secret-token-value"),
         "/~corp/-/user/token/<redacted>",
     );
     // Everything else is logged verbatim, query string included.
     assert_eq!(redact("/foo/-/foo-1.0.0.tgz"), "/foo/-/foo-1.0.0.tgz");
-    assert_eq!(redact("/-/npm/v1/search?text=foo"), "/-/npm/v1/search?text=foo");
+    assert_eq!(
+        redact("/-/npm/v1/search?text=foo"),
+        "/-/npm/v1/search?text=foo",
+    );
 }
 
 // --------------------------------------------------------------------
@@ -476,11 +577,20 @@ fn access_log_uri_redacts_the_logout_token_segment() {
 fn config_with_teams(tmp: &TempDir) -> Config {
     let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
     let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
-    let teams = [("developers", vec!["bob", "alice"]), ("admins", vec!["alice"])];
+    let teams = [
+        ("developers", vec!["bob", "alice"]),
+        ("admins", vec!["alice"]),
+    ];
     config.routing.hosted.get_mut("local").unwrap().teams = teams
         .into_iter()
         .map(|(team, members)| {
-            (team.to_string(), members.into_iter().map(str::to_string).collect())
+            (
+                team.to_string(),
+                members
+                    .into_iter()
+                    .map(str::to_string)
+                    .collect(),
+            )
         })
         .collect();
     config
@@ -498,13 +608,18 @@ async fn team_listing_serves_config_declared_teams() {
     // Declaration order is preserved; the shape is what `pnpm team ls`
     // consumes.
     let expected = serde_json::json!([{ "name": "developers" }, { "name": "admins" }]);
-    let response =
-        app.clone().oneshot(signed(Method::GET, "/-/org/myorg/team", "tok")).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(signed(Method::GET, "/-/org/myorg/team", "tok"))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_json(response).await, expected);
     // The same listing through the registry-addressed endpoint.
-    let prefixed =
-        app.oneshot(signed(Method::GET, "/~local/-/org/myorg/team", "tok")).await.unwrap();
+    let prefixed = app
+        .oneshot(signed(Method::GET, "/~local/-/org/myorg/team", "tok"))
+        .await
+        .unwrap();
     assert_eq!(prefixed.status(), StatusCode::OK);
     assert_eq!(body_json(prefixed).await, expected);
 }
@@ -524,13 +639,20 @@ async fn team_members_are_listed_sorted() {
     assert_eq!(body_json(response).await, expected);
     let prefixed = app
         .clone()
-        .oneshot(signed(Method::GET, "/~local/-/team/myorg/developers/user", "tok"))
+        .oneshot(signed(
+            Method::GET,
+            "/~local/-/team/myorg/developers/user",
+            "tok",
+        ))
         .await
         .unwrap();
     assert_eq!(prefixed.status(), StatusCode::OK);
     assert_eq!(body_json(prefixed).await, expected);
     // A team the config does not declare is a definitive not-found.
-    let missing = app.oneshot(signed(Method::GET, "/-/team/myorg/nope/user", "tok")).await.unwrap();
+    let missing = app
+        .oneshot(signed(Method::GET, "/-/team/myorg/nope/user", "tok"))
+        .await
+        .unwrap();
     assert_eq!(missing.status(), StatusCode::NOT_FOUND);
 }
 
@@ -549,11 +671,18 @@ async fn team_mutations_are_rejected_as_config_managed() {
         (Method::DELETE, "/~local/-/team/myorg/developers/user"),
     ];
     for (method, path) in mutations {
-        let response = app.clone().oneshot(signed(method.clone(), path, "tok")).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(signed(method.clone(), path, "tok"))
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::FORBIDDEN, "{method} {path}");
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let body = String::from_utf8(body.to_vec()).unwrap();
-        assert!(body.contains("declared in the pnpr configuration"), "{method} {path}: {body}");
+        assert!(
+            body.contains("declared in the pnpr configuration"),
+            "{method} {path}: {body}",
+        );
     }
 }
 
@@ -562,8 +691,10 @@ async fn team_listing_masks_callers_the_registry_denies() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_with_teams(&tmp);
     // Registry-level default access admits only authenticated callers.
-    config.routing.hosted.get_mut("local").unwrap().rules =
-        PackageRules::new(Vec::new(), Some(AccessList::from_tokens(["$authenticated"])));
+    config.routing.hosted.get_mut("local").unwrap().rules = PackageRules::new(
+        Vec::new(),
+        Some(AccessList::from_tokens(["$authenticated"])),
+    );
     let app = app_with_config_and_token(config, "tok", record(false, &[]));
     // An anonymous caller gets the not-found mask on reads and mutations
     // alike — team names must not become an existence probe.
@@ -572,11 +703,18 @@ async fn team_listing_masks_callers_the_registry_denies() {
         (Method::GET, "/-/team/myorg/developers/user"),
         (Method::PUT, "/-/org/myorg/team"),
     ] {
-        let response = app.clone().oneshot(signed(method.clone(), path, "unknown")).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(signed(method.clone(), path, "unknown"))
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{method} {path}");
     }
     // The authenticated caller passes the gate.
-    let allowed = app.oneshot(signed(Method::GET, "/-/org/myorg/team", "tok")).await.unwrap();
+    let allowed = app
+        .oneshot(signed(Method::GET, "/-/org/myorg/team", "tok"))
+        .await
+        .unwrap();
     assert_eq!(allowed.status(), StatusCode::OK);
 }
 
@@ -625,7 +763,11 @@ fn tilde_registry_names_a_registry_only_for_a_leading_tilde_and_a_name() {
     assert_eq!(tilde_registry("~"), None, "a bare tilde names no registry");
     assert_eq!(tilde_registry("corp"), None);
     assert_eq!(tilde_registry(""), None);
-    assert_eq!(tilde_registry("pkg~name"), None, "a tilde inside a name is part of it");
+    assert_eq!(
+        tilde_registry("pkg~name"),
+        None,
+        "a tilde inside a name is part of it",
+    );
     assert_eq!(tilde_registry("@scope/pkg"), None);
 }
 
@@ -640,8 +782,14 @@ async fn stored_tokens_with_jwt_shape_keep_their_backend_restrictions() {
     }])).unwrap();
     let token = "header.payload.signature";
     let app = app_with_config_and_token(config, token, record(true, &[]));
-    assert_eq!(status(app.clone(), signed(Method::GET, "/-/whoami", token)).await, StatusCode::OK);
-    assert_eq!(status(app, signed(Method::PUT, "/foo", token)).await, StatusCode::FORBIDDEN);
+    assert_eq!(
+        status(app.clone(), signed(Method::GET, "/-/whoami", token)).await,
+        StatusCode::OK,
+    );
+    assert_eq!(
+        status(app, signed(Method::PUT, "/foo", token)).await,
+        StatusCode::FORBIDDEN,
+    );
 }
 
 #[tokio::test]
@@ -649,5 +797,8 @@ async fn workload_namespace_does_not_consult_the_token_backend() {
     let tmp = TempDir::new().unwrap();
     let raw = "pnpr_workload_not-a-jwt";
     let app = app_with_token(&tmp, raw, record(false, &[]));
-    assert_eq!(status(app, signed(Method::GET, "/-/whoami", raw)).await, StatusCode::UNAUTHORIZED);
+    assert_eq!(
+        status(app, signed(Method::GET, "/-/whoami", raw)).await,
+        StatusCode::UNAUTHORIZED,
+    );
 }

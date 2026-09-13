@@ -24,7 +24,9 @@ use std::{error::Error, fmt};
 /// only caller is the CLI entry point.
 pub fn install_report_handler() {
     let _ = miette::set_hook(Box::new(|_| {
-        Box::new(CollapsingHandler { inner: MietteHandlerOpts::new().build() })
+        Box::new(CollapsingHandler {
+            inner: MietteHandlerOpts::new().build(),
+        })
     }));
 }
 
@@ -82,9 +84,15 @@ impl<'a> Collapsed<'a> {
 
         let mut causes = None;
         for message in messages.into_iter().rev() {
-            causes = Some(Box::new(Cause { message, next: causes }));
+            causes = Some(Box::new(Cause {
+                message,
+                next: causes,
+            }));
         }
-        Collapsed { head, causes }
+        Collapsed {
+            head,
+            causes,
+        }
     }
 }
 
@@ -99,7 +107,9 @@ impl<'a> Collapsed<'a> {
 /// whose sentence happens to end with those characters ("resolved to 3.0.1"),
 /// dropping a distinct cause.
 fn restates(outer: &str, inner: &str) -> bool {
-    let Some(prefix) = outer.strip_suffix(inner) else { return false };
+    let Some(prefix) = outer.strip_suffix(inner) else {
+        return false;
+    };
     prefix.is_empty() || prefix.ends_with([' ', ':'])
 }
 
@@ -148,7 +158,9 @@ impl fmt::Debug for Collapsed<'_> {
 
 impl Error for Collapsed<'_> {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        self.causes.as_deref().map(|cause| cause as &(dyn Error + 'static))
+        self.causes
+            .as_deref()
+            .map(|cause| cause as &(dyn Error + 'static))
     }
 }
 
@@ -190,7 +202,9 @@ impl fmt::Display for Cause {
 
 impl Error for Cause {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        self.next.as_deref().map(|cause| cause as &(dyn Error + 'static))
+        self.next
+            .as_deref()
+            .map(|cause| cause as &(dyn Error + 'static))
     }
 }
 

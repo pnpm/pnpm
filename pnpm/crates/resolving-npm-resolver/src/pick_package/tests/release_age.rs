@@ -35,10 +35,12 @@ async fn invalid_package_name_errors_synchronously() {
         },
     };
 
-    let err = pick_package(&ctx, &range_spec("foo/bar", "*"), &default_opts(&registry))
-        .await
+    let err = pick_package(&ctx, &range_spec("foo/bar", "*"), &default_opts(&registry)).await
         .expect_err("invalid name");
-    assert!(matches!(err, PickPackageError::InvalidPackageName { .. }), "got {err:?}");
+    assert!(
+        matches!(err, PickPackageError::InvalidPackageName { .. }),
+        "got {err:?}",
+    );
 }
 
 #[tokio::test]
@@ -170,7 +172,10 @@ async fn published_by_upgrades_metadata_with_partial_time_map() {
     opts.policy.published_by = Some(parse_cutoff("2025-01-01T00:00:00Z"));
     let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("ok");
 
-    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.1.0");
+    assert_eq!(
+        result.picked_package.expect("picked").version.to_string(),
+        "1.1.0",
+    );
     abbrev_mock.assert_async().await;
     full_mock.assert_async().await;
 }
@@ -372,8 +377,7 @@ async fn published_by_upgrade_not_modified_marker_is_scoped_to_install() {
             },
         },
     };
-    let _ = pick_package(&next_install_ctx, &range_spec("acme", "^1.0.0"), &opts)
-        .await
+    let _ = pick_package(&next_install_ctx, &range_spec("acme", "^1.0.0"), &opts).await
         .expect("next install pick");
 
     // One request for each install: the repeat pick in the first install is
@@ -519,11 +523,13 @@ async fn published_by_upgrade_not_modified_marker_is_scoped_to_document() {
     let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("first pick");
 
     let update_opts = PickPackageOptions {
-        request: crate::MetadataPickRequest { update_checksums: true, ..opts.request },
+        request: crate::MetadataPickRequest {
+            update_checksums: true,
+            ..opts.request
+        },
         ..opts
     };
-    let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &update_opts)
-        .await
+    let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &update_opts).await
         .expect("checksum-refresh pick");
 
     first_full_mock.assert_async().await;
@@ -569,8 +575,13 @@ async fn published_by_excluded_package_bypasses_mtime_shortcut_and_revalidates()
     }"#;
     let preloaded: pnpm_registry::Package =
         serde_json::from_str(stale_body).expect("parse stale packument");
-    persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
-        .expect("warm stale mirror");
+    persist_meta_to_mirror(
+        cache_dir.path(),
+        ABBREVIATED_META_DIR,
+        &registry,
+        &preloaded,
+    )
+    .expect("warm stale mirror");
     let mirror_path =
         get_pkg_mirror_path(cache_dir.path(), ABBREVIATED_META_DIR, &registry, "acme")
             .expect("path");

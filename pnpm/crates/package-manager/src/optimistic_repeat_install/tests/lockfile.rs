@@ -84,9 +84,17 @@ fn returns_skipped_when_exclude_links_from_lockfile_drifts() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+        },
     );
-    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
+    write_state(
+        workspace_root,
+        backdate_existing_files(workspace_root),
+        stale_settings,
+        projects,
+    );
 
     let decision = check(
         workspace_root,
@@ -219,8 +227,11 @@ fn returns_skipped_when_project_lockfile_has_merge_conflict_markers() {
     );
     let project_root = dir.path().join("packages/project");
     fs::create_dir_all(&project_root).expect("create project");
-    fs::write(project_root.join("package.json"), r#"{"name":"project","version":"1.0.0"}"#)
-        .expect("write project manifest");
+    fs::write(
+        project_root.join("package.json"),
+        r#"{"name":"project","version":"1.0.0"}"#,
+    )
+    .expect("write project manifest");
     fs::write(
         project_root.join(Lockfile::FILE_NAME),
         "<<<<<<< ours\nlockfileVersion: '9.0'\n=======\nlockfileVersion: '10.0'\n>>>>>>> theirs\n",
@@ -233,7 +244,10 @@ fn returns_skipped_when_project_lockfile_has_merge_conflict_markers() {
         dir.path(),
         config,
         pnpm_config::NodeLinker::Isolated,
-        &[(dir.path().to_path_buf(), &root_manifest), (project_root, &project_manifest)],
+        &[
+            (dir.path().to_path_buf(), &root_manifest),
+            (project_root, &project_manifest),
+        ],
         &BTreeMap::default(),
     );
 
@@ -314,8 +328,12 @@ fn returns_skipped_when_current_lockfile_missing_for_non_empty_wanted_lockfile()
     fs::remove_file(config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME)).unwrap();
     let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
 
-    let decision =
-        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    let decision = content_check_decision(
+        &dir,
+        config,
+        false,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("current lockfile")),
         "expected Skipped(current lockfile missing), got {decision:?}",
@@ -325,22 +343,42 @@ fn returns_skipped_when_current_lockfile_missing_for_non_empty_wanted_lockfile()
 fn returns_skipped_when_current_lockfile_missing_for_wanted_lockfile_with_importer_deps() {
     let (dir, config) = setup_content_check_project();
     let workspace_root = dir.path();
-    fs::write(workspace_root.join(Lockfile::FILE_NAME), FOO_LOCKFILE_WITHOUT_PACKAGES).unwrap();
+    fs::write(
+        workspace_root.join(Lockfile::FILE_NAME),
+        FOO_LOCKFILE_WITHOUT_PACKAGES,
+    )
+    .unwrap();
 
-    let settings =
-        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
+    let settings = current_settings(
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        isolated_included(),
+        None,
+    );
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+        },
     );
-    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
+    write_state(
+        workspace_root,
+        backdate_existing_files(workspace_root),
+        settings,
+        projects,
+    );
 
     fs::remove_file(config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME)).unwrap();
     let manifest = PackageManifest::from_path(workspace_root.join("package.json")).unwrap();
 
-    let decision =
-        content_check_decision(&dir, config, false, &[(workspace_root.to_path_buf(), &manifest)]);
+    let decision = content_check_decision(
+        &dir,
+        config,
+        false,
+        &[(workspace_root.to_path_buf(), &manifest)],
+    );
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("current lockfile")),
         "expected Skipped(current lockfile missing), got {decision:?}",
@@ -349,11 +387,19 @@ fn returns_skipped_when_current_lockfile_missing_for_wanted_lockfile_with_import
 #[test]
 fn returns_skipped_when_current_lockfile_is_empty_for_non_empty_wanted_lockfile() {
     let (dir, config) = setup_content_check_project();
-    fs::write(config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME), "").unwrap();
+    fs::write(
+        config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME),
+        "",
+    )
+    .unwrap();
     let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
 
-    let decision =
-        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    let decision = content_check_decision(
+        &dir,
+        config,
+        false,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("current lockfile")),
         "expected Skipped(current lockfile missing), got {decision:?}",
@@ -369,8 +415,12 @@ fn returns_up_to_date_when_touched_manifest_still_satisfies_lockfile() {
     fs::write(dir.path().join("package.json"), FOO_MANIFEST).unwrap();
     let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
 
-    let decision =
-        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    let decision = content_check_decision(
+        &dir,
+        config,
+        false,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
     assert_eq!(decision, Decision::UpToDate);
 }
 /// A wanted lockfile rewritten after the last install (newer than the
@@ -382,12 +432,19 @@ fn returns_skipped_when_wanted_lockfile_diverged_from_current() {
     let (dir, config) = setup_content_check_project();
 
     fs::write(dir.path().join("package.json"), FOO_MANIFEST).unwrap();
-    fs::write(dir.path().join(Lockfile::FILE_NAME), FOO_LOCKFILE.replace("1.0.0", "1.0.1"))
-        .unwrap();
+    fs::write(
+        dir.path().join(Lockfile::FILE_NAME),
+        FOO_LOCKFILE.replace("1.0.0", "1.0.1"),
+    )
+    .unwrap();
     let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
 
-    let decision =
-        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    let decision = content_check_decision(
+        &dir,
+        config,
+        false,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("not up to date")),
         "expected Skipped(outdated deps), got {decision:?}",
@@ -402,12 +459,19 @@ fn returns_skipped_when_only_the_lockfile_changed() {
 
     // Rewrite only the wanted lockfile; package.json keeps its original
     // (pre-state) mtime, so `modifiedProjects` is empty.
-    fs::write(dir.path().join(Lockfile::FILE_NAME), FOO_LOCKFILE.replace("1.0.0", "1.0.1"))
-        .unwrap();
+    fs::write(
+        dir.path().join(Lockfile::FILE_NAME),
+        FOO_LOCKFILE.replace("1.0.0", "1.0.1"),
+    )
+    .unwrap();
     let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
 
-    let decision =
-        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    let decision = content_check_decision(
+        &dir,
+        config,
+        false,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("not up to date")),
         "expected Skipped(outdated deps), got {decision:?}",
@@ -423,8 +487,12 @@ fn regenerates_missing_wanted_lockfile_from_current_when_manifests_unchanged() {
     fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).unwrap();
     let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
 
-    let decision =
-        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    let decision = content_check_decision(
+        &dir,
+        config,
+        false,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
     assert_eq!(decision, Decision::UpToDate);
 
     let regenerated = Lockfile::load_wanted_from_dir(dir.path())
@@ -443,10 +511,20 @@ fn regenerates_missing_wanted_lockfile_when_touched_manifest_satisfies_current()
     fs::write(dir.path().join("package.json"), FOO_MANIFEST).unwrap();
     let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
 
-    let decision =
-        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    let decision = content_check_decision(
+        &dir,
+        config,
+        false,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
     assert_eq!(decision, Decision::UpToDate);
-    assert!(dir.path().join(Lockfile::FILE_NAME).exists(), "pnpm-lock.yaml must be regenerated");
+    assert!(
+        dir
+            .path()
+            .join(Lockfile::FILE_NAME)
+            .exists(),
+        "pnpm-lock.yaml must be regenerated",
+    );
 }
 /// A manifest that no longer matches the current lockfile cannot ride
 /// the current-as-wanted fallback — the full install must resolve.
@@ -461,14 +539,21 @@ fn returns_skipped_when_missing_wanted_lockfile_and_manifest_adds_a_dependency()
     .unwrap();
     let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
 
-    let decision =
-        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    let decision = content_check_decision(
+        &dir,
+        config,
+        false,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("satisfied")),
         "expected Skipped(no longer satisfied), got {decision:?}",
     );
     assert!(
-        !dir.path().join(Lockfile::FILE_NAME).exists(),
+        !dir
+            .path()
+            .join(Lockfile::FILE_NAME)
+            .exists(),
         "must not regenerate on a failed check",
     );
 }
@@ -489,12 +574,21 @@ fn workspace_regenerates_missing_wanted_lockfile_and_bumps_state() {
     let decision =
         content_check_decision(&dir, config, true, &[(dir.path().to_path_buf(), &manifest)]);
     assert_eq!(decision, Decision::UpToDate);
-    assert!(dir.path().join(Lockfile::FILE_NAME).exists(), "pnpm-lock.yaml must be regenerated");
+    assert!(
+        dir
+            .path()
+            .join(Lockfile::FILE_NAME)
+            .exists(),
+        "pnpm-lock.yaml must be regenerated",
+    );
     let after = pnpm_workspace_state::load_workspace_state(dir.path())
         .unwrap()
         .unwrap()
         .last_validated_timestamp;
-    assert!(after > before, "expected the state timestamp to advance ({before} -> {after})");
+    assert!(
+        after > before,
+        "expected the state timestamp to advance ({before} -> {after})",
+    );
 }
 /// `lockfile: false` (pnpm's `useLockfile: false`) disables the
 /// regeneration but keeps the fast path.
@@ -518,7 +612,13 @@ fn does_not_regenerate_wanted_lockfile_when_lockfile_writing_disabled() {
         &[(dir.path().to_path_buf(), &manifest)],
     );
     assert_eq!(decision, Decision::UpToDate);
-    assert!(!dir.path().join(Lockfile::FILE_NAME).exists(), "lockfile: false must skip the write");
+    assert!(
+        !dir
+            .path()
+            .join(Lockfile::FILE_NAME)
+            .exists(),
+        "lockfile: false must skip the write",
+    );
 }
 /// On a sub-second filesystem the lockfile freshness check uses
 /// whole-millisecond precision so the unchanged lockfile is never flagged
@@ -531,7 +631,11 @@ fn does_not_regenerate_wanted_lockfile_when_lockfile_writing_disabled() {
 fn lockfile_check_does_not_self_flag_its_own_baseline() {
     let ms = 1_700_000_000_000_i64;
     let subsecond_ns = ms * 1_000_000 + 500_000; // .5 ms into its millisecond
-    let fine = FileMtime { ms, ns: subsecond_ns, whole_second: false };
+    let fine = FileMtime {
+        ms,
+        ns: subsecond_ns,
+        whole_second: false,
+    };
 
     // A manifest with this mtime would (correctly) be flagged via
     // nanoseconds against a baseline equal to its own truncated ms:
@@ -540,13 +644,21 @@ fn lockfile_check_does_not_self_flag_its_own_baseline() {
     assert!(!lockfile_modified_since(fine, ms));
     // An external edit a whole millisecond later is still caught:
     assert!(lockfile_modified_since(
-        FileMtime { ms: ms + 1, ns: subsecond_ns, whole_second: false },
+        FileMtime {
+            ms: ms + 1,
+            ns: subsecond_ns,
+            whole_second: false
+        },
         ms
     ));
 
     // Whole-second (coarse) filesystem: the whole second is possibly-after
     // its own baseline, so a same-second external edit is not missed.
-    let coarse = FileMtime { ms, ns: ms * 1_000_000, whole_second: true };
+    let coarse = FileMtime {
+        ms,
+        ns: ms * 1_000_000,
+        whole_second: true,
+    };
     assert!(lockfile_modified_since(coarse, ms));
     // A whole second entirely before the baseline is not flagged.
     assert!(!lockfile_modified_since(coarse, ms + 1_000));

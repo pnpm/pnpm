@@ -124,16 +124,12 @@ impl<'b> HoistedMapBuilder<'b> {
             &self.package_ids_by_graph_key,
         );
 
-        if let Some(snapshot) = lockfile.snapshots.as_ref().and_then(|snapshots| {
-            node.package
-                .dep_path
-                .as_str()
-                .parse::<PackageKey>()
-                .ok()
-                .and_then(|key| snapshots.get(&key))
-        }) {
+        if let Some(snapshot) = graph_node_snapshot(lockfile, node) {
             let package_modules_dir = self.is_loose.then(|| node.dir.join("node_modules"));
-            for deps in [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()] {
+            for deps in [
+                snapshot.dependencies.as_ref(),
+                snapshot.optional_dependencies.as_ref(),
+            ] {
                 add_hoisted_linked_dependencies(
                     &mut self.packages,
                     &mut dependencies,
@@ -163,7 +159,9 @@ impl<'b> HoistedMapBuilder<'b> {
             self.package_dirs.as_ref(),
             self.loose_index.as_ref(),
         );
-        PackageMap { packages }
+        PackageMap {
+            packages,
+        }
     }
 }
 /// Assign a package-map id to every hoisted graph node, indexed both by
@@ -236,12 +234,17 @@ pub(super) fn add_hoisted_linked_dependencies<Reference>(
 {
     let Some(deps) = deps else { return };
     for (alias, reference) in deps {
-        let Some(target_ref) = reference.as_link_target() else { continue };
+        let Some(target_ref) = reference.as_link_target() else {
+            continue;
+        };
         let target = resolve_link_target(opts.lockfile_dir, importer_id, target_ref);
         let id = graph_package_id(&target.dir, opts.modules_dir);
         add_external_link_package(
             packages,
-            &LinkTarget { id: id.clone(), dir: target.dir.clone() },
+            &LinkTarget {
+                id: id.clone(),
+                dir: target.dir.clone(),
+            },
             opts.modules_dir,
         );
         dependencies.insert(alias.to_string(), id.clone());
@@ -249,4 +252,15 @@ pub(super) fn add_hoisted_linked_dependencies<Reference>(
             loose_index.add(modules_dir, alias.to_string(), id);
         }
     }
+}
+
+fn graph_node_snapshot<'a>(
+    lockfile: &'a Lockfile,
+    node: &crate::DependenciesGraphNode,
+) -> Option<&'a pnpm_lockfile::SnapshotEntry> {
+    let key = node.package.dep_path
+        .as_str()
+        .parse::<PackageKey>()
+        .ok()?;
+    lockfile.snapshots.as_ref()?.get(&key)
 }

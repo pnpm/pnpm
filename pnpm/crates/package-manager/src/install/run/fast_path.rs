@@ -99,7 +99,9 @@ pub(super) fn build_state_allows_short_circuit(
     match pnpm_modules_yaml::read_modules_layout::<Host>(&check.workspace.config.modules_dir) {
         Ok(Some(modules)) => {
             match unapproved_recorded_ignored_builds(&modules, check.workspace.config) {
-                Ok(Some(package_names)) => Err(InstallError::IgnoredBuilds { package_names }),
+                Ok(Some(package_names)) => Err(InstallError::IgnoredBuilds {
+                    package_names,
+                }),
                 Ok(None) => Ok(true),
                 // Unreadable state or a malformed `allowBuilds`: can't trust the
                 // fast path, run the full install.

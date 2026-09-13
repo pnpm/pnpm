@@ -35,10 +35,10 @@ fn private_cached_resolution_keeps_routed_tarball_urls() {
     let key = "base".to_string();
     let pnpm_config = config_for_registry("https://npm.corp.example/");
     let mut registry = registry_config();
-    registry
-        .routing
-        .upstreams
-        .insert("corp".to_string(), upstream_with_access("https://npm.corp.example/", "alice"));
+    registry.routing.upstreams.insert(
+        "corp".to_string(),
+        upstream_with_access("https://npm.corp.example/", "alice"),
+    );
     let router = tarball_router(&registry, user("alice"));
     let routed = router.route_lockfile(&pnpm_config, &lockfile("1.0.0"));
 
@@ -103,7 +103,10 @@ fn a_package_frame_carries_unpacked_size_and_omits_it_when_unknown() {
     assert!(unsized_frame.get("unpackedSize").is_none());
     assert!(unsized_frame.get("fileCount").is_none());
     assert!(unsized_frame.get("revision").is_none());
-    assert_eq!(unsized_frame["tarball"], serde_json::json!("https://r.test/acme/-/acme-1.0.0.tgz"));
+    assert_eq!(
+        unsized_frame["tarball"],
+        serde_json::json!("https://r.test/acme/-/acme-1.0.0.tgz"),
+    );
 }
 
 #[test]
@@ -150,8 +153,10 @@ fn package_frame_routes_split_domain_registry_tarball_by_registry() {
     );
     // The package resolves from the private corp registry, but its packument's
     // dist.tarball lives on a *different* host (a split-domain CDN).
-    let registries =
-        HashMap::from([("default".to_string(), "https://npm.corp.example/".to_string())]);
+    let registries = HashMap::from([(
+        "default".to_string(),
+        "https://npm.corp.example/".to_string(),
+    )]);
     let router = tarball_router_with_registries(&registry, user("alice"), registries);
     let frame = super::super::wire::package_frame(
         &router,
@@ -173,8 +178,14 @@ fn package_frame_routes_split_domain_registry_tarball_by_registry() {
 
     // Routed by the corp registry, not the CDN host — so the raw upstream CDN
     // URL is never emitted to the client.
-    assert!(tarball.contains("/~corp/acme/-/acme-1.0.0.tgz"), "got {tarball}");
-    assert!(!tarball.contains("split-domain.example"), "raw CDN URL leaked: {tarball}");
+    assert!(
+        tarball.contains("/~corp/acme/-/acme-1.0.0.tgz"),
+        "got {tarball}",
+    );
+    assert!(
+        !tarball.contains("split-domain.example"),
+        "raw CDN URL leaked: {tarball}",
+    );
 }
 
 #[test]
@@ -182,8 +193,10 @@ fn package_frame_strips_signed_token_from_public_registry_tarball() {
     use pnpm_package_manager::ResolvedPackageHint;
 
     let registry = registry_config();
-    let registries =
-        HashMap::from([("default".to_string(), "https://registry.npmjs.org/".to_string())]);
+    let registries = HashMap::from([(
+        "default".to_string(),
+        "https://registry.npmjs.org/".to_string(),
+    )]);
     let router = tarball_router_with_registries(&registry, user("alice"), registries);
     let frame = super::super::wire::package_frame(
         &router,
@@ -205,7 +218,10 @@ fn package_frame_strips_signed_token_from_public_registry_tarball() {
     let tarball = frame["tarball"].as_str().expect("tarball URL");
 
     // The upstream token is never emitted to the client.
-    assert_eq!(tarball, "https://registry.npmjs.org/acme/-/acme-1.0.0.tgz", "got {tarball}");
+    assert_eq!(
+        tarball, "https://registry.npmjs.org/acme/-/acme-1.0.0.tgz",
+        "got {tarball}",
+    );
 }
 
 #[test]
@@ -232,7 +248,10 @@ fn frozen_package_frames_announce_lockfile_tarballs_with_sizes() {
     let stats = observed_dist_stats_sink();
     stats.insert(
         ("acme".to_string(), "1.0.0".to_string()),
-        DistStats { unpacked_size: Some(123_456), file_count: Some(42) },
+        DistStats {
+            unpacked_size: Some(123_456),
+            file_count: Some(42),
+        },
     );
 
     let registry = public_registry_config("https://registry.example.test/");
@@ -316,26 +335,44 @@ fn osv_checkable_tarball_does_not_trust_git_hosted_flag_or_strict_url_parsing() 
         Some(false),
     )));
     // Non-http schemes are skipped.
-    assert!(!super::super::wire::is_osv_checkable_resolution(&tarball("file:../foo.tgz", None)));
+    assert!(!super::super::wire::is_osv_checkable_resolution(&tarball(
+        "file:../foo.tgz",
+        None
+    )));
 }
 
 #[test]
 fn tarball_url_version_extracts_conventional_names_only() {
     use super::super::wire::tarball_url_version;
 
-    assert_eq!(tarball_url_version("https://r/foo/-/foo-1.2.3.tgz", "foo"), Some("1.2.3"));
+    assert_eq!(
+        tarball_url_version("https://r/foo/-/foo-1.2.3.tgz", "foo"),
+        Some("1.2.3"),
+    );
     // Scoped packages name the tarball file with the unscoped name.
-    assert_eq!(tarball_url_version("https://r/@s/foo/-/foo-1.2.3.tgz", "@s/foo"), Some("1.2.3"));
+    assert_eq!(
+        tarball_url_version("https://r/@s/foo/-/foo-1.2.3.tgz", "@s/foo"),
+        Some("1.2.3"),
+    );
     // Query/fragment are stripped; prerelease/build keep working.
-    assert_eq!(tarball_url_version("https://r/foo/-/foo-1.2.3.tgz?x=1", "foo"), Some("1.2.3"));
+    assert_eq!(
+        tarball_url_version("https://r/foo/-/foo-1.2.3.tgz?x=1", "foo"),
+        Some("1.2.3"),
+    );
     assert_eq!(
         tarball_url_version("https://r/foo/-/foo-1.2.3-beta.1.tgz", "foo"),
         Some("1.2.3-beta.1"),
     );
     // Suffix matching is case-insensitive and covers `.tar.gz`, so a
     // tampered lockfile can't dodge the cross-check with a variant.
-    assert_eq!(tarball_url_version("https://r/foo/-/foo-1.2.3.TGZ", "foo"), Some("1.2.3"));
-    assert_eq!(tarball_url_version("https://r/foo/-/foo-1.2.3.tar.gz", "foo"), Some("1.2.3"));
+    assert_eq!(
+        tarball_url_version("https://r/foo/-/foo-1.2.3.TGZ", "foo"),
+        Some("1.2.3"),
+    );
+    assert_eq!(
+        tarball_url_version("https://r/foo/-/foo-1.2.3.tar.gz", "foo"),
+        Some("1.2.3"),
+    );
     // Non-conventional naming yields None (fall back, don't misjudge).
     assert_eq!(tarball_url_version("https://r/weird.tgz", "foo"), None);
     assert_eq!(tarball_url_version("https://r/foo/-/foo.tgz", "foo"), None);

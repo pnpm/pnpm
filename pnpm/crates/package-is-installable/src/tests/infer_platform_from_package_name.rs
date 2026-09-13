@@ -14,24 +14,45 @@ fn platform(
     cpu: Option<&[&str]>,
     libc: Option<&[&str]>,
 ) -> Option<WantedPlatform> {
-    Some(WantedPlatform { os: owned(os), cpu: owned(cpu), libc: owned(libc) })
+    Some(WantedPlatform {
+        os: owned(os),
+        cpu: owned(cpu),
+        libc: owned(libc),
+    })
 }
 
 fn owned(values: Option<&[&str]>) -> Option<Vec<String>> {
-    values.map(|values| values.iter().map(|value| (*value).to_string()).collect())
+    values.map(|values| {
+        values
+            .iter()
+            .map(|value| (*value).to_string())
+            .collect()
+    })
 }
 
 #[test]
 fn infers_platform_from_real_world_names() {
     let cases: &[(&str, Option<WantedPlatform>)] = &[
-        ("@nx/nx-win32-arm64-msvc", platform(Some(&["win32"]), Some(&["arm64"]), None)),
+        (
+            "@nx/nx-win32-arm64-msvc",
+            platform(Some(&["win32"]), Some(&["arm64"]), None),
+        ),
         (
             "@nx/nx-linux-arm-gnueabihf",
             platform(Some(&["linux"]), Some(&["arm"]), Some(&["glibc"])),
         ),
-        ("@nx/nx-linux-x64-gnu", platform(Some(&["linux"]), Some(&["x64"]), Some(&["glibc"]))),
-        ("@esbuild/aix-ppc64", platform(Some(&["aix"]), Some(&["ppc64"]), None)),
-        ("@esbuild/openharmony-arm64", platform(Some(&["openharmony"]), Some(&["arm64"]), None)),
+        (
+            "@nx/nx-linux-x64-gnu",
+            platform(Some(&["linux"]), Some(&["x64"]), Some(&["glibc"])),
+        ),
+        (
+            "@esbuild/aix-ppc64",
+            platform(Some(&["aix"]), Some(&["ppc64"]), None),
+        ),
+        (
+            "@esbuild/openharmony-arm64",
+            platform(Some(&["openharmony"]), Some(&["arm64"]), None),
+        ),
         (
             "@biomejs/cli-linux-x64-musl",
             platform(Some(&["linux"]), Some(&["x64"]), Some(&["musl"])),
@@ -42,15 +63,25 @@ fn infers_platform_from_real_world_names() {
         ),
         ("turbo-windows-64", platform(Some(&["win32"]), None, None)),
         ("esbuild-darwin-64", platform(Some(&["darwin"]), None, None)),
-        ("bun-linux-aarch64", platform(Some(&["linux"]), Some(&["arm64"]), None)),
-        ("sharp-linux-armv7", platform(Some(&["linux"]), Some(&["arm"]), None)),
+        (
+            "bun-linux-aarch64",
+            platform(Some(&["linux"]), Some(&["arm64"]), None),
+        ),
+        (
+            "sharp-linux-armv7",
+            platform(Some(&["linux"]), Some(&["arm"]), None),
+        ),
         ("is-arm", platform(None, Some(&["arm"]), None)),
         ("fsevents", None),
         ("lodash", None),
         ("@pnpm.e2e/not-compatible-with-any-os", None),
     ];
     for (name, expected) in cases {
-        assert_eq!(&infer_platform_from_package_name(name), expected, "name: {name}");
+        assert_eq!(
+            &infer_platform_from_package_name(name),
+            expected,
+            "name: {name}",
+        );
     }
 }
 
@@ -87,7 +118,10 @@ fn optional_dependency_without_platform_fields_is_skipped_by_name() {
         &optional_on_linux_x64(None),
     )
     .unwrap();
-    assert!(matches!(verdict, InstallabilityVerdict::SkipOptional { .. }), "got {verdict:?}");
+    assert!(
+        matches!(verdict, InstallabilityVerdict::SkipOptional { .. }),
+        "got {verdict:?}",
+    );
 }
 
 #[test]
@@ -101,7 +135,10 @@ fn missing_libc_is_taken_from_the_name_when_other_fields_are_declared() {
         ..Default::default()
     };
     let verdict = package_is_installable("@nx/nx-linux-x64-musl@1.0.0", &musl, &options).unwrap();
-    assert!(matches!(verdict, InstallabilityVerdict::SkipOptional { .. }), "got {verdict:?}");
+    assert!(
+        matches!(verdict, InstallabilityVerdict::SkipOptional { .. }),
+        "got {verdict:?}",
+    );
 
     let gnu = PackageInstallabilityManifest {
         name: "@nx/nx-linux-x64-gnu".to_string(),
@@ -126,7 +163,10 @@ fn missing_cpu_is_taken_from_the_name_of_a_package_that_declares_its_platform() 
         &optional_on_linux_x64(None),
     )
     .unwrap();
-    assert!(matches!(verdict, InstallabilityVerdict::SkipOptional { .. }), "got {verdict:?}");
+    assert!(
+        matches!(verdict, InstallabilityVerdict::SkipOptional { .. }),
+        "got {verdict:?}",
+    );
 }
 
 #[test]
@@ -150,8 +190,10 @@ fn declared_platform_fields_take_precedence_over_the_name() {
 
 #[test]
 fn package_without_declared_fields_is_not_skipped_without_an_os_token() {
-    let manifest =
-        PackageInstallabilityManifest { name: "is-arm".to_string(), ..Default::default() };
+    let manifest = PackageInstallabilityManifest {
+        name: "is-arm".to_string(),
+        ..Default::default()
+    };
     let verdict =
         package_is_installable("is-arm@1.0.0", &manifest, &optional_on_linux_x64(None)).unwrap();
     assert_eq!(verdict, InstallabilityVerdict::Installable);

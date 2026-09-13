@@ -23,7 +23,10 @@ async fn resolves_and_installs_config_dep_when_no_env_lockfile_exists() {
     .unwrap();
 
     let installed = root.path().join("node_modules/.pnpm-config/@pnpm.e2e/foo/package.json");
-    assert!(installed.exists(), "config dep must be linked into .pnpm-config");
+    assert!(
+        installed.exists(),
+        "config dep must be linked into .pnpm-config",
+    );
 
     let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
     let importer = &env.importers[EnvLockfile::ROOT_IMPORTER_KEY];
@@ -89,9 +92,16 @@ async fn rejects_config_dep_with_path_traversal_name() {
     .unwrap();
 
     let mut env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
-    let spec = env.root_importer_mut().config_dependencies.remove("@pnpm.e2e/foo").unwrap();
+    let spec = env
+        .root_importer_mut()
+        .config_dependencies
+        .remove("@pnpm.e2e/foo")
+        .unwrap();
     let malicious_name = "../../PWNED_CFGDEP".to_string();
-    env.root_importer_mut().config_dependencies.insert(malicious_name.clone(), spec.clone());
+    env
+        .root_importer_mut()
+        .config_dependencies
+        .insert(malicious_name.clone(), spec.clone());
     let legit_key: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
     let pkg = env.packages[&legit_key].clone();
     let malicious_key: PackageKey = format!("{malicious_name}@{}", spec.version).parse().unwrap();
@@ -106,7 +116,10 @@ async fn rejects_config_dep_with_path_traversal_name() {
     );
 
     assert!(!contains_entry_named(root.path(), "PWNED_CFGDEP"));
-    assert!(!contains_entry_named(&harness.store_dir.links(), "PWNED_CFGDEP"));
+    assert!(!contains_entry_named(
+        &harness.store_dir.links(),
+        "PWNED_CFGDEP"
+    ));
 }
 
 /// `__proto__` is an invalid npm name (leading `_`); Rust's string-keyed maps
@@ -128,9 +141,16 @@ async fn rejects_config_dep_named_dunder_proto() {
     .unwrap();
 
     let mut env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
-    let spec = env.root_importer_mut().config_dependencies.remove("@pnpm.e2e/foo").unwrap();
+    let spec = env
+        .root_importer_mut()
+        .config_dependencies
+        .remove("@pnpm.e2e/foo")
+        .unwrap();
     let malicious_name = "__proto__".to_string();
-    env.root_importer_mut().config_dependencies.insert(malicious_name.clone(), spec.clone());
+    env
+        .root_importer_mut()
+        .config_dependencies
+        .insert(malicious_name.clone(), spec.clone());
     let legit_key: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
     let pkg = env.packages[&legit_key].clone();
     let malicious_key: PackageKey = format!("{malicious_name}@{}", spec.version).parse().unwrap();
@@ -169,7 +189,12 @@ async fn rejects_invalid_manifest_config_dep_name_before_writing_lockfile() {
         "unexpected error: {error:?}",
     );
 
-    assert!(!root.path().join("pnpm-lock.yaml").exists());
+    assert!(
+        !root
+            .path()
+            .join("pnpm-lock.yaml")
+            .exists(),
+    );
 }
 
 #[tokio::test]
@@ -197,7 +222,12 @@ async fn rejects_invalid_manifest_config_dep_version_before_writing_lockfile() {
         "unexpected error: {error:?}",
     );
 
-    assert!(!root.path().join("pnpm-lock.yaml").exists());
+    assert!(
+        !root
+            .path()
+            .join("pnpm-lock.yaml")
+            .exists(),
+    );
 }
 
 #[tokio::test]
@@ -218,8 +248,12 @@ async fn rejects_config_dep_with_path_traversal_version() {
 
     let mut env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
     let malicious_version = "../../../PWNED";
-    env.root_importer_mut().config_dependencies.get_mut("@pnpm.e2e/foo").unwrap().version =
-        malicious_version.to_string();
+    env
+        .root_importer_mut()
+        .config_dependencies
+        .get_mut("@pnpm.e2e/foo")
+        .unwrap()
+        .version = malicious_version.to_string();
     let legit_key: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
     let pkg = env.packages[&legit_key].clone();
     let malicious_key: PackageKey = format!("@pnpm.e2e/foo@{malicious_version}").parse().unwrap();
@@ -295,7 +329,10 @@ async fn re_resolves_when_config_dep_version_changes() {
     let entry = &env.importers[EnvLockfile::ROOT_IMPORTER_KEY].config_dependencies["@pnpm.e2e/foo"];
     assert_eq!(entry.version, "100.1.0", "version bump is reflected");
     let old_key = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
-    assert!(!env.packages.contains_key(&old_key), "stale version pruned from lockfile");
+    assert!(
+        !env.packages.contains_key(&old_key),
+        "stale version pruned from lockfile",
+    );
 }
 
 #[tokio::test]
@@ -306,7 +343,10 @@ async fn emits_installing_config_deps_events_only_when_work_is_needed() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            CONFIG_DEP_EVENTS.lock().unwrap().push(event.clone());
+            CONFIG_DEP_EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -328,7 +368,10 @@ async fn emits_installing_config_deps_events_only_when_work_is_needed() {
     let mut config_deps = BTreeMap::new();
     config_deps.insert("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0"));
 
-    CONFIG_DEP_EVENTS.lock().unwrap().clear();
+    CONFIG_DEP_EVENTS
+        .lock()
+        .unwrap()
+        .clear();
     resolve_and_install_config_deps::<RecordingReporter>(
         &config_deps,
         &resolver,
@@ -340,7 +383,10 @@ async fn emits_installing_config_deps_events_only_when_work_is_needed() {
     let first = std::mem::take(&mut *CONFIG_DEP_EVENTS.lock().unwrap());
     assert_eq!(
         config_dep_statuses(&first),
-        vec![InstallingConfigDepsStatus::Started, InstallingConfigDepsStatus::Done],
+        vec![
+            InstallingConfigDepsStatus::Started,
+            InstallingConfigDepsStatus::Done
+        ],
         "first install emits exactly started then done",
     );
 
@@ -352,7 +398,10 @@ async fn emits_installing_config_deps_events_only_when_work_is_needed() {
     .await
     .unwrap();
     let second = std::mem::take(&mut *CONFIG_DEP_EVENTS.lock().unwrap());
-    assert!(config_dep_statuses(&second).is_empty(), "a no-op install emits nothing: {second:?}");
+    assert!(
+        config_dep_statuses(&second).is_empty(),
+        "a no-op install emits nothing: {second:?}",
+    );
 }
 
 #[tokio::test]
@@ -370,7 +419,12 @@ async fn removed_config_dep_is_pruned_from_lockfile_and_pnpm_config() {
     )
     .await
     .unwrap();
-    assert!(root.path().join("node_modules/.pnpm-config/@pnpm.e2e/foo/package.json").exists());
+    assert!(
+        root
+            .path()
+            .join("node_modules/.pnpm-config/@pnpm.e2e/foo/package.json")
+            .exists(),
+    );
 
     // Re-resolve with the dep no longer declared.
     let empty = BTreeMap::new();
@@ -392,7 +446,10 @@ async fn removed_config_dep_is_pruned_from_lockfile_and_pnpm_config() {
         "its package entry pruned",
     );
     assert!(
-        !root.path().join("node_modules/.pnpm-config/@pnpm.e2e/foo").exists(),
+        !root
+            .path()
+            .join("node_modules/.pnpm-config/@pnpm.e2e/foo")
+            .exists(),
         "its .pnpm-config link removed",
     );
 }

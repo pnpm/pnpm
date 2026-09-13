@@ -3,7 +3,10 @@ use std::collections::HashMap;
 /// The registry facts with only the scope map populated — what these tests
 /// vary; the aliases and per-registry settings stay empty.
 fn registry_context(registries: HashMap<String, String>) -> pnpm_lockfile::RegistryContext {
-    pnpm_lockfile::RegistryContext { registries, ..Default::default() }
+    pnpm_lockfile::RegistryContext {
+        registries,
+        ..Default::default()
+    }
 }
 
 use pnpm_lockfile::{
@@ -28,7 +31,10 @@ fn single_dep_lockfile(alias: &str, specifier: &str, resolved: &str) -> Lockfile
     let mut lockfile = empty_lockfile();
     lockfile.importers = HashMap::from([(
         ".".to_string(),
-        ProjectSnapshot { dependencies: Some(deps), ..ProjectSnapshot::default() },
+        ProjectSnapshot {
+            dependencies: Some(deps),
+            ..ProjectSnapshot::default()
+        },
     )]);
     let key: PkgNameVerPeer = format!("{alias}@{resolved}").parse().expect("parse package key");
     lockfile.packages = Some(HashMap::from([(key, registry_metadata())]));
@@ -121,7 +127,10 @@ fn reuses_an_unchanged_git_specifier_at_its_locked_commit() {
         },
     )]));
 
-    assert_eq!(reusable_importer_dep(&lockfile, ".", "git-pkg", specifier), Some(key));
+    assert_eq!(
+        reusable_importer_dep(&lockfile, ".", "git-pkg", specifier),
+        Some(key),
+    );
 }
 
 #[test]
@@ -141,25 +150,38 @@ fn synthesizes_a_registry_resolution_with_the_recorded_integrity() {
     assert_eq!(result.resolved_via, "npm-registry");
     assert_eq!(result.alias.as_deref(), Some("react"));
     let manifest = result.package.manifest.expect("synthesized manifest");
-    assert_eq!(manifest.get("name").and_then(serde_json::Value::as_str), Some("react"));
-    assert_eq!(manifest.get("version").and_then(serde_json::Value::as_str), Some("18.2.0"));
+    assert_eq!(
+        manifest.get("name").and_then(serde_json::Value::as_str),
+        Some("react"),
+    );
+    assert_eq!(
+        manifest.get("version").and_then(serde_json::Value::as_str),
+        Some("18.2.0"),
+    );
 }
 
 #[test]
 fn synthesized_manifest_carries_peer_metadata() {
     let key: PkgNameVerPeer = "react-dom@18.2.0".parse().expect("parse key");
     let mut metadata = registry_metadata();
-    metadata.peer_dependencies =
-        Some(HashMap::from([("react".to_string(), "^18.0.0".to_string())]));
+    metadata.peer_dependencies = Some(HashMap::from([(
+        "react".to_string(),
+        "^18.0.0".to_string(),
+    )]));
     let mut lockfile = empty_lockfile();
     lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
 
     let result =
         synthesize_reused_result(&lockfile, &key, "react-dom").expect("registry dep is reusable");
     let manifest = result.package.manifest.expect("synthesized manifest");
-    let peers =
-        manifest.get("peerDependencies").and_then(serde_json::Value::as_object).expect("peers");
-    assert_eq!(peers.get("react").and_then(serde_json::Value::as_str), Some("^18.0.0"));
+    let peers = manifest
+        .get("peerDependencies")
+        .and_then(serde_json::Value::as_object)
+        .expect("peers");
+    assert_eq!(
+        peers.get("react").and_then(serde_json::Value::as_str),
+        Some("^18.0.0"),
+    );
 }
 
 #[test]
@@ -190,7 +212,10 @@ fn synthesized_manifest_carries_bundled_dependencies() {
     let result = synthesize_reused_result(&lockfile, &key, "pkg-with-bundled-deps")
         .expect("registry dep is reusable");
     let manifest = result.package.manifest.expect("synthesized manifest");
-    assert_eq!(manifest.get("bundledDependencies"), Some(&serde_json::json!(["napi-wasm"])));
+    assert_eq!(
+        manifest.get("bundledDependencies"),
+        Some(&serde_json::json!(["napi-wasm"])),
+    );
 }
 
 #[test]
@@ -204,7 +229,10 @@ fn synthesized_manifest_carries_the_boolean_bundled_dependencies_form() {
     let result = synthesize_reused_result(&lockfile, &key, "pkg-bundling-everything")
         .expect("registry dep is reusable");
     let manifest = result.package.manifest.expect("synthesized manifest");
-    assert_eq!(manifest.get("bundledDependencies"), Some(&serde_json::Value::Bool(true)));
+    assert_eq!(
+        manifest.get("bundledDependencies"),
+        Some(&serde_json::Value::Bool(true)),
+    );
 }
 
 #[test]
@@ -218,7 +246,10 @@ fn synthesized_manifest_keeps_the_scalar_libc_form() {
     let result = synthesize_reused_result(&lockfile, &key, "pkg-with-scalar-libc")
         .expect("registry dep is reusable");
     let manifest = result.package.manifest.expect("synthesized manifest");
-    assert_eq!(manifest.get("libc"), Some(&serde_json::Value::String("musl".to_string())));
+    assert_eq!(
+        manifest.get("libc"),
+        Some(&serde_json::Value::String("musl".to_string())),
+    );
 }
 
 #[test]
@@ -261,8 +292,14 @@ fn synthesizes_a_git_resolution_with_the_locked_commit_and_manifest_version() {
     assert_eq!(result.resolution, metadata.resolution);
     assert_eq!(result.resolved_via, "git-repository");
     let manifest = result.package.manifest.expect("synthesized git manifest");
-    assert_eq!(manifest.get("name").and_then(serde_json::Value::as_str), Some("git-pkg"));
-    assert_eq!(manifest.get("version").and_then(serde_json::Value::as_str), Some("1.2.3"));
+    assert_eq!(
+        manifest.get("name").and_then(serde_json::Value::as_str),
+        Some("git-pkg"),
+    );
+    assert_eq!(
+        manifest.get("version").and_then(serde_json::Value::as_str),
+        Some("1.2.3"),
+    );
 }
 
 #[test]
@@ -282,15 +319,20 @@ fn does_not_reuse_a_non_semver_version_slot() {
 }
 
 fn default_registry() -> HashMap<String, String> {
-    HashMap::from([("default".to_string(), "https://registry.example.test/".to_string())])
+    HashMap::from([(
+        "default".to_string(),
+        "https://registry.example.test/".to_string(),
+    )])
 }
 
 #[test]
 fn current_pkg_materializes_a_registry_resolution_into_its_tarball_url() {
     let key: PkgNameVerPeer = "react@18.2.0(foo@1.0.0)".parse().expect("parse key");
     let mut lockfile = empty_lockfile();
-    lockfile.packages =
-        Some(HashMap::from([("react@18.2.0".parse().expect("parse key"), registry_metadata())]));
+    lockfile.packages = Some(HashMap::from([(
+        "react@18.2.0".parse().expect("parse key"),
+        registry_metadata(),
+    )]));
 
     let current_pkg =
         super::current_pkg_from_lockfile(&lockfile, &key, &registry_context(default_registry()))
@@ -300,10 +342,19 @@ fn current_pkg_materializes_a_registry_resolution_into_its_tarball_url() {
     assert_eq!(current_pkg.name.as_deref(), Some("react"));
     assert_eq!(current_pkg.version.as_deref(), Some("18.2.0"));
     let LockfileResolution::Tarball(tarball) = &current_pkg.resolution else {
-        panic!("registry resolution must materialize as a tarball: {:?}", current_pkg.resolution);
+        panic!(
+            "registry resolution must materialize as a tarball: {:?}",
+            current_pkg.resolution,
+        );
     };
-    assert_eq!(tarball.tarball, "https://registry.example.test/react/-/react-18.2.0.tgz");
-    assert!(tarball.integrity.is_some(), "the recorded integrity carries over");
+    assert_eq!(
+        tarball.tarball,
+        "https://registry.example.test/react/-/react-18.2.0.tgz",
+    );
+    assert!(
+        tarball.integrity.is_some(),
+        "the recorded integrity carries over",
+    );
 }
 
 #[test]
@@ -312,7 +363,10 @@ fn current_pkg_routes_a_scoped_package_to_its_scope_registry() {
     let mut lockfile = empty_lockfile();
     lockfile.packages = Some(HashMap::from([(key.clone(), registry_metadata())]));
     let mut registries = default_registry();
-    registries.insert("@scope".to_string(), "https://scoped.example.test/".to_string());
+    registries.insert(
+        "@scope".to_string(),
+        "https://scoped.example.test/".to_string(),
+    );
 
     let current_pkg =
         super::current_pkg_from_lockfile(&lockfile, &key, &registry_context(registries))
@@ -321,7 +375,10 @@ fn current_pkg_routes_a_scoped_package_to_its_scope_registry() {
     let LockfileResolution::Tarball(tarball) = &current_pkg.resolution else {
         panic!("registry resolution must materialize as a tarball");
     };
-    assert_eq!(tarball.tarball, "https://scoped.example.test/@scope/pkg/-/pkg-1.0.0.tgz");
+    assert_eq!(
+        tarball.tarball,
+        "https://scoped.example.test/@scope/pkg/-/pkg-1.0.0.tgz",
+    );
 }
 
 #[test]
@@ -339,9 +396,10 @@ fn current_pkg_materializes_a_revision_from_the_registry_prefix_declaration() {
     let mut lockfile = empty_lockfile();
     lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
     let mut context = registry_context(default_registry());
-    context
-        .registries_by_prefix
-        .insert("work".to_string(), "https://registry.example.test/work/npm/".to_string());
+    context.registries_by_prefix.insert(
+        "work".to_string(),
+        "https://registry.example.test/work/npm/".to_string(),
+    );
 
     let current_pkg = super::current_pkg_from_lockfile(&lockfile, &key, &context)
         .expect("declared prefix makes the revision reusable");
@@ -351,9 +409,15 @@ fn current_pkg_materializes_a_revision_from_the_registry_prefix_declaration() {
     };
     assert_eq!(
         tarball.tarball,
-        format!("https://registry.example.test/work/npm/-/tarballs/sha512/{}", "A".repeat(86)),
+        format!(
+            "https://registry.example.test/work/npm/-/tarballs/sha512/{}",
+            "A".repeat(86)
+        ),
     );
-    assert_eq!(tarball.revision, Some(TarballRevision::try_from(7).unwrap()));
+    assert_eq!(
+        tarball.revision,
+        Some(TarballRevision::try_from(7).unwrap()),
+    );
 }
 
 #[test]
@@ -414,7 +478,10 @@ fn prior_child_key_applies_the_satisfies_gate() {
         super::prior_child_key(&snapshot, "bar", "^2.0.0").is_none(),
         "an edited range the recorded version no longer satisfies yields no prior key",
     );
-    assert!(super::prior_child_key(&snapshot, "baz", "^1.0.0").is_none(), "unrecorded alias");
+    assert!(
+        super::prior_child_key(&snapshot, "baz", "^1.0.0").is_none(),
+        "unrecorded alias",
+    );
 }
 
 #[test]
@@ -422,7 +489,10 @@ fn reduce_named_registry_spec_matches_registry_and_package_name() {
     let key_name: PkgName = "@scope/old".parse().unwrap();
 
     // Bare range: the alias carries the package name, nothing to compare.
-    assert_eq!(super::reduce_named_registry_spec("gh", &key_name, "gh:^1.0.0"), Some("^1.0.0"));
+    assert_eq!(
+        super::reduce_named_registry_spec("gh", &key_name, "gh:^1.0.0"),
+        Some("^1.0.0"),
+    );
 
     // Aliased shape naming the same package.
     assert_eq!(
@@ -433,9 +503,18 @@ fn reduce_named_registry_spec_matches_registry_and_package_name() {
     // Aliased shape naming a *different* package: reusing the recorded entry
     // would install `@scope/old` for a dependency that asked for
     // `@scope/new`.
-    assert_eq!(super::reduce_named_registry_spec("gh", &key_name, "gh:@scope/new@^1.0.0"), None);
+    assert_eq!(
+        super::reduce_named_registry_spec("gh", &key_name, "gh:@scope/new@^1.0.0"),
+        None,
+    );
 
     // A spec aimed at another registry never satisfies this key.
-    assert_eq!(super::reduce_named_registry_spec("gh", &key_name, "work:^1.0.0"), None);
-    assert_eq!(super::reduce_named_registry_spec("gh", &key_name, "^1.0.0"), None);
+    assert_eq!(
+        super::reduce_named_registry_spec("gh", &key_name, "work:^1.0.0"),
+        None,
+    );
+    assert_eq!(
+        super::reduce_named_registry_spec("gh", &key_name, "^1.0.0"),
+        None,
+    );
 }

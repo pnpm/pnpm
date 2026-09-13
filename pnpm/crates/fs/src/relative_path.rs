@@ -11,7 +11,10 @@ use std::path::{Path, PathBuf};
 /// emits a re-anchored garbage path across drives or UNC shares.
 #[must_use]
 pub fn relative_path(base: &Path, path: &Path) -> PathBuf {
-    relative_path_inner(&crate::lexical_normalize(base), &crate::lexical_normalize(path))
+    relative_path_inner(
+        &crate::lexical_normalize(base),
+        &crate::lexical_normalize(path),
+    )
 }
 
 #[cfg(windows)]

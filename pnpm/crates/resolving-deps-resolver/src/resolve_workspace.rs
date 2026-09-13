@@ -207,8 +207,15 @@ where
     let (workspace, settings) = opts.split();
     let sorted = sorted_importers(importers, per_importer_options, &settings);
     let cutoff = time_cutoff(resolver, &sorted, dependency_groups, &settings).await;
-    let mut initialized =
-        init_importers(resolver, sorted, dependency_groups, &cutoff, &settings, &workspace).await?;
+    let mut initialized = init_importers(
+        resolver,
+        sorted,
+        dependency_groups,
+        &cutoff,
+        &settings,
+        &workspace,
+    )
+    .await?;
     run_hoist_rounds(resolver, &mut initialized.states, &workspace).await?;
     Ok(finish(&settings, workspace, initialized, cutoff.time))
 }
@@ -227,12 +234,18 @@ struct PassSettings {
 
 impl WorkspaceResolveOptions {
     fn split(self) -> (Arc<WorkspaceTreeCtx>, PassSettings) {
-        let recorded_time = self
-            .version
-            .time_based
-            .then(|| self.reuse.lockfile.as_ref().and_then(|lockfile| lockfile.time.clone()))
+        let recorded_time = self.version.time_based
+            .then(|| {
+                self.reuse.lockfile
+                    .as_ref()
+                    .and_then(|lockfile| lockfile.time.clone())
+            })
             .flatten();
-        let settings = PassSettings { recorded_time, peers: self.peers, version: self.version };
+        let settings = PassSettings {
+            recorded_time,
+            peers: self.peers,
+            version: self.version,
+        };
         let workspace = WorkspaceTreeCtx::default()
             .with_shared_workspace_resolutions(self.share_workspace_resolutions)
             .with_hooks(self.hooks)
@@ -281,7 +294,10 @@ where
         .collect();
     paired.sort_by(|(left, _), (right, _)| left.id.cmp(&right.id));
     let (importers, opts) = paired.into_iter().unzip();
-    SortedImporters { importers, opts }
+    SortedImporters {
+        importers,
+        opts,
+    }
 }
 
 struct InitializedImporters<'i, 'a> {
@@ -317,8 +333,10 @@ where
 {
     let mut input_dirs = Vec::with_capacity(sorted.importers.len());
     let mut states = Vec::with_capacity(sorted.importers.len());
-    for (importer_order, (importer, mut importer_opts)) in
-        sorted.importers.iter().zip(sorted.opts).enumerate()
+    for (importer_order, (importer, mut importer_opts)) in sorted.importers
+        .iter()
+        .zip(sorted.opts)
+        .enumerate()
     {
         importer_opts.resolution.pick_lowest_direct = settings.version.pick_lowest_direct;
         importer_opts.resolution.subdep_published_by = cutoff.published_by;
@@ -342,7 +360,11 @@ where
         );
     }
     share_root_deps(&mut states)?;
-    Ok(InitializedImporters { importers: sorted.importers, states, input_dirs })
+    Ok(InitializedImporters {
+        importers: sorted.importers,
+        states,
+        input_dirs,
+    })
 }
 
 /// Computed after the init barrier and shared unchanged: recomputing it
@@ -401,7 +423,11 @@ fn finish(
         Err(arc) => arc.snapshot(Vec::new()),
     };
     let peers = resolve_workspace_peers(settings, &mut merged_tree, peer_inputs);
-    ResolveWorkspaceResult { merged_tree, peers, time }
+    ResolveWorkspaceResult {
+        merged_tree,
+        peers,
+        time,
+    }
 }
 
 struct PeerInputs {
@@ -412,8 +438,10 @@ struct PeerInputs {
 fn importer_peer_inputs(initialized: InitializedImporters<'_, '_>) -> PeerInputs {
     let mut per_importer = Vec::with_capacity(initialized.importers.len());
     let mut hoisted_provider_node_ids = std::collections::HashSet::default();
-    for ((importer, state), (project_dir, modules_dir)) in
-        initialized.importers.iter().zip(initialized.states).zip(initialized.input_dirs)
+    for ((importer, state), (project_dir, modules_dir)) in initialized.importers
+        .iter()
+        .zip(initialized.states)
+        .zip(initialized.input_dirs)
     {
         let (direct, importer_provider_node_ids) = state.into_direct();
         hoisted_provider_node_ids.extend(importer_provider_node_ids);
@@ -424,7 +452,10 @@ fn importer_peer_inputs(initialized: InitializedImporters<'_, '_>) -> PeerInputs
             modules_dir,
         });
     }
-    PeerInputs { per_importer, hoisted_provider_node_ids }
+    PeerInputs {
+        per_importer,
+        hoisted_provider_node_ids,
+    }
 }
 
 fn resolve_workspace_peers(
@@ -479,11 +510,16 @@ where
         .collect();
     let first_importer_by_pkg = workspace.first_importer_by_pkg();
     let first_walk_missing_by_pkg = workspace.children.first_walk_missing_by_pkg();
-    for (state, round) in states.iter().zip(rounds.iter_mut().flatten()) {
+    for (state, round) in states
+        .iter()
+        .zip(rounds.iter_mut().flatten())
+    {
         state.apply_owner_missing_scope(round, &first_importer_by_pkg, &first_walk_missing_by_pkg);
     }
-    for (state, round) in
-        states.iter_mut().zip(rounds).filter_map(|(state, round)| round.map(|round| (state, round)))
+    for (state, round) in states
+        .iter_mut()
+        .zip(rounds)
+        .filter_map(|(state, round)| round.map(|round| (state, round)))
     {
         state.complete_initial_required_round(resolver, round, peer_discovery).await?;
     }

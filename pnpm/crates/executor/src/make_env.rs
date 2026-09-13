@@ -103,8 +103,14 @@ fn build_env_for_platform(
         env.insert(k.clone(), v.clone());
     }
 
-    env.insert("INIT_CWD".into(), opts.environment.init_cwd.to_string_lossy().into_owned());
-    env.insert("PNPM_SCRIPT_SRC_DIR".into(), opts.script_src_dir.to_string_lossy().into_owned());
+    env.insert(
+        "INIT_CWD".into(),
+        opts.environment.init_cwd.to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "PNPM_SCRIPT_SRC_DIR".into(),
+        opts.script_src_dir.to_string_lossy().into_owned(),
+    );
 
     if let Some(ua) = opts.environment.user_agent {
         env.insert("npm_config_user_agent".into(), ua.to_string());
@@ -115,27 +121,16 @@ fn build_env_for_platform(
     // can't disable the guard (pnpm keeps this key authoritative).
     env.insert(VERIFY_DEPS_BEFORE_RUN_ENV.into(), "false".into());
 
-    // 5. TMPDIR under <wd>/node_modules/.tmp when !unsafe_perm.
-    //    The caller creates the dir; we only record the path and pass
-    //    it back.
-    let tmpdir = if opts.unsafe_perm {
-        None
-    } else {
-        let dir = opts.pkg_root.join("node_modules").join(".tmp");
-        // Windows treats differently cased spellings as one variable,
-        // so remove them before inserting the authoritative override.
-        if is_windows {
-            env.retain(|key, _| !key.eq_ignore_ascii_case("TMPDIR"));
-        }
-        env.insert("TMPDIR".into(), dir.to_string_lossy().into_owned());
-        Some(dir)
-    };
+    let tmpdir = configure_tmpdir(&mut env, opts, is_windows);
 
     // 6. `npm_lifecycle_script` is set after `extra_env`, so the
     //    caller can never clobber it.
     env.insert("npm_lifecycle_script".into(), opts.script.to_string());
 
-    EnvBuild { env, tmpdir }
+    EnvBuild {
+        env,
+        tmpdir,
+    }
 }
 
 /// Keep PATH (handled by the caller) and every key [`is_stamping_key`]
@@ -149,7 +144,10 @@ fn build_env_for_platform(
 ///
 /// [`Command::env`]: https://doc.rust-lang.org/std/process/struct.Command.html#method.env
 fn filter_parent_env(env: HashMap<String, String>, is_windows: bool) -> HashMap<String, String> {
-    env.into_iter().filter(|(k, _)| !is_stamping_key(k, is_windows)).collect()
+    env
+        .into_iter()
+        .filter(|(k, _)| !is_stamping_key(k, is_windows))
+        .collect()
 }
 
 /// Whether `key` must be dropped from the inherited parent env: an
@@ -174,10 +172,16 @@ fn is_stamping_key(key: &str, is_windows: bool) -> bool {
     {
         return true;
     }
-    const DROPPED: [&str; 4] =
-        ["NODE", "INIT_CWD", "PNPM_SCRIPT_SRC_DIR", DEV_PREINSTALL_ALREADY_RAN_ENV];
+    const DROPPED: [&str; 4] = [
+        "NODE",
+        "INIT_CWD",
+        "PNPM_SCRIPT_SRC_DIR",
+        DEV_PREINSTALL_ALREADY_RAN_ENV,
+    ];
     if is_windows {
-        return DROPPED.iter().any(|name| key.eq_ignore_ascii_case(name));
+        return DROPPED
+            .iter()
+            .any(|name| key.eq_ignore_ascii_case(name));
     }
     DROPPED.contains(&key)
 }
@@ -219,7 +223,13 @@ fn strip_env_prefix<'key>(key: &'key str, prefix: &str, is_windows: bool) -> Opt
 /// returning the value here lets the rest of [`build_env`] stay
 /// independent of casing.
 pub(crate) fn path_value(env: &HashMap<String, String>) -> Option<String> {
-    env.iter().find_map(|(k, v)| k.eq_ignore_ascii_case("PATH").then(|| v.clone()))
+    env
+        .iter()
+        .find_map(|(k, v)| {
+            k
+                .eq_ignore_ascii_case("PATH")
+                .then(|| v.clone())
+        })
 }
 
 /// Look up `node` along the supplied `PATH`. Driven by the filtered
@@ -229,10 +239,11 @@ pub(crate) fn path_value(env: &HashMap<String, String>) -> Option<String> {
 fn find_node_in_path(path: Option<&str>) -> Option<PathBuf> {
     let path = path?;
     let node_name = if cfg!(windows) { "node.exe" } else { "node" };
-    env::split_paths(path).find_map(|dir| {
-        let candidate = dir.join(node_name);
-        candidate.is_file().then_some(candidate)
-    })
+    env::split_paths(path)
+        .find_map(|dir| {
+            let candidate = dir.join(node_name);
+            candidate.is_file().then_some(candidate)
+        })
 }
 
 /// Recursively stamp `npm_package_*` env vars from the manifest. JSON
@@ -244,8 +255,15 @@ fn find_node_in_path(path: Option<&str>) -> Option<PathBuf> {
 /// recursed under one of those, everything is kept.
 fn stamp_package(env: &mut HashMap<String, String>, prefix: &str, value: &Value) {
     let pairs: Vec<(String, &Value)> = match value {
-        Value::Object(map) => map.iter().map(|(k, v)| (k.clone(), v)).collect(),
-        Value::Array(arr) => arr.iter().enumerate().map(|(i, v)| (i.to_string(), v)).collect(),
+        Value::Object(map) => map
+            .iter()
+            .map(|(k, v)| (k.clone(), v))
+            .collect(),
+        Value::Array(arr) => arr
+            .iter()
+            .enumerate()
+            .map(|(i, v)| (i.to_string(), v))
+            .collect(),
         _ => return,
     };
 
@@ -286,8 +304,7 @@ fn stamp_executables(
     pkg_root: &Path,
 ) {
     let parent_path = path_value(env);
-    let node_execpath = opts
-        .node_execpath
+    let node_execpath = opts.node_execpath
         .map(Path::to_path_buf)
         .or_else(|| find_node_in_path(parent_path.as_deref()));
     if let Some(node) = node_execpath {
@@ -298,15 +315,23 @@ fn stamp_executables(
 
     env.insert(
         "npm_package_json".into(),
-        pkg_root.join("package.json").to_string_lossy().into_owned(),
+        pkg_root
+            .join("package.json")
+            .to_string_lossy()
+            .into_owned(),
     );
 
-    let npm_execpath = opts.npm_execpath.map(Path::to_path_buf).or_else(|| env::current_exe().ok());
+    let npm_execpath = opts.npm_execpath
+        .map(Path::to_path_buf)
+        .or_else(|| env::current_exe().ok());
     if let Some(path) = npm_execpath {
         env.insert("npm_execpath".into(), path.to_string_lossy().into_owned());
     }
     if let Some(path) = opts.node_gyp_path {
-        env.insert("npm_config_node_gyp".into(), path.to_string_lossy().into_owned());
+        env.insert(
+            "npm_config_node_gyp".into(),
+            path.to_string_lossy().into_owned(),
+        );
     }
 }
 
@@ -327,15 +352,50 @@ fn stamps_manifest_field(prefix: &str, key: &str) -> bool {
 /// Replace every character that is not `[a-zA-Z0-9_]` with `_`, the
 /// sanitization an env key derived from a manifest field needs.
 fn sanitize_env_key(raw: &str) -> String {
-    raw.chars().map(|ch| if ch.is_ascii_alphanumeric() || ch == '_' { ch } else { '_' }).collect()
+    raw
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '_' {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect()
 }
 
 /// JSON-encode multi-line strings (those containing `\n`) so child
 /// shells don't break on embedded newlines; single-line strings pass
 /// through unchanged.
 fn escape_newlines(text: &str) -> String {
-    if text.contains('\n') { Value::String(text.to_string()).to_string() } else { text.to_string() }
+    if text.contains('\n') {
+        Value::String(text.to_string()).to_string()
+    } else {
+        text.to_string()
+    }
 }
 
 #[cfg(test)]
 mod tests;
+
+fn configure_tmpdir(
+    env: &mut HashMap<String, String>,
+    opts: &EnvOptions<'_>,
+    is_windows: bool,
+) -> Option<std::path::PathBuf> {
+    // 5. TMPDIR under <wd>/node_modules/.tmp when !unsafe_perm.
+    //    The caller creates the dir; we only record the path and pass
+    //    it back.
+    if opts.unsafe_perm {
+        None
+    } else {
+        let dir = opts.pkg_root.join("node_modules").join(".tmp");
+        // Windows treats differently cased spellings as one variable,
+        // so remove them before inserting the authoritative override.
+        if is_windows {
+            env.retain(|key, _| !key.eq_ignore_ascii_case("TMPDIR"));
+        }
+        env.insert("TMPDIR".into(), dir.to_string_lossy().into_owned());
+        Some(dir)
+    }
+}

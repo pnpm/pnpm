@@ -257,7 +257,10 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
     }
     .run::<SilentReporter>()
     .expect_err("with cache disabled, the failing postinstall must run and the install must fail");
-    assert!(matches!(err, crate::build_modules::BuildModulesError::LifecycleScript(_)));
+    assert!(matches!(
+        err,
+        crate::build_modules::BuildModulesError::LifecycleScript(_)
+    ));
 }
 /// A postinstall script does not modify the original sources added
 /// to the store.
@@ -431,7 +434,10 @@ async fn write_path_populates_side_effects_row() {
     writer_task.await.expect("await writer").expect("writer succeeds");
 
     let index = StoreIndex::open_readonly_in(&store_dir).expect("open index for read");
-    let row = index.get(&files_index_file).expect("get row").expect("row present");
+    let row = index
+        .get(&files_index_file)
+        .expect("get row")
+        .expect("row present");
     let side_effects = row.side_effects.expect("side_effects populated");
     let diff = side_effects.get(&expected_cache_key).expect("entry for cache key");
     let added = diff.added.as_ref().expect("added present");

@@ -39,7 +39,10 @@ fn convert_engines_runtime_preserves_explicit_user_dep() {
     });
     convert_engines_runtime_to_dependencies(&mut manifest, "devEngines", "devDependencies");
     assert_eq!(
-        manifest.get("devDependencies").and_then(|d| d.get("node")).and_then(|v| v.as_str()),
+        manifest
+            .get("devDependencies")
+            .and_then(|d| d.get("node"))
+            .and_then(|v| v.as_str()),
         Some("23.0.0"),
     );
 }
@@ -56,8 +59,18 @@ fn convert_engines_runtime_handles_array_form_with_multiple_runtimes() {
     });
     convert_engines_runtime_to_dependencies(&mut manifest, "devEngines", "devDependencies");
     let dev = manifest.get("devDependencies").expect("devDependencies inserted");
-    assert_eq!(dev.get("node").and_then(|v| v.as_str()), Some("runtime:24.6.0"));
-    assert_eq!(dev.get("bun").and_then(|v| v.as_str()), Some("runtime:1.1.40"));
+    assert_eq!(
+        dev
+            .get("node")
+            .and_then(|v| v.as_str()),
+        Some("runtime:24.6.0"),
+    );
+    assert_eq!(
+        dev
+            .get("bun")
+            .and_then(|v| v.as_str()),
+        Some("runtime:1.1.40"),
+    );
 }
 
 #[test]
@@ -168,5 +181,8 @@ fn convert_engines_ignores_non_array_non_object_runtime_entries() {
     });
     let before = manifest.clone();
     convert_engines_runtime_to_dependencies(&mut manifest, "devEngines", "devDependencies");
-    assert_eq!(manifest, before, "manifest must be unchanged for unsupported `runtime` shape");
+    assert_eq!(
+        manifest, before,
+        "manifest must be unchanged for unsupported `runtime` shape",
+    );
 }

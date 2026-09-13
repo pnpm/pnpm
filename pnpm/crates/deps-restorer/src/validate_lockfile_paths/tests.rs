@@ -5,7 +5,9 @@ use pnpm_lockfile::{PackageKey, SnapshotEntry};
 use std::{collections::HashMap, path::PathBuf};
 
 fn assert_invalid_dependency_name_code(err: &pnpm_lockfile_verification::VerifyError) {
-    let code = err.code().map(|code| code.to_string());
+    let code = err
+        .code()
+        .map(|code| code.to_string());
     assert_eq!(code.as_deref(), Some("ERR_PNPM_INVALID_DEPENDENCY_NAME"));
 }
 
@@ -16,8 +18,14 @@ fn accepts_snapshots_whose_slots_stay_in_the_store() {
         pnpm_config::default_virtual_store_dir_max_length() as usize,
     );
     let mut snapshots = HashMap::new();
-    snapshots.insert("@scope/foo@1.2.3".parse::<PackageKey>().unwrap(), SnapshotEntry::default());
-    snapshots.insert("bar@4.5.6".parse::<PackageKey>().unwrap(), SnapshotEntry::default());
+    snapshots.insert(
+        "@scope/foo@1.2.3".parse::<PackageKey>().unwrap(),
+        SnapshotEntry::default(),
+    );
+    snapshots.insert(
+        "bar@4.5.6".parse::<PackageKey>().unwrap(),
+        SnapshotEntry::default(),
+    );
     validate_virtual_store_slot_containment(Some(&snapshots), &layout)
         .expect("contained slots must pass");
 }

@@ -218,12 +218,11 @@ where
 {
     match unsaved.lockfile_specifiers {
         Some(manifests) => {
-            install
-                .run_with_lockfile_specifier_project_manifests::<Reporter>(
-                    manifests,
-                    unsaved.hooked_paths,
-                )
-                .await
+            install.run_with_lockfile_specifier_project_manifests::<Reporter>(
+                manifests,
+                unsaved.hooked_paths,
+            )
+            .await
         }
         None => match bumps {
             Some(bumps) => install.run_with_manifest_spec_bumps::<Reporter>(bumps).await,
@@ -264,13 +263,12 @@ where
 {
     match unsaved.lockfile_specifiers {
         Some(manifests) => {
-            install
-                .run_selected_with_lockfile_specifier_project_manifests::<Reporter>(
-                    selection,
-                    manifests,
-                    unsaved.hooked_paths,
-                )
-                .await
+            install.run_selected_with_lockfile_specifier_project_manifests::<Reporter>(
+                selection,
+                manifests,
+                unsaved.hooked_paths,
+            )
+            .await
         }
         None => match bumps {
             Some(bumps) => {

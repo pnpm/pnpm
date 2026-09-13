@@ -160,8 +160,9 @@ pub fn run_build_phase<Reporter: self::Reporter>(
     // (pnpm/pacquet#342). Resolves direct-over-hoisted precedence and
     // shims lifecycle-script-created bins that didn't exist at extract
     // time. Idempotent for unchanged shims. Runs after `buildModules`.
-    let modules_dir_basename: &OsStr =
-        config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
+    let modules_dir_basename: &OsStr = config.modules_dir
+        .file_name()
+        .unwrap_or_else(|| OsStr::new("node_modules"));
     for (importer_id, importer_snapshot) in inputs.graph.importers {
         link_importer_top_level_bins(
             inputs,
@@ -191,9 +192,7 @@ fn build_or_defer<Reporter: self::Reporter>(
         && patches.is_none_or(HashMap::is_empty)
         && (!config.side_effects_cache_read() || inputs.cache.maps_by_snapshot.is_empty());
     let build_output = if can_defer_without_build_modules {
-        let newly_deferred = inputs
-            .graph
-            .materialized_snapshots
+        let newly_deferred = inputs.graph.materialized_snapshots
             .iter()
             .filter(|snapshot_key| !inputs.skipped.contains(snapshot_key))
             .filter_map(|snapshot_key| {
@@ -295,6 +294,11 @@ fn link_importer_top_level_bins(
         inputs.skipped,
         false,
     );
-    link_top_level_bins(&modules_dir, &direct_names, hoisted_names, inputs.directories.link_options)
-        .map_err(BuildPhaseError::TopLevelBinLink)
+    link_top_level_bins(
+        &modules_dir,
+        &direct_names,
+        hoisted_names,
+        inputs.directories.link_options,
+    )
+    .map_err(BuildPhaseError::TopLevelBinLink)
 }

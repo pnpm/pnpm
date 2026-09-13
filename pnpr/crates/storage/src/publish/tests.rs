@@ -1,5 +1,5 @@
 use super::{
-    DocumentMerge, drop_lost_versions, extract_attachments, merge_journaled_packument,
+    DocumentMerge, extract_attachments, manifest::drop_lost_versions, merge_journaled_packument,
     merge_manifest, now_iso, sha1_hex_from_integrity_opts, stream_decode_verify_and_write,
 };
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
@@ -51,7 +51,10 @@ fn stream_rejects_integrity_mismatch_and_removes_tmp() {
     let (result, dest, _tmp) = run_stream(b"actual-bytes", Some(&dist), None);
     let err = result.unwrap_err();
     assert!(err.to_string().contains("EINTEGRITY"), "got: {err}");
-    assert!(!dest.exists(), "tmp file must be removed on integrity mismatch");
+    assert!(
+        !dest.exists(),
+        "tmp file must be removed on integrity mismatch",
+    );
 }
 
 #[test]
@@ -59,13 +62,21 @@ fn stream_rejects_missing_integrity() {
     let dist = json!({ "tarball": "http://example.com/foo-1.0.0.tgz" });
     let (result, _dest, _tmp) = run_stream(b"bytes", Some(&dist), None);
     let msg = result.unwrap_err().to_string();
-    assert!(msg.contains("EINTEGRITY") && msg.contains("integrity"), "got: {msg}");
+    assert!(
+        msg.contains("EINTEGRITY") && msg.contains("integrity"),
+        "got: {msg}",
+    );
 }
 
 #[test]
 fn stream_rejects_missing_dist_entry() {
     let (result, _dest, _tmp) = run_stream(b"bytes", None, None);
-    assert!(result.unwrap_err().to_string().contains("EINTEGRITY"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("EINTEGRITY"),
+    );
 }
 
 #[test]
@@ -77,7 +88,10 @@ fn stream_rejects_shasum_mismatch() {
     });
     let (result, dest, _tmp) = run_stream(bytes, Some(&dist), None);
     let msg = result.unwrap_err().to_string();
-    assert!(msg.contains("shasum") && msg.contains("EINTEGRITY"), "got: {msg}");
+    assert!(
+        msg.contains("shasum") && msg.contains("EINTEGRITY"),
+        "got: {msg}",
+    );
     assert!(!dest.exists());
 }
 
@@ -87,7 +101,10 @@ fn stream_rejects_declared_length_mismatch() {
     let dist = json!({ "integrity": sri_sha512(bytes) });
     let (result, dest, _tmp) = run_stream(bytes, Some(&dist), Some(99));
     let msg = result.unwrap_err().to_string();
-    assert!(msg.contains("EINTEGRITY") && msg.contains("length mismatch"), "got: {msg}");
+    assert!(
+        msg.contains("EINTEGRITY") && msg.contains("length mismatch"),
+        "got: {msg}",
+    );
     assert!(!dest.exists());
 }
 
@@ -97,7 +114,10 @@ fn stream_rejects_malformed_integrity_sri() {
     let dist = json!({ "integrity": "not-a-valid-sri" });
     let (result, dest, _tmp) = run_stream(bytes, Some(&dist), None);
     let msg = result.unwrap_err().to_string();
-    assert!(msg.contains("EINTEGRITY") && msg.contains("malformed"), "got: {msg}");
+    assert!(
+        msg.contains("EINTEGRITY") && msg.contains("malformed"),
+        "got: {msg}",
+    );
     assert!(!dest.exists());
 }
 
@@ -107,7 +127,10 @@ fn stream_rejects_integrity_without_hashes() {
         let dist = json!({ "integrity": declared });
         let (result, dest, _tmp) = run_stream(b"bytes", Some(&dist), None);
         let msg = result.unwrap_err().to_string();
-        assert!(msg.contains("EINTEGRITY") && msg.contains("hash"), "got: {msg}");
+        assert!(
+            msg.contains("EINTEGRITY") && msg.contains("hash"),
+            "got: {msg}",
+        );
         assert!(!dest.exists());
     }
 }
@@ -117,7 +140,10 @@ fn stream_rejects_unsupported_integrity_algorithm() {
     let dist = json!({ "integrity": "md5-deadbeef" });
     let (result, dest, _tmp) = run_stream(b"bytes", Some(&dist), None);
     let msg = result.unwrap_err().to_string();
-    assert!(msg.contains("EINTEGRITY") && msg.contains("malformed"), "got: {msg}");
+    assert!(
+        msg.contains("EINTEGRITY") && msg.contains("malformed"),
+        "got: {msg}",
+    );
     assert!(!dest.exists());
 }
 
@@ -137,7 +163,10 @@ fn stream_rejects_invalid_base64() {
         &dest,
     );
     let msg = result.unwrap_err().to_string();
-    assert!(msg.contains("EINTEGRITY") && msg.contains("base64"), "got: {msg}");
+    assert!(
+        msg.contains("EINTEGRITY") && msg.contains("base64"),
+        "got: {msg}",
+    );
     assert!(!dest.exists());
 }
 
@@ -173,7 +202,10 @@ fn extracts_and_strips_attachments() {
     assert_eq!(attachments[0].filename, "foo-1.0.0.tgz");
     assert_eq!(attachments[0].data, "aGVsbG8=");
     assert_eq!(attachments[0].declared_length, Some(5));
-    assert!(body.get("_attachments").is_none(), "_attachments should be stripped");
+    assert!(
+        body.get("_attachments").is_none(),
+        "_attachments should be stripped",
+    );
 }
 
 #[test]
@@ -250,8 +282,14 @@ fn merge_keeps_a_hosted_version_immutable_except_deprecated() {
         }
     });
     let merged = merge_manifest(Some(&hosted), &incoming, Some(&hosted), "t");
-    assert_eq!(merged["versions"]["1.0.0"]["dist"]["integrity"], "sha512-HOSTED");
-    assert_eq!(merged["versions"]["1.0.0"]["dependencies"], json!({ "lodash": "^4.0.0" }));
+    assert_eq!(
+        merged["versions"]["1.0.0"]["dist"]["integrity"],
+        "sha512-HOSTED",
+    );
+    assert_eq!(
+        merged["versions"]["1.0.0"]["dependencies"],
+        json!({ "lodash": "^4.0.0" }),
+    );
     assert_eq!(merged["versions"]["1.0.0"]["deprecated"], "use 2.0.0");
 }
 
@@ -264,7 +302,10 @@ fn merge_takes_incoming_for_an_upstream_only_version() {
     let upstream = json!({ "versions": { "1.0.0": { "version": "1.0.0", "dist": { "integrity": "sha512-UPSTREAM" } } } });
     let incoming = json!({ "versions": { "1.0.0": { "version": "1.0.0", "dist": { "integrity": "sha512-LOCAL" } } } });
     let merged = merge_manifest(Some(&upstream), &incoming, None, "t");
-    assert_eq!(merged["versions"]["1.0.0"]["dist"]["integrity"], "sha512-LOCAL");
+    assert_eq!(
+        merged["versions"]["1.0.0"]["dist"]["integrity"],
+        "sha512-LOCAL",
+    );
 }
 
 #[test]
@@ -434,8 +475,12 @@ fn merging_a_journaled_packument_drops_the_versions_of_lost_blobs() {
     .unwrap();
 
     let merged: Value = serde_json::from_slice(&merged).unwrap();
-    let versions: Vec<_> =
-        merged["versions"].as_object().unwrap().keys().map(String::as_str).collect();
+    let versions: Vec<_> = merged["versions"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
     assert_eq!(versions, vec!["2.0.0"]);
     assert_eq!(merged["dist-tags"], json!({}));
 }
@@ -462,7 +507,10 @@ fn drop_lost_versions_removes_references_to_lost_versions() {
 
     drop_lost_versions(&mut journaled, &lost);
 
-    assert_eq!(journaled["dist-tags"], json!({ "next": "2.0.0", "opaque": 42 }));
+    assert_eq!(
+        journaled["dist-tags"],
+        json!({ "next": "2.0.0", "opaque": 42 }),
+    );
     assert_eq!(
         journaled["time"],
         json!({

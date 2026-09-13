@@ -18,8 +18,10 @@ pub(super) async fn post_upload(
 ) -> Response {
     if matches!(identity, Identity::Anonymous) {
         return private_no_cache(
-            RegistryError::Unauthenticated { resource: "Python uploads".to_string() }
-                .into_response(),
+            RegistryError::Unauthenticated {
+                resource: "Python uploads".to_string(),
+            }
+            .into_response(),
         );
     }
     let body = match Bytes::from_request(request, &state).await {
@@ -89,38 +91,29 @@ pub(in super::super) fn authorize_upload(
 ) -> Result<PypiTarget, RegistryError> {
     let key = CanonicalPackageName::parse(&upload.name, ECOSYSTEM)?;
     let project = key.as_str();
-    let version = normalize_version(&upload.version).map_err(bad_request)?;
-    let distribution = parse_distribution_filename(&upload.filename).map_err(bad_request)?;
-    if distribution.name != project {
-        return Err(bad_request(format!(
-            "filename {:?} does not belong to project {project:?}",
-            upload.filename,
-        )));
-    }
-    if normalize_version(&distribution.version).map_err(bad_request)? != version {
-        return Err(bad_request(format!(
-            "filename {:?} does not carry version {version:?}",
-            upload.filename,
-        )));
-    }
-    match (upload.filetype.as_str(), distribution.kind) {
-        ("bdist_wheel", DistributionKind::Wheel) | ("sdist", DistributionKind::Sdist) => {}
-        (filetype, _) => {
-            return Err(bad_request(format!(
-                "filetype {filetype:?} does not match the filename {:?}",
-                upload.filename,
-            )));
-        }
-    }
+    validate_upload_filename(upload, project)?;
     let (source, org) =
         match resolve_publish_target_for(state, identity, registry, ECOSYSTEM, project) {
             PublishTarget::Hosted { source, org } => (source, org),
-            PublishTarget::Reject(reason) => return Err(RegistryError::BadRequest { reason }),
+            PublishTarget::Reject(reason) => {
+                return Err(RegistryError::BadRequest {
+                    reason,
+                });
+            }
             PublishTarget::Denied(err) => return Err(err),
             PublishTarget::NotFound => return Err(RegistryError::NotFound),
         };
-    authorize(state, identity, &RegistrySource::Hosted(source), project, Action::Publish)?;
-    Ok(PypiTarget { key, org })
+    authorize(
+        state,
+        identity,
+        &RegistrySource::Hosted(source),
+        project,
+        Action::Publish,
+    )?;
+    Ok(PypiTarget {
+        key,
+        org,
+    })
 }
 
 /// Check the file against the digest it was uploaded with, and build the
@@ -131,12 +124,13 @@ pub(in super::super) fn verify_upload(
 ) -> Result<PypiPublication, RegistryError> {
     let PypiTarget { key, org } = target;
     let sha256 = sha256_hex(&upload.content);
-    if upload
-        .sha256_digest
+    if upload.sha256_digest
         .as_deref()
         .is_some_and(|declared| !declared.eq_ignore_ascii_case(&sha256))
     {
-        return Err(bad_request("sha256_digest does not match the uploaded file"));
+        return Err(bad_request(
+            "sha256_digest does not match the uploaded file",
+        ));
     }
     let entry = ProjectFile {
         filename: upload.filename,
@@ -147,7 +141,12 @@ pub(in super::super) fn verify_upload(
         size: Some(upload.content.len() as u64),
         upload_time: Some(now_iso()),
     };
-    Ok(PypiPublication { key, org, entry, content: upload.content })
+    Ok(PypiPublication {
+        key,
+        org,
+        entry,
+        content: upload.content,
+    })
 }
 
 impl PypiPublication {
@@ -201,9 +200,36 @@ pub(super) fn refuse_existing_file(
 ) -> impl Fn(&ProjectDocument) -> Result<(), RegistryError> {
     let filename = filename.to_string();
     move |document: &ProjectDocument| match document.file(&filename) {
-        Some(_) => {
-            Err(RegistryError::BadRequest { reason: format!("File already exists: {filename:?}") })
-        }
+        Some(_) => Err(RegistryError::BadRequest {
+            reason: format!("File already exists: {filename:?}"),
+        }),
         None => Ok(()),
     }
+}
+
+fn validate_upload_filename(upload: &Upload, project: &str) -> Result<(), RegistryError> {
+    let version = normalize_version(&upload.version).map_err(bad_request)?;
+    let distribution = parse_distribution_filename(&upload.filename).map_err(bad_request)?;
+    if distribution.name != project {
+        return Err(bad_request(format!(
+            "filename {:?} does not belong to project {project:?}",
+            upload.filename,
+        )));
+    }
+    if normalize_version(&distribution.version).map_err(bad_request)? != version {
+        return Err(bad_request(format!(
+            "filename {:?} does not carry version {version:?}",
+            upload.filename,
+        )));
+    }
+    match (upload.filetype.as_str(), distribution.kind) {
+        ("bdist_wheel", DistributionKind::Wheel) | ("sdist", DistributionKind::Sdist) => {}
+        (filetype, _) => {
+            return Err(bad_request(format!(
+                "filetype {filetype:?} does not match the filename {:?}",
+                upload.filename,
+            )));
+        }
+    }
+    Ok(())
 }

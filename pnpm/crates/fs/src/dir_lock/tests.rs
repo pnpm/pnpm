@@ -22,7 +22,10 @@ const NEVER_ABANDONED: Duration = Duration::from_mins(1);
 #[test]
 fn acquire_creates_the_lock_and_drop_releases_it() {
     let root = tempdir().expect("create tempdir");
-    let path = root.path().join("nested").join("engine.lock");
+    let path = root
+        .path()
+        .join("nested")
+        .join("engine.lock");
 
     let lock = DirLock::acquire(path.clone(), Duration::ZERO, NEVER_ABANDONED)
         .expect("acquire")
@@ -108,10 +111,21 @@ fn claiming_a_directory_that_cannot_hold_the_record_fails() {
 fn transient_release_error_classifier_is_windows_specific() {
     for kind in [io::ErrorKind::PermissionDenied, io::ErrorKind::ResourceBusy] {
         let error = io::Error::from(kind);
-        assert_eq!(super::is_transient_release_error(&error), cfg!(windows), "{kind:?}");
+        assert_eq!(
+            super::is_transient_release_error(&error),
+            cfg!(windows),
+            "{kind:?}",
+        );
     }
 
-    for kind in [io::ErrorKind::NotFound, io::ErrorKind::InvalidInput, io::ErrorKind::Other] {
-        assert!(!super::is_transient_release_error(&io::Error::from(kind)), "{kind:?}");
+    for kind in [
+        io::ErrorKind::NotFound,
+        io::ErrorKind::InvalidInput,
+        io::ErrorKind::Other,
+    ] {
+        assert!(
+            !super::is_transient_release_error(&io::Error::from(kind)),
+            "{kind:?}",
+        );
     }
 }

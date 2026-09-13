@@ -15,42 +15,20 @@ pub(crate) fn replace_executable(src: &Path, dest: &Path) -> std::io::Result<()>
     // so two in-process publishes of the same destination must not share
     // a staging path.
     static STAGED_SEQ: AtomicU64 = AtomicU64::new(0);
-    let file_name = dest.file_name().unwrap_or(dest.as_os_str()).to_string_lossy().into_owned();
+    let file_name = dest
+        .file_name()
+        .unwrap_or(dest.as_os_str())
+        .to_string_lossy()
+        .into_owned();
     let staged = dest.with_file_name(format!(
         ".{file_name}.{}.{}.pacquet-tmp",
         std::process::id(),
         STAGED_SEQ.fetch_add(1, Ordering::Relaxed),
     ));
-    let publish = || {
-        // A hard link shares the source's inode, so it is only usable
-        // when the source already carries the executable bits — a chmod
-        // through the link would mutate the source (the running
-        // executable, or a store entry, possibly in a read-only store).
-        // A non-executable source is copied instead, and only the fresh
-        // copy gets its mode set.
-        #[cfg(unix)]
-        let src_is_executable = {
-            use std::os::unix::fs::PermissionsExt as _;
-            fs::metadata(src).is_ok_and(|metadata| metadata.permissions().mode() & 0o111 == 0o111)
-        };
-        #[cfg(not(unix))]
-        let src_is_executable = true;
-        if !(src_is_executable && fs::hard_link(src, &staged).is_ok()) {
-            let mut source = fs::File::open(src)?;
-            let mut output = fs::OpenOptions::new().write(true).create_new(true).open(&staged)?;
-            io::copy(&mut source, &mut output)?;
-            output.sync_all()?;
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt as _;
-                fs::set_permissions(&staged, fs::Permissions::from_mode(0o755))?;
-            }
-        }
-        swap_into_place(&staged, dest)
-    };
-    publish().inspect_err(|_| {
-        let _ = fs::remove_file(&staged);
-    })
+    publish_executable(src, &staged, dest)
+        .inspect_err(|_| {
+            let _ = fs::remove_file(&staged);
+        })
 }
 
 fn swap_into_place(staged: &Path, dest: &Path) -> std::io::Result<()> {
@@ -65,4 +43,35 @@ fn swap_into_place(staged: &Path, dest: &Path) -> std::io::Result<()> {
         }
     }
     fs::rename(staged, dest)
+}
+
+fn publish_executable(src: &Path, staged: &Path, dest: &Path) -> std::io::Result<()> {
+    // A hard link shares the source's inode, so it is only usable
+    // when the source already carries the executable bits — a chmod
+    // through the link would mutate the source (the running
+    // executable, or a store entry, possibly in a read-only store).
+    // A non-executable source is copied instead, and only the fresh
+    // copy gets its mode set.
+    #[cfg(unix)]
+    let src_is_executable = {
+        use std::os::unix::fs::PermissionsExt as _;
+        fs::metadata(src).is_ok_and(|metadata| metadata.permissions().mode() & 0o111 == 0o111)
+    };
+    #[cfg(not(unix))]
+    let src_is_executable = true;
+    if !(src_is_executable && fs::hard_link(src, staged).is_ok()) {
+        let mut source = fs::File::open(src)?;
+        let mut output = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(staged)?;
+        io::copy(&mut source, &mut output)?;
+        output.sync_all()?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            fs::set_permissions(staged, fs::Permissions::from_mode(0o755))?;
+        }
+    }
+    swap_into_place(staged, dest)
 }

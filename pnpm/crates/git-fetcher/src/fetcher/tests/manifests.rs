@@ -187,7 +187,10 @@ async fn read_git_manifest_reads_the_name_from_the_checkout() {
 
     let manifest = dbg!(manifest).expect("repo root has a package.json");
     assert_eq!(manifest.get("name").and_then(Value::as_str), Some("pkg"));
-    assert_eq!(manifest.get("version").and_then(Value::as_str), Some("1.0.0"));
+    assert_eq!(
+        manifest.get("version").and_then(Value::as_str),
+        Some("1.0.0"),
+    );
 }
 
 /// `#path:/packages/foo` keeps its leading slash, which is rooted at
@@ -210,7 +213,10 @@ async fn read_git_manifest_reads_a_repo_rooted_sub_directory() {
     .expect("checkout should be readable");
 
     let manifest = dbg!(manifest).expect("sub-directory has a package.json");
-    assert_eq!(manifest.get("name").and_then(Value::as_str), Some("@scope/foo"));
+    assert_eq!(
+        manifest.get("name").and_then(Value::as_str),
+        Some("@scope/foo"),
+    );
 }
 
 /// Degrades to `None` rather than failing the resolve, matching the

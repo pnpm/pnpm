@@ -28,14 +28,20 @@ fn lockfile_diff_covers_importers_and_snapshots() {
             dependencies: Some(importer_map(&[("is-positive", "^1.0.0", "1.0.0")])),
             ..Default::default()
         },
-        &[("is-positive@1.0.0", snapshot(&[])), ("shared@1.0.0", snapshot(&[("dep", "1.0.0")]))],
+        &[
+            ("is-positive@1.0.0", snapshot(&[])),
+            ("shared@1.0.0", snapshot(&[("dep", "1.0.0")])),
+        ],
     );
     let new = lockfile(
         ProjectSnapshot {
             dependencies: Some(importer_map(&[("is-positive", "^1.0.0", "2.0.0")])),
             ..Default::default()
         },
-        &[("is-positive@2.0.0", snapshot(&[])), ("shared@1.0.0", snapshot(&[("dep", "2.0.0")]))],
+        &[
+            ("is-positive@2.0.0", snapshot(&[])),
+            ("shared@1.0.0", snapshot(&[("dep", "2.0.0")])),
+        ],
     );
 
     let diff = diff_lockfiles(Some(&old), Some(&new), ImporterDiffKey::Version);
@@ -44,7 +50,11 @@ fn lockfile_diff_covers_importers_and_snapshots() {
     assert_eq!(diff.importers[0].id, ".");
     assert_eq!(
         diff.importers[0].updated,
-        vec![("is-positive".to_string(), "1.0.0".to_string(), "2.0.0".to_string())],
+        vec![(
+            "is-positive".to_string(),
+            "1.0.0".to_string(),
+            "2.0.0".to_string()
+        )],
     );
     assert_eq!(diff.added_packages, vec!["is-positive@2.0.0".to_string()]);
     assert_eq!(diff.removed_packages, vec!["is-positive@1.0.0".to_string()]);
@@ -64,8 +74,14 @@ fn identical_lockfiles_yield_an_empty_diff() {
         dependencies: Some(importer_map(&[("is-positive", "^1.0.0", "1.0.0")])),
         ..Default::default()
     };
-    let one = lockfile(importer.clone(), &[("is-positive@1.0.0", snapshot(&[("dep", "1.0.0")]))]);
-    let other = lockfile(importer, &[("is-positive@1.0.0", snapshot(&[("dep", "1.0.0")]))]);
+    let one = lockfile(
+        importer.clone(),
+        &[("is-positive@1.0.0", snapshot(&[("dep", "1.0.0")]))],
+    );
+    let other = lockfile(
+        importer,
+        &[("is-positive@1.0.0", snapshot(&[("dep", "1.0.0")]))],
+    );
 
     let diff = diff_lockfiles(Some(&one), Some(&other), ImporterDiffKey::Version);
     assert!(diff.is_empty(), "got: {diff:?}");
@@ -78,8 +94,11 @@ fn key(package_key: &str) -> PackageKey {
 /// A lockfile with one root importer and the given `snapshots:` entries.
 fn lockfile(root: ProjectSnapshot, snapshots: &[(&str, SnapshotEntry)]) -> Lockfile {
     Lockfile {
-        lockfile_version: LockfileVersion::<9>::try_from(ComVer { major: 9, minor: 0 })
-            .expect("lockfile version 9.0"),
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer {
+            major: 9,
+            minor: 0,
+        })
+        .expect("lockfile version 9.0"),
         settings: None,
         catalogs: None,
         overrides: None,
@@ -89,7 +108,12 @@ fn lockfile(root: ProjectSnapshot, snapshots: &[(&str, SnapshotEntry)]) -> Lockf
         patched_dependencies: None,
         importers: HashMap::from([(".".to_string(), root)]),
         packages: None,
-        snapshots: Some(snapshots.iter().map(|(id, entry)| (key(id), entry.clone())).collect()),
+        snapshots: Some(
+            snapshots
+                .iter()
+                .map(|(id, entry)| (key(id), entry.clone()))
+                .collect(),
+        ),
         time: None,
         extra: pnpm_lockfile::LockfileExtra::default(),
     }
@@ -99,7 +123,8 @@ fn lockfile(root: ProjectSnapshot, snapshots: &[(&str, SnapshotEntry)]) -> Lockf
 fn snapshot(deps: &[(&str, &str)]) -> SnapshotEntry {
     SnapshotEntry {
         dependencies: Some(
-            deps.iter()
+            deps
+                .iter()
                 .map(|(alias, version)| (pkg(alias), SnapshotDepRef::Plain(ver(version))))
                 .collect(),
         ),
@@ -137,7 +162,11 @@ fn non_empty_diff_lists_importer_and_package_changes() {
             id: ".".to_string(),
             added: vec![("is-negative".to_string(), "1.0.0".to_string())],
             removed: vec![],
-            updated: vec![("is-positive".to_string(), "1.0.0".to_string(), "2.0.0".to_string())],
+            updated: vec![(
+                "is-positive".to_string(),
+                "1.0.0".to_string(),
+                "2.0.0".to_string(),
+            )],
         }],
         added_packages: vec!["is-negative@1.0.0".to_string()],
         removed_packages: vec![],
@@ -145,7 +174,10 @@ fn non_empty_diff_lists_importer_and_package_changes() {
     };
     let report = render_dry_run_report(&diff);
     assert!(report.contains("+ is-negative 1.0.0"), "got: {report}");
-    assert!(report.contains("is-positive 1.0.0 -> 2.0.0"), "got: {report}");
+    assert!(
+        report.contains("is-positive 1.0.0 -> 2.0.0"),
+        "got: {report}",
+    );
     assert!(report.contains("+ is-negative@1.0.0"), "got: {report}");
 }
 
@@ -154,12 +186,20 @@ fn snapshot_wiring_change_is_detected() {
     let old = SnapshotEntry::default();
     let mut new = SnapshotEntry::default();
     let unchanged = diff_snapshot_entry("is-positive@1.0.0".to_string(), &old, &new);
-    assert!(unchanged.is_empty(), "identical snapshots must not differ: {unchanged:?}");
+    assert!(
+        unchanged.is_empty(),
+        "identical snapshots must not differ: {unchanged:?}",
+    );
 
-    new.dependencies =
-        Some(HashMap::from([(pkg("is-positive"), SnapshotDepRef::Plain(ver("1.0.0")))]));
+    new.dependencies = Some(HashMap::from([(
+        pkg("is-positive"),
+        SnapshotDepRef::Plain(ver("1.0.0")),
+    )]));
     let changed = diff_snapshot_entry("is-positive@1.0.0".to_string(), &old, &new);
-    assert_eq!(changed.added, vec![("is-positive".to_string(), "1.0.0".to_string())]);
+    assert_eq!(
+        changed.added,
+        vec![("is-positive".to_string(), "1.0.0".to_string())],
+    );
 }
 
 #[test]
@@ -173,12 +213,18 @@ fn group_move_is_reported_even_when_version_is_unchanged() {
         ..Default::default()
     };
     let diff = diff_importer(".", Some(&old), Some(&new), ImporterDiffKey::Specifier);
-    assert!(!diff.is_empty(), "a dev -> prod move must register as a change: {diff:?}");
+    assert!(
+        !diff.is_empty(),
+        "a dev -> prod move must register as a change: {diff:?}",
+    );
     // pnpm merges every group's diff into one alias-keyed map, so the move
     // is one verdict — the last group's — not an addition contradicted by a
     // removal of the same alias.
     assert_eq!(diff.added, vec![]);
-    assert_eq!(diff.removed, vec![("is-positive".to_string(), "^1.0.0".to_string())]);
+    assert_eq!(
+        diff.removed,
+        vec![("is-positive".to_string(), "^1.0.0".to_string())],
+    );
 }
 
 #[test]
@@ -192,7 +238,10 @@ fn specifier_only_change_is_reported() {
         ..Default::default()
     };
     let diff = diff_importer(".", Some(&old), Some(&new), ImporterDiffKey::Specifier);
-    assert!(!diff.is_empty(), "a specifier-only change must be reported: {diff:?}");
+    assert!(
+        !diff.is_empty(),
+        "a specifier-only change must be reported: {diff:?}",
+    );
 
     let by_version = diff_importer(".", Some(&old), Some(&new), ImporterDiffKey::Version);
     assert!(
@@ -210,7 +259,11 @@ fn peer_suffix_change_is_reported_by_version() {
         ..Default::default()
     };
     let new = ProjectSnapshot {
-        dependencies: Some(importer_map(&[("is-positive", "^1.0.0", "1.0.0(is-negative@1.0.0)")])),
+        dependencies: Some(importer_map(&[(
+            "is-positive",
+            "^1.0.0",
+            "1.0.0(is-negative@1.0.0)",
+        )])),
         ..Default::default()
     };
     let diff = diff_importer(".", Some(&old), Some(&new), ImporterDiffKey::Version);
@@ -224,5 +277,8 @@ fn peer_suffix_change_is_reported_by_version() {
     );
 
     let by_specifier = diff_importer(".", Some(&old), Some(&new), ImporterDiffKey::Specifier);
-    assert!(by_specifier.is_empty(), "the specifier is unchanged: {by_specifier:?}");
+    assert!(
+        by_specifier.is_empty(),
+        "the specifier is unchanged: {by_specifier:?}",
+    );
 }

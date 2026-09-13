@@ -69,7 +69,9 @@ pub struct JsReadPackageHook {
 
 impl JsReadPackageHook {
     pub fn new(read_package: HookSink) -> Self {
-        JsReadPackageHook { read_package }
+        JsReadPackageHook {
+            read_package,
+        }
     }
 }
 
@@ -157,8 +159,7 @@ impl JsBatchedReadPackageHook {
 
     fn ensure_driver(&self) {
         self.driver_started.call_once(|| {
-            let (rx, sink) = self
-                .driver_seed
+            let (rx, sink) = self.driver_seed
                 .lock()
                 .expect("driver seed lock")
                 .take()
@@ -227,7 +228,11 @@ impl PnpmfileHooks for JsBatchedReadPackageHook {
     ) -> Result<ReadPackageResult, HookError> {
         self.ensure_driver();
         let (reply, response) = tokio::sync::oneshot::channel();
-        let request = BatchHookRequest { manifest: pkg, dir: ctx.dir, reply };
+        let request = BatchHookRequest {
+            manifest: pkg,
+            dir: ctx.dir,
+            reply,
+        };
         let execution_error = |message: String| HookError::Execution {
             pnpmfile: "<napi readPackage>".to_string(),
             message,
@@ -239,7 +244,9 @@ impl PnpmfileHooks for JsBatchedReadPackageHook {
         match response.await {
             Ok(Ok(transformed)) => Ok(Arc::new(transformed)),
             Ok(Err(message)) => Err(execution_error(message)),
-            Err(_) => Err(execution_error("readPackage hook driver dropped a reply".to_string())),
+            Err(_) => Err(execution_error(
+                "readPackage hook driver dropped a reply".to_string(),
+            )),
         }
     }
 

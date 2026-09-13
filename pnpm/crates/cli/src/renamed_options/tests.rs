@@ -9,19 +9,32 @@ use std::{ffi::OsString, path::Path};
 
 fn drop_aliases(tokens: &[&str]) -> Vec<String> {
     let cmd = with_boolean_negations(CliArgs::command());
-    drop_shadowed_aliases(&cmd, tokens.iter().map(OsString::from).collect())
-        .into_iter()
-        .map(|token| token.into_string().expect("test tokens are UTF-8"))
-        .collect()
+    drop_shadowed_aliases(
+        &cmd,
+        tokens
+            .iter()
+            .map(OsString::from)
+            .collect(),
+    )
+    .into_iter()
+    .map(|token| token.into_string().expect("test tokens are UTF-8"))
+    .collect()
 }
 
 /// Run the full pre-parse pipeline and parse.
 fn parse(tokens: &[&str]) -> CliArgs {
     let cmd = with_boolean_negations(CliArgs::command());
-    let argv = expand_universal_shorthands(&cmd, tokens.iter().map(OsString::from).collect());
+    let argv = expand_universal_shorthands(
+        &cmd,
+        tokens
+            .iter()
+            .map(OsString::from)
+            .collect(),
+    );
     let argv = drop_shadowed_aliases(&cmd, argv);
     let argv = relocate_pre_subcommand_flags(&cmd, argv);
-    cmd.try_get_matches_from(argv)
+    cmd
+        .try_get_matches_from(argv)
         .and_then(|matches| CliArgs::from_arg_matches(&matches))
         .expect("parses after the pre-parse pipeline")
 }
@@ -41,16 +54,50 @@ fn a_lone_alias_is_kept() {
 #[test]
 fn the_canonical_spelling_wins_over_the_alias_in_either_order() {
     for argv in [
-        ["pnpm", "--prefix", "aliased", "--dir", "canonical", "install"].as_slice(),
-        ["pnpm", "--dir", "canonical", "--prefix", "aliased", "install"].as_slice(),
+        [
+            "pnpm",
+            "--prefix",
+            "aliased",
+            "--dir",
+            "canonical",
+            "install",
+        ]
+        .as_slice(),
+        [
+            "pnpm",
+            "--dir",
+            "canonical",
+            "--prefix",
+            "aliased",
+            "install",
+        ]
+        .as_slice(),
         ["pnpm", "--prefix=aliased", "-C", "canonical", "install"].as_slice(),
     ] {
-        assert_eq!(parse(argv).paths.dir, Path::new("canonical"), "argv: {argv:?}");
+        assert_eq!(
+            parse(argv).paths.dir,
+            Path::new("canonical"),
+            "argv: {argv:?}",
+        );
     }
 
     for argv in [
-        ["pnpm", "--store", "aliased", "--store-dir", "canonical", "install"].as_slice(),
-        ["pnpm", "--store-dir=canonical", "--store=aliased", "install"].as_slice(),
+        [
+            "pnpm",
+            "--store",
+            "aliased",
+            "--store-dir",
+            "canonical",
+            "install",
+        ]
+        .as_slice(),
+        [
+            "pnpm",
+            "--store-dir=canonical",
+            "--store=aliased",
+            "install",
+        ]
+        .as_slice(),
     ] {
         assert_eq!(
             parse(argv).paths.store_dir.as_deref(),

@@ -155,7 +155,10 @@ pub enum LoadWorkspaceYamlError {
         r#"Cannot resolve version {spec} in overrides. The direct dependencies don't have dependency "{dependency_name}"."#
     )]
     #[diagnostic(code(ERR_PNPM_CANNOT_RESOLVE_OVERRIDE_VERSION))]
-    CannotResolveOverrideVersion { spec: String, dependency_name: String },
+    CannotResolveOverrideVersion {
+        spec: String,
+        dependency_name: String,
+    },
 
     /// The signing trust root for remote side-effects artifacts appeared in a
     /// committed file. Only the global config yaml and the environment may
@@ -168,5 +171,9 @@ pub enum LoadWorkspaceYamlError {
             path.display(),
         )
     )]
-    WorkspaceRemoteSideEffectsTrust { path: PathBuf, prefix: &'static str, field: &'static str },
+    WorkspaceRemoteSideEffectsTrust {
+        path: PathBuf,
+        prefix: &'static str,
+        field: &'static str,
+    },
 }

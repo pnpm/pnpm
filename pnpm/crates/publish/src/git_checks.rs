@@ -37,7 +37,9 @@ where
     let branches_display = branches.join("|");
 
     let Some(current_branch) = get_current_branch::<Sys>(cwd) else {
-        return Err(GitCheckError::UnknownBranch { branches: branches_display });
+        return Err(GitCheckError::UnknownBranch {
+            branches: branches_display,
+        });
     };
 
     if !branches.contains(&current_branch) {
@@ -45,7 +47,9 @@ where
             r#"You're on branch "{current_branch}" but your "publish-branch" is set to "{branches_display}". Do you want to continue?"#,
         );
         if !Sys::confirm(&message) {
-            return Err(GitCheckError::NotCorrectBranch { branches: branches_display });
+            return Err(GitCheckError::NotCorrectBranch {
+                branches: branches_display,
+            });
         }
     }
 

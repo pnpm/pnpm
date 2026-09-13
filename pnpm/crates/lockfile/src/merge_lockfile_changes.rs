@@ -25,8 +25,7 @@ use std::{
 pub fn merge_lockfile_changes(ours: &Lockfile, theirs: &Lockfile) -> Lockfile {
     Lockfile {
         lockfile_version: newer_version(ours.lockfile_version, theirs.lockfile_version),
-        pnpmfile_checksum: ours
-            .pnpmfile_checksum
+        pnpmfile_checksum: ours.pnpmfile_checksum
             .clone()
             .or_else(|| theirs.pnpmfile_checksum.clone()),
         ignored_optional_dependencies: union_of_lists(
@@ -35,7 +34,11 @@ pub fn merge_lockfile_changes(ours: &Lockfile, theirs: &Lockfile) -> Lockfile {
         ),
         importers: merge_importers(&ours.importers, &theirs.importers),
         packages: merge_maps(ours.packages.as_ref(), theirs.packages.as_ref(), spread),
-        snapshots: merge_maps(ours.snapshots.as_ref(), theirs.snapshots.as_ref(), merge_snapshot),
+        snapshots: merge_maps(
+            ours.snapshots.as_ref(),
+            theirs.snapshots.as_ref(),
+            merge_snapshot,
+        ),
         settings: None,
         catalogs: None,
         overrides: None,
@@ -75,8 +78,17 @@ fn winner(ours: &str, theirs: &str) -> Winner {
     if ours == theirs {
         return Winner::Ours;
     }
-    let without_peers = |version: &str| version.split('(').next().unwrap_or(version).to_owned();
-    match (without_peers(ours).parse::<Version>(), without_peers(theirs).parse::<Version>()) {
+    let without_peers = |version: &str| {
+        version
+            .split('(')
+            .next()
+            .unwrap_or(version)
+            .to_owned()
+    };
+    match (
+        without_peers(ours).parse::<Version>(),
+        without_peers(theirs).parse::<Version>(),
+    ) {
         (Ok(ours), Ok(theirs)) if ours > theirs => Winner::Ours,
         _ => Winner::Theirs,
     }
@@ -85,12 +97,20 @@ fn winner(ours: &str, theirs: &str) -> Winner {
 /// pnpm's `takeChangedValue`: the incoming value, unless it is what we
 /// already had.
 fn take_changed(ours: &str, theirs: &str) -> String {
-    if ours == theirs { ours.to_owned() } else { theirs.to_owned() }
+    if ours == theirs {
+        ours.to_owned()
+    } else {
+        theirs.to_owned()
+    }
 }
 
 fn newer_version(ours: LockfileVersion<9>, theirs: LockfileVersion<9>) -> LockfileVersion<9> {
     let key = |version: LockfileVersion<9>| (version.major, version.minor);
-    if key(theirs) > key(ours) { theirs } else { ours }
+    if key(theirs) > key(ours) {
+        theirs
+    } else {
+        ours
+    }
 }
 
 fn union_of_lists(ours: Option<&[String]>, theirs: Option<&[String]>) -> Option<Vec<String>> {
@@ -143,7 +163,10 @@ fn merge_importers(
     theirs: &HashMap<String, ProjectSnapshot>,
 ) -> HashMap<String, ProjectSnapshot> {
     let mut merged: HashMap<String, ProjectSnapshot> = HashMap::new();
-    for id in ours.keys().chain(theirs.keys()) {
+    for id in ours
+        .keys()
+        .chain(theirs.keys())
+    {
         if merged.contains_key(id) {
             continue;
         }

@@ -7,7 +7,10 @@ fn resolution_mode_yaml_values_round_trip() {
     for (yaml, expected) in [
         ("resolutionMode: highest\n", ResolutionMode::Highest),
         ("resolutionMode: time-based\n", ResolutionMode::TimeBased),
-        ("resolutionMode: lowest-direct\n", ResolutionMode::LowestDirect),
+        (
+            "resolutionMode: lowest-direct\n",
+            ResolutionMode::LowestDirect,
+        ),
     ] {
         let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
         assert_eq!(settings.resolution_mode, Some(expected));
@@ -39,13 +42,19 @@ fn parses_frozen_store_from_yaml_and_applies() {
     let mut config = Config::new();
     assert!(!config.frozen_store, "frozen_store must default to false");
     absent.apply_to(&mut config, Path::new("/irrelevant"));
-    assert!(!config.frozen_store, "absent frozenStore must leave the default in place");
+    assert!(
+        !config.frozen_store,
+        "absent frozenStore must leave the default in place",
+    );
 
     let enabled: WorkspaceSettings = serde_saphyr::from_str("frozenStore: true").unwrap();
     assert_eq!(enabled.frozen_store, Some(true));
     let mut config = Config::new();
     enabled.apply_to(&mut config, Path::new("/irrelevant"));
-    assert!(config.frozen_store, "frozenStore: true must apply onto the config");
+    assert!(
+        config.frozen_store,
+        "frozenStore: true must apply onto the config",
+    );
 }
 
 /// `frozenLockfile` parses from `pnpm-workspace.yaml` as a camelCase
@@ -58,9 +67,15 @@ fn parses_frozen_lockfile_from_yaml_and_applies() {
     let absent: WorkspaceSettings = serde_saphyr::from_str("hoist: true").unwrap();
     assert_eq!(absent.frozen_lockfile, None);
     let mut config = Config::new();
-    assert_eq!(config.frozen_lockfile, None, "frozen_lockfile must default to unset");
+    assert_eq!(
+        config.frozen_lockfile, None,
+        "frozen_lockfile must default to unset",
+    );
     absent.apply_to(&mut config, Path::new("/irrelevant"));
-    assert_eq!(config.frozen_lockfile, None, "absent frozenLockfile must leave the default");
+    assert_eq!(
+        config.frozen_lockfile, None,
+        "absent frozenLockfile must leave the default",
+    );
 
     let enabled: WorkspaceSettings = serde_saphyr::from_str("frozenLockfile: true").unwrap();
     assert_eq!(enabled.frozen_lockfile, Some(true));

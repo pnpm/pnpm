@@ -12,7 +12,10 @@ fn signing_key() -> SigningKey {
 
 fn public_key_b64(key: &SigningKey) -> String {
     use p256::pkcs8::EncodePublicKey;
-    let der = key.verifying_key().to_public_key_der().expect("encode SPKI");
+    let der = key
+        .verifying_key()
+        .to_public_key_der()
+        .expect("encode SPKI");
     base64::engine::general_purpose::STANDARD.encode(der.as_bytes())
 }
 
@@ -41,7 +44,10 @@ fn ecdsa_key(key: &SigningKey, keyid: &str, expires: Option<&str>) -> RegistryKe
 }
 
 fn signature(keyid: &str, sig: &str) -> PackageSignature {
-    PackageSignature { keyid: keyid.to_string(), sig: sig.to_string() }
+    PackageSignature {
+        keyid: keyid.to_string(),
+        sig: sig.to_string(),
+    }
 }
 
 #[test]
@@ -51,7 +57,11 @@ fn verify_one_accepts_only_the_signed_message() {
     let message = "foo@1.0.0:sha512-abc";
 
     assert!(verify_one(&public, message, &sign_b64(&key, message)));
-    assert!(!verify_one(&public, message, &sign_b64(&key, "foo@1.0.0:other")));
+    assert!(!verify_one(
+        &public,
+        message,
+        &sign_b64(&key, "foo@1.0.0:other")
+    ));
     assert!(!verify_one("not base64 ~~~", message, "also not base64"));
 }
 
@@ -112,7 +122,13 @@ fn key_expiry_gates_only_when_published_after_expiry() {
         &signatures,
         &keys,
     );
-    assert!(published_after.unwrap().reason.unwrap().contains("expired"));
+    assert!(
+        published_after
+            .unwrap()
+            .reason
+            .unwrap()
+            .contains("expired"),
+    );
 
     assert!(
         verify_package_signatures(

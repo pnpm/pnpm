@@ -30,7 +30,11 @@ fn skipped_snapshot_pruned_from_snapshots_and_importer_optional() {
     snapshots.insert(key("keep", "1.0.0"), SnapshotEntry::default());
     snapshots.insert(key("drop", "1.0.0"), SnapshotEntry::default());
 
-    let lockfile = Lockfile { importers, snapshots: Some(snapshots), ..empty_lockfile() };
+    let lockfile = Lockfile {
+        importers,
+        snapshots: Some(snapshots),
+        ..empty_lockfile()
+    };
 
     let mut skipped = SkippedSnapshots::new();
     skipped.add_optional_excluded(key("drop", "1.0.0"));
@@ -39,14 +43,25 @@ fn skipped_snapshot_pruned_from_snapshots_and_importer_optional() {
 
     let snaps = filtered.snapshots.as_ref().unwrap();
     assert!(snaps.contains_key(&key("keep", "1.0.0")));
-    assert!(!snaps.contains_key(&key("drop", "1.0.0")), "skipped snapshot must be pruned");
+    assert!(
+        !snaps.contains_key(&key("drop", "1.0.0")),
+        "skipped snapshot must be pruned",
+    );
 
     let imp = filtered.importers.get(".").unwrap();
     assert!(
-        imp.optional_dependencies.as_ref().unwrap().is_empty(),
+        imp.optional_dependencies
+            .as_ref()
+            .unwrap()
+            .is_empty(),
         "importer optional_dependencies entry pointing at a pruned snapshot must be removed",
     );
-    assert!(imp.dependencies.as_ref().unwrap().contains_key(&pkg("keep")));
+    assert!(
+        imp.dependencies
+            .as_ref()
+            .unwrap()
+            .contains_key(&pkg("keep")),
+    );
 }
 #[test]
 fn include_optional_false_clears_importer_section() {
@@ -64,7 +79,11 @@ fn include_optional_false_clears_importer_section() {
     snapshots.insert(key("keep", "1.0.0"), SnapshotEntry::default());
     snapshots.insert(key("opt", "1.0.0"), SnapshotEntry::default());
 
-    let lockfile = Lockfile { importers, snapshots: Some(snapshots), ..empty_lockfile() };
+    let lockfile = Lockfile {
+        importers,
+        snapshots: Some(snapshots),
+        ..empty_lockfile()
+    };
 
     // Match the install pipeline: when `--no-optional` is passed,
     // `InstallFrozenLockfile::run` also adds optional-only snapshots
@@ -80,9 +99,25 @@ fn include_optional_false_clears_importer_section() {
 
     let filtered = super::super::filter_lockfile_for_current(&lockfile, include, &skipped);
 
-    assert!(filtered.importers.get(".").unwrap().optional_dependencies.is_none());
-    assert!(!filtered.snapshots.as_ref().unwrap().contains_key(&key("opt", "1.0.0")));
-    assert!(filtered.snapshots.as_ref().unwrap().contains_key(&key("keep", "1.0.0")));
+    assert!(
+        filtered.importers
+            .get(".")
+            .unwrap()
+            .optional_dependencies
+            .is_none(),
+    );
+    assert!(
+        !filtered.snapshots
+            .as_ref()
+            .unwrap()
+            .contains_key(&key("opt", "1.0.0")),
+    );
+    assert!(
+        filtered.snapshots
+            .as_ref()
+            .unwrap()
+            .contains_key(&key("keep", "1.0.0")),
+    );
 }
 #[test]
 fn user_excluded_packages_filtered_to_surviving_metadata_keys() {
@@ -137,10 +172,17 @@ fn link_optional_entries_survive_post_filter() {
     let mut importers = HashMap::new();
     importers.insert(
         ".".to_string(),
-        ProjectSnapshot { optional_dependencies: Some(opt_map), ..Default::default() },
+        ProjectSnapshot {
+            optional_dependencies: Some(opt_map),
+            ..Default::default()
+        },
     );
 
-    let lockfile = Lockfile { importers, snapshots: Some(HashMap::new()), ..empty_lockfile() };
+    let lockfile = Lockfile {
+        importers,
+        snapshots: Some(HashMap::new()),
+        ..empty_lockfile()
+    };
 
     let filtered = super::super::filter_lockfile_for_current(
         &lockfile,
@@ -148,7 +190,12 @@ fn link_optional_entries_survive_post_filter() {
         &SkippedSnapshots::new(),
     );
 
-    let opt = filtered.importers.get(".").unwrap().optional_dependencies.as_ref().unwrap();
+    let opt = filtered.importers
+        .get(".")
+        .unwrap()
+        .optional_dependencies
+        .as_ref()
+        .unwrap();
     assert!(
         opt.contains_key(&pkg("workspace-pkg")),
         "link: importer entries must survive the optional-deps post-filter",
@@ -162,7 +209,10 @@ fn materialization_closure_keeps_importer_links_shallow_and_traverses_snapshot_l
     let disjoint_id = "packages/disjoint".to_string();
 
     let mut nested_deps = importer_map(&[("start", "1.0.0")]);
-    nested_deps.insert(pkg("linked-workspace"), importer_link("../../../packages/b"));
+    nested_deps.insert(
+        pkg("linked-workspace"),
+        importer_link("../../../packages/b"),
+    );
     let mut linked_deps = importer_map(&[("linked-pkg", "1.0.0")]);
     linked_deps.insert(pkg("back-to-start"), importer_link("../nested/a"));
 
@@ -178,7 +228,10 @@ fn materialization_closure_keeps_importer_links_shallow_and_traverses_snapshot_l
         ),
         (
             linked_id.clone(),
-            ProjectSnapshot { dependencies: Some(linked_deps), ..Default::default() },
+            ProjectSnapshot {
+                dependencies: Some(linked_deps),
+                ..Default::default()
+            },
         ),
         (
             shared_id.clone(),
@@ -203,13 +256,22 @@ fn materialization_closure_keeps_importer_links_shallow_and_traverses_snapshot_l
                 dependencies: Some(HashMap::from([
                     (pkg("child"), SnapshotDepRef::Plain(ver("1.0.0"))),
                     (pkg("common"), SnapshotDepRef::Plain(ver("1.0.0"))),
-                    (pkg("shared-workspace"), SnapshotDepRef::Link("packages/shared".to_string())),
+                    (
+                        pkg("shared-workspace"),
+                        SnapshotDepRef::Link("packages/shared".to_string()),
+                    ),
                 ])),
                 ..Default::default()
             },
         ),
-        (key("child", "1.0.0"), snapshot_with_deps(&[("start", "1.0.0")])),
-        (key("linked-pkg", "1.0.0"), snapshot_with_deps(&[("common", "1.0.0")])),
+        (
+            key("child", "1.0.0"),
+            snapshot_with_deps(&[("start", "1.0.0")]),
+        ),
+        (
+            key("linked-pkg", "1.0.0"),
+            snapshot_with_deps(&[("common", "1.0.0")]),
+        ),
         (key("common", "1.0.0"), SnapshotEntry::default()),
         (
             key("shared-pkg", "1.0.0"),
@@ -225,7 +287,11 @@ fn materialization_closure_keeps_importer_links_shallow_and_traverses_snapshot_l
         (key("optional-only", "1.0.0"), SnapshotEntry::default()),
         (key("disjoint", "1.0.0"), SnapshotEntry::default()),
     ]);
-    let lockfile = Lockfile { importers, snapshots: Some(snapshots), ..empty_lockfile() };
+    let lockfile = Lockfile {
+        importers,
+        snapshots: Some(snapshots),
+        ..empty_lockfile()
+    };
     let selected = HashSet::from([nested_id.clone()]);
     let included = IncludedDependencies {
         dependencies: true,
@@ -241,7 +307,10 @@ fn materialization_closure_keeps_importer_links_shallow_and_traverses_snapshot_l
         &SkippedSnapshots::new(),
     );
 
-    assert_eq!(closure.importer_ids, HashSet::from([nested_id.clone(), shared_id]));
+    assert_eq!(
+        closure.importer_ids,
+        HashSet::from([nested_id.clone(), shared_id]),
+    );
     assert!(!closure.importer_ids.contains(&linked_id));
     assert!(!closure.importer_ids.contains(&disjoint_id));
     let nested = closure.lockfile.importers.get(&nested_id).unwrap();

@@ -15,7 +15,11 @@ use super::{
 fn a_cycle_package_resolves_identically_at_every_occurrence() {
     let mut tree = peer_cycle_fixture(
         &[("entry00", 0, "1.0.0"), ("entry01", 2, "2.0.0")],
-        &PeerCycleShape { wc_members: vec![1, 3], rings_peer_on_p: true, ..Default::default() },
+        &PeerCycleShape {
+            wc_members: vec![1, 3],
+            rings_peer_on_p: true,
+            ..Default::default()
+        },
     );
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
 
@@ -24,8 +28,7 @@ fn a_cycle_package_resolves_identically_at_every_occurrence() {
         "unexpected missing peers: {:#?}",
         result.peer_dependency_issues.missing,
     );
-    let mut ring00_variants: Vec<&str> = result
-        .graph
+    let mut ring00_variants: Vec<&str> = result.graph
         .keys()
         .map(pnpm_deps_path::DepPath::as_str)
         .filter(|path| path.starts_with("ring00@1.0.0"))
@@ -47,10 +50,13 @@ fn cycle_re_walks_collapse_instead_of_multiplying_occurrences() {
     // Each entry provides its own `w`, so nothing untruncated transfers
     // across entries and only occurrence sharing can collapse the
     // repeated laps.
-    let names: Vec<(String, String)> =
-        (0..12).map(|index| (format!("entry{index:02}"), format!("{index}.0.0"))).collect();
-    let entries: Vec<(&str, usize, &str)> =
-        names.iter().map(|(alias, version)| (alias.as_str(), 0, version.as_str())).collect();
+    let names: Vec<(String, String)> = (0..12)
+        .map(|index| (format!("entry{index:02}"), format!("{index}.0.0")))
+        .collect();
+    let entries: Vec<(&str, usize, &str)> = names
+        .iter()
+        .map(|(alias, version)| (alias.as_str(), 0, version.as_str()))
+        .collect();
     let mut tree = peer_cycle_fixture(
         &entries,
         &PeerCycleShape {
@@ -92,17 +98,40 @@ fn backedge_bindings_do_not_depend_on_importer_order() {
         let mut packages = HashMap::default();
         packages.insert(Arc::from("p@1.0.0"), package("p", "1.0.0", &[], true));
         packages.insert(Arc::from("p@2.0.0"), package("p", "2.0.0", &[], true));
-        packages
-            .insert(Arc::from("ring00@1.0.0"), package("ring00", "1.0.0", &[("p", "*")], false));
-        packages.insert(Arc::from("ring01@1.0.0"), package("ring01", "1.0.0", &[], false));
-        packages.insert(Arc::from("enter-a@1.0.0"), package("enter-a", "1.0.0", &[], false));
-        packages.insert(Arc::from("enter-b@1.0.0"), package("enter-b", "1.0.0", &[], false));
+        packages.insert(
+            Arc::from("ring00@1.0.0"),
+            package("ring00", "1.0.0", &[("p", "*")], false),
+        );
+        packages.insert(
+            Arc::from("ring01@1.0.0"),
+            package("ring01", "1.0.0", &[], false),
+        );
+        packages.insert(
+            Arc::from("enter-a@1.0.0"),
+            package("enter-a", "1.0.0", &[], false),
+        );
+        packages.insert(
+            Arc::from("enter-b@1.0.0"),
+            package("enter-b", "1.0.0", &[], false),
+        );
         let children_by_id: HashMap<Arc<str>, Arc<Vec<crate::resolved_tree::ChildEdge>>> =
             HashMap::from_iter([
-                (Arc::from("ring00@1.0.0"), Arc::new(vec![edge("next", "ring01@1.0.0")])),
-                (Arc::from("ring01@1.0.0"), Arc::new(vec![edge("back", "ring00@1.0.0")])),
-                (Arc::from("enter-a@1.0.0"), Arc::new(vec![edge("ring", "ring00@1.0.0")])),
-                (Arc::from("enter-b@1.0.0"), Arc::new(vec![edge("ring", "ring01@1.0.0")])),
+                (
+                    Arc::from("ring00@1.0.0"),
+                    Arc::new(vec![edge("next", "ring01@1.0.0")]),
+                ),
+                (
+                    Arc::from("ring01@1.0.0"),
+                    Arc::new(vec![edge("back", "ring00@1.0.0")]),
+                ),
+                (
+                    Arc::from("enter-a@1.0.0"),
+                    Arc::new(vec![edge("ring", "ring00@1.0.0")]),
+                ),
+                (
+                    Arc::from("enter-b@1.0.0"),
+                    Arc::new(vec![edge("ring", "ring01@1.0.0")]),
+                ),
             ]);
 
         let mut dependencies_tree = HashMap::default();
@@ -119,7 +148,11 @@ fn backedge_bindings_do_not_depend_on_importer_order() {
                     true,
                 ),
             );
-            DirectDep { alias: alias.to_string(), node_id, id: pkg_id.to_string() }
+            DirectDep {
+                alias: alias.to_string(),
+                node_id,
+                id: pkg_id.to_string(),
+            }
         };
         let importer = |id: &str, direct: Vec<DirectDep>| ImporterPeerInput {
             id: id.to_string(),
@@ -128,8 +161,13 @@ fn backedge_bindings_do_not_depend_on_importer_order() {
             modules_dir: None,
         };
         let root = importer(".", vec![direct_dep("p@1.0.0", "p")]);
-        let importer_a =
-            importer("a", vec![direct_dep("enter-a@1.0.0", "enter-a"), direct_dep("p@2.0.0", "p")]);
+        let importer_a = importer(
+            "a",
+            vec![
+                direct_dep("enter-a@1.0.0", "enter-a"),
+                direct_dep("p@2.0.0", "p"),
+            ],
+        );
         let importer_b = importer("b", vec![direct_dep("enter-b@1.0.0", "enter-b")]);
         let importers: Vec<ImporterPeerInput> = [first, second]
             .iter()
@@ -158,8 +196,10 @@ fn backedge_bindings_do_not_depend_on_importer_order() {
             true,
             ResolvePeersOptions::default(),
         );
-        let mut keys: Vec<String> =
-            result.graph.keys().map(|path| path.as_str().to_string()).collect();
+        let mut keys: Vec<String> = result.graph
+            .keys()
+            .map(|path| path.as_str().to_string())
+            .collect();
         keys.sort_unstable();
         keys
     };
@@ -167,10 +207,15 @@ fn backedge_bindings_do_not_depend_on_importer_order() {
     let a_first = graph_for_order("a", "b");
     let b_first = graph_for_order("b", "a");
     assert!(
-        a_first.iter().any(|key| key == "ring00@1.0.0(p@2.0.0)"),
+        a_first
+            .iter()
+            .any(|key| key == "ring00@1.0.0(p@2.0.0)"),
         "the back-edge occurrence binds the id-ordered first realizer's context;          got {a_first:#?}",
     );
-    assert_eq!(a_first, b_first, "the graph must not depend on the importers' order");
+    assert_eq!(
+        a_first, b_first,
+        "the graph must not depend on the importers' order",
+    );
 }
 
 /// The canonical cut is a property of the graph, not the walk: entering
@@ -187,12 +232,19 @@ fn walk_order_cannot_change_the_graph() {
         &order_test_shape(true),
     );
     assert!(
-        first_order.iter().any(|key| key == "ring02@1.0.0(p@1.0.0)"),
+        first_order
+            .iter()
+            .any(|key| key == "ring02@1.0.0(p@1.0.0)"),
         "ring members resolve their importer-provided p; got {first_order:#?}",
     );
     assert!(
-        !first_order.iter().any(|key| key.starts_with("ring02") && key.contains("(w@")),
+        !first_order
+            .iter()
+            .any(|key| key.starts_with("ring02") && key.contains("(w@")),
         "ring02's canonical subtree ends at the back-edge and reaches no w consumer;          got {first_order:#?}",
     );
-    assert_eq!(first_order, second_order, "the graph must not depend on the entries' walk order");
+    assert_eq!(
+        first_order, second_order,
+        "the graph must not depend on the entries' walk order",
+    );
 }

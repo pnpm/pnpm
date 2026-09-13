@@ -72,7 +72,10 @@ use pnpm_reporter::{NdjsonReporter, SilentReporter};
 pub(super) fn recursive<'a>(_ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
     Ok(Box::pin(async move {
         let mut cmd = crate::cli_args::CliArgs::command();
-        let _ = cmd.find_subcommand_mut("recursive").expect("recursive subcommand").print_help();
+        let _ = cmd
+            .find_subcommand_mut("recursive")
+            .expect("recursive subcommand")
+            .print_help();
         #[expect(clippy::exit, reason = "`recursive` exits non-zero, mirroring pnpm")]
         std::process::exit(1);
     }))
@@ -153,7 +156,9 @@ pub(super) fn list<'a>(ctx: &RunCtx<'a>, args: ListArgs) -> miette::Result<Comma
     let config = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
     let recursive = ctx.workspace.recursive;
-    Ok(Box::pin(async move { args.run(config, dir, recursive).await }))
+    Ok(Box::pin(
+        async move { args.run(config, dir, recursive).await },
+    ))
 }
 
 pub(super) fn ll<'a>(ctx: &RunCtx<'a>, mut args: ListArgs) -> miette::Result<CommandFuture<'a>> {
@@ -161,7 +166,9 @@ pub(super) fn ll<'a>(ctx: &RunCtx<'a>, mut args: ListArgs) -> miette::Result<Com
     let config = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
     let recursive = ctx.workspace.recursive;
-    Ok(Box::pin(async move { args.run(config, dir, recursive).await }))
+    Ok(Box::pin(
+        async move { args.run(config, dir, recursive).await },
+    ))
 }
 
 pub(super) fn licenses<'a>(
@@ -171,7 +178,9 @@ pub(super) fn licenses<'a>(
     let config = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
     let recursive = ctx.workspace.recursive;
-    Ok(Box::pin(async move { args.run(config, dir, recursive).await }))
+    Ok(Box::pin(
+        async move { args.run(config, dir, recursive).await },
+    ))
 }
 
 pub(super) fn why<'a>(ctx: &RunCtx<'a>, args: WhyArgs) -> miette::Result<CommandFuture<'a>> {
@@ -292,7 +301,9 @@ pub(super) fn publish<'a>(
         args.run::<Reporter>(dir, config, recursive, hooks).await
     }
     if args.flags.output.json {
-        return Ok(Box::pin(run::<SilentReporter>(args, dir, config, recursive)));
+        return Ok(Box::pin(run::<SilentReporter>(
+            args, dir, config, recursive,
+        )));
     }
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => {
@@ -321,7 +332,10 @@ pub(super) fn stage<'a>(
         config: &mut Config,
         recursive: bool,
     ) -> miette::Result<()> {
-        let hooks = if args.params.first().is_some_and(|subcommand| subcommand == "publish") {
+        let hooks = if args.params
+            .first()
+            .is_some_and(|subcommand| subcommand == "publish")
+        {
             prepare_config::<Reporter>(config, dir).await?
         } else {
             Vec::new()
@@ -335,9 +349,9 @@ pub(super) fn stage<'a>(
         Ok(())
     }
     Ok(match ctx.reporter {
-        ReporterType::Default | ReporterType::AppendOnly => {
-            Box::pin(print_output::<DefaultReporter>(args, dir, config, recursive))
-        }
+        ReporterType::Default | ReporterType::AppendOnly => Box::pin(
+            print_output::<DefaultReporter>(args, dir, config, recursive),
+        ),
         ReporterType::Ndjson => {
             Box::pin(print_output::<NdjsonReporter>(args, dir, config, recursive))
         }

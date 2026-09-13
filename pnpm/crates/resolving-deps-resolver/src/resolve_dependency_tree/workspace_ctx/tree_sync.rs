@@ -83,7 +83,9 @@ impl WorkspaceTreeCtx {
         let written = self.tree.written_since(from, to, |log| &log.children_by_id);
         let children_by_id = lock_recoverable(&self.children.by_id);
         for pkg_id in &written {
-            let Some(spec) = children_by_id.get(pkg_id.as_str()).map(|recorded| &recorded.edges)
+            let Some(spec) = children_by_id
+                .get(pkg_id.as_str())
+                .map(|recorded| &recorded.edges)
             else {
                 continue;
             };
@@ -123,10 +125,13 @@ impl WorkspaceTreeCtx {
                 .or_insert_with(|| pkg.clone());
         }
         for (node_id, node) in lock_recoverable(&self.tree.dependencies_tree).iter() {
-            tree.dependencies_tree.entry(node_id.clone()).or_insert_with(|| node.clone());
+            tree.dependencies_tree
+                .entry(node_id.clone())
+                .or_insert_with(|| node.clone());
         }
-        tree.all_peer_dep_names
-            .extend(lock_recoverable(&self.tree.all_peer_dep_names).iter().cloned());
+        tree.all_peer_dep_names.extend(
+            lock_recoverable(&self.tree.all_peer_dep_names).iter().cloned(),
+        );
     }
 }
 
@@ -171,7 +176,9 @@ impl super::WorkspaceTreeStorage {
         let written = self.written_since(from, to, |log| &log.packages);
         let packages = lock_recoverable(&self.packages);
         for pkg_id in &written {
-            let Some(pkg) = packages.get(pkg_id.as_str()) else { continue };
+            let Some(pkg) = packages.get(pkg_id.as_str()) else {
+                continue;
+            };
             match tree.packages.entry(Arc::from(pkg_id.clone())) {
                 Entry::Vacant(entry) => {
                     entry.insert(pkg.clone());
@@ -192,7 +199,9 @@ impl super::WorkspaceTreeStorage {
         let written = self.written_since(from, to, |log| &log.dependencies_tree);
         let dependencies_tree = lock_recoverable(&self.dependencies_tree);
         for node_id in &written {
-            let Some(node) = dependencies_tree.get(node_id) else { continue };
+            let Some(node) = dependencies_tree.get(node_id) else {
+                continue;
+            };
             match tree.dependencies_tree.entry(node_id.clone()) {
                 Entry::Vacant(entry) => {
                     entry.insert(node.clone());
@@ -237,7 +246,9 @@ impl super::WorkspaceTreeStorage {
         node_ids
             .filter_map(|node_id| {
                 let pkg_id = &dependencies_tree.get(node_id)?.resolved_package_id;
-                packages.contains_key(&**pkg_id).then(|| (node_id.clone(), pkg_id.to_string()))
+                packages
+                    .contains_key(&**pkg_id)
+                    .then(|| (node_id.clone(), pkg_id.to_string()))
             })
             .collect()
     }

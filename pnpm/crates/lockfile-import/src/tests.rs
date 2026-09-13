@@ -14,17 +14,27 @@ fn write(dir: &Path, name: &str, contents: &str) {
 }
 
 fn code_of(error: &ImportLockfileError) -> String {
-    error.code().expect("error carries a code").to_string()
+    error
+        .code()
+        .expect("error carries a code")
+        .to_string()
 }
 
 fn names(versions: &VersionsByPackageName) -> Vec<&str> {
-    versions.keys().map(String::as_str).collect()
+    versions
+        .keys()
+        .map(String::as_str)
+        .collect()
 }
 
 #[test]
 fn yarn_lock_wins_over_npm_lockfiles() {
     let tmp = tempfile::tempdir().expect("tempdir");
-    write(tmp.path(), "yarn.lock", "from-yarn@^1.0.0:\n  version \"1.0.0\"\n");
+    write(
+        tmp.path(),
+        "yarn.lock",
+        "from-yarn@^1.0.0:\n  version \"1.0.0\"\n",
+    );
     write(
         tmp.path(),
         "package-lock.json",
@@ -93,7 +103,11 @@ fn a_conflicted_yarn_lock_is_an_error() {
 #[test]
 fn an_unparsable_yarn_lock_is_an_error() {
     let tmp = tempfile::tempdir().expect("tempdir");
-    write(tmp.path(), "yarn.lock", "is-positive@^1.0.0\n  version \"1.0.0\"\n");
+    write(
+        tmp.path(),
+        "yarn.lock",
+        "is-positive@^1.0.0\n  version \"1.0.0\"\n",
+    );
 
     let error = read_foreign_lockfile_versions(tmp.path()).expect_err("malformed yarn.lock");
     assert_eq!(code_of(&error), "ERR_PNPM_YARN_LOCKFILE_PARSE_FAILED");
@@ -106,7 +120,10 @@ fn an_unparsable_npm_lockfile_names_the_file() {
     write(tmp.path(), "package-lock.json", "{ not json");
 
     let error = read_foreign_lockfile_versions(tmp.path()).expect_err("invalid json");
-    assert!(error.to_string().contains("package-lock.json"), "got {error}");
+    assert!(
+        error.to_string().contains("package-lock.json"),
+        "got {error}",
+    );
 }
 
 #[test]
@@ -122,7 +139,10 @@ fn every_collected_version_becomes_a_plain_version_selector() {
     let preferred_versions = to_preferred_versions(&versions);
 
     assert_eq!(
-        preferred_versions.keys().map(String::as_str).collect::<Vec<_>>(),
+        preferred_versions
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
         vec!["is-negative", "is-positive"],
     );
     assert_eq!(

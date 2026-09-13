@@ -212,7 +212,10 @@ pub enum InstallError {
         "Cannot safely repair the filtered install because the modules directory at {modules_dir:?} is outside the workspace root at {workspace_root:?}"
     )]
     #[diagnostic(code(pnpm_package_manager::unsafe_filtered_modules_dir))]
-    UnsafeFilteredModulesDir { modules_dir: PathBuf, workspace_root: PathBuf },
+    UnsafeFilteredModulesDir {
+        modules_dir: PathBuf,
+        workspace_root: PathBuf,
+    },
 
     /// Surfaces a failure while removing the direct-dep links an
     /// `included` drift excluded — the non-destructive counterpart of

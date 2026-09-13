@@ -111,7 +111,10 @@ impl PinFlags {
     }
 
     fn of_lockfile_dir(lockfile_dir: &LockfileDirArg) -> Self {
-        Self { lockfile_dir: lockfile_dir.lockfile_dir.clone(), ..Self::default() }
+        Self {
+            lockfile_dir: lockfile_dir.lockfile_dir.clone(),
+            ..Self::default()
+        }
     }
 
     /// Layer the flags onto `config` with the precedence
@@ -183,8 +186,7 @@ pub(super) fn should_skip_command(command: &CliCommand) -> bool {
     // else stays its manager's job and still fails the check.
     if let CliCommand::Add(args) = command
         && !args.package_names.is_empty()
-        && args
-            .package_names
+        && args.package_names
             .iter()
             .all(|request| crate::engine_pm::pin::declared_package_manager(request).is_some())
     {
@@ -279,11 +281,9 @@ impl SwitchInput {
             command: Some(command_name(&args.command).to_string()),
             frozen_lockfile: frozen_lockfile_flag(&args.command),
             pin_flags: PinFlags::of(&args.command),
-            color: args
-                .output
-                .presentation
-                .color
-                .or_else(|| args.output.presentation.no_color.then_some(ColorMode::Never)),
+            color: args.output.presentation.color.or_else(|| {
+                args.output.presentation.no_color.then_some(ColorMode::Never)
+            }),
         }
     }
 
@@ -324,7 +324,9 @@ impl SwitchInput {
                 input.command = Some(token.to_string());
                 break;
             }
-            let next = argv.get(index + 1).map(OsString::as_os_str);
+            let next = argv
+                .get(index + 1)
+                .map(OsString::as_os_str);
             index += input.absorb_global_flag(token, next, &global_options);
         }
         input
@@ -358,7 +360,11 @@ impl SwitchInput {
             self.npmrc_auth_file = Some(PathBuf::from(value));
             return width;
         }
-        if consumes_next_token(token, global_options) { 2 } else { 1 }
+        if consumes_next_token(token, global_options) {
+            2
+        } else {
+            1
+        }
     }
 }
 
@@ -370,7 +376,10 @@ fn short_value<'a>(token: &'a str, option: &str, next: Option<&'a OsStr>) -> Opt
     if token == option {
         return next;
     }
-    token.strip_prefix(option).filter(|value| !value.is_empty()).map(OsStr::new)
+    token
+        .strip_prefix(option)
+        .filter(|value| !value.is_empty())
+        .map(OsStr::new)
 }
 
 fn long_value<'a>(
@@ -382,7 +391,8 @@ fn long_value<'a>(
     if name == option {
         return next.map(|value| (value, 2));
     }
-    name.strip_prefix(option)
+    name
+        .strip_prefix(option)
         .and_then(|rest| rest.strip_prefix('='))
         .map(OsStr::new)
         .map(|value| (value, 1))
@@ -396,9 +406,15 @@ fn consumes_next_token(token: &str, global_options: &ArgTable) -> bool {
     if let Some(name) = token.strip_prefix("--") {
         return !name.contains('=') && global_options.long_consumes_value(name).unwrap_or(false);
     }
-    let Some(rest) = token.strip_prefix('-').filter(|rest| !rest.is_empty()) else {
+    let Some(rest) = token
+        .strip_prefix('-')
+        .filter(|rest| !rest.is_empty())
+    else {
         return false;
     };
-    let short = rest.chars().next().expect("checked non-empty");
+    let short = rest
+        .chars()
+        .next()
+        .expect("checked non-empty");
     rest.chars().count() == 1 && global_options.short_consumes_value(short).unwrap_or(false)
 }

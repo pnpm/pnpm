@@ -12,7 +12,10 @@ use std::fs;
 fn logout_revokes_token_and_removes_it_from_auth_ini() {
     const TOKEN: &str = "secret-token";
     let mut server = mockito::Server::new();
-    let mock = server.mock("DELETE", "/-/user/token/secret-token").with_status(200).create();
+    let mock = server
+        .mock("DELETE", "/-/user/token/secret-token")
+        .with_status(200)
+        .create();
     let registry = server.url();
     let host = registry.strip_prefix("http://").expect("mockito serves http");
     let token_key = format!("//{host}/:_authToken");
@@ -30,12 +33,22 @@ fn logout_revokes_token_and_removes_it_from_auth_ini() {
         .output()
         .expect("run pacquet logout");
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains(&format!("Logged out of {registry}/")), "stdout: {stdout}");
+    assert!(
+        stdout.contains(&format!("Logged out of {registry}/")),
+        "stdout: {stdout}",
+    );
     mock.assert();
     let remaining = fs::read_to_string(pnpm_dir.join("auth.ini")).expect("read auth.ini");
-    assert!(!remaining.contains(TOKEN), "token should be removed: {remaining:?}");
+    assert!(
+        !remaining.contains(TOKEN),
+        "token should be removed: {remaining:?}",
+    );
 }
 
 /// `pacquet logout` with no configured token exits non-zero and reports
@@ -55,7 +68,10 @@ fn logout_errors_when_not_logged_in() {
 
     assert!(!output.status.success(), "expected a non-zero exit");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("Not logged in to https://registry.npmjs.org/"), "stderr: {stderr}");
+    assert!(
+        stderr.contains("Not logged in to https://registry.npmjs.org/"),
+        "stderr: {stderr}",
+    );
 }
 
 /// End-to-end `pacquet logout` against the file `pnpm login` writes now: the
@@ -65,7 +81,10 @@ fn logout_errors_when_not_logged_in() {
 fn logout_removes_the_token_from_config_yaml() {
     const TOKEN: &str = "config-yaml-token";
     let mut server = mockito::Server::new();
-    let mock = server.mock("DELETE", &*format!("/-/user/token/{TOKEN}")).with_status(200).create();
+    let mock = server
+        .mock("DELETE", &*format!("/-/user/token/{TOKEN}"))
+        .with_status(200)
+        .create();
     let registry = server.url();
 
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
@@ -87,10 +106,17 @@ fn logout_removes_the_token_from_config_yaml() {
         .output()
         .expect("run pacquet logout");
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
     mock.assert();
     let remaining = fs::read_to_string(pnpm_dir.join("config.yaml")).expect("read config.yaml");
-    assert!(!remaining.contains(TOKEN), "the token should be removed: {remaining:?}");
+    assert!(
+        !remaining.contains(TOKEN),
+        "the token should be removed: {remaining:?}",
+    );
     assert!(
         remaining.contains("nodeLinker: hoisted"),
         "the settings around the credential must survive: {remaining:?}",
@@ -105,7 +131,10 @@ fn logout_removes_the_token_from_config_yaml() {
 fn logout_matches_the_registry_however_the_url_is_spelled() {
     const TOKEN: &str = "spelling-token";
     let mut server = mockito::Server::new();
-    let mock = server.mock("DELETE", &*format!("/-/user/token/{TOKEN}")).with_status(200).create();
+    let mock = server
+        .mock("DELETE", &*format!("/-/user/token/{TOKEN}"))
+        .with_status(200)
+        .create();
     let registry = server.url();
     let host = registry.strip_prefix("http://").expect("mockito serves http");
 
@@ -122,12 +151,23 @@ fn logout_matches_the_registry_however_the_url_is_spelled() {
     let output = pacquet
         .with_env("XDG_CONFIG_HOME", &config_home)
         .with_env("HOME", root.path())
-        .with_args(["logout", "--registry", &format!("HTTP://{}/", host.to_uppercase())])
+        .with_args([
+            "logout",
+            "--registry",
+            &format!("HTTP://{}/", host.to_uppercase()),
+        ])
         .output()
         .expect("run pacquet logout");
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
     mock.assert();
     let remaining = fs::read_to_string(pnpm_dir.join("config.yaml")).expect("read config.yaml");
-    assert!(!remaining.contains(TOKEN), "the token should be removed: {remaining:?}");
+    assert!(
+        !remaining.contains(TOKEN),
+        "the token should be removed: {remaining:?}",
+    );
 }

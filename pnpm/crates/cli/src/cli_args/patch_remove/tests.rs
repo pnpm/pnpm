@@ -13,7 +13,10 @@ fn explicit_patch_args_skip_prompt() {
     let selected = patches_to_remove(
         vec!["pkg".to_string()],
         &IndexMap::new(),
-        &FakePrompt { selected: vec![], called: std::cell::Cell::new(false) },
+        &FakePrompt {
+            selected: vec![],
+            called: std::cell::Cell::new(false),
+        },
     )
     .expect("selected patches");
 
@@ -24,8 +27,10 @@ fn explicit_patch_args_skip_prompt() {
 fn empty_patch_args_prompt_for_available_patches() {
     let patched_dependencies =
         IndexMap::from([("pkg".to_string(), "patches/pkg.patch".to_string())]);
-    let prompt =
-        FakePrompt { selected: vec!["pkg".to_string()], called: std::cell::Cell::new(false) };
+    let prompt = FakePrompt {
+        selected: vec!["pkg".to_string()],
+        called: std::cell::Cell::new(false),
+    };
 
     let selected =
         patches_to_remove(Vec::new(), &patched_dependencies, &prompt).expect("selected patch");
@@ -39,7 +44,10 @@ fn empty_patch_args_without_patches_errors() {
     let err = patches_to_remove(
         Vec::new(),
         &IndexMap::new(),
-        &FakePrompt { selected: vec![], called: std::cell::Cell::new(false) },
+        &FakePrompt {
+            selected: vec![],
+            called: std::cell::Cell::new(false),
+        },
     )
     .expect_err("no patches should error");
 
@@ -54,7 +62,10 @@ fn empty_prompt_selection_is_treated_as_no_patches_to_remove() {
     let err = patches_to_remove(
         Vec::new(),
         &patched_dependencies,
-        &FakePrompt { selected: vec![], called: std::cell::Cell::new(false) },
+        &FakePrompt {
+            selected: vec![],
+            called: std::cell::Cell::new(false),
+        },
     )
     .expect_err("empty prompt selection should error");
 
@@ -63,7 +74,11 @@ fn empty_prompt_selection_is_treated_as_no_patches_to_remove() {
 
 #[test]
 fn selected_prompt_indices_are_mapped_to_patch_names() {
-    let patches = vec!["first".to_string(), "second".to_string(), "third".to_string()];
+    let patches = vec![
+        "first".to_string(),
+        "second".to_string(),
+        "third".to_string(),
+    ];
 
     assert_eq!(
         patches_from_selected_indices(&patches, vec![2, 0]),
@@ -73,7 +88,11 @@ fn selected_prompt_indices_are_mapped_to_patch_names() {
 
 #[test]
 fn select_patches_from_indices_maps_selected_indices() {
-    let patches = vec!["first".to_string(), "second".to_string(), "third".to_string()];
+    let patches = vec![
+        "first".to_string(),
+        "second".to_string(),
+        "third".to_string(),
+    ];
 
     let selected = select_patches_from_indices(&patches, |_| Ok(vec![1, 2]))
         .expect("selected patches from indices");
@@ -83,10 +102,15 @@ fn select_patches_from_indices_maps_selected_indices() {
 
 #[test]
 fn dialoguer_prompt_reports_cancellation_when_stdin_is_not_interactive() {
-    assert!(!std::io::stdin().is_terminal(), "test requires non-interactive stdin");
+    assert!(
+        !std::io::stdin().is_terminal(),
+        "test requires non-interactive stdin",
+    );
 
     let prompt = DialoguerPatchRemovePrompt;
-    let err = prompt.select_patches(&["pkg".to_string()]).expect_err("prompt should cancel");
+    let err = prompt
+        .select_patches(&["pkg".to_string()])
+        .expect_err("prompt should cancel");
 
     assert!(matches!(err, PatchRemoveError::Canceled));
 }
@@ -99,7 +123,10 @@ fn patch_removal_context_rejects_patches_dir_outside_project() {
         panic!("outside patches dir should error");
     };
 
-    assert!(matches!(err, PatchRemoveError::PatchesDirOutsideProject { .. }));
+    assert!(matches!(
+        err,
+        PatchRemoveError::PatchesDirOutsideProject { .. }
+    ));
 }
 
 #[cfg(unix)]
@@ -116,7 +143,10 @@ fn patch_removal_context_rejects_real_patches_dir_symlink_outside_project() {
         panic!("symlinked outside patches dir should error");
     };
 
-    assert!(matches!(err, PatchRemoveError::PatchesDirOutsideProject { .. }));
+    assert!(matches!(
+        err,
+        PatchRemoveError::PatchesDirOutsideProject { .. }
+    ));
 }
 
 #[tokio::test]
@@ -127,8 +157,10 @@ async fn run_rejects_configured_patches_dir_outside_project() {
     let mut config = pnpm_config::Config::new();
     config.workspace_dir = Some(tmp.path().to_path_buf());
     config.patches_dir = Some("../patches".to_string());
-    config.patched_dependencies =
-        Some(IndexMap::from([("pkg@1.0.0".to_string(), "patches/pkg.patch".to_string())]));
+    config.patched_dependencies = Some(IndexMap::from([(
+        "pkg@1.0.0".to_string(),
+        "patches/pkg.patch".to_string(),
+    )]));
     let config: &'static pnpm_config::Config = Box::leak(Box::new(config));
     let state = State {
         tarball_mem_cache: std::sync::Arc::new(pnpm_tarball::MemCache::default()),
@@ -142,12 +174,17 @@ async fn run_rejects_configured_patches_dir_outside_project() {
         resolved_packages: pnpm_package_manager::ResolvedPackages::new(),
     };
 
-    let err = PatchRemoveArgs { patches: vec!["pkg@1.0.0".to_string()] }
-        .run(tmp.path(), state)
-        .await
-        .expect_err("outside patches dir should error");
+    let err = PatchRemoveArgs {
+        patches: vec!["pkg@1.0.0".to_string()],
+    }
+    .run(tmp.path(), state)
+    .await
+    .expect_err("outside patches dir should error");
 
-    assert!(matches!(err, PatchRemoveError::PatchesDirOutsideProject { .. }));
+    assert!(matches!(
+        err,
+        PatchRemoveError::PatchesDirOutsideProject { .. }
+    ));
 }
 
 #[tokio::test]
@@ -162,8 +199,14 @@ async fn run_keeps_patch_file_still_used_by_remaining_entries() {
     let mut config = pnpm_config::Config::new();
     config.workspace_dir = Some(tmp.path().to_path_buf());
     config.patched_dependencies = Some(IndexMap::from([
-        ("first@1.0.0".to_string(), "patches/shared.patch".to_string()),
-        ("second@1.0.0".to_string(), "patches/shared.patch".to_string()),
+        (
+            "first@1.0.0".to_string(),
+            "patches/shared.patch".to_string(),
+        ),
+        (
+            "second@1.0.0".to_string(),
+            "patches/shared.patch".to_string(),
+        ),
     ]));
     let config: &'static pnpm_config::Config = Box::leak(Box::new(config));
     let state = State {
@@ -178,12 +221,17 @@ async fn run_keeps_patch_file_still_used_by_remaining_entries() {
         resolved_packages: pnpm_package_manager::ResolvedPackages::new(),
     };
 
-    PatchRemoveArgs { patches: vec!["first@1.0.0".to_string()] }
-        .run(tmp.path(), state)
-        .await
-        .expect("remove first patch entry");
+    PatchRemoveArgs {
+        patches: vec!["first@1.0.0".to_string()],
+    }
+    .run(tmp.path(), state)
+    .await
+    .expect("remove first patch entry");
 
-    assert_eq!(std::fs::read_to_string(&patch_file).expect("shared patch file"), "shared patch");
+    assert_eq!(
+        std::fs::read_to_string(&patch_file).expect("shared patch file"),
+        "shared patch",
+    );
 }
 
 #[test]
@@ -195,7 +243,10 @@ fn patch_removal_target_rejects_patch_file_outside_patches_dir() {
         panic!("patch file outside patches dir should error");
     };
 
-    assert!(matches!(err, PatchRemoveError::PatchFileOutsidePatchesDir { .. }));
+    assert!(matches!(
+        err,
+        PatchRemoveError::PatchFileOutsidePatchesDir { .. }
+    ));
 }
 
 #[test]
@@ -234,11 +285,17 @@ fn join_setting_path_ignores_root_and_current_dir_components() {
 
     assert_eq!(
         join_setting_path(tmp.path(), "./patches/./nested"),
-        tmp.path().join("patches").join("nested"),
+        tmp
+            .path()
+            .join("patches")
+            .join("nested"),
     );
 
     #[cfg(unix)]
-    assert_eq!(join_setting_path(tmp.path(), "/patches"), tmp.path().join("patches"));
+    assert_eq!(
+        join_setting_path(tmp.path(), "/patches"),
+        tmp.path().join("patches"),
+    );
 }
 
 #[test]
@@ -274,9 +331,15 @@ fn unlink_patch_if_exists_reports_remove_errors() {
 #[test]
 fn remove_empty_patch_dirs_removes_empty_dirs_and_ignores_missing_dirs() {
     let tmp = tempfile::tempdir().expect("temp dir");
-    let empty = tmp.path().join("patches").join("nested");
+    let empty = tmp
+        .path()
+        .join("patches")
+        .join("nested");
     std::fs::create_dir_all(&empty).expect("create empty patch dir");
-    let missing = tmp.path().join("patches").join("missing");
+    let missing = tmp
+        .path()
+        .join("patches")
+        .join("missing");
 
     remove_empty_patch_dirs(&[
         PatchRemovalTarget {
@@ -317,7 +380,10 @@ fn remove_empty_patch_dirs_reports_read_errors() {
 #[test]
 fn remove_empty_patch_dirs_reports_remove_errors() {
     let tmp = tempfile::tempdir().expect("temp dir");
-    let empty = tmp.path().join("patches").join("nested");
+    let empty = tmp
+        .path()
+        .join("patches")
+        .join("nested");
 
     let result = remove_empty_patch_dirs_with_fs(
         &[PatchRemovalTarget {
@@ -329,13 +395,19 @@ fn remove_empty_patch_dirs_reports_remove_errors() {
         &RemoveDirErrorFs,
     );
 
-    assert!(matches!(result, Err(PatchRemoveError::RemovePatchDir { .. })));
+    assert!(matches!(
+        result,
+        Err(PatchRemoveError::RemovePatchDir { .. })
+    ));
 }
 
 #[test]
 fn remove_empty_patch_dirs_keeps_non_empty_dirs() {
     let tmp = tempfile::tempdir().expect("temp dir");
-    let parent = tmp.path().join("patches").join("nested");
+    let parent = tmp
+        .path()
+        .join("patches")
+        .join("nested");
 
     remove_empty_patch_dirs_with_fs(
         &[PatchRemovalTarget {
@@ -369,7 +441,10 @@ impl PatchRemoveFs for RemoveDirErrorFs {
     }
 
     fn remove_dir(&self, _path: &Path) -> std::io::Result<()> {
-        Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "blocked remove_dir"))
+        Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "blocked remove_dir",
+        ))
     }
 }
 

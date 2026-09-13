@@ -68,7 +68,12 @@ impl PackageBinSource {
     /// most tests).
     #[must_use]
     pub fn new(location: PathBuf, manifest: Arc<Value>) -> Self {
-        Self { location, manifest, origin: BinOrigin::Direct, resolved_location: None }
+        Self {
+            location,
+            manifest,
+            origin: BinOrigin::Direct,
+            resolved_location: None,
+        }
     }
 
     /// Tag this source with the given [`BinOrigin`]. Builder-style
@@ -230,12 +235,15 @@ impl ShimTargetCache {
     /// read from serializing every other target's probe behind it. Same
     /// trade as the store's `verifiedFilesCache`.
     fn runtime_for<Sys: FsReadHead>(&self, probe_path: &Path) -> io::Result<Option<ScriptRuntime>> {
-        if let Some(runtime) = self.0.runtimes.lock().expect("runtime memo lock").get(probe_path) {
+        if let Some(runtime) = self.0.runtimes
+            .lock()
+            .expect("runtime memo lock")
+            .get(probe_path)
+        {
             return Ok(runtime.clone());
         }
         let runtime = search_script_runtime::<Sys>(probe_path)?;
-        self.0
-            .runtimes
+        self.0.runtimes
             .lock()
             .expect("runtime memo lock")
             .insert(probe_path.to_path_buf(), runtime.clone());
@@ -247,12 +255,15 @@ impl ShimTargetCache {
         &self,
         probe_path: &Path,
     ) -> Result<(), LinkBinsError> {
-        if self.0.executable_ensured.lock().expect("executable memo lock").contains(probe_path) {
+        if self.0.executable_ensured
+            .lock()
+            .expect("executable memo lock")
+            .contains(probe_path)
+        {
             return Ok(());
         }
         ensure_target_executable::<Sys>(probe_path)?;
-        self.0
-            .executable_ensured
+        self.0.executable_ensured
             .lock()
             .expect("executable memo lock")
             .insert(probe_path.to_path_buf());
@@ -360,7 +371,13 @@ where
         + FsSetExecutable
         + FsEnsureExecutableBits,
 {
-    link_bins_impl::<Sys>(packages, bins_dir, exclude_bins, options, &ShimTargetCache::default())
+    link_bins_impl::<Sys>(
+        packages,
+        bins_dir,
+        exclude_bins,
+        options,
+        &ShimTargetCache::default(),
+    )
 }
 
 fn link_bins_impl<Sys>(
@@ -385,51 +402,41 @@ where
     }
 
     let bin_dir = Sys::create_dir_all_reporting(bins_dir)
-        .map_err(|error| LinkBinsError::CreateBinDir { dir: bins_dir.to_path_buf(), error })?;
+        .map_err(|error| LinkBinsError::CreateBinDir {
+            dir: bins_dir.to_path_buf(),
+            error,
+        })?;
 
     // Each shim's read-shebang + write-file + chmod sequence is independent
     // across bin names. There is no shared state, so drive them on rayon.
     // The hot path is per-package-bin; without parallelism the per-shim
     // file I/O serialised across the whole `chosen` map.
-    chosen.par_iter().try_for_each(|(command, pkg)| {
-        // On Unix the symlink branch never writes a shim, so no bin
-        // needs a NODE_PATH — skip `shim_node_path`'s per-package
-        // canonicalize entirely.
-        let node_path = if options.prefer_symlinked_executables && cfg!(unix) {
-            Vec::new()
-        } else {
-            shim_node_path(pkg, &options.extra_node_paths)
-        };
-        let pkg_name = package_name(pkg);
-        // The target's symlink-resolved path doubles as the memo key
-        // for the per-target probes: importers that reach one
-        // virtual-store file through different symlinks share it.
-        // Without a resolved location, the literal path still dedupes
-        // within whatever scope the caller gave the cache.
-        let probe_path = pkg
-            .resolved_location
-            .as_ref()
-            .and_then(|resolved| {
-                command
-                    .path
-                    .strip_prefix(&pkg.location)
-                    .ok()
-                    .map(|bin_rel_path| resolved.join(bin_rel_path))
-            })
-            .unwrap_or_else(|| command.path.clone());
-        write_shim::<Sys>(
-            ShimSpec {
-                target_path: &command.path,
-                probe_path: &probe_path,
-                shim_path: &bins_dir.join(&command.name),
-                node_path: &node_path,
-                prefer_symlinked_executables: options.prefer_symlinked_executables,
-                make_powershell_shim: wants_powershell_shim(pkg_name),
-                bin_dir,
-            },
-            cache,
-        )
-    })?;
+    chosen
+        .par_iter()
+        .try_for_each(|(command, pkg)| {
+            // On Unix the symlink branch never writes a shim, so no bin
+            // needs a NODE_PATH — skip `shim_node_path`'s per-package
+            // canonicalize entirely.
+            let node_path = if options.prefer_symlinked_executables && cfg!(unix) {
+                Vec::new()
+            } else {
+                shim_node_path(pkg, &options.extra_node_paths)
+            };
+            let pkg_name = package_name(pkg);
+            let probe_path = shim_writer::probe_path(pkg, &command.path);
+            write_shim::<Sys>(
+                ShimSpec {
+                    target_path: &command.path,
+                    probe_path: &probe_path,
+                    shim_path: &bins_dir.join(&command.name),
+                    node_path: &node_path,
+                    prefer_symlinked_executables: options.prefer_symlinked_executables,
+                    make_powershell_shim: wants_powershell_shim(pkg_name),
+                    bin_dir,
+                },
+                cache,
+            )
+        })?;
 
     Ok(())
 }
@@ -524,7 +531,10 @@ fn pick_winner(bin_name: &str, existing: &PackageBinSource, candidate: &PackageB
 }
 
 fn package_name(pkg: &PackageBinSource) -> &str {
-    pkg.manifest.get("name").and_then(Value::as_str).unwrap_or("")
+    pkg.manifest
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("")
 }
 
 fn package_version(pkg: &PackageBinSource) -> Option<Version> {

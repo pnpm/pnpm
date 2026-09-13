@@ -94,7 +94,10 @@ fn scripted_session(
     response: Result<serde_json::Value, pnpm_hooks::HookError>,
 ) -> std::sync::Arc<crate::CustomFetcherSession> {
     std::sync::Arc::new(crate::CustomFetcherSession::new(vec![std::sync::Arc::new(
-        ScriptedCustomFetcher { claims, response },
+        ScriptedCustomFetcher {
+            claims,
+            response,
+        },
     )]))
 }
 
@@ -190,7 +193,10 @@ fn custom_resolution_metadata(resolution_type: &str) -> pnpm_lockfile::PackageMe
     );
     let mut metadata = registry_metadata();
     metadata.resolution = LockfileResolution::Custom(pnpm_lockfile::CustomResolution {
-        resolution_type: resolution_type.to_string().try_into().expect("custom type tag"),
+        resolution_type: resolution_type
+            .to_string()
+            .try_into()
+            .expect("custom type tag"),
         extra,
     });
     metadata

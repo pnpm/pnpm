@@ -27,9 +27,13 @@ fn partitions_node_and_cargo_specifiers() {
 
 #[test]
 fn rejects_invalid_cargo_specifiers_before_manifest_initialization() {
-    for specifier in
-        ["crate:", "crate:serde@", "crate:bad/name", "crate:serde@workspace:*", "crate:serde@^"]
-    {
+    for specifier in [
+        "crate:",
+        "crate:serde@",
+        "crate:bad/name",
+        "crate:serde@workspace:*",
+        "crate:serde@^",
+    ] {
         assert!(
             PackageSpecifierPlan::parse(&[specifier.to_string()]).is_err(),
             "{specifier} must be rejected",
@@ -57,9 +61,15 @@ fn partitions_python_requirements_without_applying_node_or_cargo_semver() {
         plan.ecosystem_packages[2],
         EcosystemPackageSpecifier::Python("other==2.0rc1".into()),
     );
-    for specifier in
-        ["pypi:", "pypi:alpha@", "pypi:alpha@^1.0", "pypi:alpha@https://example.org/a.whl"]
-    {
-        assert!(PackageSpecifierPlan::parse(&[specifier.into()]).is_err(), "{specifier}");
+    for specifier in [
+        "pypi:",
+        "pypi:alpha@",
+        "pypi:alpha@^1.0",
+        "pypi:alpha@https://example.org/a.whl",
+    ] {
+        assert!(
+            PackageSpecifierPlan::parse(&[specifier.into()]).is_err(),
+            "{specifier}",
+        );
     }
 }

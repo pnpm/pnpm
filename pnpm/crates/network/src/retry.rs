@@ -127,8 +127,14 @@ pub async fn send_with_retry<'client>(
     retry_opts: RetryOpts,
     build_request: impl FnMut(&Client) -> RequestBuilder,
 ) -> Result<(ThrottledClientGuard<'client>, Response), reqwest::Error> {
-    send_with_retry_at_priority(http_client, url, crate::UNPRIORITIZED, retry_opts, build_request)
-        .await
+    send_with_retry_at_priority(
+        http_client,
+        url,
+        crate::UNPRIORITIZED,
+        retry_opts,
+        build_request,
+    )
+    .await
 }
 
 /// [`send_with_retry`] queueing at an explicit `priority` — the way a
@@ -293,9 +299,10 @@ enum SecureAttemptError {
 impl std::fmt::Debug for SecureAttemptError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Response(response) => {
-                formatter.debug_tuple("HTTP").field(&response.status).finish()
-            }
+            Self::Response(response) => formatter
+                .debug_tuple("HTTP")
+                .field(&response.status)
+                .finish(),
             // Response bodies and transport error URLs can contain registry credentials.
             Self::Request(_) => formatter.write_str("request transport or body error"),
         }

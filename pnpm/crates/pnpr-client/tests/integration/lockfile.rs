@@ -18,24 +18,46 @@ async fn streams_resolved_packages_before_the_lockfile() {
     let mut streamed: Vec<String> = Vec::new();
     let outcome = client
         .resolve_streaming(
-            options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])),
+            options(
+                &registry.url(),
+                &pnpr_auth,
+                deps([("@foo/no-deps", "1.0.0")]),
+            ),
             |pkg| {
-                assert!(!pkg.integrity.is_empty(), "a package frame carries an integrity");
-                assert!(pkg.tarball.starts_with("http"), "a package frame carries a tarball URL");
-                assert_eq!(pkg.id, format!("{}@{}", pkg.name, pkg.version), "id is name@version");
+                assert!(
+                    !pkg.integrity.is_empty(),
+                    "a package frame carries an integrity",
+                );
+                assert!(
+                    pkg.tarball.starts_with("http"),
+                    "a package frame carries a tarball URL",
+                );
+                assert_eq!(
+                    pkg.id,
+                    format!("{}@{}", pkg.name, pkg.version),
+                    "id is name@version",
+                );
                 streamed.push(pkg.id);
             },
         )
         .await
         .expect("streaming resolve should succeed");
 
-    assert!(!streamed.is_empty(), "at least one package frame streams before `done`");
+    assert!(
+        !streamed.is_empty(),
+        "at least one package frame streams before `done`",
+    );
     let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
     for id in &streamed {
         assert!(
-            packages.keys().any(|key| key.to_string() == *id),
+            packages
+                .keys()
+                .any(|key| key.to_string() == *id),
             "streamed package {id} should appear in the resolved lockfile, got: {:?}",
-            packages.keys().map(ToString::to_string).collect::<Vec<_>>(),
+            packages
+                .keys()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>(),
         );
     }
 }
@@ -49,17 +71,28 @@ async fn verifies_and_accepts_a_clean_input_lockfile() {
 
     // A first install with no lockfile produces a valid resolved one.
     let first = client
-        .resolve(options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
+        .resolve(options(
+            &registry.url(),
+            &pnpr_auth,
+            deps([("@foo/no-deps", "1.0.0")]),
+        ))
         .await
         .expect("first install");
 
     // Sending it back as the input lockfile makes the server verify it
     // under the (default, policy-free) client policy before resolving;
     // a clean lockfile passes and the install succeeds.
-    let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
+    let mut opts = options(
+        &registry.url(),
+        &pnpr_auth,
+        deps([("@foo/no-deps", "1.0.0")]),
+    );
     opts.reuse.lockfile = Some(first.lockfile.clone());
     let second = client.resolve(opts).await.expect("verified-input install should succeed");
-    assert!(second.lockfile.packages.is_some(), "resolution still produced a lockfile");
+    assert!(
+        second.lockfile.packages.is_some(),
+        "resolution still produced a lockfile",
+    );
 }
 
 #[tokio::test]
@@ -70,14 +103,22 @@ async fn rejects_an_input_lockfile_that_violates_the_clients_policy() {
     let client = PnprClient::new(pnpr_url);
 
     let first = client
-        .resolve(options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
+        .resolve(options(
+            &registry.url(),
+            &pnpr_auth,
+            deps([("@foo/no-deps", "1.0.0")]),
+        ))
         .await
         .expect("first install");
 
     // Re-send the same lockfile under a ~100-year minimumReleaseAge: no
     // real publish time can satisfy it, so the server rejects the input
     // lockfile and the client rebuilds the identical `VerifyError`.
-    let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
+    let mut opts = options(
+        &registry.url(),
+        &pnpr_auth,
+        deps([("@foo/no-deps", "1.0.0")]),
+    );
     opts.reuse.lockfile = Some(first.lockfile.clone());
     opts.verification.minimum_release_age = Some(60 * 24 * 365 * 100);
     opts.verification.minimum_release_age_ignore_missing_time = false;
@@ -99,11 +140,19 @@ async fn verify_lockfile_endpoint_accepts_a_clean_input_lockfile() {
     let client = PnprClient::new(pnpr_url);
 
     let first = client
-        .resolve(options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
+        .resolve(options(
+            &registry.url(),
+            &pnpr_auth,
+            deps([("@foo/no-deps", "1.0.0")]),
+        ))
         .await
         .expect("first install");
 
-    let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
+    let mut opts = options(
+        &registry.url(),
+        &pnpr_auth,
+        deps([("@foo/no-deps", "1.0.0")]),
+    );
     opts.reuse.lockfile = Some(first.lockfile);
     let verify_opts =
         VerifyLockfileOptions::from_resolve_options(&opts).expect("lockfile is present");
@@ -119,11 +168,19 @@ async fn verify_lockfile_endpoint_rejects_policy_violation() {
     let client = PnprClient::new(pnpr_url);
 
     let first = client
-        .resolve(options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
+        .resolve(options(
+            &registry.url(),
+            &pnpr_auth,
+            deps([("@foo/no-deps", "1.0.0")]),
+        ))
         .await
         .expect("first install");
 
-    let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
+    let mut opts = options(
+        &registry.url(),
+        &pnpr_auth,
+        deps([("@foo/no-deps", "1.0.0")]),
+    );
     opts.reuse.lockfile = Some(first.lockfile);
     opts.verification.minimum_release_age = Some(60 * 24 * 365 * 100);
     opts.verification.minimum_release_age_ignore_missing_time = false;
@@ -159,8 +216,11 @@ async fn verify_lockfile_endpoint_uses_upstreams() {
         vec![registry_upstream(&registry.url(), &token)],
     )
     .await;
-    let mut resolve_opts =
-        options(&registry.url(), &resolve_auth, deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
+    let mut resolve_opts = options(
+        &registry.url(),
+        &resolve_auth,
+        deps([("@pnpm.e2e/needs-auth", "1.0.0")]),
+    );
     let first = PnprClient::new(resolve_pnpr_url)
         .resolve(resolve_opts.clone())
         .await
@@ -207,7 +267,11 @@ async fn trust_lockfile_makes_the_server_skip_verification() {
     let client = PnprClient::new(pnpr_url);
 
     let first = client
-        .resolve(options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
+        .resolve(options(
+            &registry.url(),
+            &pnpr_auth,
+            deps([("@foo/no-deps", "1.0.0")]),
+        ))
         .await
         .expect("first install");
 
@@ -215,12 +279,19 @@ async fn trust_lockfile_makes_the_server_skip_verification() {
     // trips on, but with the client's `trustLockfile` opt-out set: the
     // server must skip the verify gate and resolve normally, matching the
     // local `--trust-lockfile` path.
-    let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
+    let mut opts = options(
+        &registry.url(),
+        &pnpr_auth,
+        deps([("@foo/no-deps", "1.0.0")]),
+    );
     opts.reuse.lockfile = Some(first.lockfile.clone());
     opts.verification.minimum_release_age = Some(60 * 24 * 365 * 100);
     opts.verification.minimum_release_age_ignore_missing_time = false;
     opts.reuse.trust_lockfile = true;
 
     let outcome = client.resolve(opts).await.expect("trustLockfile should skip verification");
-    assert!(outcome.lockfile.packages.is_some(), "install still resolved a lockfile");
+    assert!(
+        outcome.lockfile.packages.is_some(),
+        "install still resolved a lockfile",
+    );
 }

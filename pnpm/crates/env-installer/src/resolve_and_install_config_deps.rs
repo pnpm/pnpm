@@ -32,7 +32,11 @@ use std::collections::BTreeMap;
 /// setting, and config deps are resolved before workspace settings apply. The
 /// writer and the reader here agree because both use this same default.
 fn npm_lockfile_form(registry: &str) -> LockfileFormOptions<'_> {
-    LockfileFormOptions { registry, server_type: None, include_tarball_url: false }
+    LockfileFormOptions {
+        registry,
+        server_type: None,
+        include_tarball_url: false,
+    }
 }
 
 /// Resolve + install the config dependencies declared in
@@ -70,8 +74,15 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
     }
 
     for (name, specifier, pinned_integrity) in &to_resolve {
-        resolve_one(&mut env_lockfile, resolver, opts, name, specifier, pinned_integrity.as_ref())
-            .await?;
+        resolve_one(
+            &mut env_lockfile,
+            resolver,
+            opts,
+            name,
+            specifier,
+            pinned_integrity.as_ref(),
+        )
+        .await?;
     }
 
     // Removal, migration and resolution can each orphan packages and
@@ -103,7 +114,10 @@ enum ConfigDepPlan {
     /// integrity and tarball, so the lockfile needs writing.
     Migrated,
     /// It has to be resolved against the registry.
-    Resolve { specifier: String, integrity: Option<Integrity> },
+    Resolve {
+        specifier: String,
+        integrity: Option<Integrity>,
+    },
 }
 
 fn plan_config_dep(
@@ -137,7 +151,10 @@ fn plan_detailed(
     let (version, integrity) = parse_integrity(name, &detail.integrity)?;
     assert_valid_migrated_config_dep(name, &version)?;
     let Some(tarball) = detail.tarball.clone() else {
-        return Ok(ConfigDepPlan::Resolve { specifier: version, integrity: Some(integrity) });
+        return Ok(ConfigDepPlan::Resolve {
+            specifier: version,
+            integrity: Some(integrity),
+        });
     };
     let registry = opts.pick_registry(name);
     migrate_into_lockfile(env_lockfile, name, &version, integrity, tarball, registry)?;
@@ -156,7 +173,10 @@ fn plan_pinned(
     }
     let (version, integrity) = parse_integrity(name, value)?;
     assert_valid_migrated_config_dep(name, &version)?;
-    Ok(ConfigDepPlan::Resolve { specifier: version, integrity: Some(integrity) })
+    Ok(ConfigDepPlan::Resolve {
+        specifier: version,
+        integrity: Some(integrity),
+    })
 }
 
 /// A bare specifier is satisfied only when the lockfile already resolved
@@ -172,7 +192,10 @@ fn plan_specifier(
     {
         return Ok(ConfigDepPlan::Satisfied);
     }
-    Ok(ConfigDepPlan::Resolve { specifier: specifier.to_string(), integrity: None })
+    Ok(ConfigDepPlan::Resolve {
+        specifier: specifier.to_string(),
+        integrity: None,
+    })
 }
 
 /// Resolve a single config dependency and record it (plus one level of
@@ -185,23 +208,13 @@ async fn resolve_one(
     specifier: &str,
     pinned_integrity: Option<&Integrity>,
 ) -> Result<(), ConfigDepError> {
-    let wanted = WantedDependency {
-        alias: Some(name.to_string()),
-        bare_specifier: Some(specifier.to_string()),
-        ..WantedDependency::default()
-    };
-    let resolve_opts = resolve_options(opts.root_dir);
+    let result = resolve_config_package(resolver, opts, name, specifier).await?;
     let no_integrity = || missing_config_integrity(name, specifier);
-    let result = resolver
-        .resolve(&wanted, &resolve_opts)
-        .await
-        .map_err(|error| ConfigDepError::Resolve { spec: format!("{name}@{specifier}"), error })?
-        .ok_or_else(no_integrity)?;
-
-    if !crate::resolve_optional_subdeps::resolution_has_integrity(&result.resolution) {
-        return Err(no_integrity());
-    }
-    let version = result.package.name_ver.as_ref().ok_or_else(no_integrity)?.suffix.to_string();
+    let version = result.package.name_ver
+        .as_ref()
+        .ok_or_else(no_integrity)?
+        .suffix
+        .to_string();
     let registry = opts.pick_registry(name);
     let key = pkg_key(name, &version)?;
 
@@ -225,7 +238,10 @@ async fn resolve_one(
     };
     env_lockfile.snapshots.insert(
         key,
-        SnapshotEntry { optional_dependencies: optional_subdeps, ..SnapshotEntry::default() },
+        SnapshotEntry {
+            optional_dependencies: optional_subdeps,
+            ..SnapshotEntry::default()
+        },
     );
     Ok(())
 }
@@ -248,10 +264,16 @@ fn record_config_dependency(
     registry: &str,
 ) -> Result<(), ConfigDepError> {
     let (name, specifier) = declaration;
-    env_lockfile.root_importer_mut().config_dependencies.insert(
-        name.to_string(),
-        SpecifierAndResolution { specifier: specifier.to_string(), version: version.to_string() },
-    );
+    env_lockfile
+        .root_importer_mut()
+        .config_dependencies
+        .insert(
+            name.to_string(),
+            SpecifierAndResolution {
+                specifier: specifier.to_string(),
+                version: version.to_string(),
+            },
+        );
     pin_integrity(&mut resolution, pinned_integrity);
     env_lockfile.packages.insert(
         key.clone(),
@@ -295,10 +317,16 @@ fn migrate_into_lockfile(
     registry: &str,
 ) -> Result<(), ConfigDepError> {
     let key = pkg_key(name, version)?;
-    env_lockfile.root_importer_mut().config_dependencies.insert(
-        name.to_string(),
-        SpecifierAndResolution { specifier: version.to_string(), version: version.to_string() },
-    );
+    env_lockfile
+        .root_importer_mut()
+        .config_dependencies
+        .insert(
+            name.to_string(),
+            SpecifierAndResolution {
+                specifier: version.to_string(),
+                version: version.to_string(),
+            },
+        );
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball,
         integrity: Some(integrity),
@@ -341,7 +369,37 @@ fn config_dep<'a>(env_lockfile: &'a EnvLockfile, name: &str) -> Option<&'a Speci
 }
 
 fn pkg_key(name: &str, version: &str) -> Result<PackageKey, ConfigDepError> {
-    format!("{name}@{version}").parse().map_err(|_| ConfigDepError::BadConfigDep {
-        message: format!("Config dependency {name}@{version} has an unparsable lockfile key"),
-    })
+    format!("{name}@{version}")
+        .parse()
+        .map_err(|_| ConfigDepError::BadConfigDep {
+            message: format!("Config dependency {name}@{version} has an unparsable lockfile key"),
+        })
+}
+
+async fn resolve_config_package(
+    resolver: &dyn Resolver,
+    opts: &ConfigDepsInstallOptions<'_>,
+    name: &str,
+    specifier: &str,
+) -> Result<pnpm_resolving_resolver_base::ResolveResult, ConfigDepError> {
+    let wanted = WantedDependency {
+        alias: Some(name.to_string()),
+        bare_specifier: Some(specifier.to_string()),
+        ..WantedDependency::default()
+    };
+    let resolve_opts = resolve_options(opts.root_dir);
+    let no_integrity = || missing_config_integrity(name, specifier);
+    let result = resolver
+        .resolve(&wanted, &resolve_opts)
+        .await
+        .map_err(|error| ConfigDepError::Resolve {
+            spec: format!("{name}@{specifier}"),
+            error,
+        })?
+        .ok_or_else(no_integrity)?;
+
+    if !crate::resolve_optional_subdeps::resolution_has_integrity(&result.resolution) {
+        return Err(no_integrity());
+    }
+    Ok(result)
 }

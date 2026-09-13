@@ -10,7 +10,10 @@ async fn anonymous_publish_is_rejected() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
     let body = publish_doc("anon-test", "1.0.0", b"tarball-bytes");
-    let response = app.oneshot(put_json("/anon-test", body)).await.unwrap();
+    let response = app
+        .oneshot(put_json("/anon-test", body))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
@@ -30,11 +33,19 @@ async fn republishing_an_existing_version_is_rejected_with_conflict() {
             .unwrap()
     };
 
-    let first = app.clone().oneshot(publish(b"original-bytes")).await.unwrap();
+    let first = app
+        .clone()
+        .oneshot(publish(b"original-bytes"))
+        .await
+        .unwrap();
     assert_eq!(first.status(), StatusCode::CREATED);
 
     // Re-publishing the same version with different bytes must be refused.
-    let second = app.clone().oneshot(publish(b"backdoored-bytes")).await.unwrap();
+    let second = app
+        .clone()
+        .oneshot(publish(b"backdoored-bytes"))
+        .await
+        .unwrap();
     assert_eq!(second.status(), StatusCode::CONFLICT);
 
     // The originally published tarball must be untouched on disk.
@@ -53,9 +64,19 @@ async fn republish_via_a_smuggled_version_entry_without_an_attachment_is_rejecte
     let first = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
-        .body(Body::from(serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"original")).unwrap()))
+        .body(Body::from(
+            serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"original")).unwrap(),
+        ))
         .unwrap();
-    assert_eq!(app.clone().oneshot(first).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app
+            .clone()
+            .oneshot(first)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
 
     // Publish 1.0.1 (with its own attachment) but smuggle a modified 1.0.0
     // entry into `versions` with no matching attachment. The conflict check
@@ -71,7 +92,14 @@ async fn republish_via_a_smuggled_version_entry_without_an_attachment_is_rejecte
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    assert_eq!(app.oneshot(smuggle).await.unwrap().status(), StatusCode::CONFLICT);
+    assert_eq!(
+        app
+            .oneshot(smuggle)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CONFLICT,
+    );
 }
 
 #[tokio::test]
@@ -88,13 +116,31 @@ async fn update_packument_rejects_tampering_with_a_published_version_integrity()
             serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"real-bytes")).unwrap(),
         ))
         .unwrap();
-    assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app
+            .clone()
+            .oneshot(publish)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
 
-    let get =
-        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let get = app
+        .clone()
+        .oneshot(
+            Request::get("/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     let mut packument = body_json(get.into_body()).await;
     let original_integrity = packument["versions"]["1.0.0"]["dist"]["integrity"].clone();
-    assert!(original_integrity.is_string(), "published version should carry an integrity");
+    assert!(
+        original_integrity.is_string(),
+        "published version should carry an integrity",
+    );
 
     // Point the already-published version at a bogus integrity and PUT it back
     // through the partial-unpublish endpoint.
@@ -106,11 +152,29 @@ async fn update_packument_rejects_tampering_with_a_published_version_integrity()
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&packument).unwrap()))
         .unwrap();
-    assert_eq!(app.clone().oneshot(tamper).await.unwrap().status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        app
+            .clone()
+            .oneshot(tamper)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::BAD_REQUEST,
+    );
 
-    let after = app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let after = app
+        .oneshot(
+            Request::get("/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     let after = body_json(after.into_body()).await;
-    assert_eq!(after["versions"]["1.0.0"]["dist"]["integrity"], original_integrity);
+    assert_eq!(
+        after["versions"]["1.0.0"]["dist"]["integrity"],
+        original_integrity,
+    );
 }
 
 #[tokio::test]
@@ -123,12 +187,29 @@ async fn update_packument_rejects_a_non_object_dist_for_a_published_version() {
     let publish = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
-        .body(Body::from(serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"real")).unwrap()))
+        .body(Body::from(
+            serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"real")).unwrap(),
+        ))
         .unwrap();
-    assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app
+            .clone()
+            .oneshot(publish)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
 
-    let get =
-        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let get = app
+        .clone()
+        .oneshot(
+            Request::get("/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     let mut packument = body_json(get.into_body()).await;
     let original_integrity = packument["versions"]["1.0.0"]["dist"]["integrity"].clone();
     // A non-object dist would skip the integrity-restore path and strip the hash,
@@ -139,11 +220,29 @@ async fn update_packument_rejects_a_non_object_dist_for_a_published_version() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&packument).unwrap()))
         .unwrap();
-    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::BAD_REQUEST,
+    );
 
-    let after = app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let after = app
+        .oneshot(
+            Request::get("/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     let after = body_json(after.into_body()).await;
-    assert_eq!(after["versions"]["1.0.0"]["dist"]["integrity"], original_integrity);
+    assert_eq!(
+        after["versions"]["1.0.0"]["dist"]["integrity"],
+        original_integrity,
+    );
 }
 
 #[tokio::test]
@@ -160,10 +259,25 @@ async fn update_packument_rejects_tampering_with_a_published_version_tarball() {
             serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"real-bytes")).unwrap(),
         ))
         .unwrap();
-    assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app
+            .clone()
+            .oneshot(publish)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
 
-    let get =
-        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let get = app
+        .clone()
+        .oneshot(
+            Request::get("/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     let mut packument = body_json(get.into_body()).await;
     let original_tarball = packument["versions"]["1.0.0"]["dist"]["tarball"].clone();
 
@@ -177,11 +291,29 @@ async fn update_packument_rejects_tampering_with_a_published_version_tarball() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&packument).unwrap()))
         .unwrap();
-    assert_eq!(app.clone().oneshot(tamper).await.unwrap().status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        app
+            .clone()
+            .oneshot(tamper)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::BAD_REQUEST,
+    );
 
-    let after = app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let after = app
+        .oneshot(
+            Request::get("/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     let after = body_json(after.into_body()).await;
-    assert_eq!(after["versions"]["1.0.0"]["dist"]["tarball"], original_tarball);
+    assert_eq!(
+        after["versions"]["1.0.0"]["dist"]["tarball"],
+        original_tarball,
+    );
 }
 
 #[tokio::test]
@@ -198,10 +330,25 @@ async fn update_packument_rejects_adding_a_version_via_the_unpublish_put() {
             serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"real-bytes")).unwrap(),
         ))
         .unwrap();
-    assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app
+            .clone()
+            .oneshot(publish)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
 
-    let get =
-        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let get = app
+        .clone()
+        .oneshot(
+            Request::get("/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     let mut packument = body_json(get.into_body()).await;
     let original_versions = packument["versions"].clone();
 
@@ -221,9 +368,24 @@ async fn update_packument_rejects_adding_a_version_via_the_unpublish_put() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&packument).unwrap()))
         .unwrap();
-    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::BAD_REQUEST,
+    );
 
-    let after = app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let after = app
+        .oneshot(
+            Request::get("/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     let after = body_json(after.into_body()).await;
     assert_eq!(after["versions"], original_versions);
 }
@@ -242,7 +404,15 @@ async fn update_packument_protects_a_published_tarball_with_a_basenameless_url()
             serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"real-bytes")).unwrap(),
         ))
         .unwrap();
-    assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app
+            .clone()
+            .oneshot(publish)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
 
     // Force the stored dist.tarball to a basename-less URL (ends in `/`), which
     // rewrite_tarball_urls serves under the version-derived canonical name — so
@@ -261,7 +431,14 @@ async fn update_packument_protects_a_published_tarball_with_a_basenameless_url()
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&tampered).unwrap()))
         .unwrap();
-    assert_eq!(app.oneshot(request).await.unwrap().status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        app
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::BAD_REQUEST,
+    );
 }
 
 #[tokio::test]
@@ -279,7 +456,14 @@ async fn update_packument_rejects_seeding_a_package_with_no_published_packument(
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    assert_eq!(app.oneshot(request).await.unwrap().status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        app
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::BAD_REQUEST,
+    );
 
     assert!(!storage.join("ghost/package.json").exists());
 }
@@ -302,11 +486,24 @@ async fn metadata_only_republish_cannot_mutate_resolution_metadata() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&publish_body).unwrap()))
         .unwrap();
-    assert_eq!(app.clone().oneshot(first).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app
+            .clone()
+            .oneshot(first)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
 
     let hosted = body_json(
-        app.clone()
-            .oneshot(Request::get("/mypkg").body(Body::empty()).unwrap())
+        app
+            .clone()
+            .oneshot(
+                Request::get("/mypkg")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap()
             .into_body(),
@@ -332,12 +529,31 @@ async fn metadata_only_republish_cannot_mutate_resolution_metadata() {
         .unwrap();
     // The PUT is accepted (integrity unchanged) but the dependency change is
     // not applied: the published version's metadata is immutable.
-    assert_eq!(app.clone().oneshot(tamper).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app
+            .clone()
+            .oneshot(tamper)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
     let after = body_json(
-        app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap().into_body(),
+        app
+            .oneshot(
+                Request::get("/mypkg")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
+            .into_body(),
     )
     .await;
-    assert_eq!(after["versions"]["1.0.0"]["dependencies"], json!({ "lodash": "^4.0.0" }));
+    assert_eq!(
+        after["versions"]["1.0.0"]["dependencies"],
+        json!({ "lodash": "^4.0.0" }),
+    );
 }
 
 /// Published packages are the source of truth: they live in the
@@ -357,7 +573,15 @@ async fn published_package_survives_wiping_the_proxy_cache() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
 
     // The artifacts land in the authoritative root, not the cache.
     assert!(storage.join("durable-pkg/package.json").exists());
@@ -376,7 +600,11 @@ async fn published_package_survives_wiping_the_proxy_cache() {
     // The package is still served, tarball and all.
     let response = app
         .clone()
-        .oneshot(Request::get("/durable-pkg").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/durable-pkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -384,7 +612,11 @@ async fn published_package_survives_wiping_the_proxy_cache() {
     assert_eq!(served["versions"]["1.0.0"]["version"], "1.0.0");
 
     let response = app
-        .oneshot(Request::get("/durable-pkg/-/durable-pkg-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/durable-pkg/-/durable-pkg-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -405,7 +637,11 @@ async fn publish_followed_by_dist_tag_set_works() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    app.clone().oneshot(request).await.unwrap();
+    app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
 
     // Then publish 2.0.0 (without changing latest)
     let mut body = publish_doc("tagpkg", "2.0.0", b"v2");
@@ -415,12 +651,20 @@ async fn publish_followed_by_dist_tag_set_works() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    app.clone().oneshot(request).await.unwrap();
+    app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
 
     // Confirm latest is still 1.0.0.
     let tags = app
         .clone()
-        .oneshot(Request::get("/-/package/tagpkg/dist-tags").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/package/tagpkg/dist-tags")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(tags.status(), StatusCode::OK);
@@ -433,13 +677,21 @@ async fn publish_followed_by_dist_tag_set_works() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_string("2.0.0").unwrap()))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
     // Confirm the tag landed.
     let tags = app
         .clone()
-        .oneshot(Request::get("/-/package/tagpkg/dist-tags").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/package/tagpkg/dist-tags")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let tags_body = body_json(tags.into_body()).await;
@@ -449,7 +701,11 @@ async fn publish_followed_by_dist_tag_set_works() {
     // And via the version-manifest endpoint resolving the tag.
     let manifest = app
         .clone()
-        .oneshot(Request::get("/tagpkg/beta").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/tagpkg/beta")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let manifest_body = body_json(manifest.into_body()).await;
@@ -460,15 +716,26 @@ async fn publish_followed_by_dist_tag_set_works() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
     let tags = app
-        .oneshot(Request::get("/-/package/tagpkg/dist-tags").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/package/tagpkg/dist-tags")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let tags_body = body_json(tags.into_body()).await;
-    assert!(tags_body.get("beta").is_none(), "beta tag should be removed");
+    assert!(
+        tags_body.get("beta").is_none(),
+        "beta tag should be removed",
+    );
 }
 
 #[tokio::test]
@@ -484,7 +751,11 @@ async fn dist_tag_mutations_refresh_time_modified() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    app.clone().oneshot(request).await.unwrap();
+    app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
 
     let initial_time = serde_json::from_slice::<Value>(
         &std::fs::read(storage.join("time-mod-pkg/package.json")).unwrap(),
@@ -502,7 +773,11 @@ async fn dist_tag_mutations_refresh_time_modified() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_string("1.0.0").unwrap()))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
     let after_set = serde_json::from_slice::<Value>(
@@ -512,7 +787,10 @@ async fn dist_tag_mutations_refresh_time_modified() {
         .as_str()
         .unwrap()
         .to_string();
-    assert_ne!(initial_time, after_set, "dist-tag PUT should bump time.modified");
+    assert_ne!(
+        initial_time, after_set,
+        "dist-tag PUT should bump time.modified",
+    );
 
     tokio::time::sleep(std::time::Duration::from_millis(5)).await;
 
@@ -530,7 +808,10 @@ async fn dist_tag_mutations_refresh_time_modified() {
         .as_str()
         .unwrap()
         .to_string();
-    assert_ne!(after_set, after_delete, "dist-tag DELETE should bump time.modified too");
+    assert_ne!(
+        after_set, after_delete,
+        "dist-tag DELETE should bump time.modified too",
+    );
 }
 
 #[tokio::test]
@@ -648,7 +929,10 @@ async fn publish_rejects_missing_integrity_field() {
 
     let bytes = b"no-integrity-bytes";
     let mut body = publish_doc("no-int-pkg", "1.0.0", bytes);
-    body["versions"]["1.0.0"]["dist"].as_object_mut().unwrap().remove("integrity");
+    body["versions"]["1.0.0"]["dist"]
+        .as_object_mut()
+        .unwrap()
+        .remove("integrity");
 
     let request = Request::put("/no-int-pkg")
         .header("content-type", "application/json")
@@ -732,7 +1016,13 @@ async fn publish_with_failed_attachment_cleans_up_earlier_tmp_files() {
     if pkg_dir.exists() {
         let entries: Vec<String> = std::fs::read_dir(&pkg_dir)
             .unwrap()
-            .map(|entry| entry.unwrap().file_name().to_string_lossy().to_string())
+            .map(|entry| {
+                entry
+                    .unwrap()
+                    .file_name()
+                    .to_string_lossy()
+                    .to_string()
+            })
             .collect();
         assert!(
             entries.is_empty(),
@@ -767,19 +1057,31 @@ async fn dist_tag_set_works_with_url_encoded_scoped_path() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    app.clone().oneshot(request).await.unwrap();
+    app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
 
     let request = Request::put("/-/package/@scope%2Fpkg/dist-tags/beta")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_string("1.0.0").unwrap()))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
     // Fetch via the encoded form too — both should round-trip cleanly.
     let tags = app
-        .oneshot(Request::get("/-/package/@scope%2Fpkg/dist-tags").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/package/@scope%2Fpkg/dist-tags")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(tags.status(), StatusCode::OK);
@@ -802,14 +1104,24 @@ async fn publish_supports_scoped_packages() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
     assert!(storage.join("@scope/pkg/package.json").exists());
     assert!(storage.join("@scope/pkg/pkg-1.0.0.tgz").exists());
 
     // And we can read it back.
-    let response =
-        app.oneshot(Request::get("/@scope/pkg").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .oneshot(
+            Request::get("/@scope/pkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 }

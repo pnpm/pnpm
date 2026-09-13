@@ -21,10 +21,16 @@ async fn cancelled_request_removes_its_pending_entry() {
 
     let call = worker.call("readPackage", serde_json::json!({}), Arc::new(|_| {}));
     let cancelled = timeout(Duration::from_millis(500), call).await;
-    assert!(cancelled.is_err(), "the never-resolving hook must outlive the local timeout");
+    assert!(
+        cancelled.is_err(),
+        "the never-resolving hook must outlive the local timeout",
+    );
 
     assert!(
-        worker.pending.lock().unwrap().is_empty(),
+        worker.pending
+            .lock()
+            .unwrap()
+            .is_empty(),
         "a cancelled request must not leak its pending entry",
     );
 }

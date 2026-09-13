@@ -276,7 +276,12 @@ async fn add_or_login_propagates_corrupt_hash_errors() {
 async fn add_or_login_returns_the_stored_username_for_existing_users() {
     let bcrypt_hash = bcrypt::hash("secret", 4).unwrap();
     let auth = SqlAuth::new(
-        CanonicalBackend { user: StoredUser { username: "Alice".to_string(), bcrypt_hash } },
+        CanonicalBackend {
+            user: StoredUser {
+                username: "Alice".to_string(),
+                bcrypt_hash,
+            },
+        },
         MaxUsers::Unlimited,
         Duration::from_secs(30),
     );
@@ -291,13 +296,22 @@ async fn add_or_login_returns_the_stored_username_for_existing_users() {
 async fn add_or_login_rejects_invalid_usernames_without_db_lookup() {
     let stored_user_calls = Arc::new(AtomicU64::new(0));
     let auth = SqlAuth::new(
-        CountingLookupBackend { stored_user_calls: Arc::clone(&stored_user_calls) },
+        CountingLookupBackend {
+            stored_user_calls: Arc::clone(&stored_user_calls),
+        },
         MaxUsers::Unlimited,
         Duration::from_secs(30),
     );
     let overlong = "a".repeat(MAX_USERNAME_CHARS + 1);
 
-    for username in ["", " alice", "alice ", "#alice", "alice:admin", "alice\nadmin"] {
+    for username in [
+        "",
+        " alice",
+        "alice ",
+        "#alice",
+        "alice:admin",
+        "alice\nadmin",
+    ] {
         let err = auth.add_or_login(username, "secret").await.unwrap_err();
         assert_eq!(
             err.status_code(),
@@ -314,14 +328,21 @@ async fn add_or_login_rejects_invalid_usernames_without_db_lookup() {
 async fn add_or_login_rate_limits_capped_reconciliation() {
     let reconcile_calls = Arc::new(AtomicU64::new(0));
     let auth = SqlAuth::new(
-        CappedBackend { reconcile_calls: Arc::clone(&reconcile_calls) },
+        CappedBackend {
+            reconcile_calls: Arc::clone(&reconcile_calls),
+        },
         MaxUsers::Limited(1),
         Duration::from_secs(30),
     );
 
     for username in ["alice", "bob", "carol"] {
         let err = auth.add_or_login(username, "secret").await.unwrap_err();
-        assert!(matches!(err, RegistryError::TooManyUsers { max: 1 }));
+        assert!(matches!(
+            err,
+            RegistryError::TooManyUsers {
+                max: 1
+            }
+        ));
     }
 
     assert_eq!(reconcile_calls.load(Ordering::SeqCst), 1);
@@ -329,7 +350,11 @@ async fn add_or_login_rate_limits_capped_reconciliation() {
 
 #[tokio::test]
 async fn token_lookup_times_out_when_the_backend_stalls() {
-    let auth = SqlAuth::new(SlowLookupBackend, MaxUsers::Unlimited, Duration::from_millis(1));
+    let auth = SqlAuth::new(
+        SlowLookupBackend,
+        MaxUsers::Unlimited,
+        Duration::from_millis(1),
+    );
 
     let err = auth.lookup("token").await.unwrap_err();
 
@@ -338,7 +363,11 @@ async fn token_lookup_times_out_when_the_backend_stalls() {
 
 #[tokio::test]
 async fn token_issue_waits_for_slow_backend_write() {
-    let auth = SqlAuth::new(SlowWriteBackend, MaxUsers::Unlimited, Duration::from_millis(1));
+    let auth = SqlAuth::new(
+        SlowWriteBackend,
+        MaxUsers::Unlimited,
+        Duration::from_millis(1),
+    );
 
     let token = auth.issue("alice").await.unwrap();
 

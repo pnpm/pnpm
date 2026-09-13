@@ -121,8 +121,9 @@ pub fn prune_target_within_modules(
 ) -> Option<PathBuf> {
     let modules_dir = dunce::canonicalize(modules_dir).ok()?;
     let virtual_store_dir = pnpm_fs::realpath_missing(virtual_store_dir).ok()?;
-    (virtual_store_dir != modules_dir && virtual_store_dir.starts_with(&modules_dir))
-        .then_some(virtual_store_dir)
+    (virtual_store_dir != modules_dir && virtual_store_dir.starts_with(&modules_dir)).then_some(
+        virtual_store_dir,
+    )
 }
 
 /// Whether two paths refer to the same directory. Compares canonicalized
@@ -154,8 +155,10 @@ fn needed_virtual_store_names<'a>(
     // `install.rs`), so deleting it in the sweep could orphan it.
     // Keeping it is end-state-equivalent whenever the rewrite runs and
     // strictly safer when it doesn't.
-    let mut needed =
-        HashSet::from(["node_modules".to_string(), Lockfile::CURRENT_FILE_NAME.to_string()]);
+    let mut needed = HashSet::from([
+        "node_modules".to_string(),
+        Lockfile::CURRENT_FILE_NAME.to_string(),
+    ]);
     for key in snapshot_keys {
         if skipped.contains(key) {
             continue;
@@ -186,7 +189,12 @@ fn read_virtual_store_dir(virtual_store_dir: &Path) -> Option<Vec<String>> {
     Some(
         entries
             .filter_map(Result::ok)
-            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .map(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
             .collect(),
     )
 }

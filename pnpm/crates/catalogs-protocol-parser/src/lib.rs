@@ -12,7 +12,11 @@ const CATALOG_PROTOCOL: &str = "catalog:";
 #[must_use]
 pub fn parse_catalog_protocol(bare_specifier: &str) -> Option<&str> {
     let raw = bare_specifier.strip_prefix(CATALOG_PROTOCOL)?.trim();
-    Some(if raw.is_empty() { DEFAULT_CATALOG_NAME } else { raw })
+    Some(if raw.is_empty() {
+        DEFAULT_CATALOG_NAME
+    } else {
+        raw
+    })
 }
 
 #[cfg(test)]

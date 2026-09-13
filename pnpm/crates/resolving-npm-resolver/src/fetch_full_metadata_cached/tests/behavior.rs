@@ -59,7 +59,10 @@ async fn a_full_doc_served_for_an_abbreviated_request_is_normalized_before_cachi
     assert!(!manifest.other.contains_key("exports"));
     // Install-relevant fields kept, so resolution is unchanged.
     assert_eq!(
-        manifest.dependencies.as_ref().and_then(|deps| deps.get("bar")).map(String::as_str),
+        manifest.dependencies
+            .as_ref()
+            .and_then(|deps| deps.get("bar"))
+            .map(String::as_str),
         Some("^1.0.0"),
     );
 }

@@ -24,7 +24,10 @@ use super::{
 /// [`post_download_semaphore`](crate::post_download_semaphore) gates the CPU-bound tail.
 ///
 /// [#281]: https://github.com/pnpm/pacquet/pull/281
-#[expect(clippy::too_many_arguments, reason = "arg count is fixed by the fetcher signature")]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "arg count is fixed by the fetcher signature"
+)]
 pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
     http_client: &ThrottledClient,
     package_url: &str,
@@ -122,12 +125,17 @@ where
     let mut prefix: Vec<bytes::Bytes> = Vec::new();
     let mut prefix_len = 0usize;
     while prefix_len < GZIP_MAGIC.len() {
-        let Some(chunk) = stream.next().await else { break };
+        let Some(chunk) = stream.next().await else {
+            break;
+        };
         let chunk = chunk.map_err(|error| fetch_error(package_url, error))?;
         prefix_len += chunk.len();
         prefix.push(chunk);
     }
-    Ok(super::body::GzipPrefix { chunks: prefix, len: prefix_len })
+    Ok(super::body::GzipPrefix {
+        chunks: prefix,
+        len: prefix_len,
+    })
 }
 
 pub(super) fn fetch_error(package_url: &str, error: reqwest::Error) -> TarballError {
@@ -171,9 +179,14 @@ impl TarballDownload<'_> {
             && let Ok(permit) = streaming_extract_semaphore().try_acquire()
         {
             progress.on_chunks::<Reporter>(&prefix.chunks);
-            return self
-                .stream_body::<Reporter, _, _>(prefix.chunks, stream, progress, client, permit)
-                .await;
+            return self.stream_body::<Reporter, _, _>(
+                prefix.chunks,
+                stream,
+                progress,
+                client,
+                permit,
+            )
+            .await;
         }
         let buffered = buffer_body::<Reporter, _>(BufferBody {
             stream: &mut stream,
@@ -207,15 +220,14 @@ impl TarballDownload<'_> {
                     .acquire()
                     .await
                     .expect("streaming-extract semaphore shouldn't be closed this soon");
-                return self
-                    .stream_body::<Reporter, _, _>(
-                        vec![bytes::Bytes::from(buffer)],
-                        stream,
-                        progress,
-                        client,
-                        permit,
-                    )
-                    .await;
+                return self.stream_body::<Reporter, _, _>(
+                    vec![bytes::Bytes::from(buffer)],
+                    stream,
+                    progress,
+                    client,
+                    permit,
+                )
+                .await;
             }
         };
         drop(stream);

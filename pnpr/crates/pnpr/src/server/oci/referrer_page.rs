@@ -45,8 +45,14 @@ pub(super) struct ReferrerFilter {
 impl ReferrerFilter {
     pub(super) fn new(subject: Digest, query: &str) -> Self {
         let artifact_type = query_param(Some(query), "artifactType");
-        let artifact_type_digest = artifact_type.as_ref().map(|value| Digest::of(value.as_bytes()));
-        Self { subject, artifact_type, artifact_type_digest }
+        let artifact_type_digest = artifact_type
+            .as_ref()
+            .map(|value| Digest::of(value.as_bytes()));
+        Self {
+            subject,
+            artifact_type,
+            artifact_type_digest,
+        }
     }
 
     /// Whether the manifest itself has to be read: either the index carries no
@@ -55,8 +61,7 @@ impl ReferrerFilter {
     pub(super) fn needs_manifest(&self, indexed: Option<&ReferrerMetadata>) -> bool {
         indexed.is_none_or(|metadata| {
             metadata.subject.as_ref() == Some(&self.subject)
-                && self
-                    .artifact_type_digest
+                && self.artifact_type_digest
                     .as_ref()
                     .is_none_or(|filter| metadata.artifact_type_digest.as_ref() == Some(filter))
         })
@@ -64,8 +69,7 @@ impl ReferrerFilter {
 
     pub(super) fn matches(&self, manifest: &Manifest) -> bool {
         manifest.referrer_metadata().subject.as_ref() == Some(&self.subject)
-            && self
-                .artifact_type
+            && self.artifact_type
                 .as_deref()
                 .is_none_or(|filter| manifest.artifact_type() == Some(filter))
     }
@@ -198,7 +202,9 @@ pub(super) fn referrer_entry_step(
     if indexed.is_none() && !migrating {
         return ReferrerStep::Migrate;
     }
-    ReferrerStep::Read { unindexed: indexed.is_none() }
+    ReferrerStep::Read {
+        unindexed: indexed.is_none(),
+    }
 }
 
 /// The referrer metadata the index holds for one manifest, or `None` when a

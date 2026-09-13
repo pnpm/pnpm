@@ -54,7 +54,10 @@ fn incompatible_optional_is_skipped_with_platform_reason() {
 #[test]
 fn incompatible_optional_engine_is_skipped_with_engine_reason() {
     let manifest = PackageInstallabilityManifest {
-        engines: Some(WantedEngine { node: Some("0.10".to_string()), ..Default::default() }),
+        engines: Some(WantedEngine {
+            node: Some("0.10".to_string()),
+            ..Default::default()
+        }),
         ..Default::default()
     };
     let mut opts = host_linux_x64();
@@ -100,7 +103,10 @@ fn incompatible_non_optional_strict_returns_error() {
 fn platform_is_evaluated_before_engine() {
     let manifest = PackageInstallabilityManifest {
         os: Some(vec!["this-os-does-not-exist".to_string()]),
-        engines: Some(WantedEngine { node: Some("0.10".to_string()), ..Default::default() }),
+        engines: Some(WantedEngine {
+            node: Some("0.10".to_string()),
+            ..Default::default()
+        }),
         ..Default::default()
     };
     let mut opts = host_linux_x64();
@@ -119,7 +125,11 @@ fn platform_is_evaluated_before_engine() {
 fn inference_fills_an_axis_the_lockfile_row_omits() {
     // A row that records only `os` still resolves its cpu from the name, so a
     // binding built for another architecture is ruled out.
-    let declared = WantedPlatformRef { os: Some(&["linux".to_string()]), cpu: None, libc: None };
+    let declared = WantedPlatformRef {
+        os: Some(&["linux".to_string()]),
+        cpu: None,
+        libc: None,
+    };
     assert!(!platform_is_supported_with_inference(
         "@scope/binding-linux-arm64",
         declared,
@@ -149,6 +159,14 @@ fn declared_axes_are_taken_over_the_name() {
 
 #[test]
 fn a_row_without_platform_metadata_is_supported_everywhere() {
-    let declared = WantedPlatformRef { os: None, cpu: None, libc: None };
-    assert!(platform_is_supported_with_inference("is-positive", declared, &host_linux_x64()));
+    let declared = WantedPlatformRef {
+        os: None,
+        cpu: None,
+        libc: None,
+    };
+    assert!(platform_is_supported_with_inference(
+        "is-positive",
+        declared,
+        &host_linux_x64()
+    ));
 }

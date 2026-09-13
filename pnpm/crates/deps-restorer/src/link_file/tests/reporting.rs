@@ -15,12 +15,18 @@ fn log_method_once_emits_first_call_per_method_only() {
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
     // Reset in case nextest reuses the process for a retry of this test.
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 

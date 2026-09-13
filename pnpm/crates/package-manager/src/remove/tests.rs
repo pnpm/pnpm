@@ -21,11 +21,17 @@ fn manifest(value: serde_json::Value) -> (PackageManifest, TempDir) {
     let dir = tempfile::tempdir().expect("create tempdir");
     let path = dir.path().join("package.json");
     std::fs::write(&path, value.to_string()).expect("write package.json");
-    (PackageManifest::from_path(path).expect("read package.json"), dir)
+    (
+        PackageManifest::from_path(path).expect("read package.json"),
+        dir,
+    )
 }
 
 fn strings(list: &[&str]) -> Vec<String> {
-    list.iter().map(std::string::ToString::to_string).collect()
+    list
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect()
 }
 
 fn expect_missing(
@@ -43,8 +49,14 @@ fn expect_missing(
 fn remove_should_fail_if_no_dependency_is_specified() {
     let (manifest, _dir) = manifest(json!({ "name": "x", "version": "1.0.0" }));
     let err = validate_removable(&manifest, &[], None).expect_err("empty removal must fail");
-    assert!(matches!(err, RemoveValidationError::MustRemoveSomething), "got {err:?}");
-    assert_eq!(err.to_string(), "At least one dependency name should be specified for removal");
+    assert!(
+        matches!(err, RemoveValidationError::MustRemoveSomething),
+        "got {err:?}",
+    );
+    assert_eq!(
+        err.to_string(),
+        "At least one dependency name should be specified for removal",
+    );
 }
 
 #[test]
@@ -53,19 +65,31 @@ fn remove_should_fail_if_the_project_has_no_dependencies_at_all() {
 
     assert_eq!(
         expect_missing(&manifest, &["express"], None),
-        ("Cannot remove 'express': project has no dependencies of any kind".to_string(), None),
+        (
+            "Cannot remove 'express': project has no dependencies of any kind".to_string(),
+            None
+        ),
     );
     assert_eq!(
         expect_missing(&manifest, &["express"], Some(DependencyGroup::Prod)),
-        ("Cannot remove 'express': project has no 'dependencies'".to_string(), None),
+        (
+            "Cannot remove 'express': project has no 'dependencies'".to_string(),
+            None
+        ),
     );
     assert_eq!(
         expect_missing(&manifest, &["express"], Some(DependencyGroup::Dev)),
-        ("Cannot remove 'express': project has no 'devDependencies'".to_string(), None),
+        (
+            "Cannot remove 'express': project has no 'devDependencies'".to_string(),
+            None
+        ),
     );
     assert_eq!(
         expect_missing(&manifest, &["express"], Some(DependencyGroup::Optional)),
-        ("Cannot remove 'express': project has no 'optionalDependencies'".to_string(), None),
+        (
+            "Cannot remove 'express': project has no 'optionalDependencies'".to_string(),
+            None
+        ),
     );
 }
 
@@ -131,7 +155,10 @@ fn selected_remove_prepares_and_persists_only_selected_projects() {
         .map(|name| project_with_dependencies(dir.path(), name, &["foo", "keep"]))
         .collect::<Vec<_>>();
     let ordered_dirs = [projects[1].root_dir.clone(), projects[0].root_dir.clone()];
-    let selected_dirs = ordered_dirs.iter().cloned().collect::<HashSet<_>>();
+    let selected_dirs = ordered_dirs
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>();
     let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
 
     validate_selected_remove(&strings(&["foo"])).expect("every selected manifest contains foo");
@@ -144,7 +171,10 @@ fn selected_remove_prepares_and_persists_only_selected_projects() {
     assert_eq!(dependency_names(&projects[2].manifest), ["foo", "keep"]);
     assert_eq!(saved_dependency_names(&projects[0].manifest), ["keep"]);
     assert_eq!(saved_dependency_names(&projects[1].manifest), ["keep"]);
-    assert_eq!(saved_dependency_names(&projects[2].manifest), ["foo", "keep"]);
+    assert_eq!(
+        saved_dependency_names(&projects[2].manifest),
+        ["foo", "keep"],
+    );
 }
 
 #[test]
@@ -154,15 +184,24 @@ fn selected_remove_ignores_projects_without_the_requested_dependency() {
         project_with_dependencies(dir.path(), "a", &["foo"]),
         project_with_dependencies(dir.path(), "b", &["bar"]),
     ];
-    let ordered_dirs = projects.iter().map(|project| project.root_dir.clone()).collect::<Vec<_>>();
-    let selected_dirs = ordered_dirs.iter().cloned().collect::<HashSet<_>>();
+    let ordered_dirs = projects
+        .iter()
+        .map(|project| project.root_dir.clone())
+        .collect::<Vec<_>>();
+    let selected_dirs = ordered_dirs
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>();
     let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
 
     validate_selected_remove(&strings(&["foo"]))
         .expect("missing dependencies are ignored in recursive remove");
     prepare_selected_manifests::<SilentReporter>(&mut projects, &indices, &strings(&["foo"]), None);
 
-    assert_eq!(dependency_names(&projects[0].manifest), Vec::<String>::new());
+    assert_eq!(
+        dependency_names(&projects[0].manifest),
+        Vec::<String>::new(),
+    );
     assert_eq!(dependency_names(&projects[1].manifest), ["bar"]);
 }
 

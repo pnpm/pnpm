@@ -18,6 +18,7 @@ use pnpm_git_fetcher::{CheckoutOptions, checkout_commit};
 use pnpm_network::redact_and_sanitize;
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::StoreDir;
+use source::{canonical_checkout_root, git_reference};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     fs, io,
@@ -79,12 +80,7 @@ impl GitSource {
     /// when the lockfile leaves the revision unpinned.
     pub(crate) fn from_source_id(source: &cargo_lock::SourceId) -> Result<Self> {
         let url = source.url().to_string();
-        let reference = match source.git_reference() {
-            Some(GitReference::Branch(branch)) => Some(("branch", branch.clone())),
-            Some(GitReference::Tag(tag)) => Some(("tag", tag.clone())),
-            Some(GitReference::Rev(rev)) => Some(("rev", rev.clone())),
-            Some(GitReference::DefaultBranch) | None => None,
-        };
+        let reference = git_reference(source);
         if !SUPPORTED_SCHEMES.contains(&source.url().scheme()) {
             let repository = redact_and_sanitize(&url);
             let scheme = source.url().scheme();
@@ -96,7 +92,11 @@ impl GitSource {
             let source = redact_and_sanitize(&source.to_string());
             return Err(miette::miette!("Cargo source {source} pins no commit"));
         };
-        if commit.len() != 40 || !commit.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        if commit.len() != 40
+            || !commit
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit())
+        {
             let repository = redact_and_sanitize(&url);
             return Err(miette::miette!(
                 "Cargo source {repository} names {commit:?}, which is not a commit hash",
@@ -113,9 +113,11 @@ impl GitSource {
     /// The `[source."…"]` block that sends this git source to the vendored
     /// directory, keyed the way `cargo vendor` writes it.
     pub(crate) fn config_block(&self) -> String {
-        let reference = self.reference.as_ref().map_or_else(String::new, |(key, value)| {
-            format!("{key} = {}\n", toml::Value::from(value.as_str()))
-        });
+        let reference = self.reference
+            .as_ref()
+            .map_or_else(String::new, |(key, value)| {
+                format!("{key} = {}\n", toml::Value::from(value.as_str()))
+            });
         format!(
             "[source.{}]\ngit = {}\n{reference}replace-with = {}\n",
             toml::Value::from(self.id.as_str()),
@@ -203,18 +205,7 @@ struct VendorSourceOptions<'a> {
 fn vendor_source<Reporter: self::Reporter>(
     options: &VendorSourceOptions<'_>,
 ) -> Result<Vec<(String, PathBuf)>> {
-    let mut linked = Vec::with_capacity(options.packages.len());
-    let mut missing = Vec::new();
-    for package in options.packages {
-        let slot = package.store_slot(options.store_dir.root());
-        // The checksum manifest sorts first among a crate's files, which
-        // makes it the completion marker `import_indexed_dir` writes last.
-        if slot.join(".cargo-checksum.json").exists() {
-            linked.push((package.link_name(), slot));
-        } else {
-            missing.push((package, slot));
-        }
-    }
+    let CachedGitPackages { mut linked, missing } = cached_git_packages(options);
     if missing.is_empty() {
         return Ok(linked);
     }
@@ -222,9 +213,7 @@ fn vendor_source<Reporter: self::Reporter>(
     let checkout = checkout_source(options)?;
     let checked_out = Checkout::read(checkout.path())?;
     let package_dirs = checked_out.package_dirs();
-    let checkout_root = dunce::canonicalize(checkout.path())
-        .into_diagnostic()
-        .wrap_err_with(|| format!("resolve the checkout of {repository}"))?;
+    let checkout_root = canonical_checkout_root(checkout.path(), &repository)?;
 
     for (package, slot) in missing {
         let found = require_git_package(&checked_out, package, options.source, &repository)?;
@@ -293,11 +282,14 @@ fn import_directory(
         // A lossy name would key one file's contents under another's, and
         // the checksum manifest that keeps the vendored package honest
         // cannot spell a name that is not UTF-8 either.
-        let name = entry.file_name().into_string().map_err(|name| {
-            let path = dir.join(name);
-            let path = path.display();
-            miette::miette!("cannot vendor {path}: its name is not valid UTF-8")
-        })?;
+        let name = entry
+            .file_name()
+            .into_string()
+            .map_err(|name| {
+                let path = dir.join(name);
+                let path = path.display();
+                miette::miette!("cannot vendor {path}: its name is not valid UTF-8")
+            })?;
         let path = entry.path();
         match entry_kind(context.root, &entry)? {
             Some(EntryKind::Directory) => {
@@ -328,8 +320,7 @@ fn import_file(
     executable: bool,
 ) -> Result<PathBuf> {
     if relative == "Cargo.toml" {
-        return context
-            .store_dir
+        return context.store_dir
             .write_cas_file(context.manifest.as_bytes(), executable)
             .into_diagnostic()
             .map(|(cas_path, _)| cas_path)
@@ -340,8 +331,7 @@ fn import_file(
     let mut file = fs::File::open(path)
         .into_diagnostic()
         .wrap_err_with(|| format!("read {}", path.display()))?;
-    context
-        .store_dir
+    context.store_dir
         .write_cas_file_from_reader(&mut file, executable, None)
         .into_diagnostic()
         .map(|(cas_path, _, _)| cas_path)
@@ -382,7 +372,9 @@ fn entry_kind(root: &Path, entry: &fs::DirEntry) -> Result<Option<EntryKind>> {
     Ok(if metadata.is_dir() {
         Some(EntryKind::Directory)
     } else if metadata.is_file() {
-        Some(EntryKind::File { executable: is_executable(&metadata) })
+        Some(EntryKind::File {
+            executable: is_executable(&metadata),
+        })
     } else {
         None
     })
@@ -406,7 +398,10 @@ mod tests;
 fn group_git_packages(packages: Vec<GitPackage>) -> BTreeMap<Arc<GitSource>, Vec<GitPackage>> {
     let mut sources: BTreeMap<Arc<GitSource>, Vec<GitPackage>> = BTreeMap::new();
     for package in packages {
-        sources.entry(Arc::clone(&package.source)).or_default().push(package);
+        sources
+            .entry(Arc::clone(&package.source))
+            .or_default()
+            .push(package);
     }
     sources
 }
@@ -444,14 +439,42 @@ fn require_git_package(
     source: &GitSource,
     repository: &str,
 ) -> Result<CheckoutPackage> {
-    checked_out.find(&package.name, &package.version)?.ok_or_else(|| {
-        miette::miette!(
-            "{repository} at {} holds no crate {} {}",
-            source.commit,
-            package.name,
-            package.version,
-        )
-    })
+    checked_out
+        .find(&package.name, &package.version)?
+        .ok_or_else(|| {
+            miette::miette!(
+                "{repository} at {} holds no crate {} {}",
+                source.commit,
+                package.name,
+                package.version,
+            )
+        })
 }
 
 mod manifest;
+
+mod source;
+
+fn cached_git_packages<'a>(options: &VendorSourceOptions<'a>) -> CachedGitPackages<'a> {
+    let mut linked = Vec::with_capacity(options.packages.len());
+    let mut missing = Vec::new();
+    for package in options.packages {
+        let slot = package.store_slot(options.store_dir.root());
+        // The checksum manifest sorts first among a crate's files, which
+        // makes it the completion marker `import_indexed_dir` writes last.
+        if slot.join(".cargo-checksum.json").exists() {
+            linked.push((package.link_name(), slot));
+        } else {
+            missing.push((package, slot));
+        }
+    }
+    CachedGitPackages {
+        linked,
+        missing,
+    }
+}
+
+struct CachedGitPackages<'a> {
+    linked: Vec<(String, PathBuf)>,
+    missing: Vec<(&'a GitPackage, PathBuf)>,
+}

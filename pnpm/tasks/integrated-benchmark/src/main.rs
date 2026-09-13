@@ -21,9 +21,7 @@ async fn main() {
 
     let repository =
         std::fs::canonicalize(&args.build.repository).expect("get absolute path to repository");
-    let pnpm_repository = args
-        .build
-        .pnpm_repository
+    let pnpm_repository = args.build.pnpm_repository
         .as_ref()
         .map(|path| std::fs::canonicalize(path).expect("get absolute path to pnpm repository"));
     let work_env = prepared_work_env(&args.work_env);
@@ -133,7 +131,14 @@ impl RegistryLink {
         let (spawned_port, cache_populator) =
             upstream_registry(proxied, args.network.registry_port, &url);
         let public_url = url.trim_end_matches('/').to_string();
-        RegistryLink { url, rate_limit, proxied, spawned_port, cache_populator, public_url }
+        RegistryLink {
+            url,
+            rate_limit,
+            proxied,
+            spawned_port,
+            cache_populator,
+            public_url,
+        }
     }
 }
 
@@ -153,13 +158,21 @@ async fn spawn_registry(opts: SpawnRegistry<'_>) -> Option<pnpm_registry_mock::M
 
     match opts.registry_mode {
         RegistryMode::Verdaccio => {
-            verify::ensure_program("just").arg("install").pipe(verify::executor("just install"));
+            verify::ensure_program("just")
+                .arg("install")
+                .pipe(verify::executor("just install"));
             pnpm_registry_mock::MockInstanceOptions {
                 client: &reqwest::Client::default(),
                 port: opts.spawned_registry_port,
                 public_url: opts.public_url,
-                stdout: opts.work_env.join("verdaccio.stdout.log").pipe(Some).as_deref(),
-                stderr: opts.work_env.join("verdaccio.stderr.log").pipe(Some).as_deref(),
+                stdout: opts.work_env
+                    .join("verdaccio.stdout.log")
+                    .pipe(Some)
+                    .as_deref(),
+                stderr: opts.work_env
+                    .join("verdaccio.stderr.log")
+                    .pipe(Some)
+                    .as_deref(),
                 max_retries: 10,
                 retry_delay: Duration::from_millis(500),
             }
@@ -205,12 +218,18 @@ fn verify_prerequisites(
     with_pnpm: bool,
     registry_mode: RegistryMode,
 ) {
-    let has_pacquet_target = targets.iter().any(|target| target.kind == TargetKind::Pacquet);
-    let has_pnpm_target = targets.iter().any(|target| target.kind == TargetKind::Pnpm);
+    let has_pacquet_target = targets
+        .iter()
+        .any(|target| target.kind == TargetKind::Pacquet);
+    let has_pnpm_target = targets
+        .iter()
+        .any(|target| target.kind == TargetKind::Pnpm);
     // A pnpr target builds the `pacquet` + `pnpr` binaries from the same
     // monorepo clone a pacquet target uses, so it needs the pacquet repo
     // and cargo just like a pacquet target does.
-    let has_pnpr_target = targets.iter().any(|target| target.kind == TargetKind::Pnpr);
+    let has_pnpr_target = targets
+        .iter()
+        .any(|target| target.kind == TargetKind::Pnpr);
     let needs_pacquet_repo = has_pacquet_target || has_pnpr_target;
     if needs_pacquet_repo {
         verify::ensure_pacquet_git_repo(repository);
@@ -218,7 +237,11 @@ fn verify_prerequisites(
     if has_pnpm_target {
         verify::ensure_pnpm_git_repo(pnpm_repository.unwrap_or(repository));
     }
-    verify::validate_revision_list(targets.iter().map(|target| target.rev.as_str()));
+    verify::validate_revision_list(
+        targets
+            .iter()
+            .map(|target| target.rev.as_str()),
+    );
     verify::ensure_program("bash");
     verify::ensure_program("git");
     verify::ensure_program("hyperfine");
@@ -232,7 +255,10 @@ fn verify_prerequisites(
     // `pnpm install` to warm the cache).
     let needs_pnpm = has_pnpm_target
         || with_pnpm
-        || matches!(registry_mode, RegistryMode::Verdaccio | RegistryMode::Virtual);
+        || matches!(
+            registry_mode,
+            RegistryMode::Verdaccio | RegistryMode::Virtual,
+        );
     if needs_pnpm {
         verify::ensure_program("pnpm");
     }

@@ -98,7 +98,10 @@ impl Resolver for GraphResolver {
         wanted: &'a WantedDependency,
         _opts: &'a ResolveOptions,
     ) -> ResolveFuture<'a> {
-        let result = wanted.alias.as_ref().and_then(|alias| self.packages.get(alias)).cloned();
+        let result = wanted.alias
+            .as_ref()
+            .and_then(|alias| self.packages.get(alias))
+            .cloned();
         Box::pin(async move { Ok::<_, ResolveError>(result) })
     }
 
@@ -173,7 +176,9 @@ fn graph_resolver(shape: Shape, size: Size) -> GraphResolver {
             packages.insert(name, result);
         }
     }
-    GraphResolver { packages }
+    GraphResolver {
+        packages,
+    }
 }
 
 fn benchmark_resolution(name: &str, manifest: serde_json::Value) -> ResolveResult {
@@ -205,18 +210,27 @@ fn benchmark_resolution(name: &str, manifest: serde_json::Value) -> ResolveResul
 
 fn importer_manifest(index: usize, shape: Shape) -> PackageManifest {
     let roots: Vec<usize> = if shape == Shape::PeersHoisted {
-        (0..ROOTS_PER_IMPORTER).map(|offset| (index + offset) % PACKAGES_PER_LAYER).collect()
+        (0..ROOTS_PER_IMPORTER)
+            .map(|offset| (index + offset) % PACKAGES_PER_LAYER)
+            .collect()
     } else {
         (0..PACKAGES_PER_LAYER).collect()
     };
     let mut dependencies: serde_json::Map<String, serde_json::Value> = roots
         .into_iter()
-        .map(|root| (package_name(0, root), serde_json::Value::String("1.0.0".to_string())))
+        .map(|root| {
+            (
+                package_name(0, root),
+                serde_json::Value::String("1.0.0".to_string()),
+            )
+        })
         .collect();
     if shape == Shape::PeersProvided {
         for framework in 0..FRAMEWORK_COUNT {
-            dependencies
-                .insert(framework_name(framework), serde_json::Value::String("1.0.0".to_string()));
+            dependencies.insert(
+                framework_name(framework),
+                serde_json::Value::String("1.0.0".to_string()),
+            );
         }
     }
     PackageManifest::from_value(
@@ -352,7 +366,10 @@ impl Workspace {
         self.ids
             .iter()
             .zip(&self.manifests)
-            .map(|(id, manifest)| WorkspaceImporter { id: id.clone(), manifest })
+            .map(|(id, manifest)| WorkspaceImporter {
+                id: id.clone(),
+                manifest,
+            })
             .collect()
     }
 }

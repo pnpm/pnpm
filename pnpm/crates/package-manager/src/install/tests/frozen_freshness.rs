@@ -141,7 +141,10 @@ async fn should_error_when_frozen_lockfile_and_update_checksums_are_both_set() {
     .run::<SilentReporter>()
     .await;
 
-    assert!(matches!(result, Err(InstallError::FrozenLockfileWithUpdateChecksums)));
+    assert!(matches!(
+        result,
+        Err(InstallError::FrozenLockfileWithUpdateChecksums)
+    ));
     drop(dirs.dir);
 }
 /// `--frozen-lockfile` passed on the CLI must take precedence over
@@ -930,10 +933,19 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
     // a path relative to the link's parent, so canonicalizing the
     // raw `read_link` string from the CWD would never resolve.
     let projects_dir = dirs.store_dir.join("v11/projects");
-    assert!(projects_dir.is_dir(), "GVS-on install must create <dirs.store_dir>/v11/projects/");
-    let entries: Vec<_> =
-        std::fs::read_dir(&projects_dir).unwrap().collect::<Result<_, _>>().unwrap();
-    assert_eq!(entries.len(), 1, "exactly one project entry per `Install::run` invocation");
+    assert!(
+        projects_dir.is_dir(),
+        "GVS-on install must create <dirs.store_dir>/v11/projects/",
+    );
+    let entries: Vec<_> = std::fs::read_dir(&projects_dir)
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(
+        entries.len(),
+        1,
+        "exactly one project entry per `Install::run` invocation",
+    );
     assert_eq!(
         dunce::canonicalize(entries[0].path()).expect("canonicalize registry entry"),
         dunce::canonicalize(&dirs.project_root).expect("canonicalize project root"),

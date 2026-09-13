@@ -23,17 +23,30 @@ async fn timeout_error_maps_to_gateway_timeout() {
         }
     });
 
-    let client = reqwest::Client::builder().timeout(Duration::from_millis(100)).build().unwrap();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_millis(100))
+        .build()
+        .unwrap();
     let url = format!("http://{addr}/");
-    let err = client.get(&url).send().await.unwrap_err();
+    let err = client
+        .get(&url)
+        .send()
+        .await
+        .unwrap_err();
     assert!(err.is_timeout(), "expected timeout error, got {err:?}");
 
-    let registry_err = RegistryError::Upstream { url, source: err };
+    let registry_err = RegistryError::Upstream {
+        url,
+        source: err,
+    };
     assert_eq!(registry_err.status_code(), StatusCode::GATEWAY_TIMEOUT);
     let RegistryError::Upstream { url, source } = registry_err else {
         panic!("expected upstream error")
     };
-    let body_err = RegistryError::UpstreamBody { url, source: std::io::Error::other(source) };
+    let body_err = RegistryError::UpstreamBody {
+        url,
+        source: std::io::Error::other(source),
+    };
     assert_eq!(body_err.status_code(), StatusCode::GATEWAY_TIMEOUT);
 }
 
@@ -59,10 +72,14 @@ fn public_message_hides_server_error_details() {
 
 #[test]
 fn log_message_keeps_non_secret_server_error_details() {
-    let err =
-        RegistryError::Internal { reason: "auth database COUNT(*) returned no rows".to_string() };
+    let err = RegistryError::Internal {
+        reason: "auth database COUNT(*) returned no rows".to_string(),
+    };
     assert_eq!(err.public_message(), "Internal Server Error");
-    assert_eq!(err.log_message(), "Internal error: auth database COUNT(*) returned no rows");
+    assert_eq!(
+        err.log_message(),
+        "Internal error: auth database COUNT(*) returned no rows",
+    );
 }
 
 #[test]
@@ -95,7 +112,10 @@ fn log_message_keeps_a_non_sensitive_query_verbatim() {
 
     let message = err.log_message();
 
-    assert!(message.contains("postgres://redacted@db.example/pnpr?options=a%20b"), "{message}");
+    assert!(
+        message.contains("postgres://redacted@db.example/pnpr?options=a%20b"),
+        "{message}",
+    );
     assert!(!message.contains("secret"));
 }
 
@@ -183,11 +203,16 @@ fn is_transient_upstream_error_only_for_availability_failures() {
             status,
             body: String::new(),
         };
-        assert!(err.is_transient_upstream_error(), "status {status} is transient (5xx/transport)");
+        assert!(
+            err.is_transient_upstream_error(),
+            "status {status} is transient (5xx/transport)",
+        );
     }
 
     // An open circuit is an availability failure too.
-    let circuit_open = RegistryError::UpstreamUnavailable { upstream: "npmjs".to_string() };
+    let circuit_open = RegistryError::UpstreamUnavailable {
+        upstream: "npmjs".to_string(),
+    };
     assert!(circuit_open.is_transient_upstream_error());
 
     // Every 4xx is an authoritative response about this request — including
@@ -199,11 +224,16 @@ fn is_transient_upstream_error_only_for_availability_failures() {
             status,
             body: String::new(),
         };
-        assert!(!err.is_transient_upstream_error(), "status {status} is not transient (4xx)");
+        assert!(
+            !err.is_transient_upstream_error(),
+            "status {status} is not transient (4xx)",
+        );
     }
 
     // A non-upstream error is never a transient availability failure.
-    let config_error = RegistryError::InvalidConfig { reason: "x".to_string() };
+    let config_error = RegistryError::InvalidConfig {
+        reason: "x".to_string(),
+    };
     assert!(!config_error.is_transient_upstream_error());
 }
 

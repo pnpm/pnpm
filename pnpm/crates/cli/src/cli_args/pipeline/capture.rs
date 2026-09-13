@@ -53,7 +53,10 @@ impl Buffer {
             self.lines.clear();
             return;
         }
-        self.lines.push(CapturedLine { stdio: stdio_name(stdio), line: line.to_string() });
+        self.lines.push(CapturedLine {
+            stdio: stdio_name(stdio),
+            line: line.to_string(),
+        });
     }
 }
 
@@ -93,7 +96,11 @@ pub fn drain_task(
     enable_pre_post_scripts: bool,
 ) -> Option<Vec<CapturedScript>> {
     let stages: Vec<String> = if enable_pre_post_scripts {
-        vec![format!("pre{script}"), script.to_string(), format!("post{script}")]
+        vec![
+            format!("pre{script}"),
+            script.to_string(),
+            format!("post{script}"),
+        ]
     } else {
         vec![script.to_string()]
     };
@@ -157,7 +164,11 @@ pub fn replay(scripts: &[CapturedScript], project_dir: &Path, emit: fn(&LogEvent
 
 fn with_buffer(dep_path: &str, stage: &str, mutate: impl FnOnce(&mut Buffer)) {
     let mut buffers = BUFFERS.lock().expect("capture buffer lock is not poisoned");
-    mutate(buffers.entry((dep_path.to_string(), stage.to_string())).or_default());
+    mutate(
+        buffers
+            .entry((dep_path.to_string(), stage.to_string()))
+            .or_default(),
+    );
 }
 
 fn stdio_name(stdio: LifecycleStdio) -> String {
@@ -168,7 +179,11 @@ fn stdio_name(stdio: LifecycleStdio) -> String {
 }
 
 fn stdio_from_name(name: &str) -> LifecycleStdio {
-    if name == "stderr" { LifecycleStdio::Stderr } else { LifecycleStdio::Stdout }
+    if name == "stderr" {
+        LifecycleStdio::Stderr
+    } else {
+        LifecycleStdio::Stdout
+    }
 }
 
 #[cfg(test)]

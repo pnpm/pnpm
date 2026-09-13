@@ -56,20 +56,28 @@ pub fn get_preferred_versions_from_lockfile_and_manifests_excluding(
                 DependencyGroup::Prod,
                 DependencyGroup::Optional,
             ]) {
-                let Some(selector_type) = get_version_selector_type(spec) else { continue };
-                preferred.entry(name.to_string()).or_default().insert(
-                    spec.to_string(),
-                    VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
-                        selector_type,
-                        weight: DIRECT_DEP_SELECTOR_WEIGHT,
-                    }),
-                );
+                let Some(selector_type) = get_version_selector_type(spec) else {
+                    continue;
+                };
+                preferred
+                    .entry(name.to_string())
+                    .or_default()
+                    .insert(
+                        spec.to_string(),
+                        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+                            selector_type,
+                            weight: DIRECT_DEP_SELECTOR_WEIGHT,
+                        }),
+                    );
             }
             preferred
         })
         .reduce(PreferredVersions::new, |mut merged, next| {
             for (name, selectors) in next {
-                merged.entry(name).or_default().extend(selectors);
+                merged
+                    .entry(name)
+                    .or_default()
+                    .extend(selectors);
             }
             merged
         });
@@ -100,12 +108,19 @@ fn add_preferred_versions_from_lockfile(
         // or be silently ignored depending on the call site. Skip them
         // defensively: the versioned snapshots are the only useful seeds
         // for the version picker.
-        let Some(version) = key.suffix.version_semver() else { continue };
-        unique_name_versions.entry(name).or_default().insert(version.to_string());
+        let Some(version) = key.suffix.version_semver() else {
+            continue;
+        };
+        unique_name_versions
+            .entry(name)
+            .or_default()
+            .insert(version.to_string());
     }
 
     for (name, versions) in unique_name_versions {
-        let bucket = preferred.entry(name.clone()).or_default();
+        let bucket = preferred
+            .entry(name.clone())
+            .or_default();
         for version in versions {
             let entry = weighted_lockfile_version(bucket.get(&version), &name, &version);
             bucket.insert(version, entry);
@@ -152,9 +167,10 @@ fn add_weight_to_version_selector(
     weight: u32,
 ) -> VersionSelectorWithWeight {
     match selector {
-        VersionSelectorEntry::Plain(selector_type) => {
-            VersionSelectorWithWeight { selector_type: *selector_type, weight: weight + 1 }
-        }
+        VersionSelectorEntry::Plain(selector_type) => VersionSelectorWithWeight {
+            selector_type: *selector_type,
+            weight: weight + 1,
+        },
         VersionSelectorEntry::Weighted(existing) => VersionSelectorWithWeight {
             selector_type: existing.selector_type,
             weight: existing.weight + weight,

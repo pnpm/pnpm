@@ -17,13 +17,22 @@ async fn an_upstream_resolves_a_private_package() {
 
     let client = PnprClient::new(pnpr_url);
 
-    let opts = options(&registry.url(), &pnpr_auth, deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
+    let opts = options(
+        &registry.url(),
+        &pnpr_auth,
+        deps([("@pnpm.e2e/needs-auth", "1.0.0")]),
+    );
     let outcome = client.resolve(opts).await.expect("the upstream should resolve it");
     let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
     assert!(
-        packages.keys().any(|key| key.to_string().starts_with("@pnpm.e2e/needs-auth@1.0.0")),
+        packages
+            .keys()
+            .any(|key| key.to_string().starts_with("@pnpm.e2e/needs-auth@1.0.0")),
         "lockfile should contain the authed package, got: {:?}",
-        packages.keys().map(ToString::to_string).collect::<Vec<_>>(),
+        packages
+            .keys()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>(),
     );
 }
 
@@ -38,11 +47,18 @@ async fn a_private_package_fails_without_an_upstream() {
 
     let client = PnprClient::new(pnpr_url);
 
-    let opts = options(&registry.url(), &pnpr_auth, deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
+    let opts = options(
+        &registry.url(),
+        &pnpr_auth,
+        deps([("@pnpm.e2e/needs-auth", "1.0.0")]),
+    );
     let Err(PnprClientError::Server(message)) = client.resolve(opts).await else {
         panic!("expected the gated install to fail with a server error");
     };
-    assert!(message.contains("401"), "expected an auth denial without an upstream, got: {message}");
+    assert!(
+        message.contains("401"),
+        "expected an auth denial without an upstream, got: {message}",
+    );
 }
 
 /// An unknown route (no upstream, no public rule) has no managed credential,
@@ -55,7 +71,11 @@ async fn unknown_route_keeps_its_upstream_tarball_url() {
     let (pnpr_url, pnpr_auth, _storage) = start_pnpr(&registry.url()).await;
 
     let outcome = PnprClient::new(pnpr_url)
-        .resolve(options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
+        .resolve(options(
+            &registry.url(),
+            &pnpr_auth,
+            deps([("@foo/no-deps", "1.0.0")]),
+        ))
         .await
         .expect("install should succeed");
     let lockfile = serde_json::to_value(&outcome.lockfile).expect("lockfile serializes");
@@ -69,8 +89,15 @@ async fn unknown_route_keeps_its_upstream_tarball_url() {
     );
 
     // The tarball is fetchable directly from the upstream registry.
-    let direct = reqwest::get(format!("{}@foo/no-deps/-/no-deps-1.0.0.tgz", registry.url()))
-        .await
-        .expect("direct tarball request");
-    assert!(direct.status().is_success(), "registry returned {}", direct.status());
+    let direct = reqwest::get(format!(
+        "{}@foo/no-deps/-/no-deps-1.0.0.tgz",
+        registry.url(),
+    ))
+    .await
+    .expect("direct tarball request");
+    assert!(
+        direct.status().is_success(),
+        "registry returned {}",
+        direct.status(),
+    );
 }

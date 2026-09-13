@@ -379,7 +379,10 @@ fn deserialize_binary_resolution_zip_with_map_and_prefix() {
     };
     let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
     dbg!(&received);
-    let bin = BinarySpec::Map(BTreeMap::from([("node".to_string(), "node.exe".to_string())]));
+    let bin = BinarySpec::Map(BTreeMap::from([(
+        "node".to_string(),
+        "node.exe".to_string(),
+    )]));
     let expected = LockfileResolution::Binary(BinaryResolution {
         url: "https://nodejs.org/dist/v22.0.0/node-v22.0.0-win-x64.zip".to_string(),
         integrity: integrity(
@@ -451,7 +454,10 @@ fn deserialize_variations_resolution() {
     assert_eq!(variations.variants[0].targets[0].os, "darwin");
     assert_eq!(variations.variants[0].targets[0].cpu, "arm64");
     assert_eq!(variations.variants[0].targets[0].libc, None);
-    assert_eq!(variations.variants[1].targets[0].libc.as_deref(), Some("musl"));
+    assert_eq!(
+        variations.variants[1].targets[0].libc.as_deref(),
+        Some("musl"),
+    );
 }
 
 #[test]
@@ -496,7 +502,10 @@ fn serialize_variations_resolution() {
 #[test]
 fn to_lockfile_form_rejects_a_revision_with_a_mismatched_url() {
     let resolution = LockfileResolution::Tarball(TarballResolution {
-        tarball: format!("https://attacker.example/-/tarballs/sha512/{}", "A".repeat(86)),
+        tarball: format!(
+            "https://attacker.example/-/tarballs/sha512/{}",
+            "A".repeat(86),
+        ),
         integrity: Some(integrity(REVISION_SHA512)),
         revision: Some(TarballRevision::try_from(3).unwrap()),
         git_hosted: None,
@@ -526,7 +535,11 @@ fn to_lockfile_form_drops_reconstructible_registry_tarball() {
         path: None,
     });
     let actual = resolution
-        .to_lockfile_form("foo", "1.0.0", undeclared_form("https://registry.npmjs.org/", false))
+        .to_lockfile_form(
+            "foo",
+            "1.0.0",
+            undeclared_form("https://registry.npmjs.org/", false),
+        )
         .unwrap();
     assert_eq!(
         actual,
@@ -551,7 +564,11 @@ fn to_lockfile_form_keeps_git_hosted_subdirectory_path() {
         path: Some("/packages/foo".to_string()),
     });
     let actual = resolution
-        .to_lockfile_form("foo", "1.0.0", undeclared_form("https://registry.npmjs.org/", false))
+        .to_lockfile_form(
+            "foo",
+            "1.0.0",
+            undeclared_form("https://registry.npmjs.org/", false),
+        )
         .unwrap();
     assert_eq!(actual, resolution);
 }
@@ -568,7 +585,11 @@ fn to_lockfile_form_keeps_git_hosted_subdirectory_path_when_including_tarball_ur
         path: Some("/packages/foo".to_string()),
     });
     let actual = resolution
-        .to_lockfile_form("foo", "1.0.0", undeclared_form("https://registry.npmjs.org/", true))
+        .to_lockfile_form(
+            "foo",
+            "1.0.0",
+            undeclared_form("https://registry.npmjs.org/", true),
+        )
         .unwrap();
     assert_eq!(actual, resolution);
 }
@@ -643,7 +664,11 @@ fn to_lockfile_form_keeps_tarball_with_trailing_scheme_separator() {
         path: None,
     });
     let actual = resolution
-        .to_lockfile_form("foo", "1.0.0", undeclared_form("https://registry.npmjs.org/", false))
+        .to_lockfile_form(
+            "foo",
+            "1.0.0",
+            undeclared_form("https://registry.npmjs.org/", false),
+        )
         .unwrap();
     assert_eq!(
         actual,

@@ -102,8 +102,11 @@ pub(super) fn read_benchmark_diagnostics(path: &Path) -> BenchmarkDiagnostics {
         .unwrap_or_else(|err| panic!("parse benchmark diagnostics at {}: {err}", path.display()))
 }
 pub(super) fn read_phase_events(path: &Path) -> Vec<PhaseEvent> {
-    let Ok(text) = fs::read_to_string(path) else { return Vec::new() };
-    text.lines()
+    let Ok(text) = fs::read_to_string(path) else {
+        return Vec::new();
+    };
+    text
+        .lines()
         .filter_map(|line| serde_json::from_str::<Value>(line).ok())
         .filter(|value| {
             value.get("target").and_then(Value::as_str) == Some("pacquet::install::phase")
@@ -124,27 +127,40 @@ pub(super) fn read_phase_events(path: &Path) -> Vec<PhaseEvent> {
         .collect()
 }
 pub(super) fn event_field<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
-    value.get(key).or_else(|| value.get("fields").and_then(|fields| fields.get(key)))
+    value
+        .get(key)
+        .or_else(|| {
+            value
+                .get("fields")
+                .and_then(|fields| fields.get(key))
+        })
 }
 pub(super) fn event_str<'a>(value: &'a Value, key: &str) -> Option<&'a str> {
     event_field(value, key).and_then(Value::as_str)
 }
 pub(super) fn event_u64(value: &Value, key: &str) -> Option<u64> {
     let value = event_field(value, key)?;
-    value.as_u64().or_else(|| value.as_str().and_then(|text| text.parse().ok()))
+    value
+        .as_u64()
+        .or_else(|| {
+            value
+                .as_str()
+                .and_then(|text| text.parse().ok())
+        })
 }
 pub(super) fn summarize_phase_events(events: &[PhaseEvent]) -> PhaseSummary {
-    let partition =
-        events.iter().rev().find(|event| event.phase == "create_virtual_store_partition").and_then(
-            |event| {
-                Some(PartitionMetric {
-                    warm: event.warm?,
-                    cold: event.cold?,
-                    skipped: event.skipped.unwrap_or(0),
-                    total: event.total?,
-                })
-            },
-        );
+    let partition = events
+        .iter()
+        .rev()
+        .find(|event| event.phase == "create_virtual_store_partition")
+        .and_then(|event| {
+            Some(PartitionMetric {
+                warm: event.warm?,
+                cold: event.cold?,
+                skipped: event.skipped.unwrap_or(0),
+                total: event.total?,
+            })
+        });
     let create_virtual_store_mean_ms = mean(
         events
             .iter()
@@ -154,23 +170,13 @@ pub(super) fn summarize_phase_events(events: &[PhaseEvent]) -> PhaseSummary {
     );
     let link_slots = ["warm", "cold"]
         .into_iter()
-        .filter_map(|batch| {
-            let matching: Vec<&PhaseEvent> = events
-                .iter()
-                .filter(|event| {
-                    event.phase == "link_slots" && event.batch.as_deref() == Some(batch)
-                })
-                .collect();
-            if matching.is_empty() {
-                return None;
-            }
-            let slots = matching.iter().filter_map(|event| event.slots).max().unwrap_or(0);
-            let mean_ms =
-                mean(matching.iter().filter_map(|event| event.elapsed_ms).map(|ms| ms as f64))?;
-            Some(LinkSlotsMetric { batch: batch.to_string(), slots, mean_ms })
-        })
+        .filter_map(|batch| summarize_link_slots(events, batch))
         .collect();
-    PhaseSummary { partition, create_virtual_store_mean_ms, link_slots }
+    PhaseSummary {
+        partition,
+        create_virtual_store_mean_ms,
+        link_slots,
+    }
 }
 pub(super) fn mean(values: impl Iterator<Item = f64>) -> Option<f64> {
     let mut total = 0.0;
@@ -213,8 +219,7 @@ pub(super) fn requires_fresh_pnpr_cold_batch_metrics(target_id: &str) -> bool {
 /// cross-engine comparison. This is the same statistic the workflow reports to
 /// Bencher, for the same reason.
 pub(super) fn benchmark_target_min(diagnostics: &BenchmarkDiagnostics, target_id: &str) -> f64 {
-    diagnostics
-        .targets
+    diagnostics.targets
         .iter()
         .find(|target| target.id == target_id)
         .and_then(|target| target.hyperfine_min_seconds)
@@ -236,6 +241,67 @@ pub(super) fn render_diagnostics_markdown(
         "| Target | hyperfine mean | hyperfine min | warm | cold | skipped | CreateVirtualStore mean | link warm mean | link cold mean |\n",
     );
     out.push_str("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n");
+    write_target_metrics(&mut out, diagnostics);
+    if !diagnostics.pnpr_direct_ratios.is_empty() {
+        out.push_str("\n| Ratio | value |\n| --- | ---: |\n");
+        for ratio in &diagnostics.pnpr_direct_ratios {
+            let _ = writeln!(
+                out,
+                "| pnpr@{} / pacquet@{} | {:.3} |",
+                ratio.revision, ratio.revision, ratio.ratio,
+            );
+        }
+    }
+    out
+}
+pub(super) fn contains_uninstrumented_pnpr_main(diagnostics: &BenchmarkDiagnostics) -> bool {
+    diagnostics.targets
+        .iter()
+        .any(|target| target.id == "pnpr@main" && target.phase_summary.partition.is_none())
+}
+pub(super) fn link_slots_mean(summary: &PhaseSummary, batch: &str) -> Option<f64> {
+    summary.link_slots
+        .iter()
+        .find(|metric| metric.batch == batch)
+        .map(|metric| metric.mean_ms)
+}
+pub(super) fn format_seconds(value: Option<f64>) -> String {
+    value.map_or_else(|| "-".to_string(), |value| format!("{value:.3}s"))
+}
+pub(super) fn format_ms(value: Option<f64>) -> String {
+    value.map_or_else(|| "-".to_string(), |value| format!("{value:.1}ms"))
+}
+pub(super) fn format_u64(value: Option<u64>) -> String {
+    value.map_or_else(|| "-".to_string(), |value| value.to_string())
+}
+
+fn summarize_link_slots(events: &[PhaseEvent], batch: &str) -> Option<LinkSlotsMetric> {
+    let matching: Vec<&PhaseEvent> = events
+        .iter()
+        .filter(|event| event.phase == "link_slots" && event.batch.as_deref() == Some(batch))
+        .collect();
+    if matching.is_empty() {
+        return None;
+    }
+    let slots = matching
+        .iter()
+        .filter_map(|event| event.slots)
+        .max()
+        .unwrap_or(0);
+    let mean_ms = mean(
+        matching
+            .iter()
+            .filter_map(|event| event.elapsed_ms)
+            .map(|ms| ms as f64),
+    )?;
+    Some(LinkSlotsMetric {
+        batch: batch.to_string(),
+        slots,
+        mean_ms,
+    })
+}
+
+fn write_target_metrics(out: &mut String, diagnostics: &BenchmarkDiagnostics) {
     for target in &diagnostics.targets {
         let partition = target.phase_summary.partition.as_ref();
         let _ = writeln!(
@@ -252,33 +318,4 @@ pub(super) fn render_diagnostics_markdown(
             format_ms(link_slots_mean(&target.phase_summary, "cold")),
         );
     }
-    if !diagnostics.pnpr_direct_ratios.is_empty() {
-        out.push_str("\n| Ratio | value |\n| --- | ---: |\n");
-        for ratio in &diagnostics.pnpr_direct_ratios {
-            let _ = writeln!(
-                out,
-                "| pnpr@{} / pacquet@{} | {:.3} |",
-                ratio.revision, ratio.revision, ratio.ratio,
-            );
-        }
-    }
-    out
-}
-pub(super) fn contains_uninstrumented_pnpr_main(diagnostics: &BenchmarkDiagnostics) -> bool {
-    diagnostics
-        .targets
-        .iter()
-        .any(|target| target.id == "pnpr@main" && target.phase_summary.partition.is_none())
-}
-pub(super) fn link_slots_mean(summary: &PhaseSummary, batch: &str) -> Option<f64> {
-    summary.link_slots.iter().find(|metric| metric.batch == batch).map(|metric| metric.mean_ms)
-}
-pub(super) fn format_seconds(value: Option<f64>) -> String {
-    value.map_or_else(|| "-".to_string(), |value| format!("{value:.3}s"))
-}
-pub(super) fn format_ms(value: Option<f64>) -> String {
-    value.map_or_else(|| "-".to_string(), |value| format!("{value:.1}ms"))
-}
-pub(super) fn format_u64(value: Option<u64>) -> String {
-    value.map_or_else(|| "-".to_string(), |value| value.to_string())
 }

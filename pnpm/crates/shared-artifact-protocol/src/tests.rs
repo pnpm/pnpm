@@ -24,11 +24,21 @@ fn integrity(bytes: &[u8]) -> String {
 }
 
 fn linux(architecture: &str, glibc_minor: u32) -> LinuxGlibcPlatform<'_> {
-    LinuxGlibcPlatform { architecture, node_major: 22, glibc_major: 2, glibc_minor }
+    LinuxGlibcPlatform {
+        architecture,
+        node_major: 22,
+        glibc_major: 2,
+        glibc_minor,
+    }
 }
 
 fn macos(architecture: &str, macos_major: u32, macos_minor: u32) -> MacOsPlatform<'_> {
-    MacOsPlatform { architecture, node_major: 22, macos_major, macos_minor }
+    MacOsPlatform {
+        architecture,
+        node_major: 22,
+        macos_major,
+        macos_minor,
+    }
 }
 
 fn windows(
@@ -37,14 +47,23 @@ fn windows(
     windows_minor: u32,
     windows_build: u32,
 ) -> WindowsPlatform<'_> {
-    WindowsPlatform { architecture, node_major: 22, windows_major, windows_minor, windows_build }
+    WindowsPlatform {
+        architecture,
+        node_major: 22,
+        windows_major,
+        windows_minor,
+        windows_build,
+    }
 }
 
 fn payload(file_integrity: String) -> ArtifactPayload {
     ArtifactPayload {
         kind: ARTIFACT_KIND.to_string(),
         subject: ArtifactSubject::dependency_side_effects(
-            PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
+            PackageIdentity {
+                name: "native-addon".to_string(),
+                version: "1.0.0".to_string(),
+            },
             "sha512-source",
         ),
         input_key: "dependency-side-effects:v1:deps=abc".to_string(),
@@ -81,7 +100,9 @@ fn validates_subject_specific_artifact_identity() {
     .validate()
     .unwrap();
 
-    let publisher = OwnerScope::Publisher { package: "native-addon".to_string() };
+    let publisher = OwnerScope::Publisher {
+        package: "native-addon".to_string(),
+    };
     let workspace_task = ArtifactCandidate {
         key: "workspace-task:v1:inputs=abc".to_string(),
         subject: ArtifactSubject::workspace_task("packages/app", "build"),
@@ -115,14 +136,26 @@ fn verifies_the_exact_signed_payload_bytes() {
     let public_key =
         p256::PublicKey::from(private_key.verifying_key()).to_public_key_der().unwrap();
 
-    let verified = envelope.verify(public_key.as_bytes()).unwrap();
+    let verified = envelope
+        .verify(public_key.as_bytes())
+        .unwrap();
     assert_eq!(verified.owner, OwnerScope::organization("acme"));
-    assert_eq!(envelope.digest().unwrap().len(), 64);
+    assert_eq!(
+        envelope
+            .digest()
+            .unwrap()
+            .len(),
+        64,
+    );
 
     let other_private_key = SigningKey::from_slice(&[8; 32]).unwrap();
     let other_public_key =
         p256::PublicKey::from(other_private_key.verifying_key()).to_public_key_der().unwrap();
-    assert!(envelope.verify(other_public_key.as_bytes()).is_err());
+    assert!(
+        envelope
+            .verify(other_public_key.as_bytes())
+            .is_err(),
+    );
 }
 
 #[test]
@@ -141,9 +174,24 @@ fn verifies_signature_before_rejecting_a_trusted_invalid_payload() {
     let public_key =
         p256::PublicKey::from(private_key.verifying_key()).to_public_key_der().unwrap();
 
-    assert_eq!(envelope.verify_signature(public_key.as_bytes()).unwrap(), invalid);
-    assert!(envelope.verify(public_key.as_bytes()).is_err());
-    assert_eq!(envelope.digest().unwrap().len(), 64);
+    assert_eq!(
+        envelope
+            .verify_signature(public_key.as_bytes())
+            .unwrap(),
+        invalid,
+    );
+    assert!(
+        envelope
+            .verify(public_key.as_bytes())
+            .is_err(),
+    );
+    assert_eq!(
+        envelope
+            .digest()
+            .unwrap()
+            .len(),
+        64,
+    );
 }
 
 #[test]
@@ -160,9 +208,24 @@ fn verifies_signature_before_deserializing_a_trusted_malformed_payload() {
     let public_key =
         p256::PublicKey::from(private_key.verifying_key()).to_public_key_der().unwrap();
 
-    assert_eq!(envelope.verify_signature_bytes(public_key.as_bytes()).unwrap(), payload_bytes);
-    assert!(envelope.verify_signature(public_key.as_bytes()).is_err());
-    assert_eq!(envelope.digest().unwrap().len(), 64);
+    assert_eq!(
+        envelope
+            .verify_signature_bytes(public_key.as_bytes())
+            .unwrap(),
+        payload_bytes,
+    );
+    assert!(
+        envelope
+            .verify_signature(public_key.as_bytes())
+            .is_err(),
+    );
+    assert_eq!(
+        envelope
+            .digest()
+            .unwrap()
+            .len(),
+        64,
+    );
 }
 
 /// An oversized envelope must be refused from its encoded length, before the
@@ -175,7 +238,10 @@ fn rejects_oversized_envelope_fields_without_decoding_them() {
         payload: "A".repeat(crate::MAX_ENCODED_SIGNED_PAYLOAD_SIZE + 1),
         signature: BASE64.encode([0; 8]),
     };
-    let error = oversized_payload.decode_payload().unwrap_err().to_string();
+    let error = oversized_payload
+        .decode_payload()
+        .unwrap_err()
+        .to_string();
     assert!(error.contains("signed payload exceeds"), "{error}");
 
     let payload_bytes = serde_json::to_vec(&payload(integrity(b"addon"))).unwrap();
@@ -185,7 +251,10 @@ fn rejects_oversized_envelope_fields_without_decoding_them() {
         payload: BASE64.encode(&payload_bytes),
         signature: "A".repeat(crate::MAX_ENCODED_SIGNATURE_SIZE + 1),
     };
-    let error = oversized_signature.digest().unwrap_err().to_string();
+    let error = oversized_signature
+        .digest()
+        .unwrap_err()
+        .to_string();
     assert!(error.contains("DER-encoded P-256 signature"), "{error}");
 }
 
@@ -201,7 +270,12 @@ fn signs_a_payload_that_the_verifier_accepts() {
     let envelope =
         SignedArtifactEnvelope::sign(&expected, "acme-2026", private_key_der.as_bytes()).unwrap();
 
-    assert_eq!(envelope.verify(public_key.as_bytes()).unwrap(), expected);
+    assert_eq!(
+        envelope
+            .verify(public_key.as_bytes())
+            .unwrap(),
+        expected,
+    );
 }
 
 #[test]
@@ -245,7 +319,10 @@ fn rejects_paths_before_the_importer_can_see_them() {
         "dir/LpT9",
         "nul\0byte",
     ] {
-        assert!(validate_manifest_path(unsafe_path).is_err(), "accepted {unsafe_path:?}");
+        assert!(
+            validate_manifest_path(unsafe_path).is_err(),
+            "accepted {unsafe_path:?}",
+        );
     }
     validate_manifest_path("build/Release/addon.node").unwrap();
 }
@@ -307,16 +384,22 @@ fn verifies_blob_bytes_and_derives_a_path_safe_id() {
     assert!(verify_blob(&file_integrity, b"poison").is_err());
     let id = blob_id(&file_integrity).unwrap();
     assert_eq!(id.len(), 128);
-    assert!(id.bytes().all(|byte| byte.is_ascii_hexdigit()));
+    assert!(
+        id
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit()),
+    );
 }
 
 #[test]
 fn compatibility_uses_the_consumers_preference_order() {
     let supported = linux_glibc_supported_tags(linux("x64", 39)).unwrap();
-    let closest =
-        CompatibilityConstraints::Tagged { tags: vec![linux_glibc_tag(linux("x64", 31)).unwrap()] };
-    let fallback =
-        CompatibilityConstraints::Tagged { tags: vec![linux_glibc_tag(linux("x64", 17)).unwrap()] };
+    let closest = CompatibilityConstraints::Tagged {
+        tags: vec![linux_glibc_tag(linux("x64", 31)).unwrap()],
+    };
+    let fallback = CompatibilityConstraints::Tagged {
+        tags: vec![linux_glibc_tag(linux("x64", 17)).unwrap()],
+    };
     assert_eq!(compatibility_rank(&closest, &supported), Some(8));
     assert_eq!(compatibility_rank(&fallback, &supported), Some(22));
     assert_eq!(
@@ -374,8 +457,10 @@ fn macos_compatibility_uses_product_version_floors() {
         Some(u64::MAX),
     );
 
-    let multiple_supported =
-        vec![macos_tag(macos("arm64", 15, 5)).unwrap(), macos_tag(macos("arm64", 14, 6)).unwrap()];
+    let multiple_supported = vec![
+        macos_tag(macos("arm64", 15, 5)).unwrap(),
+        macos_tag(macos("arm64", 14, 6)).unwrap(),
+    ];
     assert_eq!(
         compatibility_rank(
             &CompatibilityConstraints::Tagged {
@@ -440,7 +525,10 @@ fn windows_compatibility_uses_kernel_version_floors() {
 #[test]
 fn scopes_name_the_machines_constraints_reach() {
     let tagged = |tags: &[&str]| CompatibilityConstraints::Tagged {
-        tags: tags.iter().map(|tag| (*tag).to_string()).collect(),
+        tags: tags
+            .iter()
+            .map(|tag| (*tag).to_string())
+            .collect(),
     };
     let scopes = |tags: &[&str]| match compatibility_scopes(&tagged(tags)) {
         CompatibilityScopes::These(scopes) => scopes,
@@ -488,7 +576,10 @@ fn scopes_name_the_machines_constraints_reach() {
 
     // A set reaches every machine any of its tags reaches.
     assert!(overlap(
-        &["pnpm:v1:linux-arm64-node22-glibc2.17", "pnpm:v1:linux-x64-node22-glibc2.31"],
+        &[
+            "pnpm:v1:linux-arm64-node22-glibc2.17",
+            "pnpm:v1:linux-x64-node22-glibc2.31"
+        ],
         &["pnpm:v1:linux-x64-node22-glibc2.17"],
     ));
 
@@ -528,17 +619,23 @@ fn compatibility_tags_and_platform_fingerprints_are_canonical() {
         "pnpm:v1:linux-x64-node22-glibc2",
     ] {
         let mut artifact = payload(integrity(b"addon"));
-        artifact.compatibility =
-            CompatibilityConstraints::Tagged { tags: vec![invalid.to_string()] };
+        artifact.compatibility = CompatibilityConstraints::Tagged {
+            tags: vec![invalid.to_string()],
+        };
         assert!(artifact.validate().is_err());
-        assert_eq!(compatibility_rank(&artifact.compatibility, &supported), None);
+        assert_eq!(
+            compatibility_rank(&artifact.compatibility, &supported),
+            None,
+        );
     }
 }
 
 #[test]
 fn publisher_owner_must_match_the_signed_package() {
     let mut artifact = payload(integrity(b"addon"));
-    artifact.owner = OwnerScope::Publisher { package: "another-package".to_string() };
+    artifact.owner = OwnerScope::Publisher {
+        package: "another-package".to_string(),
+    };
     assert!(artifact.validate().is_err());
 }
 
@@ -546,7 +643,10 @@ fn publisher_owner_must_match_the_signed_package() {
 fn owner_namespaces_are_domain_separated() {
     let namespaces = HashSet::from([
         OwnerScope::organization("foo").namespace(),
-        OwnerScope::Publisher { package: "foo".to_string() }.namespace(),
+        OwnerScope::Publisher {
+            package: "foo".to_string(),
+        }
+        .namespace(),
     ]);
     assert_eq!(namespaces.len(), 2);
 }

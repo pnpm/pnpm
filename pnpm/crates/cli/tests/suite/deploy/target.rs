@@ -6,8 +6,13 @@ use assert_cmd::assert::OutputAssertExt;
 
 #[test]
 fn deploy_refuses_non_empty_target_without_force() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, false);
     fs::create_dir_all(workspace.join("deploy")).unwrap();
@@ -23,15 +28,23 @@ fn deploy_refuses_non_empty_target_without_force() {
         stderr.contains("ERR_PNPM_DEPLOY_DIR_NOT_EMPTY") && stderr.contains("empty"),
         "unexpected stderr:\n{stderr}",
     );
-    assert_eq!(fs::read_to_string(workspace.join("deploy/keep.txt")).unwrap(), "keep");
+    assert_eq!(
+        fs::read_to_string(workspace.join("deploy/keep.txt")).unwrap(),
+        "keep",
+    );
 
     drop((root, mock_instance));
 }
 
 #[test]
 fn force_deploy_rejects_out_of_scope_target_without_deleting_it() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, false);
     let outside = root.path().join("outside-deploy");
@@ -39,7 +52,14 @@ fn force_deploy_rejects_out_of_scope_target_without_deleting_it() {
     fs::write(outside.join("keep.txt"), "keep").unwrap();
 
     let output = pacquet
-        .with_args(["--filter", "app", "deploy", "--legacy", "--force", outside.to_str().unwrap()])
+        .with_args([
+            "--filter",
+            "app",
+            "deploy",
+            "--legacy",
+            "--force",
+            outside.to_str().unwrap(),
+        ])
         .output()
         .expect("run pacquet deploy");
     assert!(!output.status.success());
@@ -49,7 +69,10 @@ fn force_deploy_rejects_out_of_scope_target_without_deleting_it() {
         flattened.contains("unsafe target") && flattened.contains("outside the workspace"),
         "unexpected stderr:\n{stderr}",
     );
-    assert_eq!(fs::read_to_string(outside.join("keep.txt")).unwrap(), "keep");
+    assert_eq!(
+        fs::read_to_string(outside.join("keep.txt")).unwrap(),
+        "keep",
+    );
 
     drop((root, mock_instance));
 }
@@ -59,8 +82,13 @@ fn force_deploy_rejects_out_of_scope_target_without_deleting_it() {
 fn deploy_all_files_rejects_symlink_escape() {
     use std::os::unix::fs::symlink;
 
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, false);
     let mut workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
@@ -96,8 +124,13 @@ fn deploy_all_files_rejects_symlink_escape() {
 fn deploy_rejects_symlinked_target_parent() {
     use std::os::unix::fs::symlink;
 
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, false);
     let outside = root.path().join("outside-target");
@@ -105,7 +138,14 @@ fn deploy_rejects_symlinked_target_parent() {
     symlink(&outside, workspace.join("out")).unwrap();
 
     let output = pacquet
-        .with_args(["--filter", "app", "deploy", "--legacy", "--force", "out/deploy"])
+        .with_args([
+            "--filter",
+            "app",
+            "deploy",
+            "--legacy",
+            "--force",
+            "out/deploy",
+        ])
         .output()
         .expect("run pacquet deploy");
     assert!(!output.status.success());
@@ -127,8 +167,13 @@ fn deploy_rejects_symlinked_target_parent() {
 #[cfg(windows)]
 #[test]
 fn deploy_rejects_linked_target_parent() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, false);
     let outside = root.path().join("outside-target");
@@ -136,7 +181,14 @@ fn deploy_rejects_linked_target_parent() {
     pnpm_fs::symlink_dir(&outside, &workspace.join("out")).unwrap();
 
     let output = pacquet
-        .with_args(["--filter", "app", "deploy", "--legacy", "--force", "out/deploy"])
+        .with_args([
+            "--filter",
+            "app",
+            "deploy",
+            "--legacy",
+            "--force",
+            "out/deploy",
+        ])
         .output()
         .expect("run pacquet deploy");
     assert!(!output.status.success());
@@ -160,8 +212,13 @@ fn deploy_rejects_linked_target_parent() {
 /// file set.
 #[test]
 fn deployed_files_field_does_not_match_at_depth() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, true);
     write_project(
@@ -181,15 +238,24 @@ fn deployed_files_field_does_not_match_at_depth() {
         fs::write(file, "").unwrap();
     }
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     pacquet_cmd(&workspace)
         .with_args(["--filter", "packs-its-own-src", "deploy", "deploy"])
         .assert()
         .success();
 
     let deploy_dir = workspace.join("deploy");
-    assert!(deploy_dir.join("src/index.js").exists(), "the published src is deployed");
-    assert!(!deploy_dir.join("example").exists(), "the example app is not deployed");
+    assert!(
+        deploy_dir.join("src/index.js").exists(),
+        "the published src is deployed",
+    );
+    assert!(
+        !deploy_dir.join("example").exists(),
+        "the example app is not deployed",
+    );
 
     drop((root, mock_instance));
 }

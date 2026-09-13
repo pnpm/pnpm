@@ -107,7 +107,10 @@ fn group_packed_pkg(
     groups: &mut Vec<BatchGroup>,
 ) -> Result<(), BatchPublishError> {
     let manifest = package.published_manifest;
-    let name = manifest.get("name").and_then(Value::as_str).unwrap_or_default();
+    let name = manifest
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
     let publish_config_registry = manifest
         .get("publishConfig")
         .and_then(|config| config.get("registry"))
@@ -125,23 +128,15 @@ fn group_packed_pkg(
         &registry,
         resolve_access(opts.registry.access, manifest),
         &opts.registry.tag,
-        &DistHashes { integrity: &summary.integrity, shasum: &summary.shasum },
+        &DistHashes {
+            integrity: &summary.integrity,
+            shasum: &summary.shasum,
+        },
     )?;
     let summary_index = summaries.len();
     summaries.push(summary);
 
-    if let Some(group) = groups.iter_mut().find(|group| group.registry == registry) {
-        group.package_names.push(name.to_string());
-        group.summary_indexes.push(summary_index);
-        group.documents.push(document);
-        return Ok(());
-    }
-    groups.push(BatchGroup {
-        registry,
-        package_names: vec![name.to_string()],
-        summary_indexes: vec![summary_index],
-        documents: vec![document],
-    });
+    append_batch_document(groups, registry, name, summary_index, document);
     Ok(())
 }
 
@@ -173,7 +168,9 @@ async fn put_batch<Reporter: self::Reporter>(
         return Ok(());
     }
     if matches!(response.status, 404 | 405) {
-        return Err(BatchPublishError::Unsupported { registry: registry.to_string() });
+        return Err(BatchPublishError::Unsupported {
+            registry: registry.to_string(),
+        });
     }
     Err(BatchPublishError::Failed(FailedToPublishError::new_batch(
         group.package_names.len(),
@@ -189,9 +186,11 @@ fn batch_authorization(
     network: &PublishNetwork<'_>,
 ) -> Result<Option<String>, BatchPublishError> {
     let mut package_names = group.package_names.iter();
-    let authorization = package_names.next().and_then(|name| {
-        network.auth_headers.for_url_with_package(group.registry.as_str(), Some(name))
-    });
+    let authorization = package_names
+        .next()
+        .and_then(|name| {
+            network.auth_headers.for_url_with_package(group.registry.as_str(), Some(name))
+        });
     if package_names.any(|name| {
         network.auth_headers.for_url_with_package(group.registry.as_str(), Some(name))
             != authorization
@@ -276,4 +275,28 @@ impl From<WithOtpError<PublishHttpError>> for BatchPublishError {
     fn from(error: WithOtpError<PublishHttpError>) -> Self {
         BatchPublishError::Otp(error)
     }
+}
+
+fn append_batch_document(
+    groups: &mut Vec<BatchGroup>,
+    registry: NormalizedRegistryUrl,
+    name: &str,
+    summary_index: usize,
+    document: Value,
+) {
+    if let Some(group) = groups
+        .iter_mut()
+        .find(|group| group.registry == registry)
+    {
+        group.package_names.push(name.to_string());
+        group.summary_indexes.push(summary_index);
+        group.documents.push(document);
+        return;
+    }
+    groups.push(BatchGroup {
+        registry,
+        package_names: vec![name.to_string()],
+        summary_indexes: vec![summary_index],
+        documents: vec![document],
+    });
 }

@@ -95,16 +95,15 @@ impl InstallPackageFromRegistry<'_> {
     pub async fn run<Reporter: self::Reporter>(
         self,
     ) -> Result<(), InstallPackageFromRegistryError> {
-        let (real_name, version) = real_name_version(self.resolution).ok_or_else(|| {
-            InstallPackageFromRegistryError::UnsupportedResolution {
+        let (real_name, version) = real_name_version(self.resolution)
+            .ok_or_else(|| InstallPackageFromRegistryError::UnsupportedResolution {
                 detail: format!(
                     "resolver {resolved_via} produced a resolution without a structured \
                      name@version and no manifest name/version to fall back to (alias={alias})",
                     resolved_via = self.resolution.resolved_via,
                     alias = self.alias,
                 ),
-            }
-        })?;
+            })?;
         let package_id = format!("{real_name}@{version}");
 
         // The exposed symlink under `node_modules/` uses the manifest
@@ -197,9 +196,10 @@ impl InstallPackageFromRegistry<'_> {
 
         let download = self.tarball_download(package_id, tarball_url, &integrity);
         let cas_paths = if revision_addressed {
-            download
-                .run_revision_addressed_with_mem_cache::<Reporter>(self.fetching.tarball_mem_cache)
-                .await
+            download.run_revision_addressed_with_mem_cache::<Reporter>(
+                self.fetching.tarball_mem_cache,
+            )
+            .await
         } else {
             download.run_with_mem_cache::<Reporter>(self.fetching.tarball_mem_cache).await
         }
@@ -216,19 +216,7 @@ impl InstallPackageFromRegistry<'_> {
         )
         .map_err(InstallPackageFromRegistryError::ImportIndexedDir)?;
 
-        // `pnpm:progress imported` — see the matching emit in
-        // `create_virtual_dir_by_snapshot::run` for the rationale
-        // on the optimistic `method` value. `to` is the per-
-        // package virtual-store directory the symlink under
-        // `node_modules/{alias}` resolves to.
-        Reporter::emit(&LogEvent::Progress(ProgressLog {
-            level: LogLevel::Debug,
-            message: ProgressMessage::Imported {
-                method: crate::optimistic_wire_method(config.package_import_method),
-                requester: self.requester.to_owned(),
-                to: save_path.to_string_lossy().into_owned(),
-            },
-        }));
+        crate::report_imported::<Reporter>(config.package_import_method, self.requester, save_path);
         Ok(())
     }
 }
@@ -243,8 +231,14 @@ fn real_name_version(resolution: &ResolveResult) -> Option<(String, String)> {
         return Some((name_ver.name.to_string(), name_ver.suffix.to_string()));
     }
     let manifest = resolution.package.manifest.as_deref()?;
-    let name = manifest.get("name")?.as_str()?.to_string();
-    let version = manifest.get("version")?.as_str()?.to_string();
+    let name = manifest
+        .get("name")?
+        .as_str()?
+        .to_string();
+    let version = manifest
+        .get("version")?
+        .as_str()?
+        .to_string();
     Some((name, version))
 }
 
@@ -255,11 +249,11 @@ pub fn extract_tarball(
 ) -> Result<(&str, Integrity), InstallPackageFromRegistryError> {
     match resolution {
         LockfileResolution::Tarball(t) => {
-            let integrity = t.integrity.clone().ok_or_else(|| {
-                InstallPackageFromRegistryError::UnsupportedResolution {
+            let integrity = t.integrity
+                .clone()
+                .ok_or_else(|| InstallPackageFromRegistryError::UnsupportedResolution {
                     detail: "tarball resolution missing integrity hash".to_string(),
-                }
-            })?;
+                })?;
             Ok((t.tarball.as_str(), integrity))
         }
         LockfileResolution::Registry(_)
@@ -295,7 +289,11 @@ fn manifest_dist_field(manifest: Option<&Value>, field: &str) -> Option<usize> {
     // `usize::try_from` so a `u64` value larger than the host's
     // `usize` (32-bit targets) degrades to "no hint" rather than
     // truncating silently and producing an undersized pre-allocation.
-    manifest?.get("dist")?.get(field)?.as_u64().and_then(|value| usize::try_from(value).ok())
+    manifest?
+        .get("dist")?
+        .get(field)?
+        .as_u64()
+        .and_then(|value| usize::try_from(value).ok())
 }
 
 #[cfg(test)]

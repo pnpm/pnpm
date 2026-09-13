@@ -16,14 +16,24 @@ async fn compiler_cache_survives_side_effects_reclamation_and_shares_quota() {
         .await
         .unwrap();
     store
-        .publish("acme", publication_with_blob("dependency-side-effects:v1:deps=abc", "ci/linux"))
+        .publish(
+            "acme",
+            publication_with_blob("dependency-side-effects:v1:deps=abc", "ci/linux"),
+        )
         .await
         .unwrap();
     let before = store.load_usage().await.unwrap().0;
     let after = store.reclaim_unreferenced_blobs().await.unwrap();
     assert_eq!(after.global_bytes, before.global_bytes);
     assert_eq!(after.owner_bytes.len(), 1);
-    assert_eq!(store.read_compiler_cache("acme", &key).await.unwrap().unwrap(), "compiled");
+    assert_eq!(
+        store
+            .read_compiler_cache("acme", &key)
+            .await
+            .unwrap()
+            .unwrap(),
+        "compiled",
+    );
 }
 
 #[tokio::test]
@@ -45,7 +55,10 @@ async fn compiler_cache_failed_writes_reconcile_quota_even_after_remote_commit()
                 usage_writes: None,
             },
         });
-        let hosted = HostedStoreConfig::ObjectStore { store: backend, prefix: String::new() };
+        let hosted = HostedStoreConfig::ObjectStore {
+            store: backend,
+            prefix: String::new(),
+        };
         let directory = TempDir::new().unwrap();
         let store = SharedArtifactStore::new(&hosted, directory.path()).unwrap();
         let key = CompilerCacheKey::try_from("cache-key".to_string()).unwrap();
@@ -56,7 +69,11 @@ async fn compiler_cache_failed_writes_reconcile_quota_even_after_remote_commit()
         assert_eq!(usage.global_bytes, if commit_before_error { 65 } else { 0 });
         assert_eq!(usage.active_publications.len(), 0);
         assert_eq!(
-            store.read_compiler_cache("acme", &key).await.unwrap().is_some(),
+            store
+                .read_compiler_cache("acme", &key)
+                .await
+                .unwrap()
+                .is_some(),
             commit_before_error,
         );
     }
@@ -118,16 +135,25 @@ async fn object_store_replicas_share_blobs_envelopes_and_quota() {
             .unwrap(),
     );
 
-    let response =
-        first.resolve("acme", &serde_json::to_vec(&lookup("acme")).unwrap()).await.unwrap();
+    let response = first
+        .resolve("acme", &serde_json::to_vec(&lookup("acme")).unwrap())
+        .await
+        .unwrap();
     assert_eq!(response.artifacts[0].variants.len(), 2);
     let usage_path = object_store::path::Path::from(format!(
         "{}.pnpr-artifacts/v0/quota.json",
         normalize_key_prefix(Some("packages")),
     ));
-    let usage: ArtifactUsage =
-        serde_json::from_slice(&backend.get(&usage_path).await.unwrap().bytes().await.unwrap())
-            .unwrap();
+    let usage: ArtifactUsage = serde_json::from_slice(
+        &backend
+            .get(&usage_path)
+            .await
+            .unwrap()
+            .bytes()
+            .await
+            .unwrap(),
+    )
+    .unwrap();
     assert_eq!(usage.owner_bytes.len(), 1);
     assert!(usage.global_bytes > b"shared addon".len() as u64);
 }
@@ -139,8 +165,10 @@ async fn concurrent_replicas_update_quota_without_lost_writes() {
     let backend: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
     let mut publications = Vec::with_capacity(PUBLICATIONS);
     for index in 0..PUBLICATIONS {
-        let config =
-            HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
+        let config = HostedStoreConfig::ObjectStore {
+            store: Arc::clone(&backend),
+            prefix: String::new(),
+        };
         publications.push(tokio::spawn(async move {
             let scratch = TempDir::new().unwrap();
             let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
@@ -152,16 +180,26 @@ async fn concurrent_replicas_update_quota_without_lost_writes() {
     }
 
     let usage_path = object_store::path::Path::from(".pnpr-artifacts/v0/quota.json");
-    let usage: ArtifactUsage =
-        serde_json::from_slice(&backend.get(&usage_path).await.unwrap().bytes().await.unwrap())
-            .unwrap();
+    let usage: ArtifactUsage = serde_json::from_slice(
+        &backend
+            .get(&usage_path)
+            .await
+            .unwrap()
+            .bytes()
+            .await
+            .unwrap(),
+    )
+    .unwrap();
     // Each publication stores its envelope and the marker for the one scope it
     // reaches, which the store keeps until reclamation.
     let expected = (0..PUBLICATIONS)
         .map(|index| {
             let publication = publication_for_platform(index);
             serde_json::to_vec(&publication.envelope).unwrap().len()
-                + publication.envelope.digest().unwrap().len()
+                + publication.envelope
+                    .digest()
+                    .unwrap()
+                    .len()
         })
         .sum::<usize>() as u64;
     assert_eq!(usage.global_bytes, expected);
@@ -173,7 +211,10 @@ async fn quota_is_reserved_before_objects_are_written() {
     let store =
         SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap().with_limits(1, 1);
 
-    let error = store.publish("acme", publication("ci/too-large")).await.unwrap_err();
+    let error = store
+        .publish("acme", publication("ci/too-large"))
+        .await
+        .unwrap_err();
 
     assert!(error.to_string().contains("quota exceeded"), "{error}");
     let entries = std::fs::read_dir(storage.path().join("shared-artifacts/v0"))
@@ -181,7 +222,10 @@ async fn quota_is_reserved_before_objects_are_written() {
         .filter_map(std::result::Result::ok)
         .filter(|entry| entry.file_name() != ".locks")
         .collect::<Vec<_>>();
-    assert!(entries.is_empty(), "quota rejection wrote objects: {entries:?}");
+    assert!(
+        entries.is_empty(),
+        "quota rejection wrote objects: {entries:?}",
+    );
 }
 
 #[tokio::test]
@@ -202,18 +246,36 @@ async fn failed_object_writes_reconcile_quota_to_physical_storage() {
             usage_writes: None,
         },
     });
-    let config =
-        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
+    let config = HostedStoreConfig::ObjectStore {
+        store: Arc::clone(&backend),
+        prefix: String::new(),
+    };
     let scratch = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
-    store.publish("acme", publication("ci/failure")).await.unwrap_err();
+    store
+        .publish("acme", publication("ci/failure"))
+        .await
+        .unwrap_err();
 
     let usage_path = ObjectPath::from(".pnpr-artifacts/v0/quota.json");
-    let usage: ArtifactUsage =
-        serde_json::from_slice(&backend.get(&usage_path).await.unwrap().bytes().await.unwrap())
-            .unwrap();
+    let usage: ArtifactUsage = serde_json::from_slice(
+        &backend
+            .get(&usage_path)
+            .await
+            .unwrap()
+            .bytes()
+            .await
+            .unwrap(),
+    )
+    .unwrap();
     assert_eq!(usage.global_bytes, 0);
-    assert_eq!(usage.owner_bytes.values().copied().sum::<u64>(), 0);
+    assert_eq!(
+        usage.owner_bytes
+            .values()
+            .copied()
+            .sum::<u64>(),
+        0,
+    );
 }
 
 #[tokio::test]
@@ -235,8 +297,10 @@ async fn publication_finish_retries_a_transient_quota_write_failure() {
             usage_writes: None,
         },
     });
-    let config =
-        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
+    let config = HostedStoreConfig::ObjectStore {
+        store: Arc::clone(&backend),
+        prefix: String::new(),
+    };
     let scratch = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
     let publication = artifact_operation_id().unwrap();
@@ -246,9 +310,16 @@ async fn publication_finish_retries_a_transient_quota_write_failure() {
     store.finish_publication(&publication, true).await.unwrap();
 
     let usage_path = ObjectPath::from(".pnpr-artifacts/v0/quota.json");
-    let usage: ArtifactUsage =
-        serde_json::from_slice(&backend.get(&usage_path).await.unwrap().bytes().await.unwrap())
-            .unwrap();
+    let usage: ArtifactUsage = serde_json::from_slice(
+        &backend
+            .get(&usage_path)
+            .await
+            .unwrap()
+            .bytes()
+            .await
+            .unwrap(),
+    )
+    .unwrap();
     assert!(usage.active_publications.is_empty());
     assert!(usage.reclamation_needed);
 }
@@ -283,23 +354,39 @@ async fn a_failed_reread_after_a_lost_race_still_releases_the_quota() {
         },
     });
     let store = SharedArtifactStore::new(
-        &HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() },
+        &HostedStoreConfig::ObjectStore {
+            store: Arc::clone(&backend),
+            prefix: String::new(),
+        },
         TempDir::new().unwrap().path(),
     )
     .unwrap();
 
-    store.publish("acme", publication("ci/loser")).await.unwrap_err();
+    store
+        .publish("acme", publication("ci/loser"))
+        .await
+        .unwrap_err();
 
     let usage_path = ObjectPath::from(".pnpr-artifacts/v0/quota.json");
-    let usage: ArtifactUsage =
-        serde_json::from_slice(&backend.get(&usage_path).await.unwrap().bytes().await.unwrap())
-            .unwrap();
+    let usage: ArtifactUsage = serde_json::from_slice(
+        &backend
+            .get(&usage_path)
+            .await
+            .unwrap()
+            .bytes()
+            .await
+            .unwrap(),
+    )
+    .unwrap();
     // The winner is written behind the store's back to stage the race, so it is
     // never charged, and the loser's envelope never landed. What the loser did
     // write is the marker claiming the scope it reaches, which the reservation
     // does not carry through a failure this early — the usage scan reclamation
     // ends with picks it up, along with dropping the marker itself.
-    assert_eq!(usage.global_bytes, 0, "the loser is not charged for what it did not store");
+    assert_eq!(
+        usage.global_bytes, 0,
+        "the loser is not charged for what it did not store",
+    );
 }
 
 /// A retry of a publication that finished writes nothing, so charging it for
@@ -310,13 +397,21 @@ async fn a_retry_of_a_stored_artifact_needs_no_quota() {
     let storage = TempDir::new().unwrap();
     let tags = ["pnpm:v1:linux-x64-node22-glibc2.17"];
     let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
-    assert!(store.publish("acme", publication_tagged("ci/first", &tags)).await.unwrap());
+    assert!(
+        store
+            .publish("acme", publication_tagged("ci/first", &tags))
+            .await
+            .unwrap(),
+    );
 
     let full =
         SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap().with_limits(1, 1);
 
     assert!(
-        !full.publish("acme", publication_tagged("ci/first", &tags)).await.unwrap(),
+        !full
+            .publish("acme", publication_tagged("ci/first", &tags))
+            .await
+            .unwrap(),
         "the artifact is already published, and republishing it stores nothing",
     );
 }
@@ -349,7 +444,10 @@ async fn publishing_into_an_entry_that_needs_markers_keeps_its_quota_straight() 
 
     assert!(
         store
-            .read_object_bounded(&format!("{owner}/entries/{entry}/scopes/linux-arm64-node22"), 128)
+            .read_object_bounded(
+                &format!("{owner}/entries/{entry}/scopes/linux-arm64-node22"),
+                128
+            )
             .await
             .unwrap()
             .is_some(),

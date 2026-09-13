@@ -22,12 +22,20 @@ impl Walker<'_> {
         pkg_id: &str,
     ) -> Option<&PeersCacheItem> {
         let canonical_scc = self.canonical_scc();
-        let query = FastProviderQuery { canonical_scc: &canonical_scc, parent_refs, pkg_id };
-        self.caches
-            .peers_cache
+        let query = FastProviderQuery {
+            canonical_scc: &canonical_scc,
+            parent_refs,
+            pkg_id,
+        };
+        self.caches.peers_cache
             .get(pkg_id)?
             .iter()
-            .find(|item| matches!(self.fast_cache_item_matches(query, item), FastCacheMatch::Match))
+            .find(|item| {
+                matches!(
+                    self.fast_cache_item_matches(query, item),
+                    FastCacheMatch::Match,
+                )
+            })
     }
 
     pub(super) fn fast_cache_item_matches(
@@ -52,7 +60,11 @@ impl Walker<'_> {
                 FastProvider::Ambiguous => ambiguous = true,
             }
         }
-        if ambiguous { FastCacheMatch::Ambiguous } else { FastCacheMatch::Match }
+        if ambiguous {
+            FastCacheMatch::Ambiguous
+        } else {
+            FastCacheMatch::Match
+        }
     }
 
     pub(super) fn fast_resolved_peer_matches(
@@ -95,7 +107,11 @@ impl Walker<'_> {
                 cached_node_id,
                 NodeId::Leaf(cached_pkg_id) if cached_pkg_id.as_ref() == child_pkg_id,
             );
-        if child_is_stable { FastCacheMatch::Match } else { FastCacheMatch::Ambiguous }
+        if child_is_stable {
+            FastCacheMatch::Match
+        } else {
+            FastCacheMatch::Ambiguous
+        }
     }
 
     pub(super) fn fast_provider_for_name<'a>(
@@ -108,9 +124,7 @@ impl Walker<'_> {
         let Some(children) = self.tree.children_by_id.get(pkg_id) else {
             return inherited.map_or(FastProvider::Missing, FastProvider::Inherited);
         };
-        let Some(edge_indices) = self
-            .caches
-            .peer_provider_children_by_pkg_id
+        let Some(edge_indices) = self.caches.peer_provider_children_by_pkg_id
             .get(pkg_id)
             .and_then(|providers| providers.edge_indices_by_name.get(name))
         else {

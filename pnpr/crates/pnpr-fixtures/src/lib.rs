@@ -91,8 +91,11 @@ pub fn set_dist_tag(storage: &Path, package: &str, version: &str, tag: &str) {
     );
     insert_object_entry(packument_object, "dist-tags", tag, json!(version));
     insert_object_entry(packument_object, "time", "modified", json!(now_iso()));
-    fs::write(&path, serde_json::to_vec(&packument).expect("serialize fixture packument"))
-        .expect("write fixture packument");
+    fs::write(
+        &path,
+        serde_json::to_vec(&packument).expect("serialize fixture packument"),
+    )
+    .expect("write fixture packument");
 }
 
 fn insert_object_entry(parent: &mut Map<String, Value>, field: &str, key: &str, value: Value) {
@@ -201,7 +204,11 @@ fn try_publish_storage(temp: &Path, storage: &Path) -> io::Result<()> {
 /// A scratch directory name no other publisher — in this process or any
 /// concurrent one — can collide with.
 fn scratch_name(prefix: &str) -> String {
-    format!("{prefix}.{}.{}", std::process::id(), TEMP_COUNTER.fetch_add(1, Ordering::Relaxed))
+    format!(
+        "{prefix}.{}.{}",
+        std::process::id(),
+        TEMP_COUNTER.fetch_add(1, Ordering::Relaxed),
+    )
 }
 
 fn fixture_fingerprint(root: &Path) -> String {
@@ -227,7 +234,10 @@ fn build_storage(fixtures_root: &Path, storage_root: &Path, substitutions: &[(&s
             .versions
             .insert(version.version.clone(), version);
     }
-    assert!(!packages.is_empty(), "no registry package fixtures found under {fixtures_root:?}");
+    assert!(
+        !packages.is_empty(),
+        "no registry package fixtures found under {fixtures_root:?}",
+    );
     for package in packages.values_mut() {
         package.latest =
             latest_version(package.versions.keys()).expect("package has at least one version");
@@ -243,7 +253,11 @@ struct Package {
 
 impl Package {
     fn new(name: String) -> Self {
-        Self { name, latest: String::new(), versions: BTreeMap::new() }
+        Self {
+            name,
+            latest: String::new(),
+            versions: BTreeMap::new(),
+        }
     }
 
     fn write(&self, storage_root: &Path) {
@@ -261,8 +275,7 @@ impl Package {
     }
 
     fn packument(&self) -> Value {
-        let versions = self
-            .versions
+        let versions = self.versions
             .iter()
             .map(|(version, package)| (version.clone(), package.packument_manifest.clone()))
             .collect();
@@ -279,7 +292,10 @@ impl Package {
         times.insert("created".to_string(), json!(DEFAULT_PUBLISH_TIME));
         times.insert("modified".to_string(), json!(DEFAULT_PUBLISH_TIME));
         for version in self.versions.keys() {
-            times.insert(version.clone(), json!(version_publish_time(&self.name, version)));
+            times.insert(
+                version.clone(),
+                json!(version_publish_time(&self.name, version)),
+            );
         }
         Value::Object(times)
     }
@@ -320,12 +336,20 @@ impl PackageVersion {
         let name = manifest_string(&manifest, "name");
         let version = manifest_string(&manifest, "version");
         let tarball = build_tarball(root, package_dir, &manifest, &manifest_text);
-        let integrity =
-            format!("sha512-{}", general_purpose::STANDARD.encode(Sha512::digest(&tarball)));
+        let integrity = format!(
+            "sha512-{}",
+            general_purpose::STANDARD.encode(Sha512::digest(&tarball)),
+        );
         let tarball_name = format!("{}-{version}.tgz", tarball_basename(&name));
         let tarball_url = format!("http://example.test/{name}/-/{tarball_name}");
         let packument_manifest = with_dist(manifest, &tarball_url, &integrity);
-        Self { name, version, packument_manifest, tarball_name, tarball }
+        Self {
+            name,
+            version,
+            packument_manifest,
+            tarball_name,
+            tarball,
+        }
     }
 }
 
@@ -334,17 +358,21 @@ fn fixture_manifests(root: &Path) -> Vec<PathBuf> {
         .into_iter()
         .map(walkdir::DirEntry::into_path)
         .filter(|path| {
-            path.file_name().is_some_and(|name| name == "package.json")
+            path
+                .file_name()
+                .is_some_and(|name| name == "package.json")
                 && is_version_dir(path.parent())
         })
         .collect()
 }
 
 fn substituted_manifest_text(manifest_path: &Path, substitutions: &[(&str, &str)]) -> String {
-    substitutions.iter().fold(
-        fs::read_to_string(manifest_path).expect("read fixture package.json"),
-        |manifest, (from, to)| manifest.replace(from, to),
-    )
+    substitutions
+        .iter()
+        .fold(
+            fs::read_to_string(manifest_path).expect("read fixture package.json"),
+            |manifest, (from, to)| manifest.replace(from, to),
+        )
 }
 
 fn manifest_string(manifest: &Value, key: &str) -> String {
@@ -360,8 +388,10 @@ fn manifest_string(manifest: &Value, key: &str) -> String {
 fn with_dist(mut packument_manifest: Value, tarball_url: &str, integrity: &str) -> Value {
     let manifest_object =
         packument_manifest.as_object_mut().expect("fixture package.json is an object");
-    manifest_object
-        .insert("dist".to_string(), json!({ "tarball": tarball_url, "integrity": integrity }));
+    manifest_object.insert(
+        "dist".to_string(),
+        json!({ "tarball": tarball_url, "integrity": integrity }),
+    );
     // Verdaccio's abbreviated metadata exposes `bundleDependencies` (no "d"),
     // and that is the key pnpm reads, so mirror `bundledDependencies` onto it
     // when only the longer spelling is present in the fixture manifest.
@@ -376,18 +406,27 @@ fn with_dist(mut packument_manifest: Value, tarball_url: &str, integrity: &str) 
 // dependencies like `has-local-dep/local-dep`) are package contents, not
 // separate packages.
 fn is_version_dir(dir: Option<&Path>) -> bool {
-    dir.and_then(Path::file_name)
+    dir
+        .and_then(Path::file_name)
         .and_then(|name| name.to_str())
         .is_some_and(|name| Version::parse(name).is_ok())
 }
 
 fn tarball_basename(name: &str) -> String {
-    name.rsplit('/').next().unwrap_or(name).to_string()
+    name
+        .rsplit('/')
+        .next()
+        .unwrap_or(name)
+        .to_string()
 }
 
 fn latest_version<'a>(versions: impl Iterator<Item = &'a String>) -> Option<String> {
     versions
-        .filter_map(|raw| Version::parse(raw).ok().map(|version| (version, raw.clone())))
+        .filter_map(|raw| {
+            Version::parse(raw)
+                .ok()
+                .map(|version| (version, raw.clone()))
+        })
         .max_by(|(left, _), (right, _)| left.cmp(right))
         .map(|(_, raw)| raw)
 }

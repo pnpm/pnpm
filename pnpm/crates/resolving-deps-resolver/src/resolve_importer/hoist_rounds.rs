@@ -96,7 +96,11 @@ impl ImporterHoistState {
         let children_rewrites = self.ctx.workspace().tree.children_rewrites();
         let walk_was_full = self.progress.walked_direct_len == 0
             || children_rewrites != self.progress.walked_children_rewrites;
-        let walk_from = if walk_was_full { 0 } else { self.progress.walked_direct_len };
+        let walk_from = if walk_was_full {
+            0
+        } else {
+            self.progress.walked_direct_len
+        };
         let discovery = {
             let mut opts = self.peers_opts();
             opts.scope.hoist_missing_scope = hoist_missing_scope;
@@ -109,16 +113,22 @@ impl ImporterHoistState {
         };
         self.progress.walked_direct_len = self.dependencies.direct.len();
         self.progress.walked_children_rewrites = children_rewrites;
-        let provider_pkg_ids = self
-            .ctx
+        let provider_pkg_ids = self.ctx
             .workspace()
             .tree
             .provider_pkg_ids(discovery.resolved_peer_providers_by_alias.values());
-        self.ctx.workspace().children.record_first_walk_missing(
-            &self.importer_id,
-            &index_missing_names(&discovery.missing_summaries),
-        );
-        RequiredRound { provider_pkg_ids, discovery, walk_was_full }
+        self.ctx
+            .workspace()
+            .children
+            .record_first_walk_missing(
+                &self.importer_id,
+                &index_missing_names(&discovery.missing_summaries),
+            );
+        RequiredRound {
+            provider_pkg_ids,
+            discovery,
+            walk_was_full,
+        }
     }
 
     pub(super) async fn complete_required_round<Chain>(
@@ -175,11 +185,15 @@ impl ImporterHoistState {
     where
         Chain: Resolver + ?Sized,
     {
-        let missing_as_pairs: Vec<(String, MissingPeerInfo)> =
-            missing_required.iter().map(|(n, info)| (n.clone(), info.clone())).collect();
+        let missing_as_pairs: Vec<(String, MissingPeerInfo)> = missing_required
+            .iter()
+            .map(|(n, info)| (n.clone(), info.clone()))
+            .collect();
         let hoist_preferred = self.ctx.preferred_versions_for_names(
             &self.selection.preferred_versions,
-            missing_as_pairs.iter().map(|(name, _)| name.as_str()),
+            missing_as_pairs
+                .iter()
+                .map(|(name, _)| name.as_str()),
         );
         let hoisted = hoist_peers(
             &HoistPeersOptions {
@@ -195,9 +209,7 @@ impl ImporterHoistState {
             return Ok(false);
         }
 
-        for name in hoisted.keys() {
-            self.dependencies.parent_pkg_aliases.insert(name.clone());
-        }
+        self.dependencies.parent_pkg_aliases.extend(hoisted.keys().cloned());
 
         // Hoisted required peers are installed at the importer
         // level as non-optional direct deps — they exist precisely
@@ -207,8 +219,10 @@ impl ImporterHoistState {
         // `dependenciesMeta` from any manifest, so `injected`
         // defaults to `false`: the hoist path constructs a fresh
         // wanted dependency without threading the per-dep meta.
-        let new_wanted: Vec<WantedSpec> =
-            hoisted.into_iter().map(|(name, range)| (name, range, false, false)).collect();
+        let new_wanted: Vec<WantedSpec> = hoisted
+            .into_iter()
+            .map(|(name, range)| (name, range, false, false))
+            .collect();
         let new_direct = extend_tree(
             &self.ctx,
             resolver,
@@ -239,8 +253,7 @@ impl ImporterHoistState {
             Some(Arc::new(HoistMissingScope {
                 importer_id: self.importer_id.clone(),
                 first_importer_by_pkg: self.ctx.workspace().first_importer_by_pkg(),
-                first_walk_missing_by_pkg: self
-                    .ctx
+                first_walk_missing_by_pkg: self.ctx
                     .workspace()
                     .children
                     .first_walk_missing_by_pkg(),
@@ -261,8 +274,7 @@ impl ImporterHoistState {
             self.progress.merged_missing.clear();
         }
         for (peer_name, issues) in &discovery.peer_dependency_issues.missing {
-            self.progress
-                .merged_missing
+            self.progress.merged_missing
                 .entry(peer_name.clone())
                 .or_default()
                 .extend(issues.iter().cloned());
@@ -276,7 +288,10 @@ impl ImporterHoistState {
         for (name, ranges) in fresh_optional {
             let bucket = self.dependencies.all_missing_optional_peers.entry(name).or_default();
             for range in ranges {
-                if !bucket.iter().any(|existing| existing == &range) {
+                if !bucket
+                    .iter()
+                    .any(|existing| existing == &range)
+                {
                     bucket.push(range);
                 }
             }
@@ -347,8 +362,10 @@ impl ImporterHoistState {
         // confirmed a preferred version is in scope. Treating them as
         // non-optional matches the required-peer arm above; `injected`
         // also defaults to `false` for the same reason.
-        let new_wanted: Vec<WantedSpec> =
-            hoisted_optional.into_iter().map(|(name, range)| (name, range, false, false)).collect();
+        let new_wanted: Vec<WantedSpec> = hoisted_optional
+            .into_iter()
+            .map(|(name, range)| (name, range, false, false))
+            .collect();
         let new_direct = extend_tree(
             &self.ctx,
             resolver,

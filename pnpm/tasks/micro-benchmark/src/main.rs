@@ -37,9 +37,16 @@ struct CliArgs {
 fn bench_tarball(criterion: &mut Criterion, server: &mut ServerGuard, fixtures_folder: &Path) {
     let mut group = criterion.benchmark_group("tarball");
     let file = fs::read(fixtures_folder.join("@fastify+error-3.3.0.tgz")).unwrap();
-    server.mock("GET", "/@fastify+error-3.3.0.tgz").with_status(201).with_body(&file).create();
+    server
+        .mock("GET", "/@fastify+error-3.3.0.tgz")
+        .with_status(201)
+        .with_body(&file)
+        .create();
 
-    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
 
     let url = &format!("{0}/@fastify+error-3.3.0.tgz", server.url());
     let package_integrity: Integrity = "sha512-dj7vjIn1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==".parse().expect("parse integrity string");
@@ -53,39 +60,30 @@ fn bench_tarball(criterion: &mut Criterion, server: &mut ServerGuard, fixtures_f
     };
     group.throughput(Throughput::Bytes(file.len() as u64));
     group.bench_function("download_dependency", |bencher| {
-        bencher.to_async(&rt).iter(|| async {
-            // NOTE: the tempdir is being leaked, meaning the cleanup would be postponed until the end of the benchmark
-            let dir = tempdir().unwrap();
-            let store_dir =
-                dir.path().to_path_buf().pipe(StoreDir::from).pipe(Box::new).pipe(Box::leak);
-            let http_client = ThrottledClient::new_for_installs();
+        bencher
+            .to_async(&rt)
+            .iter(|| async {
+                // NOTE: the tempdir is being leaked, meaning the cleanup would be postponed until the end of the benchmark
+                let dir = tempdir().unwrap();
+                let store_dir = leaked_store_dir(dir.path());
+                let http_client = ThrottledClient::new_for_installs();
 
-            let cas_map =
-                ingest_benchmark_package(&package, &http_client, store_dir).await.unwrap();
-            cas_map.len()
-        });
+                let cas_map =
+                    ingest_benchmark_package(&package, &http_client, store_dir).await.unwrap();
+                cas_map.len()
+            });
     });
 
     group.finish();
 }
 
 fn bench_concurrent_tarballs(criterion: &mut Criterion, server: &mut ServerGuard) {
-    let packages = (0..BATCH_TARBALL_COUNT)
-        .map(|package_index| {
-            let tarball = create_benchmark_tarball(package_index);
-            let path = format!("/batch-package-{package_index}.tgz");
-            server.mock("GET", path.as_str()).with_status(200).with_body(tarball.clone()).create();
-            BatchPackage {
-                id: format!("batch-package-{package_index}@1.0.0"),
-                integrity: Integrity::from(tarball.as_slice()),
-                unpacked_size: BATCH_FILES_PER_TARBALL * benchmark_file(package_index, 0).len(),
-                url: format!("{}{path}", server.url()),
-                file_count: Some(BATCH_FILES_PER_TARBALL),
-            }
-        })
-        .collect::<Vec<_>>();
+    let packages = create_batch_packages(server);
 
-    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
     let mut group = criterion.benchmark_group("tarball_batch");
     group.sample_size(10);
     group.measurement_time(Duration::from_secs(20));
@@ -94,20 +92,25 @@ fn bench_concurrent_tarballs(criterion: &mut Criterion, server: &mut ServerGuard
             .expect("benchmark file count fits u64"),
     ));
     group.bench_function("cold_store_many_medium_tarballs", |bencher| {
-        bencher.to_async(&rt).iter(|| async {
-            let dir = tempdir().unwrap();
-            let store_dir =
-                dir.path().to_path_buf().pipe(StoreDir::from).pipe(Box::new).pipe(Box::leak);
-            let http_client = ThrottledClient::new_for_installs();
-            future::try_join_all(packages.iter().map(|package| async {
-                ingest_benchmark_package(package, &http_client, store_dir).await
-            }))
-            .await
-            .unwrap()
-            .iter()
-            .map(std::collections::HashMap::len)
-            .sum::<usize>()
-        });
+        bencher
+            .to_async(&rt)
+            .iter(|| async {
+                let dir = tempdir().unwrap();
+                let store_dir = leaked_store_dir(dir.path());
+                let http_client = ThrottledClient::new_for_installs();
+                future::try_join_all(
+                    packages
+                        .iter()
+                        .map(|package| async {
+                            ingest_benchmark_package(package, &http_client, store_dir).await
+                        }),
+                )
+                .await
+                .unwrap()
+                .iter()
+                .map(std::collections::HashMap::len)
+                .sum::<usize>()
+            });
     });
     group.finish();
 }
@@ -144,7 +147,9 @@ async fn ingest_benchmark_package(
         requester: "",
         ignore_file_pattern: None,
         progress_reported: None,
-        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
+        store_projection: ArchiveStoreProjection::Package {
+            append_manifest: None,
+        },
     }
     .run_without_mem_cache::<pnpm_reporter::SilentReporter>()
     .await
@@ -164,11 +169,15 @@ fn create_benchmark_tarball(package_index: usize) -> Vec<u8> {
     for file_index in 0..BATCH_FILES_PER_TARBALL {
         let content = benchmark_file(package_index, file_index);
         let mut header = Header::new_gnu();
-        header.set_path(format!("package/files/file-{file_index}.txt")).unwrap();
+        header
+            .set_path(format!("package/files/file-{file_index}.txt"))
+            .unwrap();
         header.set_size(u64::try_from(content.len()).expect("benchmark file size fits u64"));
         header.set_mode(0o644);
         header.set_cksum();
-        archive.append(&header, content.as_slice()).unwrap();
+        archive
+            .append(&header, content.as_slice())
+            .unwrap();
     }
     let encoder = archive.into_inner().unwrap();
     encoder.finish().unwrap()
@@ -224,7 +233,10 @@ fn bench_lockfile(criterion: &mut Criterion, dir: &Path) {
 }
 
 pub fn main() -> Result<(), String> {
-    let CliArgs { save_baseline, full_workspace_resolution } = CliArgs::parse();
+    let CliArgs {
+        save_baseline,
+        full_workspace_resolution,
+    } = CliArgs::parse();
     if full_workspace_resolution {
         workspace_resolution::run_full_workspace_resolution();
         return Ok(());
@@ -238,7 +250,10 @@ pub fn main() -> Result<(), String> {
         criterion = criterion.save_baseline(baseline);
     }
 
-    let packument = fixtures_folder.join("lodash.json").pipe(fs::read).unwrap();
+    let packument = fixtures_folder
+        .join("lodash.json")
+        .pipe(fs::read)
+        .unwrap();
     let lockfile_dir = root.join("pnpm/tasks/integrated-benchmark/src/fixtures");
 
     bench_tarball(&mut criterion, &mut server, &fixtures_folder);
@@ -249,4 +264,33 @@ pub fn main() -> Result<(), String> {
     workspace_sort::bench_workspace_sort(&mut criterion);
 
     Ok(())
+}
+
+fn create_batch_packages(server: &mut ServerGuard) -> Vec<BatchPackage> {
+    (0..BATCH_TARBALL_COUNT)
+        .map(|package_index| {
+            let tarball = create_benchmark_tarball(package_index);
+            let path = format!("/batch-package-{package_index}.tgz");
+            server
+                .mock("GET", path.as_str())
+                .with_status(200)
+                .with_body(tarball.clone())
+                .create();
+            BatchPackage {
+                id: format!("batch-package-{package_index}@1.0.0"),
+                integrity: Integrity::from(tarball.as_slice()),
+                unpacked_size: BATCH_FILES_PER_TARBALL * benchmark_file(package_index, 0).len(),
+                url: format!("{}{path}", server.url()),
+                file_count: Some(BATCH_FILES_PER_TARBALL),
+            }
+        })
+        .collect::<Vec<_>>()
+}
+
+fn leaked_store_dir(path: &Path) -> &'static StoreDir {
+    path
+        .to_path_buf()
+        .pipe(StoreDir::from)
+        .pipe(Box::new)
+        .pipe(Box::leak)
 }

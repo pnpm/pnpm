@@ -4,7 +4,12 @@ use pretty_assertions::assert_eq;
 use std::collections::HashMap;
 
 fn info(digest: &str, mode: u32, size: u64) -> CafsFileInfo {
-    CafsFileInfo { digest: digest.to_string(), mode, size, checked_at: None }
+    CafsFileInfo {
+        digest: digest.to_string(),
+        mode,
+        size,
+        checked_at: None,
+    }
 }
 
 fn map(entries: &[(&str, CafsFileInfo)]) -> HashMap<String, CafsFileInfo> {
@@ -86,7 +91,10 @@ fn mixed_changes() {
     ]);
     let diff = calculate_diff(&base, &current);
     let added = diff.added.expect("added present");
-    let mut added_keys: Vec<_> = added.keys().cloned().collect();
+    let mut added_keys: Vec<_> = added
+        .keys()
+        .cloned()
+        .collect();
     added_keys.sort();
     assert_eq!(added_keys, vec!["changed".to_string(), "fresh".to_string()]);
     assert_eq!(diff.deleted, Some(vec!["gone".to_string()]));

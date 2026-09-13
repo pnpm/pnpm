@@ -8,10 +8,8 @@ use diffy::{
 use indexmap::IndexSet;
 use miette::Diagnostic;
 use std::{
-    fs::{self, OpenOptions, Permissions},
-    io::{self, Write},
+    fs, io,
     path::{Component, Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
 };
 
 /// Error from [`apply_patch_to_dir`].
@@ -184,7 +182,9 @@ impl PreviewState<'_> {
             }
             _ => return Ok(()),
         };
-        let Some(written) = normalized_patch_path(raw_path) else { return Ok(()) };
+        let Some(written) = normalized_patch_path(raw_path) else {
+            return Ok(());
+        };
         let is_manifest = names_manifest(self.patched_dir, &written);
         self.written_paths.insert(written);
         if !is_manifest {
@@ -204,7 +204,9 @@ impl PreviewState<'_> {
     /// without it, so an earlier record's path is dropped rather than merely
     /// skipped.
     fn remove(&mut self, path: &str) {
-        let Some(removed) = normalized_patch_path(path) else { return };
+        let Some(removed) = normalized_patch_path(path) else {
+            return;
+        };
         if names_manifest(self.patched_dir, &removed) {
             self.preview.manifest = None;
             self.manifest_removed = true;
@@ -311,12 +313,13 @@ fn normalized_patch_path(rel: &str) -> Option<String> {
 fn read_patch_file(patch_file_path: &Path) -> Result<String, PatchApplyError> {
     match fs::read(patch_file_path) {
         Ok(bytes) => Ok(String::from_utf8_lossy(&bytes).into_owned()),
-        Err(e) if e.kind() == io::ErrorKind::NotFound => {
-            Err(PatchApplyError::PatchNotFound { path: patch_file_path.to_path_buf() })
-        }
-        Err(source) => {
-            Err(PatchApplyError::ReadPatchFile { path: patch_file_path.to_path_buf(), source })
-        }
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Err(PatchApplyError::PatchNotFound {
+            path: patch_file_path.to_path_buf(),
+        }),
+        Err(source) => Err(PatchApplyError::ReadPatchFile {
+            path: patch_file_path.to_path_buf(),
+            source,
+        }),
     }
 }
 
@@ -328,7 +331,10 @@ fn apply_one_file(
     // Strip the conventional `a/` / `b/` prefix so the path inside
     // the patch maps onto a relative path under `patched_dir`.
     let operation = file_patch.operation().strip_prefix(1);
-    let apply = FileApply { patched_dir, patch_file_path };
+    let apply = FileApply {
+        patched_dir,
+        patch_file_path,
+    };
 
     let text_patch = || {
         file_patch
@@ -337,15 +343,18 @@ fn apply_one_file(
             .ok_or_else(|| apply.failed("binary patch is not supported".to_string()))
     };
     match operation {
-        FileOperation::Modify { modified, .. } => {
-            apply.modify(&apply.resolve_target(Path::new(modified.as_ref()))?, text_patch()?)
-        }
-        FileOperation::Create(path) => {
-            apply.create(&apply.resolve_target(Path::new(path.as_ref()))?, text_patch()?)
-        }
-        FileOperation::Delete(path) => {
-            apply.delete(&apply.resolve_target(Path::new(path.as_ref()))?, text_patch()?)
-        }
+        FileOperation::Modify { modified, .. } => apply.modify(
+            &apply.resolve_target(Path::new(modified.as_ref()))?,
+            text_patch()?,
+        ),
+        FileOperation::Create(path) => apply.create(
+            &apply.resolve_target(Path::new(path.as_ref()))?,
+            text_patch()?,
+        ),
+        FileOperation::Delete(path) => apply.delete(
+            &apply.resolve_target(Path::new(path.as_ref()))?,
+            text_patch()?,
+        ),
         FileOperation::Rename { .. } | FileOperation::Copy { .. } => {
             Err(apply.failed("rename/copy operations in patches are not yet supported".to_string()))
         }
@@ -374,12 +383,14 @@ impl FileApply<'_> {
     /// outside the package directory.
     fn resolve_target(&self, rel: &Path) -> Result<PathBuf, PatchApplyError> {
         let escapes = rel.is_absolute()
-            || rel.components().any(|component| {
-                matches!(
-                    component,
-                    Component::ParentDir | Component::RootDir | Component::Prefix(_),
-                )
-            });
+            || rel
+                .components()
+                .any(|component| {
+                    matches!(
+                        component,
+                        Component::ParentDir | Component::RootDir | Component::Prefix(_),
+                    )
+                });
         if escapes {
             return Err(self.failed(format!("patch path escapes target dir: {}", rel.display())));
         }
@@ -456,9 +467,10 @@ impl FileApply<'_> {
             return Err(self.failed(format!("cannot create {target}: target already exists")));
         }
         if let Some(parent) = target.parent() {
-            fs::create_dir_all(parent).map_err(|source| {
-                self.failed(format!("create parent of {}: {source}", target.display()))
-            })?;
+            fs::create_dir_all(parent)
+                .map_err(|source| {
+                    self.failed(format!("create parent of {}: {source}", target.display()))
+                })?;
         }
         fs::write(target, created)
             .map_err(|source| self.failed(format!("write {}: {source}", target.display())))
@@ -515,94 +527,8 @@ impl FileApply<'_> {
         )))
     }
 }
-
-/// Atomic write: stage `content` in a sibling temp file (with
-/// `permissions` applied before the rename so the final file has the
-/// right mode atomically), then `rename` over `target`. Mirrors the
-/// pattern in
-/// [`pnpm_lockfile::save_lockfile::write_atomic`](../../lockfile/src/save_lockfile.rs):
-/// `create_new(true)` rather than `create + truncate` so we never
-/// follow a symlink or truncate a file an attacker (or a crashed prior
-/// install) pre-seeded at our predicted temp path; on `AlreadyExists`
-/// the counter advances and we retry up to `MAX_TEMP_ATTEMPTS` times.
-///
-/// `rename` is atomic on Unix and replaces in-place on Windows, so an
-/// IO failure mid-write leaves either the original file or the
-/// rewritten one — never an empty dirent. **This is atomic against IO
-/// errors, not against power loss**: we don't `fsync` the temp file
-/// or the parent directory, so a host crash between rename and the
-/// kernel's writeback flush can lose the rename. This matches Node's
-/// `fs.writeFileSync` semantics — it doesn't fsync either, and a
-/// partially-written patched install is recoverable by re-running
-/// `pnpm install` anyway.
-///
-/// As a side effect, `rename` creates a fresh inode at `target`,
-/// breaking any hardlink the path previously shared with the content-
-/// addressable store; the store inode (and every other hardlink to it)
-/// stays untouched.
-fn write_atomic_with_mode(
-    target: &Path,
-    content: &[u8],
-    permissions: &Permissions,
-) -> io::Result<()> {
-    /// Sixteen fresh counter values is plenty — under benign
-    /// conditions we never collide; under shared-store-across-
-    /// containers the chance of 16 consecutive same-pid same-counter
-    /// collisions is negligible. Matches the constant in
-    /// `pnpm_lockfile::save_lockfile::write_atomic`.
-    const MAX_TEMP_ATTEMPTS: usize = 16;
-
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let pid = std::process::id();
-    let parent = target.parent().unwrap_or_else(|| Path::new("."));
-    let file_name = target
-        .file_name()
-        .map_or_else(|| String::from("patched"), |name| name.to_string_lossy().into_owned());
-
-    let mut last_already_exists: Option<io::Error> = None;
-    for _ in 0..MAX_TEMP_ATTEMPTS {
-        let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
-        let tmp = parent.join(format!(".{file_name}.{pid}.{counter}.pacquet-tmp"));
-
-        let mut file = match OpenOptions::new().write(true).create_new(true).open(&tmp) {
-            Ok(file) => file,
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-                last_already_exists = Some(error);
-                continue;
-            }
-            Err(error) => return Err(error),
-        };
-
-        if let Err(error) = file.write_all(content) {
-            drop(file);
-            let _ = fs::remove_file(&tmp);
-            return Err(error);
-        }
-        // Close before chmod / rename. Required on Windows: `MoveFileEx`
-        // over a still-open source handle fails with a sharing
-        // violation. Not strictly required on Unix but matches the
-        // pattern in `save_lockfile::write_atomic`. No `sync_all`: this
-        // routine is atomic against IO errors, not power loss — see
-        // the `fn` doc above.
-        drop(file);
-
-        if let Err(error) = fs::set_permissions(&tmp, permissions.clone()) {
-            let _ = fs::remove_file(&tmp);
-            return Err(error);
-        }
-
-        return fs::rename(&tmp, target).inspect_err(|_| {
-            let _ = fs::remove_file(&tmp);
-        });
-    }
-
-    Err(last_already_exists.unwrap_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::AlreadyExists,
-            "exhausted temp-path attempts for atomic patch write",
-        )
-    }))
-}
-
 #[cfg(test)]
 mod tests;
+
+mod atomic_write;
+use atomic_write::write_atomic_with_mode;

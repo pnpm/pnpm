@@ -32,7 +32,12 @@ impl Diff {
     /// computes cursor moves for wraps that never happened.
     #[must_use]
     pub fn new(width: usize) -> Self {
-        Diff { col: 0, row: 0, width, lines: Vec::new() }
+        Diff {
+            col: 0,
+            row: 0,
+            width,
+            lines: Vec::new(),
+        }
     }
 
     /// Forget the previous frame and the tracked cursor position, so the
@@ -52,7 +57,9 @@ impl Diff {
     /// buffer so it reaches the terminal as a single write.
     pub fn update_into(&mut self, frame: &str, out: &mut String) {
         let next = Line::split(frame, self.width);
-        let min = next.len().min(self.lines.len());
+        let min = next
+            .len()
+            .min(self.lines.len());
 
         // Take ownership of the previous lines so the borrow of `self` ends
         // and we can freely mutate `self.col` / `self.row` during the loop.
@@ -112,7 +119,9 @@ impl Diff {
     fn clear_trailing(&mut self, next: &[Line], old: &[Line], out: &mut String) {
         let Some(old_last) = old.last() else { return };
         let old_last_row = old_last.row + old_last.height;
-        let new_last_row = next.last().map_or(0, |line| line.row + line.height);
+        let new_last_row = next
+            .last()
+            .map_or(0, |line| line.row + line.height);
         if next.is_empty() || new_last_row < old_last_row {
             self.clear_down(out, old_last_row);
         }
@@ -180,7 +189,14 @@ impl Line {
                 }
             }
         };
-        Line { raw: text.to_string(), row, length, height, remainder, newline }
+        Line {
+            raw: text.to_string(),
+            row,
+            length,
+            height,
+            remainder,
+            newline,
+        }
     }
 
     fn split(input: &str, width: usize) -> Vec<Self> {
@@ -213,6 +229,15 @@ impl Line {
         self.row != other.row || self.height != other.height
     }
 
+    fn supports_inline_diff(&self, other: &Self) -> bool {
+        !(self.length != other.length
+            || self.row != other.row
+            || !self.newline
+            || !other.newline
+            || self.raw.contains('\u{1b}')
+            || other.raw.contains('\u{1b}'))
+    }
+
     fn try_inline_diff(
         &self,
         other: &Self,
@@ -221,25 +246,25 @@ impl Line {
         row: &mut usize,
         width: usize,
     ) -> bool {
-        if self.length != other.length
-            || self.row != other.row
-            || !self.newline
-            || !other.newline
-            || self.raw.contains('\u{1b}')
-            || other.raw.contains('\u{1b}')
-        {
+        if !self.supports_inline_diff(other) {
             return false;
         }
         let self_chars: Vec<char> = self.raw.chars().collect();
         let other_chars: Vec<char> = other.raw.chars().collect();
-        let left = self_chars.iter().zip(&other_chars).take_while(|(ca, cb)| ca == cb).count();
+        let left = self_chars
+            .iter()
+            .zip(&other_chars)
+            .take_while(|(ca, cb)| ca == cb)
+            .count();
         let right = self_chars
             .iter()
             .rev()
             .zip(other_chars.iter().rev())
             .take_while(|(ca, cb)| ca == cb)
             .count();
-        let changed_len = self_chars.len().saturating_sub(left + right);
+        let changed_len = self_chars
+            .len()
+            .saturating_sub(left + right);
         if left + right <= 4 || left + changed_len >= width.saturating_sub(1) {
             return false;
         }

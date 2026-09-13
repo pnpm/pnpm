@@ -136,7 +136,9 @@ struct FrozenScope<'a> {
 
 impl FrozenScope<'_> {
     fn lockfile<'l>(&'l self, lockfile: &'l Lockfile) -> &'l Lockfile {
-        self.closure.as_ref().map_or(lockfile, |closure| &closure.lockfile)
+        self.closure
+            .as_ref()
+            .map_or(lockfile, |closure| &closure.lockfile)
     }
 }
 
@@ -184,10 +186,9 @@ impl<'a> MaterializationInputs<'a, '_> {
                 lockfile_dir: self.workspace.workspace_root,
                 supported_architectures: self.execution.supported_architectures,
                 is_full_install: self.install.execution.mutation.is_full_install(),
-                real_ids: self
-                    .workspace
-                    .requested_importer_ids
-                    .map(|_| self.workspace.real_importer_ids),
+                real_ids: self.workspace.requested_importer_ids.map(|_| {
+                    self.workspace.real_importer_ids
+                }),
                 selected_ids: self.workspace.requested_importer_ids,
             },
             execution: crate::install_with_fresh_lockfile::FreshInstallExecution {
@@ -235,9 +236,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                 meta_cache: self.lockfiles.verification.meta_cache,
             },
             projects: crate::install_with_fresh_lockfile::FreshProjectInputs {
-                lockfile_specifier_manifests: self
-                    .workspace
-                    .lockfile_specifier_project_manifests
+                lockfile_specifier_manifests: self.workspace.lockfile_specifier_project_manifests
                     .map(|manifests| {
                         lockfile_specifier_manifests_by_id(manifests, self.workspace.workspace_root)
                     }),

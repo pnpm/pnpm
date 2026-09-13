@@ -324,12 +324,14 @@ impl Lockfile {
     /// misread as empty and delete its current lockfile.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.importers.values().all(|importer| {
-            importer.specifiers.as_ref().is_none_or(HashMap::is_empty)
-                && importer.dependencies.as_ref().is_none_or(HashMap::is_empty)
-                && importer.dev_dependencies.as_ref().is_none_or(HashMap::is_empty)
-                && importer.optional_dependencies.as_ref().is_none_or(HashMap::is_empty)
-        })
+        self.importers
+            .values()
+            .all(|importer| {
+                importer.specifiers.as_ref().is_none_or(HashMap::is_empty)
+                    && importer.dependencies.as_ref().is_none_or(HashMap::is_empty)
+                    && importer.dev_dependencies.as_ref().is_none_or(HashMap::is_empty)
+                    && importer.optional_dependencies.as_ref().is_none_or(HashMap::is_empty)
+            })
     }
 
     /// Defense-in-depth for pruned lockfiles (older `turbo prune --docker`,
@@ -339,43 +341,58 @@ impl Lockfile {
     /// the `file:` depPath so [`crate::PackageMetadata::resolution`]
     /// stays non-optional for downstream callers.
     pub fn reconstruct_missing_directory_resolutions(&mut self) {
-        let Some(snapshots) = self.snapshots.as_ref() else { return };
+        let Some(snapshots) = self.snapshots.as_ref() else {
+            return;
+        };
         let to_insert: Vec<(PackageKey, DirectoryResolution)> = snapshots
             .keys()
-            .filter_map(|snapshot_key| {
-                let metadata_key = snapshot_key.without_peer();
-                let packages = self.packages.as_ref();
-                if packages.is_some_and(|p| p.contains_key(&metadata_key)) {
-                    return None;
-                }
-                let VersionPart::File(path) = metadata_key.suffix.version() else { return None };
-                if is_local_tarball_path(path) {
-                    return None;
-                }
-                let directory = path.clone();
-                Some((metadata_key, DirectoryResolution { directory }))
-            })
+            .filter_map(|snapshot_key| self.missing_directory_resolution(snapshot_key))
             .collect();
         if to_insert.is_empty() {
             return;
         }
         let packages = self.packages.get_or_insert_with(HashMap::new);
         for (key, directory_resolution) in to_insert {
-            packages.entry(key).or_insert_with(|| PackageMetadata {
-                resolution: LockfileResolution::Directory(directory_resolution),
-                version: None,
-                engines: None,
-                cpu: None,
-                os: None,
-                libc: None,
-                deprecated: None,
-                has_bin: None,
-                prepare: None,
-                bundled_dependencies: None,
-                peer_dependencies: None,
-                peer_dependencies_meta: None,
-            });
+            packages
+                .entry(key)
+                .or_insert_with(|| PackageMetadata {
+                    resolution: LockfileResolution::Directory(directory_resolution),
+                    version: None,
+                    engines: None,
+                    cpu: None,
+                    os: None,
+                    libc: None,
+                    deprecated: None,
+                    has_bin: None,
+                    prepare: None,
+                    bundled_dependencies: None,
+                    peer_dependencies: None,
+                    peer_dependencies_meta: None,
+                });
         }
+    }
+    fn missing_directory_resolution(
+        &self,
+        snapshot_key: &PackageKey,
+    ) -> Option<(PackageKey, DirectoryResolution)> {
+        let metadata_key = snapshot_key.without_peer();
+        let packages = self.packages.as_ref();
+        if packages.is_some_and(|p| p.contains_key(&metadata_key)) {
+            return None;
+        }
+        let VersionPart::File(path) = metadata_key.suffix.version() else {
+            return None;
+        };
+        if is_local_tarball_path(path) {
+            return None;
+        }
+        let directory = path.clone();
+        Some((
+            metadata_key,
+            DirectoryResolution {
+                directory,
+            },
+        ))
     }
 }
 

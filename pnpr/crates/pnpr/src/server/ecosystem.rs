@@ -48,7 +48,11 @@ pub(super) fn addressed_registry(
 /// Route templates rather than URLs — `{registry}` is a path parameter the
 /// [`TargetRegistry`](super::TargetRegistry) extractor reads back.
 pub(super) fn mount_bases(ecosystem: Ecosystem, prefixed: bool) -> [String; 2] {
-    let prefix = if prefixed { format!("/{ecosystem}") } else { String::new() };
+    let prefix = if prefixed {
+        format!("/{ecosystem}")
+    } else {
+        String::new()
+    };
     [prefix.clone(), format!("{prefix}/~{{registry}}")]
 }
 
@@ -62,8 +66,10 @@ pub(super) fn registry_endpoint(
     registry: Option<&str>,
 ) -> String {
     let public_url = state.inner.config.http.public_url.trim_end_matches('/');
-    let base =
-        format!("{public_url}{}", state.inner.config.routing.registries.base_path(ecosystem));
+    let base = format!(
+        "{public_url}{}",
+        state.inner.config.routing.registries.base_path(ecosystem),
+    );
     match registry {
         Some(registry) => format!("{base}/~{registry}"),
         None => base,
@@ -107,21 +113,18 @@ pub(super) fn registry_requires_auth(
     ecosystem: Ecosystem,
 ) -> bool {
     let config = &state.inner.config;
-    config.routing.registries.sources(registry, ecosystem).into_iter().any(|source| {
-        match config.routing.registries.get(source) {
-            Some(Registry::Hosted { .. }) => config
-                .routing
-                .hosted
+    config.routing.registries
+        .sources(registry, ecosystem)
+        .into_iter()
+        .any(|source| match config.routing.registries.get(source) {
+            Some(Registry::Hosted { .. }) => config.routing.hosted
                 .get(source)
                 .is_some_and(|hosted| !hosted.rules.all_access_admit(&Identity::Anonymous)),
-            Some(Registry::Upstream { .. }) => config
-                .routing
-                .upstreams
+            Some(Registry::Upstream { .. }) => config.routing.upstreams
                 .get(source)
                 .is_some_and(|upstream| upstream.access.is_some()),
             Some(Registry::Router { .. }) | None => false,
-        }
-    })
+        })
 }
 
 /// The hosted registries of `ecosystem` a request through `registry` can land on.
@@ -241,7 +244,8 @@ pub(super) async fn serve_upstream_artifact(
     url: &str,
     integrity: &Integrity,
 ) -> Response {
-    let namespace = format!("{namespace}-{}", sha256_hex(integrity.to_string().as_bytes()));
+    let integrity_key = sha256_hex(integrity.to_string().as_bytes());
+    let namespace = format!("{namespace}-{integrity_key}");
     let namespace = namespace.as_str();
     if upstream.caches()
         && let Some(response) = cached_upstream_tarball(state, namespace, name, filename).await

@@ -47,7 +47,9 @@ pub(super) struct MirrorLayout {
 /// format. Each declared length is bounded before the layout is
 /// trusted.
 pub(super) fn mirror_layout(prefix: &[u8]) -> Option<Option<MirrorLayout>> {
-    let newline = prefix.iter().position(|&byte| byte == b'\n')?;
+    let newline = prefix
+        .iter()
+        .position(|&byte| byte == b'\n')?;
     let line = std::str::from_utf8(&prefix[..newline]).ok()?;
     let Some((headers_len, index_len)) = parse_mirror_magic(line) else {
         return Some(None);
@@ -73,7 +75,10 @@ pub(super) fn read_mirror_records(
     prefix: &[u8],
     layout: &MirrorLayout,
 ) -> Option<(MetaHeaders, MirrorIndex, u64)> {
-    let file_size = file.metadata().ok()?.len();
+    let file_size = file
+        .metadata()
+        .ok()?
+        .len();
     if u64::try_from(layout.fragment_base).ok()? > file_size {
         return None;
     }
@@ -139,7 +144,9 @@ pub(super) fn buffer_fragments(
         if pnpm_registry::read_exact_at(file, &mut bytes, absolute).is_err() {
             continue;
         }
-        let Ok(json) = String::from_utf8(bytes) else { continue };
+        let Ok(json) = String::from_utf8(bytes) else {
+            continue;
+        };
         let Ok(raw) = serde_json::from_str::<Box<serde_json::value::RawValue>>(&json) else {
             continue;
         };
@@ -152,7 +159,9 @@ pub(super) fn buffer_fragments(
 /// packument.
 pub(super) fn load_legacy_ndjson_meta(pkg_mirror: &Path) -> Option<Package> {
     let contents = fs::read(pkg_mirror).ok()?;
-    let newline = contents.iter().position(|&byte| byte == b'\n')?;
+    let newline = contents
+        .iter()
+        .position(|&byte| byte == b'\n')?;
     let headers: MetaHeaders = serde_json::from_slice(&contents[..newline]).ok()?;
     let mut meta: Package = serde_json::from_slice(&contents[newline + 1..]).ok()?;
     meta.etag = headers.etag;
@@ -166,7 +175,9 @@ pub(super) fn load_legacy_ndjson_meta(pkg_mirror: &Path) -> Option<Package> {
 pub(super) fn read_prefix(file: &mut File, prefix: &mut [u8]) -> Option<usize> {
     let mut filled = 0usize;
     while filled < prefix.len() {
-        let read = file.read(&mut prefix[filled..]).ok()?;
+        let read = file
+            .read(&mut prefix[filled..])
+            .ok()?;
         if read == 0 {
             break;
         }
@@ -190,7 +201,10 @@ pub(super) fn held_mirror_file_cap() -> usize {
 
 #[cfg(unix)]
 pub(super) fn soft_open_file_limit() -> Option<usize> {
-    let mut limit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+    let mut limit = libc::rlimit {
+        rlim_cur: 0,
+        rlim_max: 0,
+    };
     // SAFETY: plain libc call; `limit` is a properly initialised
     // out-parameter and the pointer does not outlive the call.
     if unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &raw mut limit) } != 0 {

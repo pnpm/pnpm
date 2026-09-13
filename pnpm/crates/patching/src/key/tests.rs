@@ -18,7 +18,11 @@ fn bare_scoped_name_returns_empty() {
 fn name_at_exact_version() {
     assert_eq!(
         parse_key("lodash@4.17.21"),
-        ParsedKey { name: Some("lodash"), version: Some("4.17.21"), non_semver_version: None },
+        ParsedKey {
+            name: Some("lodash"),
+            version: Some("4.17.21"),
+            non_semver_version: None
+        },
     );
 }
 
@@ -26,7 +30,11 @@ fn name_at_exact_version() {
 fn scoped_name_at_exact_version() {
     assert_eq!(
         parse_key("@scope/foo@1.0.0"),
-        ParsedKey { name: Some("@scope/foo"), version: Some("1.0.0"), non_semver_version: None },
+        ParsedKey {
+            name: Some("@scope/foo"),
+            version: Some("1.0.0"),
+            non_semver_version: None
+        },
     );
 }
 
@@ -34,7 +42,11 @@ fn scoped_name_at_exact_version() {
 fn name_at_range_becomes_non_semver() {
     assert_eq!(
         parse_key("lodash@^4.17.0"),
-        ParsedKey { name: Some("lodash"), version: None, non_semver_version: Some("^4.17.0") },
+        ParsedKey {
+            name: Some("lodash"),
+            version: None,
+            non_semver_version: Some("^4.17.0")
+        },
     );
 }
 
@@ -51,6 +63,10 @@ fn empty_version_returns_empty() {
 fn version_with_x_is_range() {
     assert_eq!(
         parse_key("foo@1.x.x"),
-        ParsedKey { name: Some("foo"), version: None, non_semver_version: Some("1.x.x") },
+        ParsedKey {
+            name: Some("foo"),
+            version: None,
+            non_semver_version: Some("1.x.x")
+        },
     );
 }

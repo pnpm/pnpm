@@ -30,8 +30,13 @@ fn persistent_config(storage: PathBuf, htpasswd: PathBuf, tokens_db: PathBuf) ->
     config.http.public_url = "http://example.test".to_string();
     config.identity.auth = AuthConfig {
         oidc: Vec::new(),
-        htpasswd: HtpasswdConfig { file: Some(htpasswd), max_users: MaxUsers::Unlimited },
-        tokens: TokensConfig { file: Some(tokens_db) },
+        htpasswd: HtpasswdConfig {
+            file: Some(htpasswd),
+            max_users: MaxUsers::Unlimited,
+        },
+        tokens: TokensConfig {
+            file: Some(tokens_db),
+        },
     };
     config
 }
@@ -76,8 +81,11 @@ async fn user_and_token_survive_restart() {
     let htpasswd = auth_dir.path().join("htpasswd");
     let tokens_db = auth_dir.path().join("tokens.db");
 
-    let config =
-        persistent_config(storage.path().to_path_buf(), htpasswd.clone(), tokens_db.clone());
+    let config = persistent_config(
+        storage.path().to_path_buf(),
+        htpasswd.clone(),
+        tokens_db.clone(),
+    );
     let auth =
         AuthState::load(&config.identity.auth, &config.identity.backend).await.expect("first boot");
     let app = router_with_auth(config.clone(), auth);
@@ -85,23 +93,34 @@ async fn user_and_token_survive_restart() {
     // adduser pulls a fresh token out of the response body.
     let response = app
         .clone()
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .oneshot(put_json(
+            "/-/user/org.couchdb.user:alice",
+            adduser_body("alice", "secret"),
+        ))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
     let payload = body_json(response.into_body()).await;
-    let token = payload["token"].as_str().expect("token in response").to_string();
+    let token = payload["token"]
+        .as_str()
+        .expect("token in response")
+        .to_string();
     assert!(!token.is_empty());
 
     // Both files should now exist on disk.
-    assert!(htpasswd.exists(), "htpasswd should be created on first registration");
-    assert!(tokens_db.exists(), "tokens.db should be created on first token issue");
+    assert!(
+        htpasswd.exists(),
+        "htpasswd should be created on first registration",
+    );
+    assert!(
+        tokens_db.exists(),
+        "tokens.db should be created on first token issue",
+    );
 
     // Simulate a restart: drop the router (and the in-memory map),
     // re-load from disk, rebuild the router. Same config, same paths.
     drop(app);
-    let auth = AuthState::load(&config.identity.auth, &config.identity.backend)
-        .await
+    let auth = AuthState::load(&config.identity.auth, &config.identity.backend).await
         .expect("reload after restart");
     let app = router_with_auth(config, auth);
 
@@ -120,12 +139,19 @@ async fn user_and_token_survive_restart() {
         .unwrap();
     // 404 from the dist-tag handler is fine — the point is we got
     // past the 401 gate, which proves the token still authenticates.
-    assert_ne!(response.status(), StatusCode::UNAUTHORIZED, "token should still authenticate");
+    assert_ne!(
+        response.status(),
+        StatusCode::UNAUTHORIZED,
+        "token should still authenticate",
+    );
 
     // The existing username must accept the same password and not
     // be re-registered as a brand-new user.
     let response = app
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .oneshot(put_json(
+            "/-/user/org.couchdb.user:alice",
+            adduser_body("alice", "secret"),
+        ))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -144,15 +170,21 @@ async fn invalid_usernames_do_not_change_htpasswd_across_restart() {
     let htpasswd = auth_dir.path().join("htpasswd");
     let tokens_db = auth_dir.path().join("tokens.db");
 
-    let config =
-        persistent_config(storage.path().to_path_buf(), htpasswd.clone(), tokens_db.clone());
+    let config = persistent_config(
+        storage.path().to_path_buf(),
+        htpasswd.clone(),
+        tokens_db.clone(),
+    );
     let auth =
         AuthState::load(&config.identity.auth, &config.identity.backend).await.expect("first boot");
     let app = router_with_auth(config.clone(), auth);
 
     let response = app
         .clone()
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .oneshot(put_json(
+            "/-/user/org.couchdb.user:alice",
+            adduser_body("alice", "secret"),
+        ))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -167,9 +199,16 @@ async fn invalid_usernames_do_not_change_htpasswd_across_restart() {
         ("trailing whitespace", "alice%20", "alice "),
     ] {
         let path = format!("/-/user/org.couchdb.user:{encoded_username}");
-        let response =
-            app.clone().oneshot(put_json(&path, adduser_body(username, "secret"))).await.unwrap();
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{case} username");
+        let response = app
+            .clone()
+            .oneshot(put_json(&path, adduser_body(username, "secret")))
+            .await
+            .unwrap();
+        assert_eq!(
+            response.status(),
+            StatusCode::BAD_REQUEST,
+            "{case} username",
+        );
         assert_eq!(
             std::fs::read_to_string(&htpasswd).unwrap(),
             original_htpasswd,
@@ -178,13 +217,15 @@ async fn invalid_usernames_do_not_change_htpasswd_across_restart() {
     }
 
     drop(app);
-    let auth = AuthState::load(&config.identity.auth, &config.identity.backend)
-        .await
+    let auth = AuthState::load(&config.identity.auth, &config.identity.backend).await
         .expect("reload after restart");
     // The reloaded htpasswd still logs the user in with the original password.
     let (_, username) = auth.users.add_or_login("alice", "secret").await.unwrap();
     assert_eq!(username, "alice");
-    assert_eq!(std::fs::read_to_string(&htpasswd).unwrap(), original_htpasswd);
+    assert_eq!(
+        std::fs::read_to_string(&htpasswd).unwrap(),
+        original_htpasswd,
+    );
 }
 
 /// Corrupt the htpasswd file → server returns a parse diagnostic on
@@ -198,12 +239,14 @@ async fn corrupt_htpasswd_fails_startup_with_diagnostic() {
     std::fs::write(&htpasswd, "this-line-has-no-colon-and-is-not-a-comment\n").unwrap();
 
     let config = persistent_config(
-        TempDir::new().unwrap().path().to_path_buf(),
+        TempDir::new()
+            .unwrap()
+            .path()
+            .to_path_buf(),
         htpasswd.clone(),
         auth_dir.path().join("tokens.db"),
     );
-    let err = AuthState::load(&config.identity.auth, &config.identity.backend)
-        .await
+    let err = AuthState::load(&config.identity.auth, &config.identity.backend).await
         .expect_err("malformed htpasswd should fail to load");
     let message = err.to_string();
     assert!(
@@ -217,7 +260,11 @@ async fn corrupt_htpasswd_fails_startup_with_diagnostic() {
 /// doesn't have htpasswd installed (some CI images don't).
 #[tokio::test]
 async fn htpasswd_file_is_verifiable_by_apache_htpasswd_tool() {
-    if Command::new("htpasswd").arg("-h").output().is_err() {
+    if Command::new("htpasswd")
+        .arg("-h")
+        .output()
+        .is_err()
+    {
         eprintln!("apache htpasswd not on PATH — skipping cross-tool compat test");
         return;
     }
@@ -236,7 +283,10 @@ async fn htpasswd_file_is_verifiable_by_apache_htpasswd_tool() {
     let app = router_with_auth(config, auth);
 
     let response = app
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "compat-secret")))
+        .oneshot(put_json(
+            "/-/user/org.couchdb.user:alice",
+            adduser_body("alice", "compat-secret"),
+        ))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -283,13 +333,18 @@ async fn max_users_minus_one_disables_registration_end_to_end() {
             file: Some(auth_dir.path().join("htpasswd")),
             max_users: MaxUsers::Disabled,
         },
-        tokens: TokensConfig { file: Some(auth_dir.path().join("tokens.db")) },
+        tokens: TokensConfig {
+            file: Some(auth_dir.path().join("tokens.db")),
+        },
     };
     let auth = AuthState::load(&config.identity.auth, &config.identity.backend).await.unwrap();
     let app = router_with_auth(config, auth);
 
     let response = app
-        .oneshot(put_json("/-/user/org.couchdb.user:newbie", adduser_body("newbie", "anything")))
+        .oneshot(put_json(
+            "/-/user/org.couchdb.user:newbie",
+            adduser_body("newbie", "anything"),
+        ))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
@@ -302,13 +357,18 @@ async fn missing_max_users_disables_registration_end_to_end() {
     let app = router(config);
 
     let response = app
-        .oneshot(put_json("/-/user/org.couchdb.user:newbie", adduser_body("newbie", "anything")))
+        .oneshot(put_json(
+            "/-/user/org.couchdb.user:newbie",
+            adduser_body("newbie", "anything"),
+        ))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
     let body = body_bytes(response.into_body()).await;
     assert!(
-        !body.windows(b"\"token\"".len()).any(|window| window == b"\"token\""),
+        !body
+            .windows(b"\"token\"".len())
+            .any(|window| window == b"\"token\""),
         "registration denial must not issue a token",
     );
 }
@@ -323,13 +383,19 @@ async fn finite_max_users_reaches_in_memory_backend_end_to_end() {
 
     let first = app
         .clone()
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .oneshot(put_json(
+            "/-/user/org.couchdb.user:alice",
+            adduser_body("alice", "secret"),
+        ))
         .await
         .unwrap();
     assert_eq!(first.status(), StatusCode::CREATED);
 
     let second = app
-        .oneshot(put_json("/-/user/org.couchdb.user:bob", adduser_body("bob", "secret")))
+        .oneshot(put_json(
+            "/-/user/org.couchdb.user:bob",
+            adduser_body("bob", "secret"),
+        ))
         .await
         .unwrap();
     assert_eq!(second.status(), StatusCode::FORBIDDEN);

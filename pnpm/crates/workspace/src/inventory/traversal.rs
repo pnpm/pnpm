@@ -23,7 +23,10 @@ pub(super) fn walk_workspace(
     let mut navigation_opens = 1;
     let mut pending = Vec::new();
     read_children(
-        &OpenDirectory { path: workspace_root.to_path_buf(), handle: &root_handle },
+        &OpenDirectory {
+            path: workspace_root.to_path_buf(),
+            handle: &root_handle,
+        },
         workspace_root,
         ignored,
         &mut before_read,
@@ -31,21 +34,21 @@ pub(super) fn walk_workspace(
         &mut pending,
     )?;
     while let Some(path) = pending.pop() {
-        let handle = match before_open_directory(&path).and_then(|()| {
-            super::open_directory::open_directory(
-                &root_handle,
-                path.strip_prefix(workspace_root).expect("descendant of workspace root"),
-                &mut navigation_opens,
-            )
-        }) {
-            Ok(handle) => handle,
-            Err(error) if is_changed_candidate_error(&error) => continue,
-            Err(source) => {
-                return Err(FindWorkspaceInventoryError::InspectCandidate { path, source });
-            }
+        let Some(handle) = open_candidate_directory(
+            &root_handle,
+            workspace_root,
+            &path,
+            &mut navigation_opens,
+            &mut before_open_directory,
+        )?
+        else {
+            continue;
         };
         read_children(
-            &OpenDirectory { path, handle: &handle },
+            &OpenDirectory {
+                path,
+                handle: &handle,
+            },
             workspace_root,
             ignored,
             &mut before_read,
@@ -59,9 +62,11 @@ pub(super) fn walk_workspace(
 fn open_workspace_root(
     workspace_root: &Path,
 ) -> Result<std::fs::File, FindWorkspaceInventoryError> {
-    fs::open_ambient_dir(workspace_root, ambient_authority()).map_err(|source| {
-        FindWorkspaceInventoryError::ReadDirectory { path: workspace_root.to_path_buf(), source }
-    })
+    fs::open_ambient_dir(workspace_root, ambient_authority())
+        .map_err(|source| FindWorkspaceInventoryError::ReadDirectory {
+            path: workspace_root.to_path_buf(),
+            source,
+        })
 }
 
 fn read_children(
@@ -100,9 +105,10 @@ fn read_directory(
         Err(error) if directory.path != workspace_root && is_ignorable_discovery_error(&error) => {
             Ok(None)
         }
-        Err(source) => {
-            Err(FindWorkspaceInventoryError::ReadDirectory { path: directory.path.clone(), source })
-        }
+        Err(source) => Err(FindWorkspaceInventoryError::ReadDirectory {
+            path: directory.path.clone(),
+            source,
+        }),
     }
 }
 
@@ -119,7 +125,10 @@ fn collect_entry(
         Ok(file_type) => file_type,
         Err(error) if is_ignorable_discovery_error(&error) => return Ok(()),
         Err(source) => {
-            return Err(FindWorkspaceInventoryError::InspectCandidate { path, source });
+            return Err(FindWorkspaceInventoryError::InspectCandidate {
+                path,
+                source,
+            });
         }
     };
     if file_type.is_dir() && !ignored.contains(&file_name, &path) {
@@ -155,4 +164,28 @@ fn is_changed_ancestry_error(error: &io::Error) -> bool {
 #[cfg(not(target_os = "linux"))]
 fn is_changed_ancestry_error(_error: &io::Error) -> bool {
     false
+}
+
+fn open_candidate_directory(
+    root_handle: &std::fs::File,
+    workspace_root: &Path,
+    path: &Path,
+    navigation_opens: &mut usize,
+    before_open_directory: &mut impl FnMut(&Path) -> io::Result<()>,
+) -> Result<Option<std::fs::File>, FindWorkspaceInventoryError> {
+    match before_open_directory(path)
+        .and_then(|()| {
+            super::open_directory::open_directory(
+                root_handle,
+                path.strip_prefix(workspace_root).expect("descendant of workspace root"),
+                navigation_opens,
+            )
+        }) {
+        Ok(handle) => Ok(Some(handle)),
+        Err(error) if is_changed_candidate_error(&error) => Ok(None),
+        Err(source) => Err(FindWorkspaceInventoryError::InspectCandidate {
+            path: path.to_path_buf(),
+            source,
+        }),
+    }
 }

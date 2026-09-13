@@ -43,15 +43,23 @@ fn tri_ecosystem_config(storage: PathBuf) -> Config {
             },
         );
     }
-    let mut graph: indexmap::IndexMap<String, Registry> = config
-        .routing
-        .registries
+    let mut graph: indexmap::IndexMap<String, Registry> = config.routing.registries
         .names()
-        .map(|name| (name.to_string(), config.routing.registries.get(name).unwrap().clone()))
+        .map(|name| {
+            (
+                name.to_string(),
+                config.routing.registries
+                    .get(name)
+                    .unwrap()
+                    .clone(),
+            )
+        })
         .collect();
     graph.insert(
         "crates".to_string(),
-        Registry::Hosted { patterns: vec![PackagePattern::parse("demo", Ecosystem::Npm).unwrap()] },
+        Registry::Hosted {
+            patterns: vec![PackagePattern::parse("demo", Ecosystem::Npm).unwrap()],
+        },
     );
     graph.insert(
         "python".to_string(),
@@ -61,7 +69,9 @@ fn tri_ecosystem_config(storage: PathBuf) -> Config {
     );
     graph.insert(
         "main".to_string(),
-        Registry::Router { sources: ["local", "crates", "python"].map(str::to_string).to_vec() },
+        Registry::Router {
+            sources: ["local", "crates", "python"].map(str::to_string).to_vec(),
+        },
     );
     let registries = Registries::new(graph, Some("main".to_string()))
         .with_ecosystem("crates", Ecosystem::Cargo)
@@ -88,7 +98,9 @@ fn publish_request(path: &str, body: &Value, token: Option<&str>) -> Request<Bod
     if let Some(token) = token {
         request = request.header("Authorization", format!("Bearer {token}"));
     }
-    request.body(Body::from(serde_json::to_vec(body).unwrap())).unwrap()
+    request
+        .body(Body::from(serde_json::to_vec(body).unwrap()))
+        .unwrap()
 }
 
 /// An npm publish document, the same one the npm batch endpoint takes.
@@ -123,16 +135,25 @@ fn crate_archive(name: &str, version: &str) -> Vec<u8> {
     let encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
     let mut builder = tar::Builder::new(encoder);
     for (path, contents) in [
-        ("Cargo.toml", format!("[package]\nname = \"{name}\"\nversion = \"{version}\"\n")),
+        (
+            "Cargo.toml",
+            format!("[package]\nname = \"{name}\"\nversion = \"{version}\"\n"),
+        ),
         ("src/lib.rs", "pub fn demo() {}\n".to_string()),
     ] {
         let mut header = tar::Header::new_gnu();
         header.set_size(contents.len() as u64);
         header.set_mode(0o644);
         header.set_cksum();
-        builder.append_data(&mut header, format!("{root}/{path}"), contents.as_bytes()).unwrap();
+        builder
+            .append_data(&mut header, format!("{root}/{path}"), contents.as_bytes())
+            .unwrap();
     }
-    builder.into_inner().unwrap().finish().unwrap()
+    builder
+        .into_inner()
+        .unwrap()
+        .finish()
+        .unwrap()
 }
 
 fn cargo_entry(name: &str, version: &str, archive: &[u8]) -> Value {
@@ -177,9 +198,16 @@ async fn token_for(app: &axum::Router, username: &str) -> String {
         "type": "user",
         "roles": [],
     });
-    let response = app.clone().oneshot(publish_request(&path, &body, None)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(publish_request(&path, &body, None))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
-    body_json(response.into_body()).await["token"].as_str().unwrap().to_string()
+    body_json(response.into_body()).await["token"]
+        .as_str()
+        .unwrap()
+        .to_string()
 }
 
 const WHEEL: &str = "demo_pkg-1.0.0-py3-none-any.whl";
@@ -188,7 +216,10 @@ const WHEEL: &str = "demo_pkg-1.0.0-py3-none-any.whl";
 async fn publishes_a_package_a_crate_and_a_wheel_in_one_transaction() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
-    let app = router_with_auth(tri_ecosystem_config(storage.clone()), AuthState::in_memory());
+    let app = router_with_auth(
+        tri_ecosystem_config(storage.clone()),
+        AuthState::in_memory(),
+    );
     let token = token_for(&app, "alice").await;
     let tarball = b"npm-tarball-bytes";
     let archive = crate_archive("demo", "0.1.0");
@@ -210,14 +241,25 @@ async fn publishes_a_package_a_crate_and_a_wheel_in_one_transaction() {
 
     let packument = app
         .clone()
-        .oneshot(Request::get("/npm/mixed-pkg").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/npm/mixed-pkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(packument.status(), StatusCode::OK);
-    assert_eq!(body_json(packument.into_body()).await["dist-tags"]["latest"], "1.0.0");
+    assert_eq!(
+        body_json(packument.into_body()).await["dist-tags"]["latest"],
+        "1.0.0",
+    );
     let npm_tarball = app
         .clone()
-        .oneshot(Request::get("/npm/mixed-pkg/-/mixed-pkg-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/npm/mixed-pkg/-/mixed-pkg-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(npm_tarball.status(), StatusCode::OK);
@@ -225,18 +267,30 @@ async fn publishes_a_package_a_crate_and_a_wheel_in_one_transaction() {
 
     let index = app
         .clone()
-        .oneshot(Request::get("/cargo/index/de/mo/demo").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/cargo/index/de/mo/demo")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(index.status(), StatusCode::OK);
     let line = String::from_utf8(body_bytes(index.into_body()).await).unwrap();
-    let entry: Value = serde_json::from_str(line.lines().next().unwrap()).unwrap();
+    let entry: Value = serde_json::from_str(
+        line
+            .lines()
+            .next()
+            .unwrap(),
+    )
+    .unwrap();
     assert_eq!(entry["vers"], "0.1.0");
     assert_eq!(entry["cksum"], sha256_hex(&archive));
     let download = app
         .clone()
         .oneshot(
-            Request::get("/cargo/api/v1/crates/demo/0.1.0/download").body(Body::empty()).unwrap(),
+            Request::get("/cargo/api/v1/crates/demo/0.1.0/download")
+                .body(Body::empty())
+                .unwrap(),
         )
         .await
         .unwrap();
@@ -253,9 +307,16 @@ async fn publishes_a_package_a_crate_and_a_wheel_in_one_transaction() {
         .await
         .unwrap();
     assert_eq!(page.status(), StatusCode::OK);
-    assert_eq!(body_json(page.into_body()).await["files"][0]["filename"], WHEEL);
+    assert_eq!(
+        body_json(page.into_body()).await["files"][0]["filename"],
+        WHEEL,
+    );
     let file = app
-        .oneshot(Request::get(format!("/pypi/files/demo-pkg/{WHEEL}")).body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get(format!("/pypi/files/demo-pkg/{WHEEL}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(body_bytes(file.into_body()).await, wheel);
@@ -268,7 +329,10 @@ async fn publishes_a_package_a_crate_and_a_wheel_in_one_transaction() {
 async fn a_batch_with_one_bad_entry_publishes_none_of_it() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
-    let app = router_with_auth(tri_ecosystem_config(storage.clone()), AuthState::in_memory());
+    let app = router_with_auth(
+        tri_ecosystem_config(storage.clone()),
+        AuthState::in_memory(),
+    );
     let token = token_for(&app, "alice").await;
     let wheel = b"PK\x03\x04 pretend wheel";
 
@@ -288,9 +352,20 @@ async fn a_batch_with_one_bad_entry_publishes_none_of_it() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
-    for path in ["/mixed-pkg", "/cargo/index/de/mo/demo", "/pypi/simple/demo-pkg/"] {
-        let response =
-            app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+    for path in [
+        "/mixed-pkg",
+        "/cargo/index/de/mo/demo",
+        "/pypi/simple/demo-pkg/",
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
     }
     assert_eq!(staged_files(&storage), Vec::<PathBuf>::new());
@@ -344,17 +419,33 @@ async fn a_package_that_loses_its_blob_is_reported_and_the_rest_stays() {
 
     let packument = app
         .clone()
-        .oneshot(Request::get("/npm/mixed-pkg").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/npm/mixed-pkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(packument.status(), StatusCode::OK);
     let packument = body_json(packument.into_body()).await;
-    assert_eq!(packument["versions"], json!({}), "the version that lost is not advertised");
+    assert_eq!(
+        packument["versions"],
+        json!({}),
+        "the version that lost is not advertised",
+    );
     let index = app
-        .oneshot(Request::get("/cargo/index/de/mo/demo").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/cargo/index/de/mo/demo")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
-    assert_eq!(index.status(), StatusCode::OK, "the crate beside it stays published");
+    assert_eq!(
+        index.status(),
+        StatusCode::OK,
+        "the crate beside it stays published",
+    );
     assert_eq!(
         store
             .get(&ObjectPath::from("mixed-pkg/mixed-pkg-1.0.0.tgz"))
@@ -375,7 +466,10 @@ async fn a_package_that_loses_its_blob_is_reported_and_the_rest_stays() {
 async fn a_failure_while_staging_takes_the_staged_blobs_with_it() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
-    let app = router_with_auth(tri_ecosystem_config(storage.clone()), AuthState::in_memory());
+    let app = router_with_auth(
+        tri_ecosystem_config(storage.clone()),
+        AuthState::in_memory(),
+    );
     let token = token_for(&app, "alice").await;
     let mut broken = npm_entry("mixed-pkg", "1.0.0", b"npm-tarball-bytes");
     broken["versions"]["1.0.0"]["dist"]["integrity"] = json!(sri_sha512(b"other bytes"));
@@ -396,9 +490,20 @@ async fn a_failure_while_staging_takes_the_staged_blobs_with_it() {
     let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
     assert!(reason.contains("EINTEGRITY"), "{reason}");
 
-    for path in ["/mixed-pkg", "/cargo/index/de/mo/demo", "/pypi/simple/demo-pkg/"] {
-        let response =
-            app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+    for path in [
+        "/mixed-pkg",
+        "/cargo/index/de/mo/demo",
+        "/pypi/simple/demo-pkg/",
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
     }
     assert_eq!(staged_files(&storage), Vec::<PathBuf>::new());
@@ -411,7 +516,10 @@ async fn a_failure_while_staging_takes_the_staged_blobs_with_it() {
 async fn a_duplicate_in_one_ecosystem_stops_the_whole_batch() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
-    let app = router_with_auth(tri_ecosystem_config(storage.clone()), AuthState::in_memory());
+    let app = router_with_auth(
+        tri_ecosystem_config(storage.clone()),
+        AuthState::in_memory(),
+    );
     let token = token_for(&app, "alice").await;
     let archive = crate_archive("demo", "0.1.0");
 
@@ -436,9 +544,19 @@ async fn a_duplicate_in_one_ecosystem_stops_the_whole_batch() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
-    let packument =
-        app.oneshot(Request::get("/npm/mixed-pkg").body(Body::empty()).unwrap()).await.unwrap();
-    assert_eq!(packument.status(), StatusCode::NOT_FOUND, "the npm package must not be published");
+    let packument = app
+        .oneshot(
+            Request::get("/npm/mixed-pkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        packument.status(),
+        StatusCode::NOT_FOUND,
+        "the npm package must not be published",
+    );
     assert_eq!(staged_files(&storage), Vec::<PathBuf>::new());
 }
 
@@ -447,8 +565,10 @@ async fn a_duplicate_in_one_ecosystem_stops_the_whole_batch() {
 #[tokio::test]
 async fn a_malformed_batch_is_a_bad_request() {
     let tmp = TempDir::new().unwrap();
-    let app =
-        router_with_auth(tri_ecosystem_config(tmp.path().to_path_buf()), AuthState::in_memory());
+    let app = router_with_auth(
+        tri_ecosystem_config(tmp.path().to_path_buf()),
+        AuthState::in_memory(),
+    );
     let token = token_for(&app, "alice").await;
 
     for body in [
@@ -470,8 +590,10 @@ async fn a_malformed_batch_is_a_bad_request() {
 #[tokio::test]
 async fn a_spelled_out_npm_entry_does_not_leak_its_routing_field() {
     let tmp = TempDir::new().unwrap();
-    let app =
-        router_with_auth(tri_ecosystem_config(tmp.path().to_path_buf()), AuthState::in_memory());
+    let app = router_with_auth(
+        tri_ecosystem_config(tmp.path().to_path_buf()),
+        AuthState::in_memory(),
+    );
     let token = token_for(&app, "alice").await;
     let mut entry = npm_entry("mixed-pkg", "1.0.0", b"npm-tarball-bytes");
     entry["ecosystem"] = json!("npm");
@@ -487,8 +609,14 @@ async fn a_spelled_out_npm_entry_does_not_leak_its_routing_field() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
-    let packument =
-        app.oneshot(Request::get("/npm/mixed-pkg").body(Body::empty()).unwrap()).await.unwrap();
+    let packument = app
+        .oneshot(
+            Request::get("/npm/mixed-pkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     let packument = body_json(packument.into_body()).await;
     assert_eq!(packument["versions"]["1.0.0"]["version"], "1.0.0");
     assert!(packument.get("ecosystem").is_none(), "{packument}");
@@ -498,8 +626,10 @@ async fn a_spelled_out_npm_entry_does_not_leak_its_routing_field() {
 #[tokio::test]
 async fn an_uppercase_digest_is_accepted() {
     let tmp = TempDir::new().unwrap();
-    let app =
-        router_with_auth(tri_ecosystem_config(tmp.path().to_path_buf()), AuthState::in_memory());
+    let app = router_with_auth(
+        tri_ecosystem_config(tmp.path().to_path_buf()),
+        AuthState::in_memory(),
+    );
     let token = token_for(&app, "alice").await;
     let wheel = b"PK\x03\x04 pretend wheel";
     let mut entry = pypi_entry("demo-pkg", "1.0.0", WHEEL, wheel);
@@ -520,14 +650,26 @@ async fn an_uppercase_digest_is_accepted() {
 async fn an_anonymous_batch_publishes_nothing() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
-    let app = router_with_auth(tri_ecosystem_config(storage.clone()), AuthState::in_memory());
+    let app = router_with_auth(
+        tri_ecosystem_config(storage.clone()),
+        AuthState::in_memory(),
+    );
 
     let body = json!({ "packages": [npm_entry("mixed-pkg", "1.0.0", b"npm-tarball-bytes")] });
-    let response =
-        app.clone().oneshot(publish_request("/-/pnpr/v0/publish", &body, None)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(publish_request("/-/pnpr/v0/publish", &body, None))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-    let packument =
-        app.oneshot(Request::get("/npm/mixed-pkg").body(Body::empty()).unwrap()).await.unwrap();
+    let packument = app
+        .oneshot(
+            Request::get("/npm/mixed-pkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(packument.status(), StatusCode::NOT_FOUND);
 }
 
@@ -538,7 +680,10 @@ async fn an_anonymous_batch_publishes_nothing() {
 async fn a_repeated_package_is_refused_but_a_shared_name_across_ecosystems_is_not() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
-    let app = router_with_auth(tri_ecosystem_config(storage.clone()), AuthState::in_memory());
+    let app = router_with_auth(
+        tri_ecosystem_config(storage.clone()),
+        AuthState::in_memory(),
+    );
     let token = token_for(&app, "alice").await;
 
     let repeated = json!({
@@ -549,7 +694,11 @@ async fn a_repeated_package_is_refused_but_a_shared_name_across_ecosystems_is_no
     });
     let response = app
         .clone()
-        .oneshot(publish_request("/-/pnpr/v0/publish", &repeated, Some(&token)))
+        .oneshot(publish_request(
+            "/-/pnpr/v0/publish",
+            &repeated,
+            Some(&token),
+        ))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
@@ -563,7 +712,11 @@ async fn a_repeated_package_is_refused_but_a_shared_name_across_ecosystems_is_no
         ],
     });
     let response = app
-        .oneshot(publish_request("/-/pnpr/v0/publish", &shared_name, Some(&token)))
+        .oneshot(publish_request(
+            "/-/pnpr/v0/publish",
+            &shared_name,
+            Some(&token),
+        ))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -573,7 +726,9 @@ async fn a_repeated_package_is_refused_but_a_shared_name_across_ecosystems_is_no
 /// never reached has no directory at all.
 fn journal_entries(storage: &std::path::Path) -> Vec<PathBuf> {
     match std::fs::read_dir(storage.join(".pnpr-journal")) {
-        Ok(entries) => entries.map(|entry| entry.unwrap().path()).collect(),
+        Ok(entries) => entries
+            .map(|entry| entry.unwrap().path())
+            .collect(),
         Err(_) => Vec::new(),
     }
 }
@@ -586,7 +741,10 @@ fn staged_files(root: &std::path::Path) -> Vec<PathBuf> {
         let path = entry.unwrap().path();
         if path.is_dir() {
             staged.extend(staged_files(&path));
-        } else if path.file_name().is_some_and(|name| name.to_string_lossy().contains(".tmp.")) {
+        } else if path
+            .file_name()
+            .is_some_and(|name| name.to_string_lossy().contains(".tmp."))
+        {
             staged.push(path);
         }
     }

@@ -27,19 +27,15 @@ pub fn generate_pwsh_shim(
             writeln!(pwsh).unwrap();
             writeln!(pwsh, "$ret=0").unwrap();
             writeln!(pwsh, "if (Test-Path {long_prog}) {{").unwrap();
-            write_pwsh_invocation(
+            write_pwsh_runtime_invocation(
                 &mut pwsh,
                 &format!("{long_prog} {args} {quoted_target} $args"),
-                "  ",
             );
-            writeln!(pwsh, "  $ret=$LASTEXITCODE").unwrap();
             writeln!(pwsh, "}} else {{").unwrap();
-            write_pwsh_invocation(
+            write_pwsh_runtime_invocation(
                 &mut pwsh,
                 &format!("{prog_quoted} {args} {quoted_target} $args"),
-                "  ",
             );
-            writeln!(pwsh, "  $ret=$LASTEXITCODE").unwrap();
             writeln!(pwsh, "}}").unwrap();
             write_pwsh_exit(&mut pwsh, restore_node_path, "$ret");
         }
@@ -84,8 +80,10 @@ fn quoted_pwsh_target(target_path: &Path, shim_path: &Path) -> String {
 /// The shim header that also exports `NODE_PATH`, when there is one to
 /// export.
 fn pwsh_node_path_header(node_path: &[String]) -> Option<String> {
-    let NodePathEnvVar { win32: win32_node_path, posix: posix_node_path } =
-        normalize_node_path_env_var(node_path);
+    let NodePathEnvVar {
+        win32: win32_node_path,
+        posix: posix_node_path,
+    } = normalize_node_path_env_var(node_path);
     (!win32_node_path.is_empty()).then(|| {
         format!(
             "#!/usr/bin/env pwsh\n$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n\n$exe=\"\"\n$pathsep=\":\"\n$env_node_path=$env:NODE_PATH\n$new_node_path=\"{win32_node_path}\"\nif ($PSVersionTable.PSVersion -lt \"6.0\" -or $IsWindows) {{\n  # Fix case when both the Windows and Linux builds of Node\n  # are installed in the same directory\n  $exe=\".exe\"\n  $pathsep=\";\"\n}} else {{\n  $new_node_path=\"{posix_node_path}\"\n}}\nif ([string]::IsNullOrEmpty($env_node_path)) {{\n  $env:NODE_PATH=$new_node_path\n}} else {{\n  $env:NODE_PATH=\"$new_node_path$pathsep$env_node_path\"\n}}",
@@ -103,3 +101,9 @@ if ($PSVersionTable.PSVersion -lt "6.0" -or $IsWindows) {
   # are installed in the same directory
   $exe=".exe"
 }"#;
+
+fn write_pwsh_runtime_invocation(pwsh: &mut String, command: &str) {
+    use std::fmt::Write;
+    write_pwsh_invocation(pwsh, command, "  ");
+    writeln!(pwsh, "  $ret=$LASTEXITCODE").unwrap();
+}

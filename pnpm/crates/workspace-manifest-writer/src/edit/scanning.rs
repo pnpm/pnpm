@@ -27,7 +27,9 @@ pub(super) fn locate_sequence(text: &str, path: &[&str]) -> Inline {
 /// other than `expected` is reported as unsupported: no writer here can put
 /// a mapping entry into a sequence, or the reverse.
 fn locate_inline(text: &str, path: &[&str], expected: flow::Kind) -> Inline {
-    let Some(offset) = inline_value_start(text, path) else { return Inline::Block };
+    let Some(offset) = inline_value_start(text, path) else {
+        return Inline::Block;
+    };
     match flow::parse(text, offset) {
         Some(collection) if collection.kind() == expected => Inline::Flow(collection),
         Some(_) | None => Inline::Unsupported,
@@ -47,9 +49,14 @@ pub(crate) fn has_unsupported_inline_value(text: &str, path: &[&str]) -> bool {
 /// at all, so neither the splices here nor a new top-level block can
 /// address them.
 pub(crate) fn document_root_is_inline(text: &str) -> bool {
-    text.lines()
+    text
+        .lines()
         .find(|line| structural_indent(line).is_some())
-        .is_some_and(|line| line.trim_start().starts_with(['{', '[']))
+        .is_some_and(|line| {
+            line
+                .trim_start()
+                .starts_with(['{', '['])
+        })
 }
 
 /// The keys of the mapping at `path`, whether it is written in block or
@@ -60,7 +67,12 @@ pub(super) fn mapping_keys(text: &str, path: &[&str]) -> Vec<String> {
         Inline::Flow(collection) => collection.keys(),
         Inline::Unsupported => Vec::new(),
         Inline::Block => locate(text, path)
-            .map(|mapping| mapping.entries.into_iter().map(|entry| entry.key).collect())
+            .map(|mapping| {
+                mapping.entries
+                    .into_iter()
+                    .map(|entry| entry.key)
+                    .collect()
+            })
             .unwrap_or_default(),
     }
 }
@@ -75,7 +87,11 @@ fn inline_value_start(text: &str, path: &[&str]) -> Option<usize> {
         return inline_value_on_line(text, span.key_line_start);
     }
     if let Some(entry) = locate(text, parent)
-        .and_then(|mapping| mapping.entries.into_iter().find(|entry| entry.key == *key))
+        .and_then(|mapping| {
+            mapping.entries
+                .into_iter()
+                .find(|entry| entry.key == *key)
+        })
     {
         return inline_value_on_line(text, entry.line_start);
     }
@@ -91,7 +107,9 @@ fn inline_value_start(text: &str, path: &[&str]) -> Option<usize> {
 /// at `line_start`. `None` when the line carries no value (a bare `key:`,
 /// optionally followed by a comment), which makes it block style.
 fn inline_value_on_line(text: &str, line_start: usize) -> Option<usize> {
-    let line_end = text[line_start..].find('\n').map_or(text.len(), |offset| line_start + offset);
+    let line_end = text[line_start..]
+        .find('\n')
+        .map_or(text.len(), |offset| line_start + offset);
     let content = &text[line_start..line_end];
     let indent = content.len() - content.trim_start().len();
     let colon = indent + structural_colon_index(&content[indent..])?;
@@ -147,7 +165,11 @@ pub(super) fn lines(text: &str) -> Vec<Line<'_>> {
     let mut offset = 0;
     for raw in text.split_inclusive('\n') {
         let content = raw.strip_suffix('\n').unwrap_or(raw);
-        out.push(Line { start: offset, content, end: offset + raw.len() });
+        out.push(Line {
+            start: offset,
+            content,
+            end: offset + raw.len(),
+        });
         offset += raw.len();
     }
     out
@@ -185,8 +207,12 @@ fn line_key(content: &str) -> Option<String> {
 /// (e.g. `foo@https://...`) is not the delimiter.
 pub(super) fn structural_colon_index(line: &str) -> Option<usize> {
     let bytes = line.as_bytes();
-    (0..bytes.len())
-        .find(|&idx| bytes[idx] == b':' && bytes.get(idx + 1).is_none_or(u8::is_ascii_whitespace))
+    (0..bytes.len()).find(|&idx| {
+        bytes[idx] == b':'
+            && bytes
+                .get(idx + 1)
+                .is_none_or(u8::is_ascii_whitespace)
+    })
 }
 
 /// Byte offset of a value's trailing comment, if it has one.
@@ -204,8 +230,9 @@ pub(super) fn comment_start(value: &str) -> Option<usize> {
         _ => 0,
     };
     let bytes = value.as_bytes();
-    (scan_from..bytes.len())
-        .find(|&idx| bytes[idx] == b'#' && idx > 0 && bytes[idx - 1].is_ascii_whitespace())
+    (scan_from..bytes.len()).find(|&idx| {
+        bytes[idx] == b'#' && idx > 0 && bytes[idx - 1].is_ascii_whitespace()
+    })
 }
 
 /// Byte offset of the quote closing the scalar `value` opens with.
@@ -302,9 +329,15 @@ fn mapping_at(
     block_end_idx: usize,
     child_indent: usize,
 ) -> Mapping {
-    let body_start = all.get(key_idx + 1).map_or(all[key_idx].end, |line| line.start);
+    let body_start = all
+        .get(key_idx + 1)
+        .map_or(all[key_idx].end, |line| line.start);
     let entries = collect_entries(all, key_idx + 1, block_end_idx, child_indent);
-    Mapping { body_start, entry_indent: child_indent, entries }
+    Mapping {
+        body_start,
+        entry_indent: child_indent,
+        entries,
+    }
 }
 
 /// Collect the direct child entries (key lines at `entry_indent`) within
@@ -326,7 +359,9 @@ fn collect_entries(all: &[Line<'_>], from: usize, to: usize, entry_indent: usize
                 structural_indent(all[next].content).is_some_and(|indent| indent <= entry_indent)
             })
             .unwrap_or(to);
-        let block_end = all.get(block_end_idx).map_or(all[to - 1].end, |line| line.start);
+        let block_end = all
+            .get(block_end_idx)
+            .map_or(all[to - 1].end, |line| line.start);
         entries.push(EntryPos {
             key,
             line_start: all[idx].start,
@@ -352,15 +387,28 @@ pub(super) fn top_level_span(text: &str, key: &str) -> Option<TopLevelSpan> {
     let block_end_idx = leading_comment_start(&all, body_start, next_key_idx);
     let block_end = all
         .get(block_end_idx)
-        .map_or_else(|| all.last().map_or(0, |line| line.end), |line| line.start);
-    Some(TopLevelSpan { key_line_start: all[key_idx].start, block_end })
+        .map_or_else(
+            || {
+                all
+                    .last()
+                    .map_or(0, |line| line.end)
+            },
+            |line| line.start,
+        );
+    Some(TopLevelSpan {
+        key_line_start: all[key_idx].start,
+        block_end,
+    })
 }
 
 /// Index of the line declaring the top-level key `key`.
 pub(super) fn top_level_key_line(all: &[Line<'_>], key: &str) -> Option<usize> {
-    all.iter().position(|line| {
-        structural_indent(line.content) == Some(0) && line_key(line.content).as_deref() == Some(key)
-    })
+    all
+        .iter()
+        .position(|line| {
+            structural_indent(line.content) == Some(0)
+                && line_key(line.content).as_deref() == Some(key)
+        })
 }
 
 /// Index of the line where the flow collection written inline on
@@ -372,7 +420,9 @@ fn inline_value_last_line(text: &str, all: &[Line<'_>], key_idx: usize) -> Optio
         return None;
     }
     let close = flow::closing_bracket_across_lines(text, open)?;
-    all.iter().position(|line| line.start <= close && close < line.end)
+    all
+        .iter()
+        .position(|line| line.start <= close && close < line.end)
 }
 
 pub(super) fn leading_comment_start(

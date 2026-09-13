@@ -20,8 +20,12 @@ async fn caches_supported_and_unsupported_ecosystems_across_clients() {
     let (first_python, second_python) = tokio::join!(first_python, second_python);
     assert!(dbg!(first_python.unwrap()));
     assert!(dbg!(second_python.unwrap()));
-    assert!(!dbg!(server_resolves(&first, &url, CARGO_ECOSYSTEM).await.unwrap()));
-    assert!(!dbg!(server_resolves(&second, &url, CARGO_ECOSYSTEM).await.unwrap()));
+    assert!(!dbg!(
+        server_resolves(&first, &url, CARGO_ECOSYSTEM).await.unwrap()
+    ));
+    assert!(!dbg!(
+        server_resolves(&second, &url, CARGO_ECOSYSTEM).await.unwrap()
+    ));
     handshake.assert_async().await;
 }
 
@@ -43,7 +47,10 @@ async fn caches_handshake_failures_across_clients() {
     let (first_error, second_error) = tokio::join!(first_result, second_result);
     let first_error = first_error.unwrap_err();
     let second_error = second_error.unwrap_err();
-    assert_eq!(first_error.to_string(), "ask the pnpr server whether it resolves pypi");
+    assert_eq!(
+        first_error.to_string(),
+        "ask the pnpr server whether it resolves pypi",
+    );
     assert_eq!(format!("{first_error:?}"), format!("{second_error:?}"));
     handshake.assert_async().await;
 }

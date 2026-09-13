@@ -30,6 +30,10 @@ pub mod oidc;
 
 pub use token_store::{TokenRecord, TokenStore};
 
+pub(crate) use validation::{token_timestamp_from_sql, token_timestamp_to_sql, validate_username};
+
+mod validation;
+
 mod htpasswd;
 use htpasswd::{
     hash_bcrypt, parse_htpasswd, serialize_htpasswd, verify_returning_user, write_atomic,
@@ -69,7 +73,11 @@ mod sqlx_backend;
 /// Use only around reads and startup setup: request-path writes must
 /// await the database result directly, so a caller never observes a
 /// timeout with an unknown commit state.
-#[cfg(any(feature = "backend-libsql", feature = "backend-postgres", feature = "backend-mysql"))]
+#[cfg(any(
+    feature = "backend-libsql",
+    feature = "backend-postgres",
+    feature = "backend-mysql"
+))]
 async fn with_auth_timeout<Loaded, DbError>(
     deadline: std::time::Duration,
     future: impl std::future::Future<Output = std::result::Result<Loaded, DbError>>,
@@ -84,48 +92,6 @@ where
 }
 
 pub(crate) const MAX_USERNAME_CHARS: usize = 255;
-
-pub(crate) fn validate_username(username: &str) -> Result<()> {
-    if username.is_empty() {
-        return Err(RegistryError::BadRequest { reason: "username must not be empty".to_string() });
-    }
-    if username.chars().count() > MAX_USERNAME_CHARS {
-        return Err(RegistryError::BadRequest {
-            reason: format!("username must be at most {MAX_USERNAME_CHARS} characters"),
-        });
-    }
-    let reason = rejected_username_reason(username);
-    match reason {
-        Some(reason) => Err(RegistryError::BadRequest { reason: reason.to_string() }),
-        None => Ok(()),
-    }
-}
-
-/// Why a username of an acceptable length is still not one pnpr will store.
-fn rejected_username_reason(username: &str) -> Option<&'static str> {
-    let trimmed = username.trim_matches(char::is_whitespace);
-    if trimmed.len() != username.len() {
-        return Some("username must not start or end with whitespace");
-    }
-    if username.starts_with('#') {
-        return Some("username must not start with '#'");
-    }
-    if username.contains(':') {
-        return Some("username must not contain ':'");
-    }
-    if username.chars().any(char::is_control) {
-        return Some("username must not contain control characters");
-    }
-    None
-}
-
-pub(crate) fn token_timestamp_from_sql(timestamp: i64) -> u64 {
-    timestamp.max(0) as u64
-}
-
-pub(crate) fn token_timestamp_to_sql(timestamp: u64) -> i64 {
-    i64::try_from(timestamp).unwrap_or(i64::MAX)
-}
 
 /// Bundle of the user store and the token store, each a trait object
 /// so the rest of the server doesn't have to know whether auth is
@@ -186,7 +152,10 @@ impl AuthState {
             let shared = Arc::new(LibsqlAuth::connect(settings, auth.htpasswd.max_users).await?);
             let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
             let tokens: Arc<dyn TokenBackend> = shared;
-            Ok(Self { users, tokens })
+            Ok(Self {
+                users,
+                tokens,
+            })
         }
         #[cfg(not(feature = "backend-libsql"))]
         {
@@ -204,7 +173,10 @@ impl AuthState {
             let shared = Arc::new(PostgresAuth::connect(settings, auth.htpasswd.max_users).await?);
             let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
             let tokens: Arc<dyn TokenBackend> = shared;
-            Ok(Self { users, tokens })
+            Ok(Self {
+                users,
+                tokens,
+            })
         }
         #[cfg(not(feature = "backend-postgres"))]
         {
@@ -222,7 +194,10 @@ impl AuthState {
             let shared = Arc::new(MysqlAuth::connect(settings, auth.htpasswd.max_users).await?);
             let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
             let tokens: Arc<dyn TokenBackend> = shared;
-            Ok(Self { users, tokens })
+            Ok(Self {
+                users,
+                tokens,
+            })
         }
         #[cfg(not(feature = "backend-mysql"))]
         {
@@ -240,7 +215,10 @@ impl AuthState {
             Some(path) => Arc::new(TokenStore::open(path)?),
             None => Arc::new(TokenStore::in_memory()),
         };
-        Ok(Self { users, tokens })
+        Ok(Self {
+            users,
+            tokens,
+        })
     }
 }
 
@@ -368,13 +346,20 @@ impl UserStore {
     /// by tests that want sub-100ms hashing.
     pub fn open_with_cost(path: PathBuf, max_users: MaxUsers, bcrypt_cost: u32) -> Result<Self> {
         let users = match std::fs::read_to_string(&path) {
-            Ok(raw) => parse_htpasswd(&raw).map_err(|reason| {
-                RegistryError::InvalidHtpasswdFile { path: path.display().to_string(), reason }
-            })?,
+            Ok(raw) => parse_htpasswd(&raw)
+                .map_err(|reason| RegistryError::InvalidHtpasswdFile {
+                    path: path.display().to_string(),
+                    reason,
+                })?,
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => HashMap::new(),
             Err(err) => return Err(err.into()),
         };
-        Ok(Self { users: Mutex::new(users), path: Some(path), max_users, bcrypt_cost })
+        Ok(Self {
+            users: Mutex::new(users),
+            path: Some(path),
+            max_users,
+            bcrypt_cost,
+        })
     }
 
     /// Reject registration before spending time hashing a new password.
@@ -382,14 +367,38 @@ impl UserStore {
         match self.max_users {
             MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
             MaxUsers::Limited(max) => {
-                let current = self.users.lock().expect("UserStore mutex poisoned").len() as u64;
+                let current = self.users
+                    .lock()
+                    .expect("UserStore mutex poisoned")
+                    .len() as u64;
                 if current >= max {
-                    return Err(RegistryError::TooManyUsers { max });
+                    return Err(RegistryError::TooManyUsers {
+                        max,
+                    });
                 }
             }
             MaxUsers::Unlimited => {}
         }
         Ok(())
+    }
+
+    fn register_user(&self, username: &str, hash: String) -> Result<UserRegistration> {
+        let mut users = self.users.lock().expect("UserStore mutex poisoned");
+        let registration = match (users.get(username).cloned(), self.max_users) {
+            (Some(stored), _) => UserRegistration::VerifyExisting(stored),
+            // Re-check under the lock because another registration may
+            // have filled the store while we were hashing.
+            (None, MaxUsers::Limited(max)) if users.len() as u64 >= max => {
+                return Err(RegistryError::TooManyUsers {
+                    max,
+                });
+            }
+            (None, _) => {
+                users.insert(username.to_string(), hash);
+                UserRegistration::Persist(serialize_htpasswd(&users))
+            }
+        };
+        Ok(registration)
     }
 
     async fn persist(&self, body: String) -> Result<()> {
@@ -399,6 +408,11 @@ impl UserStore {
         tokio::task::spawn_blocking(move || write_atomic(&path, body.as_bytes())).await??;
         Ok(())
     }
+}
+
+enum UserRegistration {
+    Persist(String),
+    VerifyExisting(String),
 }
 
 #[async_trait]
@@ -427,31 +441,13 @@ impl UserBackend for UserStore {
         self.check_registration_capacity()?;
 
         let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
-        enum NextStep {
-            Persist(String),
-            VerifyExisting(String),
-        }
-        let next_step = {
-            let mut users = self.users.lock().expect("UserStore mutex poisoned");
-            match (users.get(username).cloned(), self.max_users) {
-                (Some(stored), _) => NextStep::VerifyExisting(stored),
-                // Re-check under the lock because another registration may
-                // have filled the store while we were hashing.
-                (None, MaxUsers::Limited(max)) if users.len() as u64 >= max => {
-                    return Err(RegistryError::TooManyUsers { max });
-                }
-                (None, _) => {
-                    users.insert(username.to_string(), hash);
-                    NextStep::Persist(serialize_htpasswd(&users))
-                }
-            }
-        };
+        let next_step = self.register_user(username, hash)?;
         match next_step {
-            NextStep::Persist(snapshot) => {
+            UserRegistration::Persist(snapshot) => {
                 self.persist(snapshot).await?;
                 Ok((UpsertOutcome::Created, username.to_string()))
             }
-            NextStep::VerifyExisting(stored) => {
+            UserRegistration::VerifyExisting(stored) => {
                 verify_returning_user(username, password, stored).await
             }
         }
@@ -512,13 +508,21 @@ pub async fn identify(
 /// `users` table DDL — only shared-database backends need it, since
 /// the local backend keeps users in an htpasswd file. One bcrypt hash
 /// per username, the same `$2y$...` string the htpasswd file would hold.
-#[cfg(any(feature = "backend-libsql", feature = "backend-postgres", feature = "backend-mysql"))]
+#[cfg(any(
+    feature = "backend-libsql",
+    feature = "backend-postgres",
+    feature = "backend-mysql"
+))]
 const USERS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS users (
     username     VARCHAR(255) PRIMARY KEY,
     bcrypt_hash  TEXT NOT NULL
 )";
 
-#[cfg(any(feature = "backend-libsql", feature = "backend-postgres", feature = "backend-mysql"))]
+#[cfg(any(
+    feature = "backend-libsql",
+    feature = "backend-postgres",
+    feature = "backend-mysql"
+))]
 const AUTH_COUNTERS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS auth_counters (
     name   VARCHAR(64) PRIMARY KEY,
     value  BIGINT NOT NULL

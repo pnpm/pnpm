@@ -2,8 +2,15 @@
 /// carrying no URL at all is passed through untouched.
 #[test]
 fn url_scrubbing_leaves_non_urls_alone() {
-    for text in ["no url here at all", "why? because", "see :// for the syntax"] {
-        assert_eq!(crate::add::aliasless::strip_url_query_and_fragment(text), text);
+    for text in [
+        "no url here at all",
+        "why? because",
+        "see :// for the syntax",
+    ] {
+        assert_eq!(
+            crate::add::aliasless::strip_url_query_and_fragment(text),
+            text,
+        );
     }
 }
 /// An `@` past the authority belongs to the path or query, and must not

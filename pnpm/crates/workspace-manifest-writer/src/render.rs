@@ -39,19 +39,25 @@ pub(crate) fn detect_key_layout(keys: &[String]) -> Layout {
             return Layout::Unordered;
         }
     }
-    if packages_first { Layout::PackagesFirst } else { Layout::Alphabetical }
+    if packages_first {
+        Layout::PackagesFirst
+    } else {
+        Layout::Alphabetical
+    }
 }
 
 /// Sort `keys` for a sorted layout, keeping `packages` first when present.
 fn sort_keys(keys: &mut [String], layout: Layout) {
     match layout {
         Layout::PackagesFirst => {
-            keys.sort_by(|left, right| match (left == "packages", right == "packages") {
-                (true, true) => Ordering::Equal,
-                (true, false) => Ordering::Less,
-                (false, true) => Ordering::Greater,
-                (false, false) => lex_cmp(left, right),
-            });
+            keys.sort_by(
+                |left, right| match (left == "packages", right == "packages") {
+                    (true, true) => Ordering::Equal,
+                    (true, false) => Ordering::Less,
+                    (false, true) => Ordering::Greater,
+                    (false, false) => lex_cmp(left, right),
+                },
+            );
         }
         Layout::Alphabetical => keys.sort_by(|left, right| lex_cmp(left, right)),
         Layout::Unordered => {}
@@ -67,7 +73,11 @@ pub(crate) fn target_order(existing: &[String], new_keys: &[String]) -> Vec<Stri
         return existing.to_vec();
     }
     let layout = detect_key_layout(existing);
-    let mut merged: Vec<String> = existing.iter().chain(new_keys).cloned().collect();
+    let mut merged: Vec<String> = existing
+        .iter()
+        .chain(new_keys)
+        .cloned()
+        .collect();
     if layout != Layout::Unordered {
         sort_keys(&mut merged, layout);
     }

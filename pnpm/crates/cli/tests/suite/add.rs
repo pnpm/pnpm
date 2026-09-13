@@ -29,9 +29,17 @@ where
     Args: IntoIterator,
     Args::Item: AsRef<OsStr>,
 {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
-    pacquet.with_args(args).assert().success();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    pacquet
+        .with_args(args)
+        .assert()
+        .success();
     (root, workspace, npmrc_info)
 }
 
@@ -61,16 +69,24 @@ fn cargo_add_project() -> (TempDir, PathBuf) {
         "# stale lockfile that pnpm add must refresh\nversion = 4\n\n[[package]]\nname = \"app\"\nversion = \"0.1.0\"\n",
     )
     .expect("write stale Cargo lockfile");
-    std::fs::write(root.path().join("pnpm-workspace.yaml"), "cargo:\n  enabled: true\n")
-        .expect("enable Cargo dependency management");
+    std::fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        "cargo:\n  enabled: true\n",
+    )
+    .expect("enable Cargo dependency management");
     (root, cache_dir)
 }
 
 /// Regression test for the Tag release operator's invocation (pnpm/pnpm#13242).
 #[test]
 fn add_accepts_dir_allow_build_and_registry_after_the_subcommand() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     let registry = mock_instance.url();
 
@@ -109,8 +125,13 @@ fn add_accepts_dir_allow_build_and_registry_after_the_subcommand() {
 /// `<pkg>: false` and the install script does not run.
 #[test]
 fn add_denies_a_build_with_the_negation_prefix() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     let registry = mock_instance.url();
 
@@ -164,7 +185,10 @@ fn should_install_all_dependencies() {
     eprintln!("Ensure that @pnpm.e2e/hello-world-js-bin has no other dependencies than itself");
     let path = virtual_store_dir.join("@pnpm.e2e+hello-world-js-bin@1.0.0/node_modules");
     assert_eq!(get_filenames_in_folder(&path), ["@pnpm.e2e"]);
-    assert_eq!(get_filenames_in_folder(&path.join("@pnpm.e2e")), ["hello-world-js-bin"]);
+    assert_eq!(
+        get_filenames_in_folder(&path.join("@pnpm.e2e")),
+        ["hello-world-js-bin"],
+    );
 
     eprintln!("Ensure that @pnpm.e2e/hello-world-js-bin-parent has correct dependencies");
     let path = virtual_store_dir.join("@pnpm.e2e+hello-world-js-bin-parent@1.0.0/node_modules");
@@ -225,7 +249,8 @@ fn should_add_to_package_json() {
     let file = PackageManifest::from_path(dir.join("package.json")).unwrap();
     eprintln!("Ensure @pnpm.e2e/hello-world-js-bin is added to package.json#dependencies");
     assert!(
-        file.dependencies([DependencyGroup::Prod])
+        file
+            .dependencies([DependencyGroup::Prod])
             .any(|(k, _)| k == "@pnpm.e2e/hello-world-js-bin"),
     );
     drop((root, anchor)); // cleanup
@@ -266,14 +291,23 @@ fn write_workspace_with_local_fixtures(workspace: &Path) -> PathBuf {
 #[test]
 fn add_runs_with_ndjson_and_silent_reporters() {
     for reporter in ["--reporter=ndjson", "--reporter=silent"] {
-        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-            CommandTempCwd::init().add_mocked_registry();
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
 
-        pacquet.with_args([reporter, "add", "@pnpm.e2e/hello-world-js-bin"]).assert().success();
+        pacquet
+            .with_args([reporter, "add", "@pnpm.e2e/hello-world-js-bin"])
+            .assert()
+            .success();
 
         let file = PackageManifest::from_path(workspace.join("package.json")).unwrap();
         assert!(
-            file.dependencies([DependencyGroup::Prod])
+            file
+                .dependencies([DependencyGroup::Prod])
                 .any(|(key, _)| key == "@pnpm.e2e/hello-world-js-bin"),
             "dependency should be saved when running add with {reporter}",
         );
@@ -283,7 +317,10 @@ fn add_runs_with_ndjson_and_silent_reporters() {
 }
 
 fn prod_spec(dir: &std::path::Path, name: &str) -> String {
-    let manifest = dir.join("package.json").pipe(PackageManifest::from_path).unwrap();
+    let manifest = dir
+        .join("package.json")
+        .pipe(PackageManifest::from_path)
+        .unwrap();
     let (_, spec) = manifest
         .dependencies([DependencyGroup::Prod])
         .find(|(key, _)| *key == name)
@@ -299,8 +336,13 @@ fn prod_spec(dir: &std::path::Path, name: &str) -> String {
 /// spec, matching pnpm's `updateProjectManifestObject`.
 #[test]
 fn add_existing_dependency_moves_it_to_the_target_group() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     std::fs::write(
         workspace.join("package.json"),
         r#"{ "name": "p", "version": "1.0.0", "dependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "~100.0.0" }, "devDependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "^100.0.0" } }"#,
@@ -308,7 +350,12 @@ fn add_existing_dependency_moves_it_to_the_target_group() {
     .unwrap();
 
     pacquet
-        .with_args(["add", "@pnpm.e2e/dep-of-pkg-with-1-dep", "--save-dev", "--lockfile-only"])
+        .with_args([
+            "add",
+            "@pnpm.e2e/dep-of-pkg-with-1-dep",
+            "--save-dev",
+            "--lockfile-only",
+        ])
         .assert()
         .success();
 
@@ -319,7 +366,10 @@ fn add_existing_dependency_moves_it_to_the_target_group() {
             .find(|(key, _)| *key == "@pnpm.e2e/dep-of-pkg-with-1-dep")
             .map(|(_, spec)| spec.to_string())
     };
-    assert_eq!(group_spec(DependencyGroup::Dev).as_deref(), Some("~100.0.0"));
+    assert_eq!(
+        group_spec(DependencyGroup::Dev).as_deref(),
+        Some("~100.0.0"),
+    );
     assert_eq!(group_spec(DependencyGroup::Prod), None);
     drop((root, npmrc_info)); // cleanup
 }
@@ -327,8 +377,13 @@ fn add_existing_dependency_moves_it_to_the_target_group() {
 // Regression test for pnpm/pnpm#13108
 #[test]
 fn add_existing_dependency_ignores_pin_from_peer_range() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     std::fs::write(
         workspace.join("package.json"),
         r#"{ "name": "p", "version": "1.0.0", "devDependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "100.0.0" }, "peerDependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "^100.0.0" } }"#,
@@ -353,7 +408,10 @@ fn add_existing_dependency_ignores_pin_from_peer_range() {
             .map(|(_, spec)| spec.to_string())
     };
     assert_eq!(group_spec(DependencyGroup::Dev).as_deref(), Some("100.1.0"));
-    assert_eq!(group_spec(DependencyGroup::Peer).as_deref(), Some("^100.0.0"));
+    assert_eq!(
+        group_spec(DependencyGroup::Peer).as_deref(),
+        Some("^100.0.0"),
+    );
     drop((root, npmrc_info)); // cleanup
 }
 
@@ -367,7 +425,10 @@ fn add_aliasing_a_package_manager_name_installs_the_aliased_package() {
         "yarn@npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0",
         "--lockfile-only",
     ]);
-    assert_eq!(prod_spec(&dir, "yarn"), "npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0");
+    assert_eq!(
+        prod_spec(&dir, "yarn"),
+        "npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0",
+    );
     let manifest: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(dir.join("package.json")).unwrap()).unwrap();
     assert_eq!(manifest.get("devEngines"), None, "{manifest}");
@@ -379,21 +440,36 @@ fn add_aliasing_a_package_manager_name_installs_the_aliased_package() {
 /// dependency into a semver range.
 #[test]
 fn add_registry_tarball_url_is_kept_verbatim() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
-    std::fs::write(workspace.join("package.json"), r#"{ "name": "p", "version": "1.0.0" }"#)
-        .unwrap();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    std::fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "p", "version": "1.0.0" }"#,
+    )
+    .unwrap();
 
     let url = format!(
         "{}@pnpm.e2e/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-100.0.0.tgz",
         npmrc_info.mock_instance.url(),
     );
     pacquet
-        .with_args(["add", &format!("@pnpm.e2e/dep-of-pkg-with-1-dep@{url}"), "--lockfile-only"])
+        .with_args([
+            "add",
+            &format!("@pnpm.e2e/dep-of-pkg-with-1-dep@{url}"),
+            "--lockfile-only",
+        ])
         .assert()
         .success();
 
-    assert_eq!(prod_spec(&workspace, "@pnpm.e2e/dep-of-pkg-with-1-dep"), url);
+    assert_eq!(
+        prod_spec(&workspace, "@pnpm.e2e/dep-of-pkg-with-1-dep"),
+        url,
+    );
     drop((root, npmrc_info)); // cleanup
 }
 
@@ -404,7 +480,9 @@ fn should_add_dev_dependency() {
     let file = PackageManifest::from_path(dir.join("package.json")).unwrap();
     eprintln!("Ensure @pnpm.e2e/hello-world-js-bin is added to package.json#devDependencies");
     assert!(
-        file.dependencies([DependencyGroup::Dev]).any(|(k, _)| k == "@pnpm.e2e/hello-world-js-bin"),
+        file
+            .dependencies([DependencyGroup::Dev])
+            .any(|(k, _)| k == "@pnpm.e2e/hello-world-js-bin"),
     );
     drop((root, anchor)); // cleanup
 }
@@ -416,11 +494,14 @@ fn should_add_peer_dependency() {
     let file = PackageManifest::from_path(dir.join("package.json")).unwrap();
     eprintln!("Ensure @pnpm.e2e/hello-world-js-bin is added to package.json#devDependencies");
     assert!(
-        file.dependencies([DependencyGroup::Dev]).any(|(k, _)| k == "@pnpm.e2e/hello-world-js-bin"),
+        file
+            .dependencies([DependencyGroup::Dev])
+            .any(|(k, _)| k == "@pnpm.e2e/hello-world-js-bin"),
     );
     eprintln!("Ensure @pnpm.e2e/hello-world-js-bin is added to package.json#peerDependencies");
     assert!(
-        file.dependencies([DependencyGroup::Peer])
+        file
+            .dependencies([DependencyGroup::Peer])
             .any(|(k, _)| k == "@pnpm.e2e/hello-world-js-bin"),
     );
     drop((root, anchor)); // cleanup
@@ -466,8 +547,13 @@ fn add_materializes_transitive_optional_dependencies() {
 /// tracks the final grouping.
 #[test]
 fn add_moves_dependency_to_new_group_and_keeps_other_groups() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     std::fs::write(
         workspace.join("package.json"),
         serde_json::json!({
@@ -488,15 +574,20 @@ fn add_moves_dependency_to_new_group_and_keeps_other_groups() {
             .assert()
             .success();
     };
-    pacquet.with_args(["add", "--save-optional", "@pnpm.e2e/foo@^100.0.0"]).assert().success();
+    pacquet
+        .with_args(["add", "--save-optional", "@pnpm.e2e/foo@^100.0.0"])
+        .assert()
+        .success();
     run_add(&["--save-prod", "@pnpm.e2e/bar@^100.0.0"]);
     run_add(&["--save-dev", "@pnpm.e2e/qar@^100.0.0"]);
 
     let group_members = |group: DependencyGroup| -> Vec<String> {
         let manifest =
             PackageManifest::from_path(workspace.join("package.json")).expect("read package.json");
-        let mut members: Vec<String> =
-            manifest.dependencies([group]).map(|(name, _)| name.to_string()).collect();
+        let mut members: Vec<String> = manifest
+            .dependencies([group])
+            .map(|(name, _)| name.to_string())
+            .collect();
         members.sort();
         members
     };
@@ -515,22 +606,26 @@ fn add_moves_dependency_to_new_group_and_keeps_other_groups() {
         ["@pnpm.e2e/bar", "@pnpm.e2e/foo", "@pnpm.e2e/qar"],
     );
     assert_eq!(group_members(DependencyGroup::Dev), Vec::<String>::new());
-    assert_eq!(group_members(DependencyGroup::Optional), Vec::<String>::new());
+    assert_eq!(
+        group_members(DependencyGroup::Optional),
+        Vec::<String>::new(),
+    );
 
     let current = read_current_lockfile(&workspace);
-    let importer = current
-        .importers
+    let importer = current.importers
         .get(Lockfile::ROOT_IMPORTER_KEY)
         .expect("current lockfile has the root importer");
-    let mut dependencies: Vec<String> = importer
-        .dependencies
+    let mut dependencies: Vec<String> = importer.dependencies
         .as_ref()
         .expect("root importer has dependencies")
         .keys()
         .map(ToString::to_string)
         .collect();
     dependencies.sort();
-    assert_eq!(dependencies, ["@pnpm.e2e/bar", "@pnpm.e2e/foo", "@pnpm.e2e/qar"]);
+    assert_eq!(
+        dependencies,
+        ["@pnpm.e2e/bar", "@pnpm.e2e/foo", "@pnpm.e2e/qar"],
+    );
 
     drop((root, npmrc_info)); // cleanup
 }
@@ -570,8 +665,13 @@ fn add_keeps_entries_of_other_dependency_groups() {
 /// it to `dependencies`.
 #[test]
 fn add_updates_dependency_in_the_group_it_already_occupies() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     std::fs::write(
         workspace.join("package.json"),
         serde_json::json!({
@@ -583,7 +683,12 @@ fn add_updates_dependency_in_the_group_it_already_occupies() {
     .expect("write package.json");
 
     pacquet
-        .with_args(["add", "@pnpm.e2e/foo@100.1.0", "@pnpm.e2e/bar@100.1.0", "--lockfile-only"])
+        .with_args([
+            "add",
+            "@pnpm.e2e/foo@100.1.0",
+            "@pnpm.e2e/bar@100.1.0",
+            "--lockfile-only",
+        ])
         .assert()
         .success();
 
@@ -595,8 +700,14 @@ fn add_updates_dependency_in_the_group_it_already_occupies() {
             .find(|(dep, _)| *dep == name)
             .map(|(_, spec)| spec.to_string())
     };
-    assert_eq!(group_spec(DependencyGroup::Dev, "@pnpm.e2e/foo").as_deref(), Some("^100.1.0"));
-    assert_eq!(group_spec(DependencyGroup::Optional, "@pnpm.e2e/bar").as_deref(), Some("^100.1.0"));
+    assert_eq!(
+        group_spec(DependencyGroup::Dev, "@pnpm.e2e/foo").as_deref(),
+        Some("^100.1.0"),
+    );
+    assert_eq!(
+        group_spec(DependencyGroup::Optional, "@pnpm.e2e/bar").as_deref(),
+        Some("^100.1.0"),
+    );
     assert_eq!(group_spec(DependencyGroup::Prod, "@pnpm.e2e/foo"), None);
     assert_eq!(group_spec(DependencyGroup::Prod, "@pnpm.e2e/bar"), None);
 
@@ -610,8 +721,13 @@ fn add_with_save_settings(args: &[&str]) -> (TempDir, PathBuf, TestRegistry) {
 }
 
 fn add_with_settings(settings: &str, args: &[&str]) -> (TempDir, PathBuf, TestRegistry) {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
@@ -623,7 +739,11 @@ fn add_with_settings(settings: &str, args: &[&str]) -> (TempDir, PathBuf, TestRe
     workspace_yaml.push_str(settings);
     std::fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
 
-    pacquet.with_args(args).with_arg("@pnpm.e2e/hello-world-js-bin").assert().success();
+    pacquet
+        .with_args(args)
+        .with_arg("@pnpm.e2e/hello-world-js-bin")
+        .assert()
+        .success();
 
     (root, workspace, mock_instance)
 }
@@ -650,16 +770,25 @@ fn workspace_with_lib(
         format!("{HERMETIC_STORE_YAML}packages:\n  - packages/*\n{settings}"),
     )
     .expect("write workspace yaml");
-    write_json(&workspace.join("package.json"), &serde_json::json!({ "name": "root" }));
+    write_json(
+        &workspace.join("package.json"),
+        &serde_json::json!({ "name": "root" }),
+    );
     for (index, (name, version)) in libs.iter().enumerate() {
-        let package_dir = workspace.join("packages").join(format!("lib{index}"));
+        let package_dir = workspace
+            .join("packages")
+            .join(format!("lib{index}"));
         std::fs::create_dir_all(&package_dir).expect("create lib dir");
         write_json(
             &package_dir.join("package.json"),
             &serde_json::json!({ "name": name, "version": version }),
         );
     }
-    let app_dir = workspace.join(app_manifest_path).parent().expect("app dir").to_path_buf();
+    let app_dir = workspace
+        .join(app_manifest_path)
+        .parent()
+        .expect("app dir")
+        .to_path_buf();
     std::fs::create_dir_all(&app_dir).expect("create app dir");
     write_json(
         &app_dir.join("package.json"),

@@ -38,7 +38,10 @@ async fn test_registry_package_name_defaults_to_latest() {
         .expect(1)
         .create_async()
         .await;
-    let config = Config { registry: format!("{}/", server.url()), ..Config::default() };
+    let config = Config {
+        registry: format!("{}/", server.url()),
+        ..Config::default()
+    };
     let http_client = ThrottledClient::for_installs(
         &config.proxy,
         &config.tls,
@@ -46,7 +49,10 @@ async fn test_registry_package_name_defaults_to_latest() {
         &config.network_settings(),
     )
     .expect("create HTTP client");
-    let registries = config.resolved_registries().into_iter().collect::<HashMap<_, _>>();
+    let registries = config
+        .resolved_registries()
+        .into_iter()
+        .collect::<HashMap<_, _>>();
 
     let url = get_repo_url_from_registry(
         &config,
@@ -65,13 +71,19 @@ async fn test_registry_package_name_defaults_to_latest() {
 #[tokio::test]
 async fn test_opens_repository_url_from_local_manifest() {
     static OPENED_URLS: Mutex<Vec<String>> = Mutex::new(Vec::new());
-    OPENED_URLS.lock().unwrap().clear();
+    OPENED_URLS
+        .lock()
+        .unwrap()
+        .clear();
 
     struct RecordingBrowser;
 
     impl OpenUrlAndWait for RecordingBrowser {
         fn open_url_and_wait(url: &str) -> io::Result<()> {
-            OPENED_URLS.lock().unwrap().push(url.to_owned());
+            OPENED_URLS
+                .lock()
+                .unwrap()
+                .push(url.to_owned());
             Ok(())
         }
     }
@@ -82,12 +94,20 @@ async fn test_opens_repository_url_from_local_manifest() {
         r#"{"name": "test-pkg", "repository": "https://github.com/test/pkg"}"#,
     )
     .unwrap();
-    RepoArgs { packages: Vec::new() }
-        .run::<RecordingBrowser, SilentReporter>(&Config::default(), dir.path())
-        .await
-        .expect("open repository URL");
+    RepoArgs {
+        packages: Vec::new(),
+    }
+    .run::<RecordingBrowser, SilentReporter>(&Config::default(), dir.path())
+    .await
+    .expect("open repository URL");
 
-    assert_eq!(OPENED_URLS.lock().unwrap().as_slice(), ["https://github.com/test/pkg"]);
+    assert_eq!(
+        OPENED_URLS
+            .lock()
+            .unwrap()
+            .as_slice(),
+        ["https://github.com/test/pkg"],
+    );
 }
 
 #[test]
@@ -153,7 +173,10 @@ fn test_resolves_scp_style_ssh_url() {
 #[test]
 fn test_resolves_scp_style_ssh_url_with_branch() {
     let result = repository_to_web_url("git@github.com:test/pkg.git#main", None);
-    assert_eq!(result.as_deref(), Some("https://github.com/test/pkg/tree/main"));
+    assert_eq!(
+        result.as_deref(),
+        Some("https://github.com/test/pkg/tree/main"),
+    );
 }
 
 #[test]
@@ -171,31 +194,46 @@ fn test_handles_git_slash_trailing() {
 #[test]
 fn test_uses_fragment_as_branch_in_repository_url() {
     let result = repository_to_web_url("git+https://github.com/test/pkg.git#main", None);
-    assert_eq!(result.as_deref(), Some("https://github.com/test/pkg/tree/main"));
+    assert_eq!(
+        result.as_deref(),
+        Some("https://github.com/test/pkg/tree/main"),
+    );
 }
 
 #[test]
 fn test_appends_directory_for_monorepo_packages() {
     let result = repository_to_web_url("https://github.com/test/pkg", Some("packages/foo"));
-    assert_eq!(result.as_deref(), Some("https://github.com/test/pkg/tree/master/packages/foo"));
+    assert_eq!(
+        result.as_deref(),
+        Some("https://github.com/test/pkg/tree/master/packages/foo"),
+    );
 }
 
 #[test]
 fn test_resolves_shorthand_with_directory_for_monorepo() {
     let result = repository_to_web_url("test/pkg", Some("packages/bar"));
-    assert_eq!(result.as_deref(), Some("https://github.com/test/pkg/tree/master/packages/bar"));
+    assert_eq!(
+        result.as_deref(),
+        Some("https://github.com/test/pkg/tree/master/packages/bar"),
+    );
 }
 
 #[test]
 fn test_combines_directory_and_fragment_in_repository_url() {
     let result = repository_to_web_url("https://github.com/test/pkg#main", Some("packages/foo"));
-    assert_eq!(result.as_deref(), Some("https://github.com/test/pkg/tree/main/packages/foo"));
+    assert_eq!(
+        result.as_deref(),
+        Some("https://github.com/test/pkg/tree/main/packages/foo"),
+    );
 }
 
 #[test]
 fn test_combines_directory_and_fragment_in_shorthand() {
     let result = repository_to_web_url("github:test/pkg#main", Some("packages/foo"));
-    assert_eq!(result.as_deref(), Some("https://github.com/test/pkg/tree/main/packages/foo"));
+    assert_eq!(
+        result.as_deref(),
+        Some("https://github.com/test/pkg/tree/main/packages/foo"),
+    );
 }
 
 #[test]
@@ -213,7 +251,10 @@ fn test_normalizes_git_plus_git_protocol_to_https() {
 #[test]
 fn test_strips_fragment_and_query_from_base_url_for_self_hosted() {
     let result = repository_to_web_url("git+https://git.example.com/test/pkg.git#main", None);
-    assert_eq!(result.as_deref(), Some("https://git.example.com/test/pkg/tree/main"));
+    assert_eq!(
+        result.as_deref(),
+        Some("https://git.example.com/test/pkg/tree/main"),
+    );
 }
 
 #[test]
@@ -261,7 +302,10 @@ fn test_pick_repo_url_from_object_with_url_and_directory() {
     let repo =
         serde_json::json!({"url": "https://github.com/test/pkg", "directory": "packages/foo"});
     let result = pick_repo_url(Some(&repo));
-    assert_eq!(result.as_deref(), Some("https://github.com/test/pkg/tree/master/packages/foo"));
+    assert_eq!(
+        result.as_deref(),
+        Some("https://github.com/test/pkg/tree/master/packages/foo"),
+    );
 }
 
 #[test]
@@ -271,7 +315,10 @@ fn test_pick_repo_url_from_object_with_url_directory_and_fragment() {
         "directory": "packages/foo"
     });
     let result = pick_repo_url(Some(&repo));
-    assert_eq!(result.as_deref(), Some("https://github.com/test/pkg/tree/main/packages/foo"));
+    assert_eq!(
+        result.as_deref(),
+        Some("https://github.com/test/pkg/tree/main/packages/foo"),
+    );
 }
 
 #[test]

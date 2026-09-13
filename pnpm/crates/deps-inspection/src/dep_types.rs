@@ -26,12 +26,13 @@ pub fn detect_dep_types(lockfile: &Lockfile) -> DepTypes {
     let group_dep_paths = |group: fn(
         &pnpm_lockfile::ProjectSnapshot,
     ) -> Option<&pnpm_lockfile::ResolvedDependencyMap>| {
-        lockfile
-            .importers
+        lockfile.importers
             .values()
             .filter_map(group)
             .flat_map(|deps| {
-                deps.iter().filter_map(|(alias, spec)| spec.version.resolved_key(alias))
+                deps
+                    .iter()
+                    .filter_map(|(alias, spec)| spec.version.resolved_key(alias))
             })
             .collect::<Vec<_>>()
     };
@@ -65,8 +66,9 @@ fn detect_in_subgraph_at(ctx: &mut Ctx<'_>, dep_paths: &[PkgNameVerPeer], dev: b
         if !ctx.walked.insert((dep_path.clone(), dev)) {
             continue;
         }
-        let Some(snapshot) =
-            ctx.lockfile.snapshots.as_ref().and_then(|snapshots| snapshots.get(dep_path))
+        let Some(snapshot) = ctx.lockfile.snapshots
+            .as_ref()
+            .and_then(|snapshots| snapshots.get(dep_path))
         else {
             continue;
         };

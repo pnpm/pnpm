@@ -16,7 +16,10 @@ pub(super) fn partition_missing_peers(
     missing: &HashMap<String, Vec<MissingPeer>>,
     parent_pkg_aliases: &HashSet<String>,
     auto_install_peers_from_highest_match: bool,
-) -> (BTreeMap<String, MissingPeerInfo>, BTreeMap<String, Vec<String>>) {
+) -> (
+    BTreeMap<String, MissingPeerInfo>,
+    BTreeMap<String, Vec<String>>,
+) {
     let mut missing_required: BTreeMap<String, MissingPeerInfo> = BTreeMap::new();
     let mut missing_optional: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for (peer_name, entries) in missing {
@@ -25,7 +28,12 @@ pub(super) fn partition_missing_peers(
         }
         match classify_missing_peer(entries, auto_install_peers_from_highest_match) {
             MissingPeerKind::Required(range) => {
-                missing_required.insert(peer_name.clone(), MissingPeerInfo { range });
+                missing_required.insert(
+                    peer_name.clone(),
+                    MissingPeerInfo {
+                        range,
+                    },
+                );
             }
             MissingPeerKind::Optional(ranges) => {
                 missing_optional.insert(peer_name.clone(), ranges);
@@ -101,7 +109,11 @@ pub(super) fn merge_ranges(
         return Some(ranges[0].to_string());
     }
     let mut seen: HashSet<&str> = HashSet::default();
-    let unique: Vec<&str> = ranges.iter().copied().filter(|&range| seen.insert(range)).collect();
+    let unique: Vec<&str> = ranges
+        .iter()
+        .copied()
+        .filter(|&range| seen.insert(range))
+        .collect();
     if unique.len() == 1 {
         return Some(ranges[0].to_string());
     }
@@ -122,13 +134,14 @@ pub(super) fn merge_ranges(
 pub(super) fn intersect_ranges(ranges: &[&str]) -> Option<String> {
     let mut iter = ranges.iter();
     let first = Range::parse(iter.next()?).ok()?;
-    iter.try_fold(first, |acc, range| {
-        Range::parse(range)
-            .ok()
-            .and_then(|range| acc.intersect(&range))
-            .map(|intersection| collapse_covered_alternatives(&intersection))
-    })
-    .map(|range| range.to_string())
+    iter
+        .try_fold(first, |acc, range| {
+            Range::parse(range)
+                .ok()
+                .and_then(|range| acc.intersect(&range))
+                .map(|intersection| collapse_covered_alternatives(&intersection))
+        })
+        .map(|range| range.to_string())
 }
 
 /// Drop the alternatives of a union that another alternative already
@@ -155,11 +168,14 @@ pub(super) fn collapse_covered_alternatives(range: &Range) -> Range {
     let mut kept: Vec<&str> = Vec::with_capacity(alternatives.len());
     for (index, alternative) in parsed.iter().enumerate() {
         // Of two alternatives that cover each other, only the first is kept.
-        let covered = parsed.iter().enumerate().any(|(other_index, other)| {
-            other_index != index
-                && other.allows_all(alternative)
-                && (other_index < index || !alternative.allows_all(other))
-        });
+        let covered = parsed
+            .iter()
+            .enumerate()
+            .any(|(other_index, other)| {
+                other_index != index
+                    && other.allows_all(alternative)
+                    && (other_index < index || !alternative.allows_all(other))
+            });
         if !covered {
             kept.push(alternatives[index]);
         }

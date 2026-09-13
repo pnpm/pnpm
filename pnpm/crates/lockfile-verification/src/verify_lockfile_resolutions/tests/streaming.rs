@@ -73,7 +73,10 @@ snapshots:
     )
     .await
     .expect_err("file: tarball under a semver key must be rejected");
-    assert!(matches!(err, VerifyError::ResolutionShapeMismatch { .. }), "got {err:?}");
+    assert!(
+        matches!(err, VerifyError::ResolutionShapeMismatch { .. }),
+        "got {err:?}",
+    );
 }
 
 #[tokio::test]
@@ -108,5 +111,8 @@ snapshots:
     )
     .await
     .expect_err("uppercased git-host tarball must be rejected");
-    assert!(matches!(err, VerifyError::ResolutionShapeMismatch { .. }), "got {err:?}");
+    assert!(
+        matches!(err, VerifyError::ResolutionShapeMismatch { .. }),
+        "got {err:?}",
+    );
 }

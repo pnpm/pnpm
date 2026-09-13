@@ -61,7 +61,10 @@ pub(super) async fn run<Reporter: self::Reporter>(
         return report_untouched::<Reporter>(dir);
     }
     modified.sort_unstable();
-    Err(ModifiedDependencyError { modified }.into())
+    Err(ModifiedDependencyError {
+        modified,
+    }
+    .into())
 }
 
 /// Every installed package the store can verify, with where each lives.
@@ -72,7 +75,12 @@ fn packages_to_check(
     lockfile_dir: &Path,
 ) -> Vec<PackageToCheck> {
     let skipped: HashSet<&str> = modules_manifest
-        .map(|manifest| manifest.skipped.iter().map(String::as_str).collect())
+        .map(|manifest| {
+            manifest.skipped
+                .iter()
+                .map(String::as_str)
+                .collect()
+        })
         .unwrap_or_default();
     let virtual_store_dir = modules_manifest.map_or_else(
         || resolve_virtual_store_dir(config, lockfile_dir),
@@ -80,16 +88,16 @@ fn packages_to_check(
     );
 
     let max_length = config.virtual_store_dir_max_length as usize;
-    lockfile
-        .packages
+    lockfile.packages
         .iter()
         .flatten()
         .filter(|(key, _)| !skipped.contains(key.to_string().as_str()))
         .filter_map(|(key, metadata)| {
             let store_index_key =
                 store_index_key_for_resolution(&metadata.resolution, &key.pkg_id(), true)?;
-            let modules_dir =
-                virtual_store_dir.join(key.to_virtual_store_name(max_length)).join("node_modules");
+            let modules_dir = virtual_store_dir
+                .join(key.to_virtual_store_name(max_length))
+                .join("node_modules");
             Some(PackageToCheck {
                 dep_path: key.to_string(),
                 package_dir: safe_join_modules_dir(&modules_dir, &key.name.to_string()).ok()?,
@@ -114,12 +122,16 @@ fn find_modified(
     } else {
         StoreIndex::open_readonly(store_dir)?
     };
-    let keys = packages.iter().map(|package| package.store_index_key.clone()).collect::<Vec<_>>();
+    let keys = packages
+        .iter()
+        .map(|package| package.store_index_key.clone())
+        .collect::<Vec<_>>();
     let rows = store_index.get_many(&keys)?;
     Ok(packages
         .par_iter()
         .filter(|package| {
-            rows.get(&package.store_index_key)
+            rows
+                .get(&package.store_index_key)
                 .is_some_and(|row| !package_dir_matches_index(&package.package_dir, row))
         })
         .map(|package| package.dep_path.clone())

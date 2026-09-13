@@ -19,10 +19,10 @@ impl<'a> MaterializationInputs<'a, '_> {
                 self.lockfiles.current,
                 self.install.context.config.force,
             ),
-            resolution_verifiers: self
-                .workspace
-                .requested_importer_ids
-                .map_or(self.lockfiles.verification.resolution_verifiers.as_slice(), |_| &[][..]),
+            resolution_verifiers: self.workspace.requested_importer_ids.map_or(
+                self.lockfiles.verification.resolution_verifiers.as_slice(),
+                |_| &[][..],
+            ),
             planned_canonical_fetches: Some(&self.lockfiles.verification.planned_canonical_fetches),
         }
     }
@@ -53,17 +53,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                 skip_runtimes: self.install.execution.skip_runtimes,
                 node_linker: self.install.execution.node_linker,
             },
-            prior: pnpm_deps_restorer::PriorMaterialization {
-                rebuild: self.modules.rebuild,
-                hoisted_dependencies: self.modules.prior_hoisted_dependencies,
-                hoisted_locations: self.modules.prior_hoisted_locations,
-                allow_builds_changed: allow_builds_changed_since(
-                    self.modules.modules_manifest,
-                    self.install.context.config,
-                ),
-                unbuilt_builds: prior_unbuilt_builds,
-                prune_orphans: self.modules.prune_orphans,
-            },
+            prior: self.prior_materialization(prior_unbuilt_builds),
             projects: pnpm_deps_restorer::FrozenProjectInputs {
                 workspace_root: self.workspace.workspace_root,
                 requester: self.execution.prefix,
@@ -74,6 +64,23 @@ impl<'a> MaterializationInputs<'a, '_> {
             seed,
 
             logged_methods: self.modules.logged_methods,
+        }
+    }
+
+    fn prior_materialization<'b>(
+        &'b self,
+        prior_unbuilt_builds: &'b pnpm_deps_restorer::UnbuiltBuilds,
+    ) -> pnpm_deps_restorer::PriorMaterialization<'b> {
+        pnpm_deps_restorer::PriorMaterialization {
+            rebuild: self.modules.rebuild,
+            hoisted_dependencies: self.modules.prior_hoisted_dependencies,
+            hoisted_locations: self.modules.prior_hoisted_locations,
+            allow_builds_changed: allow_builds_changed_since(
+                self.modules.modules_manifest,
+                self.install.context.config,
+            ),
+            unbuilt_builds: prior_unbuilt_builds,
+            prune_orphans: self.modules.prune_orphans,
         }
     }
 
@@ -108,7 +115,12 @@ impl<'a> MaterializationInputs<'a, '_> {
         .await?;
         let prior_unbuilt = prior_unbuilt_builds(self.modules.modules_manifest);
         let frozen_result = self
-            .frozen_installer(&scope, lockfile, frozen_verification_override, &prior_unbuilt)
+            .frozen_installer(
+                &scope,
+                lockfile,
+                frozen_verification_override,
+                &prior_unbuilt,
+            )
             .run::<Reporter>()
             .await
             // Surface a verification failure as the same top-level

@@ -16,11 +16,20 @@ pub fn state_dir_uses_only_trusted_config_sources() {
         .expect("write global config.yaml");
 
     let project = tempdir().expect("project tempdir");
-    fs::write(project.path().join("pnpm-workspace.yaml"), "stateDir: from-project\n")
-        .expect("write workspace yaml");
+    fs::write(
+        project.path().join("pnpm-workspace.yaml"),
+        "stateDir: from-project\n",
+    )
+    .expect("write workspace yaml");
 
     set_fake_env(&[
-        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        (
+            "XDG_CONFIG_HOME",
+            xdg
+                .path()
+                .to_str()
+                .unwrap(),
+        ),
         ("XDG_STATE_HOME", state_root.to_str().unwrap()),
     ]);
     let config = load_with_fake_env(project.path());
@@ -28,7 +37,13 @@ pub fn state_dir_uses_only_trusted_config_sources() {
     assert_eq!(config.workspace_key_issues.refused, ["stateDir"]);
 
     set_fake_env(&[
-        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        (
+            "XDG_CONFIG_HOME",
+            xdg
+                .path()
+                .to_str()
+                .unwrap(),
+        ),
         ("XDG_STATE_HOME", state_root.to_str().unwrap()),
         ("PNPM_CONFIG_STATE_DIR", "from-env"),
     ]);
@@ -40,7 +55,13 @@ pub fn state_dir_uses_only_trusted_config_sources() {
     );
 
     set_fake_env(&[
-        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        (
+            "XDG_CONFIG_HOME",
+            xdg
+                .path()
+                .to_str()
+                .unwrap(),
+        ),
         ("XDG_STATE_HOME", state_root.to_str().unwrap()),
         ("PNPM_CONFIG_STATE_DIR", "../outside"),
     ]);
@@ -67,24 +88,52 @@ pub fn global_dirs_use_only_trusted_config_sources() {
     )
     .expect("write workspace yaml");
 
-    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    set_fake_env(&[(
+        "XDG_CONFIG_HOME",
+        xdg
+            .path()
+            .to_str()
+            .unwrap(),
+    )]);
     let config = load_with_fake_env(project.path());
     assert_eq!(
         config.global_pkg_dir,
-        Some(project.path().join("from-global").join(GLOBAL_LAYOUT_VERSION)),
+        Some(
+            project
+                .path()
+                .join("from-global")
+                .join(GLOBAL_LAYOUT_VERSION)
+        ),
     );
-    assert_eq!(config.global_bin, Some(project.path().join("from-global-bin")));
-    assert_eq!(config.workspace_key_issues.refused, ["globalDir", "globalBinDir"]);
+    assert_eq!(
+        config.global_bin,
+        Some(project.path().join("from-global-bin")),
+    );
+    assert_eq!(
+        config.workspace_key_issues.refused,
+        ["globalDir", "globalBinDir"],
+    );
 
     set_fake_env(&[
-        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        (
+            "XDG_CONFIG_HOME",
+            xdg
+                .path()
+                .to_str()
+                .unwrap(),
+        ),
         ("PNPM_CONFIG_GLOBAL_DIR", "from-env"),
         ("PNPM_CONFIG_GLOBAL_BIN_DIR", "from-env-bin"),
     ]);
     let config = load_with_fake_env(project.path());
     assert_eq!(
         config.global_pkg_dir,
-        Some(project.path().join("from-env").join(GLOBAL_LAYOUT_VERSION)),
+        Some(
+            project
+                .path()
+                .join("from-env")
+                .join(GLOBAL_LAYOUT_VERSION)
+        ),
     );
     assert_eq!(config.global_bin, Some(project.path().join("from-env-bin")));
     assert_eq!(
@@ -96,11 +145,18 @@ pub fn global_dirs_use_only_trusted_config_sources() {
 #[test]
 pub fn network_settings_defaults_match_pnpm() {
     let value = Config::new();
-    assert_eq!(value.network_concurrency, pnpm_network::default_network_concurrency());
+    assert_eq!(
+        value.network_concurrency,
+        pnpm_network::default_network_concurrency(),
+    );
     assert_eq!(value.fetch_timeout, 60_000);
     assert_eq!(value.fetch_warn_timeout_ms, 10_000);
     assert_eq!(value.fetch_min_speed_ki_bps, 50);
-    assert!(value.user_agent.starts_with("pnpm/"), "user-agent: {:?}", value.user_agent);
+    assert!(
+        value.user_agent.starts_with("pnpm/"),
+        "user-agent: {:?}",
+        value.user_agent,
+    );
     assert_eq!(value.npmrc_auth_file, None);
 }
 
@@ -116,7 +172,10 @@ pub fn network_settings_maps_custom_config_values() {
     let settings = config.network_settings();
     assert_eq!(settings.network_concurrency, 8);
     assert_eq!(settings.fetch_timeout, std::time::Duration::from_mins(2));
-    assert_eq!(settings.fetch_warn_timeout, std::time::Duration::from_millis(2_345));
+    assert_eq!(
+        settings.fetch_warn_timeout,
+        std::time::Duration::from_millis(2_345),
+    );
     assert_eq!(settings.fetch_min_speed_ki_bps, 12);
     assert_eq!(settings.user_agent, "pnpm-test");
 }
@@ -141,12 +200,21 @@ namedRegistries:
     let project = tempdir().expect("project tempdir");
     set_fake_env(&[
         ("REGISTRY_HOST", "trusted.example.com"),
-        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        (
+            "XDG_CONFIG_HOME",
+            xdg
+                .path()
+                .to_str()
+                .unwrap(),
+        ),
     ]);
     let config = load_with_fake_env(project.path());
 
     assert_eq!(config.registry, "https://trusted.example.com/npm/");
-    assert_eq!(config.pnpr_server.as_deref(), Some("https://trusted.example.com/pnpr/"));
+    assert_eq!(
+        config.pnpr_server.as_deref(),
+        Some("https://trusted.example.com/pnpr/"),
+    );
     assert_eq!(
         config.registries_by_prefix.get("work").map(String::as_str),
         Some("https://trusted.example.com/work/"),
@@ -164,7 +232,10 @@ pub fn pnpm_config_request_destinations_expand_env() {
     ]);
     let config = load_with_fake_env(project.path());
 
-    assert_eq!(config.pnpr_server.as_deref(), Some("https://env.example.com/pnpr/"));
+    assert_eq!(
+        config.pnpr_server.as_deref(),
+        Some("https://env.example.com/pnpr/"),
+    );
     assert_eq!(config.registry, "https://env.example.com/npm/");
 }
 
@@ -177,7 +248,10 @@ pub fn json_env_malformed_json_aborts_the_load() {
     set_fake_env(&[("pnpm_config__auth", "{ not valid json")]);
 
     let result = Config::default().current::<FakeEnv>(project.path());
-    assert!(matches!(result, Err(LoadWorkspaceYamlError::InvalidJsonAuth { .. })));
+    assert!(matches!(
+        result,
+        Err(LoadWorkspaceYamlError::InvalidJsonAuth { .. })
+    ));
 }
 
 /// End-to-end: a non-object top-level `pnpm_config__auth` aborts the load.
@@ -188,7 +262,10 @@ pub fn json_env_non_object_top_level_aborts_the_load() {
     set_fake_env(&[("pnpm_config__auth", r#"["array","is","not","an","object"]"#)]);
 
     let result = Config::default().current::<FakeEnv>(project.path());
-    assert!(matches!(result, Err(LoadWorkspaceYamlError::InvalidJsonAuth { .. })));
+    assert!(matches!(
+        result,
+        Err(LoadWorkspaceYamlError::InvalidJsonAuth { .. })
+    ));
 }
 
 /// End-to-end: the "@" (default) scope in `pnpm_config__auth` routes the
@@ -282,23 +359,22 @@ pub fn json_env_inferred_registries_flow_to_bootstrap() {
 
     let config = load_with_fake_env(project.path());
 
-    assert_eq!(config.package_manager_bootstrap.registry, "https://my-npm-proxy.example/");
+    assert_eq!(
+        config.package_manager_bootstrap.registry,
+        "https://my-npm-proxy.example/",
+    );
     assert_eq!(
         config.package_manager_bootstrap.registries.get("@org").map(String::as_str),
         Some("https://my-npm-proxy.example/"),
     );
     assert_eq!(
-        config
-            .package_manager_bootstrap
-            .auth_headers
+        config.package_manager_bootstrap.auth_headers
             .for_url("https://my-npm-proxy.example/pkg")
             .as_deref(),
         Some("Bearer proxy-token"),
     );
     assert_eq!(
-        config
-            .package_manager_bootstrap
-            .auth_headers
+        config.package_manager_bootstrap.auth_headers
             .for_url_with_package("https://my-npm-proxy.example/org/foo", Some("@org/foo"))
             .as_deref(),
         Some("Bearer org-token"),
@@ -351,11 +427,23 @@ pub fn global_config_yaml_supplies_proxy_settings() {
     )
     .expect("write global config.yaml");
 
-    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    set_fake_env(&[(
+        "XDG_CONFIG_HOME",
+        xdg
+            .path()
+            .to_str()
+            .unwrap(),
+    )]);
     let config = load_with_fake_env(project.path());
 
-    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://proxy.example.com:8080"));
-    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://proxy.example.com:8443"));
+    assert_eq!(
+        config.proxy.http_proxy.as_deref(),
+        Some("http://proxy.example.com:8080"),
+    );
+    assert_eq!(
+        config.proxy.https_proxy.as_deref(),
+        Some("http://proxy.example.com:8443"),
+    );
     assert_eq!(
         config.proxy.no_proxy,
         Some(pnpm_network::NoProxySetting::List(vec![
@@ -370,19 +458,37 @@ pub fn global_config_yaml_supplies_proxy_settings() {
 pub fn global_config_yaml_proxy_overrides_project_npmrc() {
     fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
-    fs::write(project.path().join(".npmrc"), "https-proxy=http://npmrc-proxy.example.com:8080\n")
-        .expect("write project .npmrc");
+    fs::write(
+        project.path().join(".npmrc"),
+        "https-proxy=http://npmrc-proxy.example.com:8080\n",
+    )
+    .expect("write project .npmrc");
     let xdg = tempdir().expect("config tempdir");
     let config_dir = xdg.path().join("pnpm");
     fs::create_dir_all(&config_dir).expect("create global config dir");
-    fs::write(config_dir.join("config.yaml"), "httpsProxy: http://yaml-proxy.example.com:9090\n")
-        .expect("write global config.yaml");
+    fs::write(
+        config_dir.join("config.yaml"),
+        "httpsProxy: http://yaml-proxy.example.com:9090\n",
+    )
+    .expect("write global config.yaml");
 
-    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    set_fake_env(&[(
+        "XDG_CONFIG_HOME",
+        xdg
+            .path()
+            .to_str()
+            .unwrap(),
+    )]);
     let config = load_with_fake_env(project.path());
 
-    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://yaml-proxy.example.com:9090"));
-    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://yaml-proxy.example.com:9090"));
+    assert_eq!(
+        config.proxy.https_proxy.as_deref(),
+        Some("http://yaml-proxy.example.com:9090"),
+    );
+    assert_eq!(
+        config.proxy.http_proxy.as_deref(),
+        Some("http://yaml-proxy.example.com:9090"),
+    );
 }
 
 #[test]
@@ -397,13 +503,25 @@ pub fn global_config_yaml_https_proxy_preserves_project_npmrc_http_proxy() {
     let xdg = tempdir().expect("config tempdir");
     let config_dir = xdg.path().join("pnpm");
     fs::create_dir_all(&config_dir).expect("create global config dir");
-    fs::write(config_dir.join("config.yaml"), "httpsProxy: http://yaml-proxy.example.com:9090\n")
-        .expect("write global config.yaml");
+    fs::write(
+        config_dir.join("config.yaml"),
+        "httpsProxy: http://yaml-proxy.example.com:9090\n",
+    )
+    .expect("write global config.yaml");
 
-    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    set_fake_env(&[(
+        "XDG_CONFIG_HOME",
+        xdg
+            .path()
+            .to_str()
+            .unwrap(),
+    )]);
     let config = load_with_fake_env(project.path());
 
-    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://yaml-proxy.example.com:9090"));
+    assert_eq!(
+        config.proxy.https_proxy.as_deref(),
+        Some("http://yaml-proxy.example.com:9090"),
+    );
     assert_eq!(
         config.proxy.http_proxy.as_deref(),
         Some("http://project-http-proxy.example.com:8080"),
@@ -429,13 +547,28 @@ pub fn pnpm_config_https_proxy_preserves_global_http_proxy() {
     .expect("write global config.yaml");
 
     set_fake_env(&[
-        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
-        ("PNPM_CONFIG_HTTPS_PROXY", "http://cli-proxy.example.com:7070"),
+        (
+            "XDG_CONFIG_HOME",
+            xdg
+                .path()
+                .to_str()
+                .unwrap(),
+        ),
+        (
+            "PNPM_CONFIG_HTTPS_PROXY",
+            "http://cli-proxy.example.com:7070",
+        ),
     ]);
     let config = load_with_fake_env(project.path());
 
-    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://cli-proxy.example.com:7070"));
-    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://yaml-http-proxy.example.com:8080"));
+    assert_eq!(
+        config.proxy.https_proxy.as_deref(),
+        Some("http://cli-proxy.example.com:7070"),
+    );
+    assert_eq!(
+        config.proxy.http_proxy.as_deref(),
+        Some("http://yaml-http-proxy.example.com:8080"),
+    );
     assert_eq!(config.package_manager_bootstrap.proxy, config.proxy);
 }
 
@@ -454,11 +587,19 @@ pub fn project_npmrc_proxy_settings_are_preserved() {
 
     let config = load_with_fake_env(project.path());
 
-    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://npmrc-proxy.example.com:8080"));
-    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://npmrc-proxy.example.com:8080"));
+    assert_eq!(
+        config.proxy.https_proxy.as_deref(),
+        Some("http://npmrc-proxy.example.com:8080"),
+    );
+    assert_eq!(
+        config.proxy.http_proxy.as_deref(),
+        Some("http://npmrc-proxy.example.com:8080"),
+    );
     assert_eq!(
         config.proxy.no_proxy,
-        Some(pnpm_network::NoProxySetting::List(vec!["internal.example.com".to_string()])),
+        Some(pnpm_network::NoProxySetting::List(vec![
+            "internal.example.com".to_string()
+        ])),
     );
 }
 
@@ -491,14 +632,23 @@ pub fn cli_https_proxy_preserves_trusted_npmrc_http_proxy_for_bootstrap_requests
     let project = tempdir().expect("project tempdir");
     let auth = tempdir().expect("auth tempdir");
     let user_file = auth.path().join("user-npmrc");
-    write_file(&user_file, "http-proxy=http://user-http-proxy.example.com:8080\n");
+    write_file(
+        &user_file,
+        "http-proxy=http://user-http-proxy.example.com:8080\n",
+    );
 
-    let mut config = Config { npmrc_auth_file: Some(user_file), ..Config::default() }
-        .current::<HostNoHome>(project.path())
-        .expect("load config");
+    let mut config = Config {
+        npmrc_auth_file: Some(user_file),
+        ..Config::default()
+    }
+    .current::<HostNoHome>(project.path())
+    .expect("load config");
     config.apply_proxy_cli_overrides(Some("http://cli-https-proxy.example.com:8443"), None, None);
 
-    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://user-http-proxy.example.com:8080"));
+    assert_eq!(
+        config.proxy.http_proxy.as_deref(),
+        Some("http://user-http-proxy.example.com:8080"),
+    );
     assert_eq!(
         config.package_manager_bootstrap.proxy.http_proxy.as_deref(),
         Some("http://user-http-proxy.example.com:8080"),
@@ -509,12 +659,18 @@ pub fn cli_https_proxy_preserves_trusted_npmrc_http_proxy_for_bootstrap_requests
 pub fn cli_https_proxy_precedes_standard_http_proxy_environment_fallback() {
     fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
-    set_fake_env(&[("HTTP_PROXY", "http://environment-http-proxy.example.com:8080")]);
+    set_fake_env(&[(
+        "HTTP_PROXY",
+        "http://environment-http-proxy.example.com:8080",
+    )]);
 
     let mut config = load_with_fake_env(project.path());
     config.apply_proxy_cli_overrides(Some("http://cli-https-proxy.example.com:8443"), None, None);
 
-    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://cli-https-proxy.example.com:8443"));
+    assert_eq!(
+        config.proxy.http_proxy.as_deref(),
+        Some("http://cli-https-proxy.example.com:8443"),
+    );
     assert_eq!(config.package_manager_bootstrap.proxy, config.proxy);
 }
 
@@ -543,13 +699,19 @@ pub fn empty_cli_proxy_flags_mask_the_project_npmrc() {
 pub fn empty_cli_proxy_flags_fall_through_to_the_environment() {
     fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
-    write_file(&project.path().join(".npmrc"), "https-proxy=http://npmrc-proxy.example.com:8443\n");
+    write_file(
+        &project.path().join(".npmrc"),
+        "https-proxy=http://npmrc-proxy.example.com:8443\n",
+    );
     set_fake_env(&[("HTTPS_PROXY", "http://env-proxy.example.com:8080")]);
 
     let mut config = load_with_fake_env(project.path());
     config.apply_proxy_cli_overrides(Some(""), None, None);
 
-    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://env-proxy.example.com:8080"));
+    assert_eq!(
+        config.proxy.https_proxy.as_deref(),
+        Some("http://env-proxy.example.com:8080"),
+    );
 }
 
 #[test]
@@ -563,10 +725,19 @@ pub fn empty_global_config_yaml_proxy_settings_mask_the_project_npmrc() {
     let xdg = tempdir().expect("config tempdir");
     let config_dir = xdg.path().join("pnpm");
     fs::create_dir_all(&config_dir).expect("create global config dir");
-    fs::write(config_dir.join("config.yaml"), "httpsProxy: \"\"\nhttpProxy: \"\"\nnoProxy: \"\"\n")
-        .expect("write global config.yaml");
+    fs::write(
+        config_dir.join("config.yaml"),
+        "httpsProxy: \"\"\nhttpProxy: \"\"\nnoProxy: \"\"\n",
+    )
+    .expect("write global config.yaml");
 
-    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    set_fake_env(&[(
+        "XDG_CONFIG_HOME",
+        xdg
+            .path()
+            .to_str()
+            .unwrap(),
+    )]);
     let config = load_with_fake_env(project.path());
 
     assert_eq!(config.proxy.https_proxy, None);
@@ -580,13 +751,19 @@ pub fn empty_global_config_yaml_proxy_settings_mask_the_project_npmrc() {
 pub fn unscoped_creds_in_project_npmrc_warn_naming_that_file() {
     let auth = tempdir().expect("auth tempdir");
     let project = tempdir().expect("project tempdir");
-    write_file(&project.path().join(".npmrc"), "registry=https://ws.example.com/\n_authToken=t\n");
+    write_file(
+        &project.path().join(".npmrc"),
+        "registry=https://ws.example.com/\n_authToken=t\n",
+    );
 
     let warnings = capture_warnings(|| {
         drop(
-            Config { npmrc_auth_file: Some(auth.path().join("user-npmrc")), ..Config::default() }
-                .current::<HostNoHome>(project.path())
-                .expect("load config"),
+            Config {
+                npmrc_auth_file: Some(auth.path().join("user-npmrc")),
+                ..Config::default()
+            }
+            .current::<HostNoHome>(project.path())
+            .expect("load config"),
         );
     });
 
@@ -595,7 +772,13 @@ pub fn unscoped_creds_in_project_npmrc_warn_naming_that_file() {
         .find(|warning| warning.contains("Unscoped per-registry settings"))
         .expect("deprecation warning");
     assert!(
-        warning.contains(&project.path().join(".npmrc").display().to_string()),
+        warning.contains(
+            &project
+                .path()
+                .join(".npmrc")
+                .display()
+                .to_string()
+        ),
         "{warning:?} should name the project .npmrc",
     );
 }
@@ -671,8 +854,9 @@ pub fn should_use_xdg_data_home_env_var() {
 pub fn npmrc_in_current_folder_applies_registry() {
     let tmp = tempdir().unwrap();
     fs::write(tmp.path().join(".npmrc"), "registry=https://cwd.example").expect("write to .npmrc");
-    let config =
-        Config::new().current::<HostNoHome>(tmp.path()).expect("workspace yaml absent => no error");
+    let config = Config::new()
+        .current::<HostNoHome>(tmp.path())
+        .expect("workspace yaml absent => no error");
     assert_eq!(config.registry, "https://cwd.example/");
 }
 
@@ -687,20 +871,28 @@ pub fn fetch_retry_keys_in_npmrc_are_ignored() {
     let ini = "fetch-retries=99\nfetch-retry-factor=99\nfetch-retry-mintimeout=99\nfetch-retry-maxtimeout=99\n";
     fs::write(tmp.path().join(".npmrc"), ini).expect("write to .npmrc");
     let defaults = Config::new();
-    let config =
-        Config::new().current::<HostNoHome>(tmp.path()).expect("workspace yaml absent => no error");
+    let config = Config::new()
+        .current::<HostNoHome>(tmp.path())
+        .expect("workspace yaml absent => no error");
     assert_eq!(config.fetch_retries, defaults.fetch_retries);
     assert_eq!(config.fetch_retry_factor, defaults.fetch_retry_factor);
-    assert_eq!(config.fetch_retry_mintimeout, defaults.fetch_retry_mintimeout);
-    assert_eq!(config.fetch_retry_maxtimeout, defaults.fetch_retry_maxtimeout);
+    assert_eq!(
+        config.fetch_retry_mintimeout,
+        defaults.fetch_retry_mintimeout,
+    );
+    assert_eq!(
+        config.fetch_retry_maxtimeout,
+        defaults.fetch_retry_maxtimeout,
+    );
 }
 
 #[test]
 pub fn test_current_folder_for_invalid_npmrc() {
     let tmp = tempdir().unwrap();
     fs::write(tmp.path().join(".npmrc"), b"Hello \xff World").expect("write to .npmrc");
-    let config =
-        Config::new().current::<HostNoHome>(tmp.path()).expect("workspace yaml absent => no error");
+    let config = Config::new()
+        .current::<HostNoHome>(tmp.path())
+        .expect("workspace yaml absent => no error");
     assert!(config.symlink); // default — invalid .npmrc is silently ignored
 }
 
@@ -708,14 +900,19 @@ pub fn test_current_folder_for_invalid_npmrc() {
 pub fn npmrc_in_home_folder_applies_registry() {
     let current_dir = tempdir().unwrap();
     let home_dir = tempdir().unwrap();
-    fs::write(home_dir.path().join(".npmrc"), "registry=https://home.example")
-        .expect("write to .npmrc");
+    fs::write(
+        home_dir.path().join(".npmrc"),
+        "registry=https://home.example",
+    )
+    .expect("write to .npmrc");
     // Per-test fake: home_dir is a tempdir, so it can't be a
     // module-level constant — stash it in a per-test `OnceLock`
     // so `GetHomeDir::home_dir`'s associated-function shape (no
     // `&self`) can still resolve it at call time.
     static HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-    HOME_PATH.set(home_dir.path().to_path_buf()).expect("set once");
+    HOME_PATH
+        .set(home_dir.path().to_path_buf())
+        .expect("set once");
     struct HostWithHome;
     impl EnvVar for HostWithHome {
         fn var(name: &str) -> Option<String> {
@@ -746,7 +943,9 @@ pub fn npmrc_scope_alone_never_reaches_the_config() {
     // config source that must *not* supply the login scope.
     let tmp = tempdir().unwrap();
     fs::write(tmp.path().join(".npmrc"), "scope=@from-npmrc\n").expect("write to .npmrc");
-    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("config loads");
+    let config = Config::new()
+        .current::<HostNoHome>(tmp.path())
+        .expect("config loads");
     assert_eq!(config.scope, None);
 }
 

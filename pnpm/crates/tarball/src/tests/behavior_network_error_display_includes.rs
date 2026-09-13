@@ -22,10 +22,22 @@ use super::{
 async fn network_error_display_includes_reqwest_inner_chain() {
     let url = "http://127.0.0.1:1/ssl-package.tgz";
     let client = fast_fail_client();
-    let err =
-        client.acquire().await.get(url).send().await.expect_err("connecting to port 1 must fail");
-    let expected_code = if err.is_timeout() { "ETIMEDOUT" } else { "ECONNREFUSED" };
-    let net_err = NetworkError { url: url.to_string(), error: err };
+    let err = client
+        .acquire()
+        .await
+        .get(url)
+        .send()
+        .await
+        .expect_err("connecting to port 1 must fail");
+    let expected_code = if err.is_timeout() {
+        "ETIMEDOUT"
+    } else {
+        "ECONNREFUSED"
+    };
+    let net_err = NetworkError {
+        url: url.to_string(),
+        error: err,
+    };
 
     let rendered = net_err.to_string();
     assert!(
@@ -166,7 +178,9 @@ async fn store_row_holding_another_package_fails_the_read() {
         ignore_file_pattern: None,
 
         progress_reported: None,
-        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
+        store_projection: ArchiveStoreProjection::Package {
+            append_manifest: None,
+        },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -175,7 +189,10 @@ async fn store_row_holding_another_package_fails_the_read() {
         panic!("expected an unexpected-content error, got: {err:?}");
     };
     assert!(hint.contains("Expected package: fake@1.0.0."), "{hint}");
-    assert!(hint.contains("Actual package in the store: other-package@9.9.9."), "{hint}");
+    assert!(
+        hint.contains("Actual package in the store: other-package@9.9.9."),
+        "{hint}",
+    );
 
     drop(store_dir);
 }
@@ -206,14 +223,26 @@ fn retry_opts_delay_does_not_overflow() {
 #[test]
 fn retry_classification_matches_pnpm_policy() {
     let url = "https://example.test/pkg.tgz".to_string();
-    let mk_http =
-        |status: u16| TarballError::HttpStatus(HttpStatusError { url: url.clone(), status });
+    let mk_http = |status: u16| {
+        TarballError::HttpStatus(HttpStatusError {
+            url: url.clone(),
+            status,
+        })
+    };
 
     for code in [401u16, 403, 404] {
-        assert!(!is_transient_error(&mk_http(code)), "HTTP {code} should fail fast");
+        assert!(
+            !is_transient_error(&mk_http(code)),
+            "HTTP {code} should fail fast",
+        );
     }
-    for code in [400u16, 408, 409, 410, 418, 420, 422, 429, 500, 502, 503, 504] {
-        assert!(is_transient_error(&mk_http(code)), "HTTP {code} should retry");
+    for code in [
+        400u16, 408, 409, 410, 418, 420, 422, 429, 500, 502, 503, 504,
+    ] {
+        assert!(
+            is_transient_error(&mk_http(code)),
+            "HTTP {code} should retry",
+        );
     }
 
     // Non-HTTP failures: pnpm wraps body fetch + addFilesFromTarball
@@ -223,12 +252,23 @@ fn retry_classification_matches_pnpm_policy() {
     let bad_integrity: Integrity =
         "sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa==".parse().unwrap();
     let ssri_err = bad_integrity.check(b"unrelated body").unwrap_err();
-    let checksum =
-        TarballError::Checksum(VerifyChecksumError { url: url.clone(), error: ssri_err });
-    assert!(is_transient_error(&checksum), "integrity mismatch should retry");
+    let checksum = TarballError::Checksum(VerifyChecksumError {
+        url: url.clone(),
+        error: ssri_err,
+    });
+    assert!(
+        is_transient_error(&checksum),
+        "integrity mismatch should retry",
+    );
 
-    let too_large = TarballError::TarballTooLarge { url: url.clone(), advertised_size: u64::MAX };
-    assert!(is_transient_error(&too_large), "TarballTooLarge should retry");
+    let too_large = TarballError::TarballTooLarge {
+        url: url.clone(),
+        advertised_size: u64::MAX,
+    };
+    assert!(
+        is_transient_error(&too_large),
+        "TarballTooLarge should retry",
+    );
 }
 
 #[test]
@@ -241,7 +281,9 @@ fn package_projection_preserves_existing_store_index_keys() {
         store_index_cache_key(
             Some(&integrity),
             package_id,
-            ArchiveStoreProjection::Package { append_manifest: None },
+            ArchiveStoreProjection::Package {
+                append_manifest: None
+            },
         ),
         Some(legacy_key.clone()),
     );
@@ -249,7 +291,9 @@ fn package_projection_preserves_existing_store_index_keys() {
         store_index_cache_key(
             Some(&integrity),
             package_id,
-            ArchiveStoreProjection::Package { append_manifest: Some(br#"{"name":"runtime"}"#) },
+            ArchiveStoreProjection::Package {
+                append_manifest: Some(br#"{"name":"runtime"}"#)
+            },
         ),
         Some(legacy_key),
     );
@@ -258,7 +302,9 @@ fn package_projection_preserves_existing_store_index_keys() {
 #[test]
 fn ordinary_package_projection_preserves_existing_mem_cache_keys() {
     let package_url = "https://example.test/artifact.tgz";
-    let package = ArchiveStoreProjection::Package { append_manifest: None };
+    let package = ArchiveStoreProjection::Package {
+        append_manifest: None,
+    };
 
     assert_eq!(package.mem_cache_key(package_url, false), package_url);
     assert_eq!(
@@ -271,7 +317,11 @@ fn ordinary_package_projection_preserves_existing_mem_cache_keys() {
 async fn mem_cache_partitions_raw_and_package_projections_in_both_orders() {
     let local_dir = tempdir().unwrap();
     let tarball_path = local_dir.path().join("artifact.tgz");
-    std::fs::write(&tarball_path, gzipped_tar(&[("artifact/README.md", b"archive")])).unwrap();
+    std::fs::write(
+        &tarball_path,
+        gzipped_tar(&[("artifact/README.md", b"archive")]),
+    )
+    .unwrap();
     let package_url = format!("file:{}", tarball_path.display());
     let client = fast_fail_client();
     let auth_headers = AuthHeaders::default();
@@ -312,10 +362,12 @@ async fn mem_cache_partitions_raw_and_package_projections_in_both_orders() {
         };
 
         let (package_files, raw_files) = if package_first {
-            let package_files = ingest(ArchiveStoreProjection::Package { append_manifest: None })
-                .run_with_mem_cache::<SilentReporter>(&mem_cache)
-                .await
-                .unwrap();
+            let package_files = ingest(ArchiveStoreProjection::Package {
+                append_manifest: None,
+            })
+            .run_with_mem_cache::<SilentReporter>(&mem_cache)
+            .await
+            .unwrap();
             let raw_files = ingest(ArchiveStoreProjection::RawArchive)
                 .run_with_mem_cache::<SilentReporter>(&mem_cache)
                 .await
@@ -326,17 +378,28 @@ async fn mem_cache_partitions_raw_and_package_projections_in_both_orders() {
                 .run_with_mem_cache::<SilentReporter>(&mem_cache)
                 .await
                 .unwrap();
-            let package_files = ingest(ArchiveStoreProjection::Package { append_manifest: None })
-                .run_with_mem_cache::<SilentReporter>(&mem_cache)
-                .await
-                .unwrap();
+            let package_files = ingest(ArchiveStoreProjection::Package {
+                append_manifest: None,
+            })
+            .run_with_mem_cache::<SilentReporter>(&mem_cache)
+            .await
+            .unwrap();
             (package_files, raw_files)
         };
 
-        let mut package_names = package_files.keys().map(String::as_str).collect::<Vec<_>>();
+        let mut package_names = package_files
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>();
         package_names.sort_unstable();
         assert_eq!(package_names, ["README.md", "package.json"]);
-        assert_eq!(raw_files.keys().map(String::as_str).collect::<Vec<_>>(), ["README.md"]);
+        assert_eq!(
+            raw_files
+                .keys()
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
+            ["README.md"],
+        );
         assert_eq!(mem_cache.len(), 2);
         drop(store_dir);
     }
@@ -516,7 +579,10 @@ async fn raw_archive_projection_skips_npm_identity_checks_on_store_hits() {
     .await
     .expect("raw archive cache hits must not use npm package identity semantics");
 
-    assert_eq!(cas_paths, HashMap::from([("README.md".to_string(), cas_path)]));
+    assert_eq!(
+        cas_paths,
+        HashMap::from([("README.md".to_string(), cas_path)]),
+    );
     drop(store_dir);
 }
 
@@ -564,7 +630,9 @@ async fn run_without_mem_cache_fetches_unverified_and_writes_no_index_row() {
         ignore_file_pattern: None,
 
         progress_reported: None,
-        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
+        store_projection: ArchiveStoreProjection::Package {
+            append_manifest: None,
+        },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -576,7 +644,10 @@ async fn run_without_mem_cache_fetches_unverified_and_writes_no_index_row() {
     writer_task.await.expect("writer task").expect("writer flushed");
     let index = StoreIndex::open_in(store_path).expect("open store index");
     let keys: Vec<String> = index.keys().expect("read index keys");
-    assert!(keys.is_empty(), "an unverified fetch must claim no index row: {keys:?}");
+    assert!(
+        keys.is_empty(),
+        "an unverified fetch must claim no index row: {keys:?}",
+    );
 
     drop((store_dir, local_dir));
 }
@@ -585,7 +656,12 @@ async fn run_without_mem_cache_fetches_unverified_and_writes_no_index_row() {
 async fn retries_then_succeeds_on_transient_5xx() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
     let mut server = mockito::Server::new_async().await;
-    let fail = server.mock("GET", "/pkg.tgz").with_status(503).expect(1).create_async().await;
+    let fail = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(503)
+        .expect(1)
+        .create_async()
+        .await;
     let ok = server
         .mock("GET", "/pkg.tgz")
         .with_status(200)
@@ -629,7 +705,12 @@ async fn revision_addressed_mem_cache_does_not_retry_a_failed_prefetch() {
     let mut server = mockito::Server::new_async().await;
     let digest = "A".repeat(86);
     let path = format!("/-/tarballs/sha512/{digest}");
-    let mock = server.mock("GET", path.as_str()).with_status(503).expect(1).create_async().await;
+    let mock = server
+        .mock("GET", path.as_str())
+        .with_status(503)
+        .expect(1)
+        .create_async()
+        .await;
     let url = format!("{}{path}", server.url());
     let expected = integrity(&format!("sha512-{digest}=="));
     let client = ThrottledClient::default();
@@ -665,7 +746,9 @@ async fn revision_addressed_mem_cache_does_not_retry_a_failed_prefetch() {
         ignore_file_pattern: None,
 
         progress_reported: None,
-        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
+        store_projection: ArchiveStoreProjection::Package {
+            append_manifest: None,
+        },
     };
 
     let (first, second) = futures_util::future::join(
@@ -687,7 +770,10 @@ async fn revision_addressed_mem_cache_does_not_retry_a_failed_prefetch() {
         .run_revision_addressed_with_mem_cache::<SilentReporter>(&mem_cache)
         .await
         .expect_err("a later consumer must inherit the terminal failure");
-    assert!(matches!(later, TarballError::SiblingFetchFailed { .. }), "got {later:?}");
+    assert!(
+        matches!(later, TarballError::SiblingFetchFailed { .. }),
+        "got {later:?}",
+    );
 
     mock.assert_async().await;
     drop(store_dir_keep);
@@ -746,7 +832,9 @@ async fn revision_addressed_mem_cache_does_not_reuse_a_redirect_permitting_fetch
         ignore_file_pattern: None,
 
         progress_reported: None,
-        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
+        store_projection: ArchiveStoreProjection::Package {
+            append_manifest: None,
+        },
     };
 
     download()
@@ -771,7 +859,12 @@ async fn revision_addressed_mem_cache_does_not_reuse_a_redirect_permitting_fetch
 async fn fails_fast_on_404() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
     let mut server = mockito::Server::new_async().await;
-    let mock = server.mock("GET", "/missing.tgz").with_status(404).expect(1).create_async().await;
+    let mock = server
+        .mock("GET", "/missing.tgz")
+        .with_status(404)
+        .expect(1)
+        .create_async()
+        .await;
 
     let url = format!("{}/missing.tgz", server.url());
     let client = ThrottledClient::default();

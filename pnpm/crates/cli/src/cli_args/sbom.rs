@@ -221,8 +221,7 @@ impl SbomArgs {
         let include = self.include_filter(state.config.optional);
         let authors = self.author_list();
 
-        let lockfile = state
-            .lockfile
+        let lockfile = state.lockfile
             .get()
             .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
         let all_importer_ids = sorted_importer_ids(lockfile);
@@ -241,9 +240,7 @@ impl SbomArgs {
                 virtual_store_dirs.as_deref(),
             );
         }
-        let filter_ids: Option<Vec<&str>> = (selectors_narrow_the_run(state.config)
-            || importer_ids.len() < all_count)
-            .then(|| importer_ids.iter().map(String::as_str).collect());
+        let filter_ids = narrowed_importer_ids(state.config, &importer_ids, all_count);
         let result = collect_components(
             &state,
             &include,
@@ -257,11 +254,11 @@ impl SbomArgs {
     }
 
     fn author_list(&self) -> Vec<String> {
-        self.document
-            .authors
+        self.document.authors
             .as_deref()
             .map(|csv| {
-                csv.split(',')
+                csv
+                    .split(',')
                     .map(|author| author.trim().to_string())
                     .filter(|author| !author.is_empty())
                     .collect()
@@ -273,7 +270,10 @@ impl SbomArgs {
     /// placeholder and several importers to fill it.
     fn splits_output(&self, importer_ids: &[String]) -> bool {
         self.split
-            || (self.out.as_ref().is_some_and(|o| o.contains("%s")) && importer_ids.len() > 1)
+            || (self.out
+                .as_ref()
+                .is_some_and(|o| o.contains("%s"))
+                && importer_ids.len() > 1)
     }
 
     fn write_single_sbom(&self, result: &SbomResult, output: &str) -> miette::Result<()> {
@@ -396,7 +396,11 @@ impl SbomArgs {
                 stdout,
                 "Generated {} SBOMs:\n{}",
                 files.len(),
-                files.iter().map(|file| format!("  {file}")).collect::<Vec<_>>().join("\n"),
+                files
+                    .iter()
+                    .map(|file| format!("  {file}"))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
             );
         } else {
             let _ = write!(stdout, "{}", ndjson_lines.join("\n"));
@@ -452,3 +456,16 @@ mod walk;
 mod metadata;
 
 mod collection;
+
+fn narrowed_importer_ids<'a>(
+    config: &pnpm_config::Config,
+    importer_ids: &'a [String],
+    all_count: usize,
+) -> Option<Vec<&'a str>> {
+    (selectors_narrow_the_run(config) || importer_ids.len() < all_count).then(|| {
+        importer_ids
+            .iter()
+            .map(String::as_str)
+            .collect()
+    })
+}

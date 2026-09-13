@@ -21,25 +21,19 @@ pub struct ImportArgs {
 
 impl ImportArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
-        let dir = state.manifest.path().parent().expect("manifest path always has a parent dir");
+        let dir = state.manifest
+            .path()
+            .parent()
+            .expect("manifest path always has a parent dir");
         let lockfile_dir = state.lockfile_dir();
         let lockfile_path = state.lockfile_path();
-        let env_lockfile = if state.config.wanted_lockfile_name() == Lockfile::FILE_NAME {
-            EnvLockfile::read(lockfile_dir)
-                .into_diagnostic()
-                .wrap_err("reading the env lockfile before import")?
-        } else {
-            None
-        };
+        let env_lockfile = read_import_env_lockfile(&state)?;
 
-        if let Some(pnpr_server) =
-            self.pnpr_server.as_deref().or(state.config.pnpr_server.as_deref())
-        {
-            let pnpr_server = redact_url_for_display(pnpr_server);
-            pnpm_reporter::emit_global_warning::<Reporter>(&format!(
-                r#""pnpm import" resolves dependencies locally, so the pnpr server at {pnpr_server} is not used"#,
-            ));
-        }
+        warn_unused_pnpr::<Reporter>(
+            self.pnpr_server
+                .as_deref()
+                .or(state.config.pnpr_server.as_deref()),
+        );
 
         let preferred_versions = to_preferred_versions(&read_foreign_lockfile_versions(dir)?);
 
@@ -66,7 +60,12 @@ impl ImportArgs {
             Ok(())
         });
 
-        finish_import(import_result, &lockfile_path, &lockfile_backup, lockfile_existed)
+        finish_import(
+            import_result,
+            &lockfile_path,
+            &lockfile_backup,
+            lockfile_existed,
+        )
     }
 }
 
@@ -81,7 +80,9 @@ fn discard_failed_import(
     {
         return Err(error).into_diagnostic().wrap_err("removing the failed imported lockfile");
     }
-    let Some(backup_path) = backup_path else { return Ok(()) };
+    let Some(backup_path) = backup_path else {
+        return Ok(());
+    };
     std::fs::rename(backup_path, lockfile_path)
         .into_diagnostic()
         .wrap_err("restoring the original lockfile")
@@ -98,11 +99,19 @@ async fn import_versions<Reporter: self::Reporter + 'static>(
         let mut base_install = Install::new(
             std::sync::Arc::clone(&state.tarball_mem_cache),
             &state.resolved_packages,
-            (&state.http_client, std::sync::Arc::clone(&state.http_client)),
+            (
+                &state.http_client,
+                std::sync::Arc::clone(&state.http_client),
+            ),
             state.config,
             &state.manifest,
             pnpm_lockfile::MaybeLazyLockfile::Lazy(&import_lockfile),
-            [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional].into_iter(),
+            [
+                DependencyGroup::Prod,
+                DependencyGroup::Dev,
+                DependencyGroup::Optional,
+            ]
+            .into_iter(),
         );
         base_install.lockfile_policy.prefer_frozen = Some(false);
         base_install.lockfile_policy.trust = false;
@@ -145,4 +154,25 @@ fn finish_import(
             Err(error)
         }
     }
+}
+
+fn warn_unused_pnpr<Reporter: self::Reporter>(pnpr_server: Option<&str>) {
+    if let Some(pnpr_server) = pnpr_server {
+        let pnpr_server = redact_url_for_display(pnpr_server);
+        pnpm_reporter::emit_global_warning::<Reporter>(&format!(
+            r#""pnpm import" resolves dependencies locally, so the pnpr server at {pnpr_server} is not used"#,
+        ));
+    }
+}
+
+fn read_import_env_lockfile(state: &State) -> miette::Result<Option<EnvLockfile>> {
+    Ok(
+        if state.config.wanted_lockfile_name() == Lockfile::FILE_NAME {
+            EnvLockfile::read(state.lockfile_dir())
+                .into_diagnostic()
+                .wrap_err("reading the env lockfile before import")?
+        } else {
+            None
+        },
+    )
 }

@@ -27,7 +27,10 @@ where
     let Some((program, args)) = token_helper.split_first() else {
         return Ok(String::new());
     };
-    let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    let args: Vec<&str> = args
+        .iter()
+        .map(String::as_str)
+        .collect();
     let output = Sys::run(program, &args, None)?;
 
     // A non-zero exit aborts the publish rather than
@@ -52,7 +55,9 @@ where
 /// Strip a leading `Bearer ` (case-insensitive, requiring at least one
 /// trailing whitespace) from `token`.
 fn strip_bearer_prefix(token: &str) -> &str {
-    let Some(after_scheme) = token.get(..6).filter(|head| head.eq_ignore_ascii_case("bearer"))
+    let Some(after_scheme) = token
+        .get(..6)
+        .filter(|head| head.eq_ignore_ascii_case("bearer"))
     else {
         return token;
     };
@@ -60,7 +65,11 @@ fn strip_bearer_prefix(token: &str) -> &str {
     let rest = &token[6..];
     let trimmed = rest.trim_start_matches(char::is_whitespace);
     // The regex requires `\s+`, so only strip when whitespace actually followed.
-    if trimmed.len() < rest.len() { trimmed } else { token }
+    if trimmed.len() < rest.len() {
+        trimmed
+    } else {
+        token
+    }
 }
 
 #[cfg(test)]

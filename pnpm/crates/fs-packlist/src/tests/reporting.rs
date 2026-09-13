@@ -19,5 +19,8 @@ fn files_field_does_not_force_include_changelog_files() {
     let mut out = packlist(root, &manifest).unwrap();
     out.sort();
 
-    assert_eq!(out, vec!["dist/index.js".to_string(), "package.json".into()]);
+    assert_eq!(
+        out,
+        vec!["dist/index.js".to_string(), "package.json".into()],
+    );
 }

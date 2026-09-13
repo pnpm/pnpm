@@ -30,7 +30,12 @@ fn formats_warning_for_slow_tarball_download() {
 #[test]
 fn does_not_warn_for_short_or_fast_tarball_download() {
     assert_eq!(
-        slow_download_warning(1, Duration::from_secs(1), 50, "https://example.test/pkg.tgz"),
+        slow_download_warning(
+            1,
+            Duration::from_secs(1),
+            50,
+            "https://example.test/pkg.tgz"
+        ),
         None,
     );
     assert_eq!(
@@ -56,7 +61,10 @@ fn gzip_size_hint_enforces_untrusted_preallocation_limit() {
         bounded_gzip_size_hint(Some(MAX_UNTRUSTED_PREALLOC_BYTES + 1)),
         Some(MAX_UNTRUSTED_PREALLOC_BYTES),
     );
-    assert_eq!(bounded_gzip_size_hint(Some(usize::MAX)), Some(MAX_UNTRUSTED_PREALLOC_BYTES));
+    assert_eq!(
+        bounded_gzip_size_hint(Some(usize::MAX)),
+        Some(MAX_UNTRUSTED_PREALLOC_BYTES),
+    );
 }
 
 /// Covers the wiring rather than the bound itself: nothing in
@@ -93,7 +101,11 @@ fn allocate_tarball_buffer_returns_empty_when_content_length_is_absent() {
 fn allocate_tarball_buffer_presizes_for_reasonable_content_length() {
     let buf = allocate_tarball_buffer(Some(1024 * 1024), "https://example.test/pkg.tgz")
         .expect("1 MiB pre-allocation should succeed on any dev / CI box");
-    assert!(buf.capacity() >= 1024 * 1024, "capacity = {}", buf.capacity());
+    assert!(
+        buf.capacity() >= 1024 * 1024,
+        "capacity = {}",
+        buf.capacity(),
+    );
     assert_eq!(buf.len(), 0);
 }
 
@@ -182,7 +194,9 @@ fn extract_rejects_parent_dir_component_in_entry_path() {
             *result_b = 0;
         }
         header.set_cksum();
-        builder.append(&header, &b"evil!"[..]).expect("append entry");
+        builder
+            .append(&header, &b"evil!"[..])
+            .expect("append entry");
         builder.finish().expect("finalize tar");
     }
 
@@ -263,16 +277,24 @@ fn extract_tarball_applies_ignore_filter_dropping_entries_from_both_maps() {
 /// archive itself and stops at the ceiling.
 #[test]
 fn decompress_gzip_stops_at_the_eager_ceiling() {
-    let bomb =
-        gzip_bomb_tarball(&[("package/bomb.bin", MAX_UNTRUSTED_PREALLOC_BYTES as u64 + 1)], &[]);
+    let bomb = gzip_bomb_tarball(
+        &[("package/bomb.bin", MAX_UNTRUSTED_PREALLOC_BYTES as u64 + 1)],
+        &[],
+    );
     assert!(
         !should_stream_extract(bomb.len(), None),
         "the compressed body must look small enough to route to the eager path",
     );
 
     let err = decompress_gzip(&bomb, None).expect_err("the archive must not inflate past the cap");
-    assert!(is_eager_decode_limit_exceeded(&err), "expected an output-limit refusal, got {err:?}");
-    assert!(is_transient_error(&err), "a decode failure must remain retryable");
+    assert!(
+        is_eager_decode_limit_exceeded(&err),
+        "expected an output-limit refusal, got {err:?}",
+    );
+    assert!(
+        is_transient_error(&err),
+        "a decode failure must remain retryable",
+    );
 }
 
 /// A lockfile records no unpacked size, so on a frozen install the
@@ -281,8 +303,10 @@ fn decompress_gzip_stops_at_the_eager_ceiling() {
 /// extractor instead of discovering its size by decoding it twice.
 #[test]
 fn gzip_isize_hint_routes_a_large_archive_before_it_is_decoded() {
-    let bomb =
-        gzip_bomb_tarball(&[("package/bomb.bin", MAX_UNTRUSTED_PREALLOC_BYTES as u64 + 1)], &[]);
+    let bomb = gzip_bomb_tarball(
+        &[("package/bomb.bin", MAX_UNTRUSTED_PREALLOC_BYTES as u64 + 1)],
+        &[],
+    );
     let hint = gzip_isize_hint(&bomb).expect("a gzip stream carries an unpacked size");
     assert!(
         hint > MAX_UNTRUSTED_PREALLOC_BYTES,
@@ -344,9 +368,18 @@ fn extract_gzipped_tarball_streams_an_archive_past_the_eager_ceiling() {
 #[test]
 fn should_stream_extract_pivots_on_compressed_size_and_unpacked_hint() {
     assert!(!should_stream_extract(0, None));
-    assert!(!should_stream_extract(STREAM_EXTRACT_COMPRESSED_THRESHOLD - 1, None));
-    assert!(should_stream_extract(STREAM_EXTRACT_COMPRESSED_THRESHOLD, None));
-    assert!(!should_stream_extract(0, Some(MAX_UNTRUSTED_PREALLOC_BYTES - 1)));
+    assert!(!should_stream_extract(
+        STREAM_EXTRACT_COMPRESSED_THRESHOLD - 1,
+        None
+    ));
+    assert!(should_stream_extract(
+        STREAM_EXTRACT_COMPRESSED_THRESHOLD,
+        None
+    ));
+    assert!(!should_stream_extract(
+        0,
+        Some(MAX_UNTRUSTED_PREALLOC_BYTES - 1)
+    ));
     assert!(should_stream_extract(0, Some(MAX_UNTRUSTED_PREALLOC_BYTES)));
     // A hostile hint only routes to the (still correct) streaming path.
     assert!(should_stream_extract(0, Some(usize::MAX)));
@@ -376,7 +409,9 @@ fn streaming_extract_matches_eager_extract() {
             cas_paths
                 .iter()
                 .map(|(key, path)| {
-                    let path = path.strip_prefix(store.root()).expect("path within store");
+                    let path = path
+                        .strip_prefix(store.root())
+                        .expect("path within store");
                     (key.clone(), path.to_path_buf())
                 })
                 .collect()
@@ -387,8 +422,7 @@ fn streaming_extract_matches_eager_extract() {
     );
 
     let comparable = |idx: &PackageFilesIndex| -> Vec<(String, String, u32, u64)> {
-        let mut rows: Vec<_> = idx
-            .files
+        let mut rows: Vec<_> = idx.files
             .iter()
             .map(|(path, info)| (path.clone(), info.digest.clone(), info.mode, info.size))
             .collect();
@@ -438,7 +472,9 @@ fn streaming_extract_rejects_parent_dir_component_in_entry_path() {
             *result_b = 0;
         }
         header.set_cksum();
-        builder.append(&header, &b"evil!"[..]).expect("append entry");
+        builder
+            .append(&header, &b"evil!"[..])
+            .expect("append entry");
         builder.finish().expect("finalize tar");
     }
 
@@ -524,18 +560,23 @@ fn streaming_extract_truncated_large_entry_commits_nothing() {
     );
 
     fn count_files_recursively(dir: &Path) -> usize {
-        std::fs::read_dir(dir).map_or(0, |entries| {
-            entries
-                .map(|entry| entry.expect("read dirent"))
-                .map(|entry| {
-                    if entry.file_type().expect("dirent file type").is_dir() {
-                        count_files_recursively(&entry.path())
-                    } else {
-                        1
-                    }
-                })
-                .sum()
-        })
+        std::fs::read_dir(dir)
+            .map_or(0, |entries| {
+                entries
+                    .map(|entry| entry.expect("read dirent"))
+                    .map(|entry| {
+                        if entry
+                            .file_type()
+                            .expect("dirent file type")
+                            .is_dir()
+                        {
+                            count_files_recursively(&entry.path())
+                        } else {
+                            1
+                        }
+                    })
+                    .sum()
+            })
     }
     assert_eq!(
         count_files_recursively(&store_path.root().join("files")),
@@ -562,7 +603,10 @@ fn streaming_extract_propagates_corrupt_gzip_as_read_error() {
         matches!(err, TarballError::ReadTarballEntries(_)),
         "expected ReadTarballEntries, got: {err:?}",
     );
-    assert!(is_transient_error(&err), "a corrupt stream must remain retryable");
+    assert!(
+        is_transient_error(&err),
+        "a corrupt stream must remain retryable",
+    );
 
     drop(tempdir);
 }
@@ -631,8 +675,14 @@ fn local_file_tarball_path_rejects_hosted_file_urls() {
 
 #[test]
 fn local_file_tarball_path_rejects_unc_like_fallback_paths() {
-    assert_eq!(local_file_tarball_path("file:////server/share/pkg.tgz"), None);
-    assert_eq!(local_file_tarball_path(r"file:\\server\share\pkg.tgz"), None);
+    assert_eq!(
+        local_file_tarball_path("file:////server/share/pkg.tgz"),
+        None,
+    );
+    assert_eq!(
+        local_file_tarball_path(r"file:\\server\share\pkg.tgz"),
+        None,
+    );
 }
 
 #[test]
@@ -661,8 +711,7 @@ fn allocate_local_tarball_buffer_rejects_absurd_size_as_local_read_error() {
 #[tokio::test]
 async fn open_local_tarball_rejects_directories() {
     let local_dir = tempdir().unwrap();
-    let err = open_local_tarball(local_dir.path())
-        .await
+    let err = open_local_tarball(local_dir.path()).await
         .expect_err("local tarballs must be regular files");
     match err {
         TarballError::ReadLocalTarball { path, source } => {
@@ -681,14 +730,16 @@ async fn read_local_tarball_buffer_rejects_growth_past_checked_size() {
     std::fs::write(&tarball_path, b"abcd").unwrap();
     let file = tokio::fs::File::open(&tarball_path).await.unwrap();
 
-    let err = read_local_tarball_buffer(file, &tarball_path, "file:pkg.tgz", 3)
-        .await
+    let err = read_local_tarball_buffer(file, &tarball_path, "file:pkg.tgz", 3).await
         .expect_err("local tarball reads must be capped at the checked size");
     match err {
         TarballError::ReadLocalTarball { path, source } => {
             assert_eq!(path, tarball_path);
             assert_eq!(source.kind(), ErrorKind::InvalidData);
-            assert!(source.to_string().contains("changed while reading"), "got: {source}");
+            assert!(
+                source.to_string().contains("changed while reading"),
+                "got: {source}",
+            );
         }
         other => panic!("expected ReadLocalTarball, got {other:?}"),
     }
@@ -718,7 +769,12 @@ async fn revision_addressed_tarball_does_not_retry_a_transient_failure() {
     let mut server = mockito::Server::new_async().await;
     let digest = "A".repeat(86);
     let path = format!("/-/tarballs/sha512/{digest}");
-    let mock = server.mock("GET", path.as_str()).with_status(503).expect(1).create_async().await;
+    let mock = server
+        .mock("GET", path.as_str())
+        .with_status(503)
+        .expect(1)
+        .create_async()
+        .await;
     let url = format!("{}{path}", server.url());
     let expected = integrity(&format!("sha512-{digest}=="));
 

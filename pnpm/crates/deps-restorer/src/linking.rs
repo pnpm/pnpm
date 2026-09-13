@@ -7,6 +7,9 @@
 //! which needs both the linked tree and the hoisted package roots this
 //! reports.
 
+mod sidecars;
+use sidecars::write_project_sidecars;
+
 use crate::{
     LinkVirtualStoreBins, SkippedSnapshots, SymlinkDirectDependencies, VirtualStoreLayout,
     install_frozen_lockfile::{
@@ -18,7 +21,7 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_cmd_shim::LinkBinsOptions;
-use pnpm_config::{Config, NodeLinker};
+use pnpm_config::Config;
 use pnpm_lockfile::PackageKey;
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
 use std::{
@@ -215,16 +218,21 @@ fn plan_hoist(inputs: &LinkPhaseInputs<'_>, skipped: &SkippedSnapshots) -> Plann
         inputs.ctx.is_hoisted(),
         hoisted_workspace_packages.as_ref(),
     );
-    let public_targets = plan.as_ref().map(|plan| {
-        collect_public_hoist_targets(
-            &plan.result,
-            &plan.graph,
-            inputs.ctx.linker.layout,
-            &plan.skipped,
-        )
-    });
+    let public_targets = plan
+        .as_ref()
+        .map(|plan| {
+            collect_public_hoist_targets(
+                &plan.result,
+                &plan.graph,
+                inputs.ctx.linker.layout,
+                &plan.skipped,
+            )
+        });
     tracing::info!(target: "pacquet::install::phase", phase = "link.hoist_plan", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
-    PlannedHoist { plan, public_targets }
+    PlannedHoist {
+        plan,
+        public_targets,
+    }
 }
 
 /// Reconcile first, so stale direct-dep and orphaned hoist links vacate
@@ -285,9 +293,7 @@ fn prune_importer_tree<Reporter: self::Reporter>(
     inputs: &LinkPhaseInputs<'_>,
 ) -> Result<(), LinkPhaseError> {
     let config = inputs.ctx.config;
-    let removed_count = inputs
-        .graph
-        .current_lockfile
+    let removed_count = inputs.graph.current_lockfile
         .map(|current| {
             crate::PruneStaleModules {
                 config,
@@ -350,7 +356,12 @@ fn write_project_links<Reporter: self::Reporter>(
     let phase_start = std::time::Instant::now();
     let links = pre_hoist
         .map(|plan| {
-            write_hoist_links(plan, config, inputs.ctx.linker.layout, inputs.ctx.linker.bin_options)
+            write_hoist_links(
+                plan,
+                config,
+                inputs.ctx.linker.layout,
+                inputs.ctx.linker.bin_options,
+            )
         })
         .transpose()?
         .unwrap_or_else(HoistLinks::none);
@@ -375,54 +386,12 @@ fn write_project_links<Reporter: self::Reporter>(
     })
 }
 
-fn write_project_sidecars(inputs: &LinkPhaseInputs<'_>) -> Result<(), LinkPhaseError> {
-    let config = inputs.ctx.config;
-    let phase_start = std::time::Instant::now();
-    if crate::should_write_package_map(config, inputs.ctx.linker.kind) {
-        crate::package_map::write_package_map(
-            inputs.graph.sidecar_lockfile,
-            &crate::package_map::PackageMapOptions {
-                lockfile_dir: inputs.ctx.workspace_root,
-                modules_dir: &config.modules_dir,
-                package_map_type: config.node_package_map_type,
-                layout: inputs.ctx.linker.layout,
-                project_manifests: inputs.projects.manifests,
-            },
-        )
-        .map_err(LinkPhaseError::WritePackageMap)?;
-    } else if inputs.ctx.linker.kind != NodeLinker::Hoisted {
-        // A hoisted install writes its map from its own linker, which
-        // runs after this one — see `should_write_hoisted_package_map`.
-        // Only the linkers whose map this gate speaks for may take one
-        // away.
-        crate::package_map::remove_package_map(&config.modules_dir);
-    }
-    tracing::info!(
-        target: "pacquet::install::phase",
-        phase = "link.package_map",
-        elapsed_ms = phase_start.elapsed().as_millis() as u64,
-        "phase complete",
-    );
-    if matches!(inputs.ctx.linker.kind, NodeLinker::Pnp) {
-        crate::write_pnp_file(
-            inputs.graph.sidecar_lockfile,
-            inputs.ctx.workspace_root,
-            config,
-            inputs.ctx.linker.layout,
-            inputs.projects.manifests,
-        )
-        .map_err(LinkPhaseError::WritePnpFile)?;
-    }
-    Ok(())
-}
-
 fn link_hoisted_projects<Reporter: self::Reporter>(
     inputs: &mut LinkPhaseInputs<'_>,
     skipped: &mut SkippedSnapshots,
 ) -> Result<crate::HoistedLinkerOutput, LinkPhaseError> {
     let config = inputs.ctx.config;
-    let hoisted = inputs
-        .ctx
+    let hoisted = inputs.ctx
         .is_hoisted()
         .then(|| {
             run_hoisted_linker::<Reporter>(
@@ -473,15 +442,15 @@ fn link_hoisted_projects<Reporter: self::Reporter>(
 /// Collected before [`write_hoist_links`] consumes the plan; shimmed after
 /// the hoist symlinks land.
 fn public_workspace_bin_deps(plan: Option<&HoistPlan>) -> Vec<(String, PathBuf)> {
-    plan.map(|plan| {
-        plan.result
-            .hoisted_workspace_aliases
-            .iter()
-            .filter(|(_, kind, _)| matches!(kind, pnpm_modules_yaml::HoistKind::Public))
-            .map(|(alias, _, project_dir)| (alias.clone(), project_dir.clone()))
-            .collect()
-    })
-    .unwrap_or_default()
+    plan
+        .map(|plan| {
+            plan.result.hoisted_workspace_aliases
+                .iter()
+                .filter(|(_, kind, _)| matches!(kind, pnpm_modules_yaml::HoistKind::Public))
+                .map(|(alias, _, project_dir)| (alias.clone(), project_dir.clone()))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Symlink the hoist plan's aliases into the private

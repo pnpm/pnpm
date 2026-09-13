@@ -64,10 +64,13 @@ macro_rules! login_host_fake {
 /// `logout` adapter's guard.
 #[tokio::test]
 async fn errors_when_config_dir_is_unavailable() {
-    let err = LoginArgs { registry: None, scope: None }
-        .run::<SilentReporter>(&Config::default())
-        .await
-        .expect_err("missing config dir should error");
+    let err = LoginArgs {
+        registry: None,
+        scope: None,
+    }
+    .run::<SilentReporter>(&Config::default())
+    .await
+    .expect_err("missing config dir should error");
     assert!(
         err.to_string().contains("Could not determine the pnpm config directory"),
         "unexpected error: {err}",
@@ -78,7 +81,10 @@ async fn errors_when_config_dir_is_unavailable() {
 #[test]
 fn registry_flag_overrides_the_configured_registry() {
     let config = Config::default();
-    let args = LoginArgs { registry: Some("https://flag.example/".to_owned()), scope: None };
+    let args = LoginArgs {
+        registry: Some("https://flag.example/".to_owned()),
+        scope: None,
+    };
 
     let options = args.login_options(&config, Path::new("/cfg"));
 
@@ -95,7 +101,10 @@ fn registry_flag_overrides_the_configured_registry() {
 #[test]
 fn resolves_configured_registry_scope_and_fetch_settings() {
     let config = Config::default();
-    let args = LoginArgs { registry: None, scope: Some("my-org".to_owned()) };
+    let args = LoginArgs {
+        registry: None,
+        scope: Some("my-org".to_owned()),
+    };
     let config_dir = Path::new("/cfg");
 
     let options = args.login_options(&config, config_dir);
@@ -105,15 +114,27 @@ fn resolves_configured_registry_scope_and_fetch_settings() {
     assert_eq!(options.config_dir, config_dir);
     assert_eq!(options.fetch_retries, config.fetch_retries);
     assert_eq!(options.fetch_retry_factor, config.fetch_retry_factor);
-    assert_eq!(options.fetch_retry_mintimeout, config.fetch_retry_mintimeout);
-    assert_eq!(options.fetch_retry_maxtimeout, config.fetch_retry_maxtimeout);
+    assert_eq!(
+        options.fetch_retry_mintimeout,
+        config.fetch_retry_mintimeout,
+    );
+    assert_eq!(
+        options.fetch_retry_maxtimeout,
+        config.fetch_retry_maxtimeout,
+    );
     assert_eq!(options.fetch_timeout, config.fetch_timeout);
 }
 
 #[test]
 fn falls_back_to_the_configured_scope_when_the_flag_is_absent() {
-    let config = Config { scope: Some("@my-org".to_owned()), ..Default::default() };
-    let args = LoginArgs { registry: None, scope: None };
+    let config = Config {
+        scope: Some("@my-org".to_owned()),
+        ..Default::default()
+    };
+    let args = LoginArgs {
+        registry: None,
+        scope: None,
+    };
 
     let options = args.login_options(&config, Path::new("/cfg"));
 
@@ -122,8 +143,14 @@ fn falls_back_to_the_configured_scope_when_the_flag_is_absent() {
 
 #[test]
 fn scope_flag_overrides_the_configured_scope() {
-    let config = Config { scope: Some("@from-config".to_owned()), ..Default::default() };
-    let args = LoginArgs { registry: None, scope: Some("@from-flag".to_owned()) };
+    let config = Config {
+        scope: Some("@from-config".to_owned()),
+        ..Default::default()
+    };
+    let args = LoginArgs {
+        registry: None,
+        scope: Some("@from-flag".to_owned()),
+    };
 
     let options = args.login_options(&config, Path::new("/cfg"));
 
@@ -133,7 +160,10 @@ fn scope_flag_overrides_the_configured_scope() {
 #[test]
 fn no_scope_when_neither_flag_nor_config_is_set() {
     let config = Config::default();
-    let args = LoginArgs { registry: None, scope: None };
+    let args = LoginArgs {
+        registry: None,
+        scope: None,
+    };
 
     let options = args.login_options(&config, Path::new("/cfg"));
 
@@ -148,7 +178,12 @@ async fn web_login_server(server: &mut mockito::Server) -> String {
         "doneUrl": "https://example.org/auth/done",
     })
     .to_string();
-    server.mock("POST", "/-/v1/login").with_status(200).with_body(body).create_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_body(body)
+        .create_async()
+        .await;
     server.url()
 }
 
@@ -156,7 +191,10 @@ async fn web_login_server(server: &mut mockito::Server) -> String {
 /// writes one field at a time, so the last write is the finished document.
 fn last_config_yaml(writes: &[(PathBuf, String)]) -> (&Path, serde_json::Value) {
     let (path, text) = writes.last().expect("login must write config.yaml");
-    (path.as_path(), serde_saphyr::from_str(text).expect("login writes valid YAML"))
+    (
+        path.as_path(),
+        serde_saphyr::from_str(text).expect("login writes valid YAML"),
+    )
 }
 
 /// Pins the composition the option-level tests above and the write-path tests
@@ -177,7 +215,10 @@ async fn a_config_scope_persists_the_scoped_token_and_registry_mapping() {
         scope: Some("@my-org".to_owned()),
         ..Default::default()
     };
-    let args = LoginArgs { registry: Some(registry.clone()), scope: None };
+    let args = LoginArgs {
+        registry: Some(registry.clone()),
+        scope: None,
+    };
 
     args.execute::<FakeHost, RecordingReporter>(&config).await.expect("web login succeeds");
 
@@ -189,7 +230,10 @@ async fn a_config_scope_persists_the_scoped_token_and_registry_mapping() {
         document["_auth"][&normalized],
         serde_json::json!({ "@my-org": { "authToken": "config-scope-token" } }),
     );
-    assert_eq!(document["registries"][&normalized], serde_json::json!({ "scopes": ["@my-org"] }));
+    assert_eq!(
+        document["registries"][&normalized],
+        serde_json::json!({ "scopes": ["@my-org"] }),
+    );
 }
 
 #[tokio::test]
@@ -207,7 +251,10 @@ async fn the_scope_flag_beats_a_config_scope_in_the_persisted_config_yaml() {
         scope: Some("@from-config".to_owned()),
         ..Default::default()
     };
-    let args = LoginArgs { registry: Some(registry.clone()), scope: Some("@from-flag".to_owned()) };
+    let args = LoginArgs {
+        registry: Some(registry.clone()),
+        scope: Some("@from-flag".to_owned()),
+    };
 
     args.execute::<FakeHost, RecordingReporter>(&config).await.expect("web login succeeds");
 
@@ -222,8 +269,14 @@ async fn the_scope_flag_beats_a_config_scope_in_the_persisted_config_yaml() {
         document["registries"][&normalized],
         serde_json::json!({ "scopes": ["@from-flag"] }),
     );
-    let written = writes.iter().map(|(_, text)| text.as_str()).collect::<String>();
-    assert!(!written.contains("@from-config"), "the config scope must not be written: {written}");
+    let written = writes
+        .iter()
+        .map(|(_, text)| text.as_str())
+        .collect::<String>();
+    assert!(
+        !written.contains("@from-config"),
+        "the config scope must not be written: {written}",
+    );
 }
 
 /// `execute` performs the web-login flow end-to-end against a mock registry and
@@ -240,8 +293,14 @@ async fn execute_performs_web_login_and_returns_the_success_message() {
     let mut server = mockito::Server::new_async().await;
     let registry = web_login_server(&mut server).await;
 
-    let config = Config { config_dir: Some(PathBuf::from("/mock/config")), ..Default::default() };
-    let args = LoginArgs { registry: Some(registry.clone()), scope: None };
+    let config = Config {
+        config_dir: Some(PathBuf::from("/mock/config")),
+        ..Default::default()
+    };
+    let args = LoginArgs {
+        registry: Some(registry.clone()),
+        scope: None,
+    };
 
     let message =
         args.execute::<FakeHost, RecordingReporter>(&config).await.expect("web login succeeds");
@@ -271,8 +330,14 @@ async fn execute_propagates_the_non_interactive_error_from_login() {
         .await;
     let registry = server.url();
 
-    let config = Config { config_dir: Some(PathBuf::from("/mock/config")), ..Default::default() };
-    let args = LoginArgs { registry: Some(registry), scope: None };
+    let config = Config {
+        config_dir: Some(PathBuf::from("/mock/config")),
+        ..Default::default()
+    };
+    let args = LoginArgs {
+        registry: Some(registry),
+        scope: None,
+    };
 
     let err = args.execute::<FakeHost, RecordingReporter>(&config).await.unwrap_err();
 

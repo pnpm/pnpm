@@ -17,8 +17,15 @@ fn recursive_run_without_script_name_errors_with_script_name_is_required() {
         ],
     );
 
-    let output = pacquet.with_arg("-r").with_arg("run").output().expect("spawn pacquet");
-    assert!(!output.status.success(), "missing script name in recursive mode must fail");
+    let output = pacquet
+        .with_arg("-r")
+        .with_arg("run")
+        .output()
+        .expect("spawn pacquet");
+    assert!(
+        !output.status.success(),
+        "missing script name in recursive mode must fail",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("ERR_PNPM_SCRIPT_NAME_IS_REQUIRED"),
@@ -56,7 +63,10 @@ fn test_pattern_from_workspace_yaml_is_respected_by_the_test_script() {
                 ),
             ),
             ("project-2", test_writes_marker("project-2", json!({}))),
-            ("project-3", test_writes_marker("project-3", json!({ "project-2": "workspace:*" }))),
+            (
+                "project-3",
+                test_writes_marker("project-3", json!({ "project-2": "workspace:*" })),
+            ),
             ("project-4", test_writes_marker("project-4", json!({}))),
         ],
     );
@@ -93,17 +103,28 @@ fn test_pattern_from_workspace_yaml_is_respected_by_the_test_script() {
     git(&["add", "."]);
     git(&["commit", "-m", "changes", "--no-gpg-sign"]);
 
-    pacquet.with_arg("--filter").with_arg("...[origin/main]").with_arg("test").assert().success();
+    pacquet
+        .with_arg("--filter")
+        .with_arg("...[origin/main]")
+        .with_arg("test")
+        .assert()
+        .success();
 
     for name in ["project-2", "project-4"] {
         assert!(
-            workspace.join(name).join("tested.txt").exists(),
+            workspace
+                .join(name)
+                .join("tested.txt")
+                .exists(),
             "{name} changed, so its test script should run",
         );
     }
     for name in ["project-1", "project-3"] {
         assert!(
-            !workspace.join(name).join("tested.txt").exists(),
+            !workspace
+                .join(name)
+                .join("tested.txt")
+                .exists(),
             "{name} depends on project-2 whose only change matches testPattern, so it must not run",
         );
     }
@@ -143,17 +164,41 @@ fn recursive_run_executes_every_script_matching_a_regexp_selector() {
     );
 
     pacquet
-        .with_args(["-r", "run", "--report-summary", "/^build:(backend|frontend)$/"])
+        .with_args([
+            "-r",
+            "run",
+            "--report-summary",
+            "/^build:(backend|frontend)$/",
+        ])
         .assert()
         .success();
 
-    assert!(workspace.join("both").join("backend.txt").exists());
-    assert!(workspace.join("both").join("frontend.txt").exists());
-    assert!(!workspace.join("both").join("test.txt").exists());
+    assert!(
+        workspace
+            .join("both")
+            .join("backend.txt")
+            .exists(),
+    );
+    assert!(
+        workspace
+            .join("both")
+            .join("frontend.txt")
+            .exists(),
+    );
+    assert!(
+        !workspace
+            .join("both")
+            .join("test.txt")
+            .exists(),
+    );
 
     let statuses = summary_statuses(&workspace);
     assert_eq!(statuses.get("both").map(String::as_str), Some("passed"));
-    assert_eq!(statuses.get("neither").map(String::as_str), Some("skipped"), "{statuses:?}");
+    assert_eq!(
+        statuses.get("neither").map(String::as_str),
+        Some("skipped"),
+        "{statuses:?}",
+    );
 
     drop(root);
 }
@@ -165,11 +210,20 @@ fn stream_prefixes_recursive_script_output_with_the_project() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(
         &workspace,
-        &[("project-1", echoes_ok("project-1")), ("project-2", echoes_ok("project-2"))],
+        &[
+            ("project-1", echoes_ok("project-1")),
+            ("project-2", echoes_ok("project-2")),
+        ],
     );
 
     let output = pacquet
-        .with_args(["--stream", "--config.verify-deps-before-run=false", "-r", "run", "test"])
+        .with_args([
+            "--stream",
+            "--config.verify-deps-before-run=false",
+            "-r",
+            "run",
+            "test",
+        ])
         .output()
         .expect("run test");
     assert!(output.status.success(), "streamed run failed: {output:?}");
@@ -197,7 +251,10 @@ fn reporter_hide_prefix_drops_the_prefix_from_streamed_script_output() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(
         &workspace,
-        &[("project-1", echoes_ok("project-1")), ("project-2", echoes_ok("project-2"))],
+        &[
+            ("project-1", echoes_ok("project-1")),
+            ("project-2", echoes_ok("project-2")),
+        ],
     );
 
     let output = pacquet
@@ -236,11 +293,19 @@ fn parallel_implies_stream() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(
         &workspace,
-        &[("project-1", echoes_ok("project-1")), ("project-2", echoes_ok("project-2"))],
+        &[
+            ("project-1", echoes_ok("project-1")),
+            ("project-2", echoes_ok("project-2")),
+        ],
     );
 
     let output = pacquet
-        .with_args(["--parallel", "--config.verify-deps-before-run=false", "run", "test"])
+        .with_args([
+            "--parallel",
+            "--config.verify-deps-before-run=false",
+            "run",
+            "test",
+        ])
         .output()
         .expect("run test");
     assert!(output.status.success(), "parallel run failed: {output:?}");
@@ -270,14 +335,23 @@ fn recursive_run_inherits_stdio_without_stream() {
     // inherited.
     let mut dependent = echoes_ok("project-2");
     dependent["dependencies"] = json!({ "project-1": "workspace:*" });
-    write_workspace(&workspace, &[("project-1", echoes_ok("project-1")), ("project-2", dependent)]);
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", echoes_ok("project-1")),
+            ("project-2", dependent),
+        ],
+    );
 
     let output = pacquet
         .with_args(["--config.verify-deps-before-run=false", "-r", "run", "test"])
         .output()
         .expect("run test");
     assert!(output.status.success(), "recursive run failed: {output:?}");
-    assert_eq!(sorted_lines(&output.stdout), ["OK", "OK", "Scope: all 2 workspace projects"]);
+    assert_eq!(
+        sorted_lines(&output.stdout),
+        ["OK", "OK", "Scope: all 2 workspace projects"],
+    );
 
     drop(root);
 }
@@ -290,7 +364,10 @@ fn recursive_run_pipes_stdio_when_tasks_can_interleave() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(
         &workspace,
-        &[("project-1", echoes_ok("project-1")), ("project-2", echoes_ok("project-2"))],
+        &[
+            ("project-1", echoes_ok("project-1")),
+            ("project-2", echoes_ok("project-2")),
+        ],
     );
 
     let output = pacquet
@@ -337,12 +414,21 @@ fn streamed_output_survives_non_utf8_bytes() {
     );
 
     let output = pacquet
-        .with_args(["--stream", "--config.verify-deps-before-run=false", "-r", "run", "test"])
+        .with_args([
+            "--stream",
+            "--config.verify-deps-before-run=false",
+            "-r",
+            "run",
+            "test",
+        ])
         .output()
         .expect("run test");
     assert!(output.status.success(), "streamed run failed: {output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("project-1 test: done"), "the pump stopped early: {stdout}");
+    assert!(
+        stdout.contains("project-1 test: done"),
+        "the pump stopped early: {stdout}",
+    );
 
     drop(root);
 }
@@ -389,8 +475,15 @@ fn aggregate_output_keeps_each_project_in_one_block() {
     eprintln!("STDOUT:\n{stdout}\n");
     // The faster project finishes first, and each project's four lines
     // land together.
-    let blocks = stdout.trim().split("project-1 test$").collect::<Vec<_>>();
-    assert_eq!(blocks.len(), 2, "project-1's block must be contiguous: {stdout}");
+    let blocks = stdout
+        .trim()
+        .split("project-1 test$")
+        .collect::<Vec<_>>();
+    assert_eq!(
+        blocks.len(),
+        2,
+        "project-1's block must be contiguous: {stdout}",
+    );
     assert!(
         !blocks[1].contains("project-2"),
         "project-2 must have flushed before project-1 started printing: {stdout}",

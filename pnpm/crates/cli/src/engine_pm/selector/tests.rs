@@ -24,10 +24,22 @@ fn yarn_berry_installs_the_cli_dist_package_under_the_yarn_name() {
 /// resolves archives.
 #[test]
 fn archive_published_tools_go_through_the_runtime_protocol() {
-    assert_eq!(tool_install_selector("yarn@6").as_deref(), Some("yarn@runtime:6"));
-    assert_eq!(tool_install_selector("bun@1.3.0").as_deref(), Some("bun@runtime:1.3.0"));
-    assert_eq!(tool_install_selector("node@22").as_deref(), Some("node@runtime:22"));
-    assert_eq!(tool_install_selector("deno").as_deref(), Some("deno@runtime:latest"));
+    assert_eq!(
+        tool_install_selector("yarn@6").as_deref(),
+        Some("yarn@runtime:6"),
+    );
+    assert_eq!(
+        tool_install_selector("bun@1.3.0").as_deref(),
+        Some("bun@runtime:1.3.0"),
+    );
+    assert_eq!(
+        tool_install_selector("node@22").as_deref(),
+        Some("node@runtime:22"),
+    );
+    assert_eq!(
+        tool_install_selector("deno").as_deref(),
+        Some("deno@runtime:latest"),
+    );
 }
 
 /// Everything else is an ordinary package, including a scoped name whose
@@ -47,7 +59,10 @@ fn other_packages_are_left_alone() {
 fn a_request_that_locates_a_package_is_left_alone() {
     assert_eq!(tool_install_selector("node@runtime:22"), None);
     assert_eq!(tool_install_selector("bun@runtime:1.3.0"), None);
-    assert_eq!(tool_install_selector("yarn@npm:@yarnpkg/cli-dist@4.9.2"), None);
+    assert_eq!(
+        tool_install_selector("yarn@npm:@yarnpkg/cli-dist@4.9.2"),
+        None,
+    );
     assert_eq!(tool_install_selector("node@github:nodejs/node"), None);
     // The GitHub shorthand locates one without spelling out a protocol.
     assert_eq!(tool_install_selector("yarn@yarnpkg/berry"), None);

@@ -50,7 +50,10 @@ pub fn build_tarball<Sys: FsReadFile>(
         gzip_level.map_or_else(Compression::default, |level| Compression::new(level.min(9)));
     // Hash the executable sources once instead of scanning `bins` for each
     // file (`publishConfig.executableFiles` can make both lists large).
-    let bin_set: HashSet<&Path> = bins.iter().map(PathBuf::as_path).collect();
+    let bin_set: HashSet<&Path> = bins
+        .iter()
+        .map(PathBuf::as_path)
+        .collect();
     let mut builder = tar::Builder::new(GzEncoder::new(writer, compression));
 
     for (name, source) in files_map {
@@ -59,7 +62,11 @@ pub fn build_tarball<Sys: FsReadFile>(
         } else {
             (name.as_str(), Sys::read_file(source)?)
         };
-        let mode = if bin_set.contains(source.as_path()) { EXECUTABLE_MODE } else { REGULAR_MODE };
+        let mode = if bin_set.contains(source.as_path()) {
+            EXECUTABLE_MODE
+        } else {
+            REGULAR_MODE
+        };
         append_entry(&mut builder, entry_name, &data, mode)?;
     }
     for (name, data) in injected {

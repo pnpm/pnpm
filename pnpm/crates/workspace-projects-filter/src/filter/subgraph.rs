@@ -26,14 +26,32 @@ impl WalkState {
     {
         let include_root = !flags.exclude_self;
         if flags.include_dependencies {
-            pick_subgraph(forward, entry_projects, &mut self.walked_dependencies, include_root);
+            pick_subgraph(
+                forward,
+                entry_projects,
+                &mut self.walked_dependencies,
+                include_root,
+            );
         }
         if flags.include_dependents {
-            pick_subgraph(reverse, entry_projects, &mut self.walked_dependents, include_root);
+            pick_subgraph(
+                reverse,
+                entry_projects,
+                &mut self.walked_dependents,
+                include_root,
+            );
         }
         if flags.include_dependencies && flags.include_dependents {
-            let dependents: Vec<PathBuf> = self.walked_dependents.iter().cloned().collect();
-            pick_subgraph(forward, &dependents, &mut self.walked_dependents_dependencies, false);
+            let dependents: Vec<PathBuf> = self.walked_dependents
+                .iter()
+                .cloned()
+                .collect();
+            pick_subgraph(
+                forward,
+                &dependents,
+                &mut self.walked_dependents_dependencies,
+                false,
+            );
         }
         if !flags.include_dependencies && !flags.include_dependents {
             self.cherry_picked.extend(entry_projects.iter().cloned());
@@ -83,7 +101,10 @@ pub(super) fn reverse_graph<Pkg>(
     let mut reversed: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
     for (dependent, node) in projects_graph {
         for dependency in &node.dependencies {
-            reversed.entry(dependency.clone()).or_default().push(dependent.clone());
+            reversed
+                .entry(dependency.clone())
+                .or_default()
+                .push(dependent.clone());
         }
     }
     reversed

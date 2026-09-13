@@ -32,13 +32,19 @@ impl ParentPkgAliases {
     /// direct deps, then every hoisted peer — as the hoist rounds run.
     #[must_use]
     pub fn root(names: HashSet<String>) -> Arc<Self> {
-        Arc::new(ParentPkgAliases { names, parent: None })
+        Arc::new(ParentPkgAliases {
+            names,
+            parent: None,
+        })
     }
 
     /// The scope the children of `self`'s level resolve in.
     #[must_use]
     pub fn extend(self: &Arc<Self>, names: HashSet<String>) -> Arc<Self> {
-        Arc::new(ParentPkgAliases { names, parent: Some(Arc::clone(self)) })
+        Arc::new(ParentPkgAliases {
+            names,
+            parent: Some(Arc::clone(self)),
+        })
     }
 
     #[must_use]
@@ -66,12 +72,15 @@ pub(crate) fn peer_shadowed_dependencies(
     parent_pkg_aliases: &ParentPkgAliases,
     auto_install_peers: bool,
 ) -> HashSet<String> {
-    let Some(manifest) = manifest else { return HashSet::default() };
+    let Some(manifest) = manifest else {
+        return HashSet::default();
+    };
     let object = |key| manifest.get(key).and_then(Value::as_object);
     let (Some(peers), Some(deps)) = (object("peerDependencies"), object("dependencies")) else {
         return HashSet::default();
     };
-    deps.keys()
+    deps
+        .keys()
         .filter(|name| peers.contains_key(*name))
         .filter(|name| auto_install_peers || parent_pkg_aliases.contains(name))
         .cloned()

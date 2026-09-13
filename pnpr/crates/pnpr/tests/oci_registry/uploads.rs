@@ -16,26 +16,56 @@ async fn a_chunked_upload_resumes_from_where_it_left_off() {
         .header(header::AUTHORIZATION, &auth)
         .body(Body::empty())
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::ACCEPTED);
-    let location = response.headers().get(header::LOCATION).unwrap().to_str().unwrap().to_string();
-    assert_eq!(response.headers().get(header::RANGE).unwrap(), "0-0");
+    let location = response
+        .headers()
+        .get(header::LOCATION)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        response
+            .headers()
+            .get(header::RANGE)
+            .unwrap(),
+        "0-0",
+    );
 
     let request = Request::patch(&location)
         .header(header::AUTHORIZATION, &auth)
         .header(header::CONTENT_RANGE, "0-4")
         .body(Body::from("hello"))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::ACCEPTED);
-    assert_eq!(response.headers().get(header::RANGE).unwrap(), "0-4");
+    assert_eq!(
+        response
+            .headers()
+            .get(header::RANGE)
+            .unwrap(),
+        "0-4",
+    );
 
     let request = Request::patch(&location)
         .header(header::AUTHORIZATION, &auth)
         .header(header::CONTENT_RANGE, "99-103")
         .body(Body::from("nope!"))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE);
 
     let request = Request::patch(&location)
@@ -43,7 +73,11 @@ async fn a_chunked_upload_resumes_from_where_it_left_off() {
         .header(header::CONTENT_RANGE, "5-10")
         .body(Body::from(" world"))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::ACCEPTED);
 
     let digest = digest_of(b"hello world");
@@ -51,11 +85,18 @@ async fn a_chunked_upload_resumes_from_where_it_left_off() {
         .header(header::AUTHORIZATION, &auth)
         .body(Body::empty())
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
     let response = get(&app, &format!("/v2/acme/app/blobs/{digest}")).await;
-    assert_eq!(body_bytes(response.into_body()).await, b"hello world".as_slice());
+    assert_eq!(
+        body_bytes(response.into_body()).await,
+        b"hello world".as_slice(),
+    );
 }
 
 #[tokio::test]
@@ -67,10 +108,17 @@ async fn a_manifest_naming_a_blob_the_repository_lacks_is_refused() {
 
     let request = Request::put("/v2/acme/app/manifests/1.0")
         .header(header::AUTHORIZATION, &auth)
-        .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
+        .header(
+            header::CONTENT_TYPE,
+            "application/vnd.oci.image.manifest.v1+json",
+        )
         .body(Body::from(image_manifest("config", &["layer"])))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(payload["errors"][0]["code"], "MANIFEST_BLOB_UNKNOWN");
@@ -89,9 +137,18 @@ async fn an_upload_started_through_a_prefixed_base_continues_there() {
         .header(header::AUTHORIZATION, &auth)
         .body(Body::empty())
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::ACCEPTED);
-    let location = response.headers().get(header::LOCATION).unwrap().to_str().unwrap();
+    let location = response
+        .headers()
+        .get(header::LOCATION)
+        .unwrap()
+        .to_str()
+        .unwrap();
     assert!(
         location.starts_with("/oci/~images/v2/acme/app/blobs/uploads/"),
         "an upload must continue where it started, got {location}",
@@ -108,8 +165,18 @@ async fn concurrent_chunks_of_one_upload_neither_lose_nor_duplicate_bytes() {
         .header(header::AUTHORIZATION, &auth)
         .body(Body::empty())
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
-    let location = response.headers().get(header::LOCATION).unwrap().to_str().unwrap().to_string();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+    let location = response
+        .headers()
+        .get(header::LOCATION)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
 
     // Requests for one upload are serialized, so whichever order these land in
     // the upload holds exactly both chunks. Without that the two appends could
@@ -124,7 +191,11 @@ async fn concurrent_chunks_of_one_upload_neither_lose_nor_duplicate_bytes() {
                 .header(header::AUTHORIZATION, &auth)
                 .body(Body::from(chunk))
                 .unwrap();
-            app.oneshot(request).await.unwrap().status()
+            app
+                .oneshot(request)
+                .await
+                .unwrap()
+                .status()
         }
     };
     let one = patch("aaaaa");
@@ -133,10 +204,22 @@ async fn concurrent_chunks_of_one_upload_neither_lose_nor_duplicate_bytes() {
     assert_eq!(first, StatusCode::ACCEPTED);
     assert_eq!(second, StatusCode::ACCEPTED);
 
-    let request =
-        Request::get(&location).header(header::AUTHORIZATION, &auth).body(Body::empty()).unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
-    assert_eq!(response.headers().get(header::RANGE).unwrap(), "0-9");
+    let request = Request::get(&location)
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::empty())
+        .unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+    assert_eq!(
+        response
+            .headers()
+            .get(header::RANGE)
+            .unwrap(),
+        "0-9",
+    );
 }
 
 #[tokio::test]
@@ -150,7 +233,11 @@ async fn deleting_a_referenced_blob_is_refused() {
         .header(header::AUTHORIZATION, &auth)
         .body(Body::empty())
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     assert_eq!(
         get(&app, &format!("/v2/acme/app/blobs/{}", digest_of(b"layer"))).await.status(),
@@ -168,8 +255,18 @@ async fn a_malformed_content_range_does_not_advance_an_upload() {
         .header(header::AUTHORIZATION, &auth)
         .body(Body::empty())
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
-    let location = response.headers().get(header::LOCATION).unwrap().to_str().unwrap().to_string();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+    let location = response
+        .headers()
+        .get(header::LOCATION)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
 
     // The leading number is where the upload actually stands, so a range read
     // only up to the hyphen would accept this and write the body.
@@ -178,13 +275,29 @@ async fn a_malformed_content_range_does_not_advance_an_upload() {
         .header(header::CONTENT_RANGE, "0-garbage")
         .body(Body::from("nope!"))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
-    let request =
-        Request::get(&location).header(header::AUTHORIZATION, &auth).body(Body::empty()).unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
-    assert_eq!(response.headers().get(header::RANGE).unwrap(), "0-0");
+    let request = Request::get(&location)
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::empty())
+        .unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+    assert_eq!(
+        response
+            .headers()
+            .get(header::RANGE)
+            .unwrap(),
+        "0-0",
+    );
 }
 
 #[tokio::test]
@@ -197,8 +310,18 @@ async fn a_range_spanning_more_than_a_blob_can_hold_is_refused() {
         .header(header::AUTHORIZATION, &auth)
         .body(Body::empty())
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
-    let location = response.headers().get(header::LOCATION).unwrap().to_str().unwrap().to_string();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+    let location = response
+        .headers()
+        .get(header::LOCATION)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
 
     // One past the largest range a client can spell does not fit the number
     // that holds the span, and no chunk may be larger than a whole blob.
@@ -208,14 +331,30 @@ async fn a_range_spanning_more_than_a_blob_can_hold_is_refused() {
             .header(header::CONTENT_RANGE, range)
             .body(Body::from("hello"))
             .unwrap();
-        let response = app.clone().oneshot(request).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{range}");
     }
 
-    let request =
-        Request::get(&location).header(header::AUTHORIZATION, &auth).body(Body::empty()).unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
-    assert_eq!(response.headers().get(header::RANGE).unwrap(), "0-0");
+    let request = Request::get(&location)
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::empty())
+        .unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+    assert_eq!(
+        response
+            .headers()
+            .get(header::RANGE)
+            .unwrap(),
+        "0-0",
+    );
 }
 
 #[tokio::test]
@@ -228,9 +367,23 @@ async fn an_upload_cannot_be_finished_into_another_repository() {
         .header(header::AUTHORIZATION, &auth)
         .body(Body::empty())
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
-    let location = response.headers().get(header::LOCATION).unwrap().to_str().unwrap().to_string();
-    let id = location.rsplit('/').next().unwrap().to_string();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+    let location = response
+        .headers()
+        .get(header::LOCATION)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
+    let id = location
+        .rsplit('/')
+        .next()
+        .unwrap()
+        .to_string();
 
     // The same organization, and the caller may publish to both. The id still
     // only names bytes the other repository's client sent.
@@ -238,7 +391,11 @@ async fn an_upload_cannot_be_finished_into_another_repository() {
         .header(header::AUTHORIZATION, &auth)
         .body(Body::from("hello"))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
@@ -271,7 +428,10 @@ async fn s3_upload_moves_between_replicas_and_keeps_an_interrupted_chunks_prefix
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::ACCEPTED);
-    let location = response.headers()[header::LOCATION].to_str().unwrap().to_string();
+    let location = response.headers()[header::LOCATION]
+        .to_str()
+        .unwrap()
+        .to_string();
     let torn = futures_util::stream::iter([
         Ok(axum::body::Bytes::from_static(b"wor")),
         Err(std::io::Error::other("disconnected")),
@@ -319,7 +479,10 @@ async fn s3_upload_moves_between_replicas_and_keeps_an_interrupted_chunks_prefix
 async fn mounts_and_discovery_respect_source_read_permissions() {
     let tmp = TempDir::new().unwrap();
     let auth_state = AuthState::in_memory();
-    let setup = router_with_auth(oci_config(tmp.path().to_path_buf(), "$all"), auth_state.clone());
+    let setup = router_with_auth(
+        oci_config(tmp.path().to_path_buf(), "$all"),
+        auth_state.clone(),
+    );
     let auth = basic(&token(&setup).await);
     let digest = push_blob(&setup, &auth, "acme/secret", b"secret layer").await;
     push_image(&setup, &auth, "acme/secret", "latest").await;
@@ -384,7 +547,10 @@ async fn mounts_and_discovery_respect_source_read_permissions() {
     }
     let response = get(&app, "/v2/_catalog?n=1").await;
     assert!(!response.headers().contains_key(header::LINK));
-    assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
+    assert_eq!(
+        response.headers()[header::CACHE_CONTROL],
+        "private, no-store",
+    );
     let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(payload["repositories"], json!(["acme/public"]));
 }
@@ -400,7 +566,10 @@ async fn catalog_lists_repositories_under_published_and_blob_only_parents() {
     push_image(&app, &auth, "acme/blobs/tool", "latest").await;
     let response = get(&app, "/v2/_catalog").await;
     let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
-    assert_eq!(payload["repositories"], json!(["acme/app", "acme/app/tool", "acme/blobs/tool"]));
+    assert_eq!(
+        payload["repositories"],
+        json!(["acme/app", "acme/app/tool", "acme/blobs/tool"]),
+    );
 }
 
 #[tokio::test]
@@ -425,7 +594,10 @@ async fn unreferenced_blobs_can_be_deleted_and_uploaded_again() {
         StatusCode::NOT_FOUND,
     );
     push_image(&app, &auth, "acme/app", "after-delete").await;
-    assert_eq!(get(&app, "/v2/acme/app/manifests/after-delete").await.status(), StatusCode::OK);
+    assert_eq!(
+        get(&app, "/v2/acme/app/manifests/after-delete").await.status(),
+        StatusCode::OK,
+    );
 }
 
 #[tokio::test]
@@ -439,10 +611,13 @@ async fn configured_limits_bound_monolithic_resumable_and_manifest_uploads() {
     let response = app
         .clone()
         .oneshot(
-            Request::post(format!("/v2/acme/app/blobs/uploads/?digest={}", digest_of(b"123456")))
-                .header(header::AUTHORIZATION, &auth)
-                .body(Body::from("123456"))
-                .unwrap(),
+            Request::post(format!(
+                "/v2/acme/app/blobs/uploads/?digest={}",
+                digest_of(b"123456"),
+            ))
+            .header(header::AUTHORIZATION, &auth)
+            .body(Body::from("123456"))
+            .unwrap(),
         )
         .await
         .unwrap();
@@ -457,7 +632,10 @@ async fn configured_limits_bound_monolithic_resumable_and_manifest_uploads() {
         )
         .await
         .unwrap();
-    let location = response.headers()[header::LOCATION].to_str().unwrap().to_string();
+    let location = response.headers()[header::LOCATION]
+        .to_str()
+        .unwrap()
+        .to_string();
     let response = app
         .clone()
         .oneshot(
@@ -495,7 +673,10 @@ async fn proxy_verifies_and_caches_manifest_and_blob_content() {
         .create_async()
         .await;
     let blob_mock = upstream
-        .mock("GET", format!("/v2/other/app/blobs/{}", digest_of(b"config")).as_str())
+        .mock(
+            "GET",
+            format!("/v2/other/app/blobs/{}", digest_of(b"config")).as_str(),
+        )
         .with_body("config")
         .expect(1)
         .create_async()
@@ -508,19 +689,36 @@ async fn proxy_verifies_and_caches_manifest_and_blob_content() {
         let response = get(&app, "/v2/other/app/manifests/latest").await;
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(body_bytes(response.into_body()).await, manifest);
-        let response = get(&app, &format!("/v2/other/app/blobs/{}", digest_of(b"config"))).await;
+        let response = get(
+            &app,
+            &format!("/v2/other/app/blobs/{}", digest_of(b"config")),
+        )
+        .await;
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(body_bytes(response.into_body()).await, b"config");
     }
     let response = app
         .clone()
-        .oneshot(Request::head("/v2/other/app/manifests/latest").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::head("/v2/other/app/manifests/latest")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(response.headers()[header::CONTENT_LENGTH], manifest.len().to_string());
-    assert_eq!(response.headers()[header::CONTENT_TYPE], pnpr_oci::media_type::OCI_IMAGE_MANIFEST);
-    assert_eq!(response.headers()["docker-content-digest"], digest_of(&manifest));
+    assert_eq!(
+        response.headers()[header::CONTENT_LENGTH],
+        manifest.len().to_string(),
+    );
+    assert_eq!(
+        response.headers()[header::CONTENT_TYPE],
+        pnpr_oci::media_type::OCI_IMAGE_MANIFEST,
+    );
+    assert_eq!(
+        response.headers()["docker-content-digest"],
+        digest_of(&manifest),
+    );
     assert!(body_bytes(response.into_body()).await.is_empty());
     manifest_mock.assert_async().await;
     blob_mock.assert_async().await;
@@ -553,9 +751,12 @@ async fn blob_deletion_fences_a_manifest_commit_on_another_replica() {
                 .unwrap(),
         ),
     );
-    tokio::time::timeout(std::time::Duration::from_secs(10), objects.started.notified())
-        .await
-        .unwrap();
+    tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        objects.started.notified(),
+    )
+    .await
+    .unwrap();
     let deleted = second
         .clone()
         .oneshot(
@@ -568,8 +769,17 @@ async fn blob_deletion_fences_a_manifest_commit_on_another_replica() {
         .unwrap();
     assert_eq!(deleted.status(), StatusCode::ACCEPTED);
     objects.resume.notify_one();
-    assert_eq!(publish.await.unwrap().unwrap().status(), StatusCode::CONFLICT);
-    assert_eq!(get(&second, "/v2/acme/app/manifests/latest").await.status(), StatusCode::NOT_FOUND);
+    assert_eq!(
+        publish.await
+            .unwrap()
+            .unwrap()
+            .status(),
+        StatusCode::CONFLICT,
+    );
+    assert_eq!(
+        get(&second, "/v2/acme/app/manifests/latest").await.status(),
+        StatusCode::NOT_FOUND,
+    );
     push_image(&second, &auth, "acme/app", "retry").await;
 }
 
@@ -585,8 +795,12 @@ async fn proxy_does_not_cache_corrupt_content_or_download_blob_bodies_for_head()
         .create_async()
         .await;
     let path = format!("/v2/other/app/blobs/{}", digest_of(b"config"));
-    let corrupt_blob =
-        upstream.mock("GET", path.as_str()).with_body("poison").expect(2).create_async().await;
+    let corrupt_blob = upstream
+        .mock("GET", path.as_str())
+        .with_body("poison")
+        .expect(2)
+        .create_async()
+        .await;
     let head = upstream
         .mock("HEAD", path.as_str())
         .with_header("content-length", "6")
@@ -597,8 +811,15 @@ async fn proxy_does_not_cache_corrupt_content_or_download_blob_bodies_for_head()
     let mut config = oci_config(tmp.path().to_path_buf(), "$all");
     config.routing.upstreams.get_mut("dockerhub").unwrap().url = format!("{}/", upstream.url());
     let app = router_with_auth(config, AuthState::in_memory());
-    let response =
-        app.clone().oneshot(Request::head(&path).body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(
+            Request::head(&path)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.headers()[header::CONTENT_LENGTH], "6");
     assert!(body_bytes(response.into_body()).await.is_empty());
@@ -646,15 +867,20 @@ async fn scoped_mount_without_source_pull_permission_falls_back_to_upload() {
     let response = app
         .clone()
         .oneshot(
-            Request::post(format!("/v2/acme/dest/blobs/uploads/?mount={digest}&from=acme/source"))
-                .header(header::AUTHORIZATION, &scoped)
-                .body(Body::empty())
-                .unwrap(),
+            Request::post(format!(
+                "/v2/acme/dest/blobs/uploads/?mount={digest}&from=acme/source",
+            ))
+            .header(header::AUTHORIZATION, &scoped)
+            .body(Body::empty())
+            .unwrap(),
         )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::ACCEPTED);
-    let location = response.headers()[header::LOCATION].to_str().unwrap().to_string();
+    let location = response.headers()[header::LOCATION]
+        .to_str()
+        .unwrap()
+        .to_string();
     let response = app
         .clone()
         .oneshot(

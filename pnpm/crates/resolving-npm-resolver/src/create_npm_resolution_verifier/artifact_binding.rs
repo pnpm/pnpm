@@ -53,7 +53,9 @@ pub(super) fn tarball_url_violation(
 pub(super) fn current_revision_number(
     artifact: &RegistryArtifactHistory,
 ) -> Result<u64, ResolutionVerification> {
-    let Some(raw_revision) = artifact.current.revision.as_ref() else { return Ok(0) };
+    let Some(raw_revision) = artifact.current.revision.as_ref() else {
+        return Ok(0);
+    };
     let revision = raw_revision
         .as_u64()
         .and_then(|revision| TarballRevision::try_from(revision).ok())
@@ -75,8 +77,7 @@ pub(super) fn current_history_violation(
     if current_revision == 0 {
         return None;
     }
-    let current_history: Vec<_> = artifact
-        .revisions
+    let current_history: Vec<_> = artifact.revisions
         .iter()
         .filter(|candidate| {
             candidate.revision.as_ref().and_then(JsonValue::as_u64) == Some(current_revision)
@@ -114,8 +115,7 @@ pub(super) fn select_revision<'a>(
     current_revision: u64,
     integrity: &ssri::Integrity,
 ) -> Result<&'a RegistryArtifact, ResolutionVerification> {
-    let historical: Vec<_> = artifact
-        .revisions
+    let historical: Vec<_> = artifact.revisions
         .iter()
         .filter(|candidate| {
             candidate.revision.as_ref().and_then(JsonValue::as_u64) == Some(requested)
@@ -131,7 +131,11 @@ pub(super) fn select_revision<'a>(
     }
     let historical = historical.first().copied();
     let current_matches = current_revision == requested;
-    let selected = if current_matches { Some(&artifact.current) } else { historical };
+    let selected = if current_matches {
+        Some(&artifact.current)
+    } else {
+        historical
+    };
     selected
         .filter(|selected| {
             selected.integrity.as_ref() == Some(integrity)

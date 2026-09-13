@@ -45,8 +45,13 @@ pub(super) fn workspace_shadow_pick(
     if spec.revision.is_some() {
         return None;
     }
-    let mut result =
-        try_workspace_shadow(workspace_packages?, spec, &picked.version, wanted_dependency, opts)?;
+    let mut result = try_workspace_shadow(
+        workspace_packages?,
+        spec,
+        &picked.version,
+        wanted_dependency,
+        opts,
+    )?;
     result.package.latest = latest_allowed_by_policy(
         &picked.meta,
         opts.policy.published_by,
@@ -109,7 +114,9 @@ pub(super) fn wanted_spec(
             registry,
         );
     }
-    let alias = wanted_dependency.alias.as_deref().filter(|alias| !alias.is_empty())?;
+    let alias = wanted_dependency.alias
+        .as_deref()
+        .filter(|alias| !alias.is_empty())?;
     Some(default_tag_spec(alias, default_tag))
 }
 
@@ -130,11 +137,18 @@ pub(crate) fn no_matching_version(
 ) -> ResolveError {
     let dep = match wanted_dependency.alias.as_deref() {
         Some(alias) => {
-            format!("{alias}@{}", wanted_dependency.bare_specifier.as_deref().unwrap_or_default())
+            format!(
+                "{alias}@{}",
+                wanted_dependency.bare_specifier.as_deref().unwrap_or_default(),
+            )
         }
         None => wanted_dependency.bare_specifier.clone().unwrap_or_default(),
     };
-    Box::new(NoMatchingVersionError::new(dep, redact_and_sanitize(registry), meta))
+    Box::new(NoMatchingVersionError::new(
+        dep,
+        redact_and_sanitize(registry),
+        meta,
+    ))
 }
 
 /// Registry pick was unavailable (no matching version or fetch
@@ -242,9 +256,7 @@ pub(super) fn workspace_packages_active<'o>(
     opts: &'o ResolveOptions,
     spec: &RegistryPackageSpec,
 ) -> Option<&'o std::sync::Arc<WorkspacePackages>> {
-    let can_keep_workspace_resolution = opts
-        .refresh
-        .current_pkg
+    let can_keep_workspace_resolution = opts.refresh.current_pkg
         .as_ref()
         .is_none_or(|current| matches!(current.resolution, LockfileResolution::Directory(_)));
     (spec.revision.is_none()

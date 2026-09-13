@@ -3,7 +3,15 @@ use std::{fs, process::Command};
 
 fn project() -> tempfile::TempDir {
     let project = tempfile::tempdir().unwrap();
-    assert!(Command::new("git").arg("init").arg(project.path()).output().unwrap().status.success());
+    assert!(
+        Command::new("git")
+            .arg("init")
+            .arg(project.path())
+            .output()
+            .unwrap()
+            .status
+            .success(),
+    );
     fs::write(project.path().join(".gitignore"), "target/\n").unwrap();
     project
 }
@@ -18,15 +26,29 @@ fn restored_state_survives_eviction_and_is_independent() {
     fs::create_dir_all(publisher.target.join("debug/incremental")).unwrap();
     let original = publisher.target.join("debug/incremental/state");
     fs::write(&original, b"original").unwrap();
-    let modified = fs::metadata(&original).unwrap().modified().unwrap();
-    publisher.publish(&entry, "inputs", &[]).unwrap();
+    let modified = fs::metadata(&original)
+        .unwrap()
+        .modified()
+        .unwrap();
+    publisher
+        .publish(&entry, "inputs", &[])
+        .unwrap();
     let consumer = CargoCache::open(second_worktree.path(), "target").unwrap();
     assert!(consumer.restore(&entry, "inputs").unwrap());
     let restored = consumer.target.join("debug/incremental/state");
-    assert_eq!(fs::metadata(&restored).unwrap().modified().unwrap(), modified);
+    assert_eq!(
+        fs::metadata(&restored)
+            .unwrap()
+            .modified()
+            .unwrap(),
+        modified,
+    );
     fs::write(&restored, b"edited").unwrap();
     assert_eq!(fs::read(&original).unwrap(), b"original");
-    assert_eq!(fs::read(entry.join("files/debug/incremental/state")).unwrap(), b"original");
+    assert_eq!(
+        fs::read(entry.join("files/debug/incremental/state")).unwrap(),
+        b"original",
+    );
     fs::remove_dir_all(cache.path()).unwrap();
     assert_eq!(fs::read(&restored).unwrap(), b"edited");
     consumer.prepare("inputs").unwrap();
@@ -42,7 +64,9 @@ fn incomplete_and_corrupt_snapshots_never_expose_a_target() {
         let publisher = CargoCache::open(first_worktree.path(), "target").unwrap();
         fs::create_dir(&publisher.target).unwrap();
         fs::write(publisher.target.join("state"), "good").unwrap();
-        publisher.publish(&entry, "inputs", &[]).unwrap();
+        publisher
+            .publish(&entry, "inputs", &[])
+            .unwrap();
         if corrupt {
             fs::write(entry.join("files/state"), "bad").unwrap();
         } else {
@@ -62,17 +86,34 @@ fn existing_target_is_never_replaced_and_changed_inputs_invalidate_freshness() {
     fs::create_dir_all(cache.target.join("debug/incremental")).unwrap();
     fs::write(cache.target.join("debug/.fingerprint/stale"), "stale").unwrap();
     fs::write(cache.target.join("debug/incremental/state"), "keep").unwrap();
-    assert!(!cache.restore(&root.path().join("missing"), "inputs").unwrap());
+    assert!(
+        !cache
+            .restore(&root.path().join("missing"), "inputs")
+            .unwrap(),
+    );
     cache.prepare("changed").unwrap();
     assert!(!cache.target.join("debug/.fingerprint").exists());
-    assert_eq!(fs::read_to_string(cache.target.join("debug/incremental/state")).unwrap(), "keep");
+    assert_eq!(
+        fs::read_to_string(cache.target.join("debug/incremental/state")).unwrap(),
+        "keep",
+    );
 }
 
 #[test]
 fn target_paths_cannot_escape_or_replace_package_metadata() {
     let root = project();
-    for path in ["", "../target", "/target", ".git/target", "node_modules/target", "."] {
-        assert!(CargoCache::open(root.path(), path).is_err(), "accepted {path}");
+    for path in [
+        "",
+        "../target",
+        "/target",
+        ".git/target",
+        "node_modules/target",
+        ".",
+    ] {
+        assert!(
+            CargoCache::open(root.path(), path).is_err(),
+            "accepted {path}",
+        );
     }
 }
 
@@ -87,7 +128,11 @@ fn symlinks_are_rejected_for_targets_and_snapshots() {
     let cache = CargoCache::open(root.path(), "target").unwrap();
     fs::create_dir(&cache.target).unwrap();
     std::os::unix::fs::symlink(outside.path(), cache.target.join("escape")).unwrap();
-    assert!(cache.publish(&outside.path().join("snapshot"), "inputs", &[]).is_err());
+    assert!(
+        cache
+            .publish(&outside.path().join("snapshot"), "inputs", &[])
+            .is_err(),
+    );
 }
 
 #[test]
@@ -165,7 +210,9 @@ fn concurrent_publishers_leave_one_complete_immutable_snapshot() {
             let entry = &entry;
             scope.spawn(move || {
                 barrier.wait();
-                publisher.publish(entry, "inputs", &[]).unwrap();
+                publisher
+                    .publish(entry, "inputs", &[])
+                    .unwrap();
             });
         }
     });
@@ -173,7 +220,9 @@ fn concurrent_publishers_leave_one_complete_immutable_snapshot() {
     assert!(winner == b"0" || winner == b"1");
     for publisher in &publishers {
         fs::write(publisher.target.join("state"), "replacement").unwrap();
-        publisher.publish(&entry, "inputs", &[]).unwrap();
+        publisher
+            .publish(&entry, "inputs", &[])
+            .unwrap();
     }
     assert_eq!(fs::read(entry.join("files/state")).unwrap(), winner);
     let consumer_root = project();
@@ -188,11 +237,22 @@ fn snapshot_storage_cannot_overlap_the_build_directory() {
     let cache = CargoCache::open(root.path(), "target").unwrap();
     fs::create_dir(&cache.target).unwrap();
     fs::write(cache.target.join("state"), "keep").unwrap();
-    for entry in [root.path().to_path_buf(), cache.target.clone(), cache.target.join("nested")] {
-        assert!(cache.publish(&entry, "inputs", &[]).is_err());
+    for entry in [
+        root.path().to_path_buf(),
+        cache.target.clone(),
+        cache.target.join("nested"),
+    ] {
+        assert!(
+            cache
+                .publish(&entry, "inputs", &[])
+                .is_err(),
+        );
         assert!(cache.restore(&entry, "inputs").is_err());
     }
-    assert_eq!(fs::read_to_string(cache.target.join("state")).unwrap(), "keep");
+    assert_eq!(
+        fs::read_to_string(cache.target.join("state")).unwrap(),
+        "keep",
+    );
 }
 
 #[cfg(target_os = "linux")]
@@ -215,7 +275,9 @@ fn restoration_falls_back_to_copy_on_tmpfs() {
     let publisher = CargoCache::open(first_worktree.path(), "target").unwrap();
     fs::create_dir(&publisher.target).unwrap();
     fs::write(publisher.target.join("state"), "original").unwrap();
-    publisher.publish(&entry, "inputs", &[]).unwrap();
+    publisher
+        .publish(&entry, "inputs", &[])
+        .unwrap();
     assert!(
         reflink_copy::reflink(
             entry.join("files/state"),
@@ -226,9 +288,15 @@ fn restoration_falls_back_to_copy_on_tmpfs() {
     let consumer = CargoCache::open(second_worktree.path(), "target").unwrap();
     assert!(consumer.restore(&entry, "inputs").unwrap());
     fs::write(consumer.target.join("state"), "edited").unwrap();
-    assert_eq!(fs::read_to_string(entry.join("files/state")).unwrap(), "original");
+    assert_eq!(
+        fs::read_to_string(entry.join("files/state")).unwrap(),
+        "original",
+    );
     fs::remove_dir_all(storage.path()).unwrap();
-    assert_eq!(fs::read_to_string(consumer.target.join("state")).unwrap(), "edited");
+    assert_eq!(
+        fs::read_to_string(consumer.target.join("state")).unwrap(),
+        "edited",
+    );
 }
 
 #[test]
@@ -242,9 +310,14 @@ fn snapshots_preserve_read_only_files() {
     let mut permissions = fs::metadata(&source).unwrap().permissions();
     permissions.set_readonly(true);
     fs::set_permissions(&source, permissions).unwrap();
-    let timestamp = fs::metadata(&source).unwrap().modified().unwrap();
+    let timestamp = fs::metadata(&source)
+        .unwrap()
+        .modified()
+        .unwrap();
     let entry = storage.path().join("entry");
-    cache.publish(&entry, "inputs", &[]).unwrap();
+    cache
+        .publish(&entry, "inputs", &[])
+        .unwrap();
     let restored_project = project();
     let restored = CargoCache::open(restored_project.path(), "target").unwrap();
     assert!(restored.restore(&entry, "inputs").unwrap());

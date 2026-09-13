@@ -19,15 +19,55 @@ fn inc_matches_node_semver() {
         ("1.3.1-beta", ReleaseType::Minor, None, "1.4.0"),
         ("1.2.3", ReleaseType::Patch, None, "1.2.4"),
         ("1.2.4-rc.1", ReleaseType::Patch, None, "1.2.4"),
-        ("1.2.3", ReleaseType::Premajor, Some("alpha"), "2.0.0-alpha.0"),
+        (
+            "1.2.3",
+            ReleaseType::Premajor,
+            Some("alpha"),
+            "2.0.0-alpha.0",
+        ),
         ("1.2.3", ReleaseType::Premajor, None, "2.0.0-0"),
-        ("1.2.3", ReleaseType::Preminor, Some("alpha"), "1.3.0-alpha.0"),
-        ("1.2.3", ReleaseType::Prepatch, Some("alpha"), "1.2.4-alpha.0"),
-        ("1.0.0", ReleaseType::Prerelease, Some("alpha"), "1.0.1-alpha.0"),
-        ("1.0.1-alpha.0", ReleaseType::Prerelease, Some("alpha"), "1.0.1-alpha.1"),
-        ("1.0.1-alpha.1", ReleaseType::Prerelease, Some("beta"), "1.0.1-beta.0"),
-        ("1.0.0-beta", ReleaseType::Prerelease, Some("beta"), "1.0.0-beta.0"),
-        ("1.0.0-beta.fooblz", ReleaseType::Prerelease, Some("beta"), "1.0.0-beta.0"),
+        (
+            "1.2.3",
+            ReleaseType::Preminor,
+            Some("alpha"),
+            "1.3.0-alpha.0",
+        ),
+        (
+            "1.2.3",
+            ReleaseType::Prepatch,
+            Some("alpha"),
+            "1.2.4-alpha.0",
+        ),
+        (
+            "1.0.0",
+            ReleaseType::Prerelease,
+            Some("alpha"),
+            "1.0.1-alpha.0",
+        ),
+        (
+            "1.0.1-alpha.0",
+            ReleaseType::Prerelease,
+            Some("alpha"),
+            "1.0.1-alpha.1",
+        ),
+        (
+            "1.0.1-alpha.1",
+            ReleaseType::Prerelease,
+            Some("beta"),
+            "1.0.1-beta.0",
+        ),
+        (
+            "1.0.0-beta",
+            ReleaseType::Prerelease,
+            Some("beta"),
+            "1.0.0-beta.0",
+        ),
+        (
+            "1.0.0-beta.fooblz",
+            ReleaseType::Prerelease,
+            Some("beta"),
+            "1.0.0-beta.0",
+        ),
         ("1.0.0", ReleaseType::Prerelease, None, "1.0.1-0"),
         ("1.0.0-1", ReleaseType::Prerelease, None, "1.0.0-2"),
         ("1.0.0+build.5", ReleaseType::Patch, None, "1.0.1"),
@@ -50,9 +90,18 @@ fn parse_bump_accepts_versions_and_release_types() {
     };
     assert_eq!(prerelease.to_string(), "2.0.0-beta.1");
 
-    assert!(matches!(parse_bump("major"), Ok(Bump::Release(ReleaseType::Major))));
-    assert!(matches!(parse_bump("prerelease"), Ok(Bump::Release(ReleaseType::Prerelease))));
-    assert!(parse_bump("not-a-version").is_err(), "junk should be rejected");
+    assert!(matches!(
+        parse_bump("major"),
+        Ok(Bump::Release(ReleaseType::Major))
+    ));
+    assert!(matches!(
+        parse_bump("prerelease"),
+        Ok(Bump::Release(ReleaseType::Prerelease))
+    ));
+    assert!(
+        parse_bump("not-a-version").is_err(),
+        "junk should be rejected",
+    );
 }
 
 /// `semver.valid` accepts a leading `v` and returns the cleaned version, so

@@ -16,11 +16,17 @@ fn only_trusts_origin_specific_token_and_download_hosts() {
     let auth = Url::parse("https://auth.docker.io/token").unwrap();
     assert!(token_realm_allowed(&hub, &auth));
     assert!(!token_realm_allowed(&ghcr, &auth));
-    assert!(!token_realm_allowed(&hub, &Url::parse("http://auth.docker.io/token").unwrap()));
+    assert!(!token_realm_allowed(
+        &hub,
+        &Url::parse("http://auth.docker.io/token").unwrap()
+    ));
     let cdn = Url::parse("https://production.cloudflare.docker.com/layer").unwrap();
     assert!(oci_download_allowed(&hub, &cdn));
     assert!(!oci_download_allowed(&ghcr, &cdn));
-    assert!(!oci_download_allowed(&hub, &Url::parse("http://127.0.0.1/layer").unwrap()));
+    assert!(!oci_download_allowed(
+        &hub,
+        &Url::parse("http://127.0.0.1/layer").unwrap()
+    ));
 }
 
 #[tokio::test]
@@ -74,13 +80,20 @@ async fn rejects_an_untrusted_token_realm_without_contacting_it() {
     use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
     let mut server = mockito::Server::new_async().await;
     let mut attacker = mockito::Server::new_async().await;
-    let stolen = attacker.mock("GET", "/token").expect(0).create_async().await;
+    let stolen = attacker
+        .mock("GET", "/token")
+        .expect(0)
+        .create_async()
+        .await;
     let challenge = server
         .mock("GET", "/v2/acme/app/manifests/latest")
         .with_status(401)
         .with_header(
             "www-authenticate",
-            &format!(r#"Bearer realm="{}/token",service="registry""#, attacker.url()),
+            &format!(
+                r#"Bearer realm="{}/token",service="registry""#,
+                attacker.url(),
+            ),
         )
         .create_async()
         .await;

@@ -29,18 +29,20 @@ impl Config {
         public_url: Option<String>,
         overrides: FeatureOverrides,
     ) -> std::io::Result<Self> {
-        let raw = std::fs::read_to_string(path).map_err(|err| {
-            std::io::Error::new(err.kind(), format!("read {}: {err}", path.display()))
-        })?;
-        let base = path.parent().unwrap_or_else(|| Path::new("."));
-        Self::from_yaml_str_with_overrides(&raw, base, listen, public_url, overrides).map_err(
-            |err| {
+        let raw = std::fs::read_to_string(path)
+            .map_err(|err| {
+                std::io::Error::new(err.kind(), format!("read {}: {err}", path.display()))
+            })?;
+        let base = path
+            .parent()
+            .unwrap_or_else(|| Path::new("."));
+        Self::from_yaml_str_with_overrides(&raw, base, listen, public_url, overrides)
+            .map_err(|err| {
                 std::io::Error::new(
                     std::io::ErrorKind::InvalidData,
                     format!("parse {}: {err}", path.display()),
                 )
-            },
-        )
+            })
     }
 
     /// Parse [`DEFAULT_CONFIG_YAML`] (the verdaccio-shaped YAML
@@ -154,11 +156,11 @@ impl Config {
         let config =
             Self::from_default_yaml_with_overrides(Path::new("."), listen, public_url, overrides)
                 .map_err(|err| {
-                std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    format!("parse bundled config: {err}"),
-                )
-            })?;
+                    std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        format!("parse bundled config: {err}"),
+                    )
+                })?;
         Ok((config, ConfigSource::Bundled))
     }
 
@@ -226,13 +228,7 @@ impl Config {
             logs: build_log_config(file.log.as_ref()),
             osv: build_osv_config(&file.osv, base_dir),
             resolution_cache_secret: resolution_secret(file.secret.as_deref())?,
-            http: super::HttpConfig {
-                listen,
-                public_url: public_url.unwrap_or_else(|| format!("http://{listen}")),
-                cors,
-                oci: file.oci,
-                packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
-            },
+            http: build_http_config(listen, public_url, cors, file.oci),
             storage,
             identity: super::IdentityConfig {
                 auth: build_auth_config(&file.auth, base_dir),
@@ -255,5 +251,20 @@ fn build_storage_config(file: &mut ConfigFile, base_dir: &Path) -> super::Storag
         hosted_dir,
         cache_dir,
         hosted_backend: file.s3.take().map_or(HostedStoreConfig::Fs, HostedStoreConfig::S3),
+    }
+}
+
+fn build_http_config(
+    listen: SocketAddr,
+    public_url: Option<String>,
+    cors: super::CorsConfig,
+    oci: super::OciConfig,
+) -> super::HttpConfig {
+    super::HttpConfig {
+        listen,
+        public_url: public_url.unwrap_or_else(|| format!("http://{listen}")),
+        cors,
+        oci,
+        packument_ttl: Config::DEFAULT_PACKUMENT_TTL,
     }
 }

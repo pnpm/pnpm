@@ -48,7 +48,11 @@ pub(crate) enum AuditError {
         "The audit endpoint (at {url}) returned invalid JSON: {reason}. Response body: {body}"
     )]
     #[diagnostic(code(ERR_PNPM_AUDIT_BAD_RESPONSE))]
-    InvalidJson { url: String, reason: String, body: String },
+    InvalidJson {
+        url: String,
+        reason: String,
+        body: String,
+    },
 
     #[display(
         "The audit endpoint (at {url}) returned an unexpected body. Expected an object keyed by package name; got: {body}"
@@ -67,7 +71,11 @@ pub(crate) enum AuditError {
 
     #[display("The audit endpoint (at {url}) responded with {status}: {body}")]
     #[diagnostic(code(ERR_PNPM_AUDIT_BAD_RESPONSE))]
-    BadStatus { url: String, status: u16, body: String },
+    BadStatus {
+        url: String,
+        status: u16,
+        body: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -191,7 +199,10 @@ pub(crate) fn bulk_response_to_audit_report(
     env_lockfile: Option<&EnvLockfile>,
     include: Include,
 ) -> AuditReport {
-    let vulnerable_names: HashSet<String> = bulk.keys().cloned().collect();
+    let vulnerable_names: HashSet<String> = bulk
+        .keys()
+        .cloned()
+        .collect();
     let audit_path_index = if vulnerable_names.is_empty() {
         AuditPathIndex::default()
     } else {
@@ -219,7 +230,10 @@ pub(crate) fn bulk_response_to_audit_report(
         }
     }
 
-    AuditReport { advisories, metadata: audit_metadata(audit_request, vulnerabilities) }
+    AuditReport {
+        advisories,
+        metadata: audit_metadata(audit_request, vulnerabilities),
+    }
 }
 
 pub(crate) fn empty_audit_report(
@@ -251,7 +265,9 @@ pub(crate) fn build_findings(
     vulnerable_versions: &str,
     by_version: Option<&BTreeMap<String, PathInfo>>,
 ) -> Vec<AuditFinding> {
-    let Some(by_version) = by_version else { return Vec::new() };
+    let Some(by_version) = by_version else {
+        return Vec::new();
+    };
     by_version
         .iter()
         .filter(|(version, _)| satisfies_safe(version, vulnerable_versions))
@@ -304,11 +320,19 @@ pub(crate) fn normalize_ghsa_id(ghsa_id: &str) -> String {
     let Some(dash) = trimmed.find('-') else {
         return trimmed.to_ascii_uppercase();
     };
-    format!("{}{}", trimmed[..dash].to_ascii_uppercase(), trimmed[dash..].to_ascii_lowercase())
+    format!(
+        "{}{}",
+        trimmed[..dash].to_ascii_uppercase(),
+        trimmed[dash..].to_ascii_lowercase(),
+    )
 }
 
 pub(crate) fn normalize_registry(registry: &str) -> String {
-    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
+    if registry.ends_with('/') {
+        registry.to_string()
+    } else {
+        format!("{registry}/")
+    }
 }
 
 pub(crate) fn redact_url_userinfo(url: &str) -> String {
@@ -324,7 +348,10 @@ pub(crate) fn redact_url_userinfo(url: &str) -> String {
 }
 
 pub(crate) fn truncate_chars(value: &str, max_chars: usize) -> String {
-    value.chars().take(max_chars).collect()
+    value
+        .chars()
+        .take(max_chars)
+        .collect()
 }
 
 pub(crate) fn sanitize_response_body(value: &str) -> String {

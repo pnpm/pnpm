@@ -168,21 +168,26 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
         let result = match self.resolve_impl(&wanted, &resolve_opts).await {
             Ok(result) => result,
             Err(err) if swallowed_as_no_latest(&err, opts) => {
-                return Ok(Some(LatestInfo { latest_manifest: None }));
+                return Ok(Some(LatestInfo {
+                    latest_manifest: None,
+                }));
             }
             Err(err) => return Err(err),
         };
         let Some(result) = result else {
             return Ok(None);
         };
-        if result
-            .policy_violation
+        if result.policy_violation
             .as_ref()
             .is_some_and(|violation| violation.code == MINIMUM_RELEASE_AGE_VIOLATION_CODE)
         {
-            return Ok(Some(LatestInfo { latest_manifest: None }));
+            return Ok(Some(LatestInfo {
+                latest_manifest: None,
+            }));
         }
-        Ok(Some(LatestInfo { latest_manifest: result.package.manifest }))
+        Ok(Some(LatestInfo {
+            latest_manifest: result.package.manifest,
+        }))
     }
 
     async fn pick_from_registry(
@@ -194,8 +199,9 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
     ) -> Result<RegistryPick, ResolveError> {
         let overlay_selectors =
             crate::preferred_overlay::overlay_merged_selectors(opts, &spec.name);
-        let base_selectors =
-            overlay_selectors.as_ref().or_else(|| opts.version.preferred_versions.get(&spec.name));
+        let base_selectors = overlay_selectors
+            .as_ref()
+            .or_else(|| opts.version.preferred_versions.get(&spec.name));
         let ctx = self.metadata.pick_context(&self.format, self.cache_policy);
 
         let picked = pick_from_registry_with_guard(

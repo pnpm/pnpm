@@ -149,7 +149,11 @@ fn issued_token(response: &WebAuthFetchResponse) -> Option<String> {
     if !response.ok {
         return None;
     }
-    response.token().ok().flatten().filter(|token| !token.is_empty())
+    response
+        .token()
+        .ok()
+        .flatten()
+        .filter(|token| !token.is_empty())
 }
 
 /// Honor a 202 response's `Retry-After` header by sleeping the
@@ -176,7 +180,11 @@ where
     let remaining_ms = timeout_ms as i64
         - i64::try_from(now_after_poll.saturating_sub(start_time)).unwrap_or(i64::MAX);
     if remaining_ms <= 0 {
-        return Err(WebAuthTimeoutError::new(now_after_poll, start_time, timeout_ms));
+        return Err(WebAuthTimeoutError::new(
+            now_after_poll,
+            start_time,
+            timeout_ms,
+        ));
     }
     let sleep_ms = additional_ms.min(remaining_ms as f64);
     Sys::sleep_ms(sleep_ms as u64).await;
@@ -192,7 +200,11 @@ fn parse_js_number(value: Option<&str>) -> f64 {
         None => 0.0,
         Some(raw) => {
             let trimmed = raw.trim();
-            if trimmed.is_empty() { 0.0 } else { trimmed.parse::<f64>().unwrap_or(f64::NAN) }
+            if trimmed.is_empty() {
+                0.0
+            } else {
+                trimmed.parse::<f64>().unwrap_or(f64::NAN)
+            }
         }
     }
 }

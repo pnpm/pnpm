@@ -198,12 +198,18 @@ fn hash_config_sources(dir: &Path, hasher: &mut DefaultHasher) {
         .map(PathBuf::from)
         .or_else(|| pnpm_workspace::find_workspace_dir(dir).ok().flatten());
     if let Some(workspace_dir) = workspace_dir {
-        hash_file(&workspace_dir.join(pnpm_config::WORKSPACE_MANIFEST_FILENAME), hasher);
+        hash_file(
+            &workspace_dir.join(pnpm_config::WORKSPACE_MANIFEST_FILENAME),
+            hasher,
+        );
         hash_file(&workspace_dir.join(".npmrc"), hasher);
     }
 
     if let Some(config_dir) = pnpm_config::default_config_dir::<Host>() {
-        hash_file(&config_dir.join(pnpm_config::GLOBAL_CONFIG_YAML_FILENAME), hasher);
+        hash_file(
+            &config_dir.join(pnpm_config::GLOBAL_CONFIG_YAML_FILENAME),
+            hasher,
+        );
         hash_file(&config_dir.join("auth.ini"), hasher);
     }
     if let Some(home_dir) = Host::home_dir() {
@@ -222,14 +228,7 @@ fn hash_config_sources(dir: &Path, hasher: &mut DefaultHasher) {
         }
     }
 
-    let mut env_vars: Vec<(String, String)> = std::env::vars_os()
-        .filter_map(|(name, value)| {
-            let name = name.into_string().ok()?;
-            is_config_env_name(&name).then(|| (name, value.into_string().unwrap_or_default()))
-        })
-        .collect();
-    env_vars.sort();
-    env_vars.hash(hasher);
+    hash_config_environment(hasher);
 }
 
 fn hash_file(path: &Path, hasher: &mut DefaultHasher) {
@@ -332,3 +331,14 @@ use overlay::{
     apply_layout, apply_manifest_rewrites, apply_network_limits, apply_registries,
     apply_release_policy, apply_store_dirs, overlay_default_registry, pin_unkeyed_header,
 };
+
+fn hash_config_environment(hasher: &mut DefaultHasher) {
+    let mut env_vars: Vec<(String, String)> = std::env::vars_os()
+        .filter_map(|(name, value)| {
+            let name = name.into_string().ok()?;
+            is_config_env_name(&name).then(|| (name, value.into_string().unwrap_or_default()))
+        })
+        .collect();
+    env_vars.sort();
+    env_vars.hash(hasher);
+}

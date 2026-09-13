@@ -74,13 +74,23 @@ where
     let (all_edges, unmatched) = resolve_all_edges(&fields.dependency_lists, &lookups);
 
     let mut graph: ProjectGraph<Pkg> = IndexMap::with_capacity(count);
-    for (package, (key, dependencies)) in
-        projects.into_iter().zip(fields.node_keys.into_iter().zip(all_edges))
+    for (package, (key, dependencies)) in projects
+        .into_iter()
+        .zip(fields.node_keys.into_iter().zip(all_edges))
     {
-        graph.insert(key, ProjectGraphNode { package, dependencies });
+        graph.insert(
+            key,
+            ProjectGraphNode {
+                package,
+                dependencies,
+            },
+        );
     }
 
-    CreateProjectsGraphResult { graph, unmatched }
+    CreateProjectsGraphResult {
+        graph,
+        unmatched,
+    }
 }
 
 /// The per-project fields edge resolution reads, taken before the projects
@@ -98,8 +108,14 @@ where
     Pkg: GraphProject,
 {
     ProjectFields {
-        node_keys: projects.iter().map(|project| project.root_dir().to_path_buf()).collect(),
-        names: projects.iter().map(|project| project.manifest_name().map(str::to_string)).collect(),
+        node_keys: projects
+            .iter()
+            .map(|project| project.root_dir().to_path_buf())
+            .collect(),
+        names: projects
+            .iter()
+            .map(|project| project.manifest_name().map(str::to_string))
+            .collect(),
         versions: projects
             .iter()
             .map(|project| project.manifest_version().map(str::to_string))
@@ -138,7 +154,10 @@ fn index_by_name(names: &[Option<String>]) -> HashMap<String, Vec<usize>> {
     let mut by_name: HashMap<String, Vec<usize>> = HashMap::new();
     for (index, name) in names.iter().enumerate() {
         if let Some(name) = name {
-            by_name.entry(name.clone()).or_default().push(index);
+            by_name
+                .entry(name.clone())
+                .or_default()
+                .push(index);
         }
     }
     by_name
@@ -203,7 +222,10 @@ fn resolve_edge(
     let is_workspace_spec = raw_spec.starts_with("workspace:");
     let (effective_name, effective_spec) = if is_workspace_spec {
         let spec = WorkspaceSpec::parse(raw_spec)?;
-        (spec.alias.unwrap_or_else(|| dep_name.to_string()), spec.version)
+        (
+            spec.alias.unwrap_or_else(|| dep_name.to_string()),
+            spec.version,
+        )
     } else {
         (dep_name.to_string(), raw_spec.to_string())
     };
@@ -229,7 +251,9 @@ fn resolve_edge(
 /// by-directory index.
 fn resolve_directory(importer: usize, path: &str, lookups: &Lookups) -> Option<PathBuf> {
     let resolved = lexical_normalize(&lookups.node_keys[importer].join(path));
-    lookups.by_dir.get(&resolved).map(|&index| lookups.node_keys[index].clone())
+    lookups.by_dir
+        .get(&resolved)
+        .map(|&index| lookups.node_keys[index].clone())
 }
 
 fn resolve_by_name_version(
@@ -242,16 +266,22 @@ fn resolve_by_name_version(
     let candidates = lookups.by_name.get(dep_name)?;
 
     if lookups.link_workspace_packages == Some(false) && !is_workspace_spec {
-        unmatched.push(Unmatched { pkg_name: dep_name.to_string(), range: raw_spec.to_string() });
+        unmatched.push(Unmatched {
+            pkg_name: dep_name.to_string(),
+            range: raw_spec.to_string(),
+        });
         return None;
     }
 
-    let candidate_versions: Vec<&str> =
-        candidates.iter().filter_map(|&index| lookups.versions[index].as_deref()).collect();
+    let candidate_versions: Vec<&str> = candidates
+        .iter()
+        .filter_map(|&index| lookups.versions[index].as_deref())
+        .collect();
 
     if is_workspace_spec && candidate_versions.is_empty() {
-        let index =
-            *candidates.iter().find(|&&index| lookups.names[index].as_deref() == Some(dep_name))?;
+        let index = *candidates
+            .iter()
+            .find(|&&index| lookups.names[index].as_deref() == Some(dep_name))?;
         return Some(lookups.node_keys[index].clone());
     }
 
@@ -262,21 +292,14 @@ fn resolve_by_name_version(
         return Some(lookups.node_keys[index].clone());
     }
 
-    let owned_versions: Vec<String> =
-        candidate_versions.iter().map(|&version| version.to_string()).collect();
-    match resolve_workspace_range(raw_spec, &owned_versions) {
-        None => {
-            unmatched
-                .push(Unmatched { pkg_name: dep_name.to_string(), range: raw_spec.to_string() });
-            None
-        }
-        Some(matched) => {
-            let index = *candidates
-                .iter()
-                .find(|&&index| lookups.versions[index].as_deref() == Some(matched.as_str()))?;
-            Some(lookups.node_keys[index].clone())
-        }
-    }
+    resolve_candidate_range(
+        dep_name,
+        raw_spec,
+        &candidate_versions,
+        candidates,
+        lookups,
+        unmatched,
+    )
 }
 
 /// Classify a non-`workspace:` specifier into the three shapes
@@ -284,7 +307,10 @@ fn resolve_by_name_version(
 /// for why this is a focused check rather than a full
 /// `npm-package-arg` resolve.
 fn classify(spec: &str) -> SpecKind<'_> {
-    if let Some(rest) = spec.strip_prefix("file:").or_else(|| spec.strip_prefix("link:")) {
+    if let Some(rest) = spec
+        .strip_prefix("file:")
+        .or_else(|| spec.strip_prefix("link:"))
+    {
         return SpecKind::Directory(rest);
     }
     if is_path_like(spec) {
@@ -321,3 +347,32 @@ fn has_windows_drive_prefix(spec: &str) -> bool {
 
 #[cfg(test)]
 mod tests;
+
+fn resolve_candidate_range(
+    dep_name: &str,
+    raw_spec: &str,
+    candidate_versions: &[&str],
+    candidates: &[usize],
+    lookups: &Lookups,
+    unmatched: &mut Vec<Unmatched>,
+) -> Option<PathBuf> {
+    let owned_versions: Vec<String> = candidate_versions
+        .iter()
+        .map(|&version| version.to_string())
+        .collect();
+    match resolve_workspace_range(raw_spec, &owned_versions) {
+        None => {
+            unmatched.push(Unmatched {
+                pkg_name: dep_name.to_string(),
+                range: raw_spec.to_string(),
+            });
+            None
+        }
+        Some(matched) => {
+            let index = *candidates
+                .iter()
+                .find(|&&index| lookups.versions[index].as_deref() == Some(matched.as_str()))?;
+            Some(lookups.node_keys[index].clone())
+        }
+    }
+}

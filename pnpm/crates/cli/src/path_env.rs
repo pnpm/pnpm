@@ -40,7 +40,10 @@ pub(crate) fn prepend_dirs_to_path(dirs: &[PathBuf]) -> Result<OsString, BadPath
     for dir in dirs {
         let displayed = dir.to_string_lossy();
         if displayed.contains(PATH_DELIMITER) {
-            return Err(BadPathDir { dir: displayed.into_owned(), delimiter: PATH_DELIMITER });
+            return Err(BadPathDir {
+                dir: displayed.into_owned(),
+                delimiter: PATH_DELIMITER,
+            });
         }
         if !path.is_empty() {
             path.push(PATH_SEPARATOR);

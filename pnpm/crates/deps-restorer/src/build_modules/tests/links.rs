@@ -60,7 +60,10 @@ fn bin_dirs_nested_hoisted_pkg() {
 fn pkg_root_for_key_hoisted_missing_returns_none() {
     let dir = tempdir().unwrap();
     let mut config = Config::new();
-    config.store_dir = dir.path().join("store").into();
+    config.store_dir = dir
+        .path()
+        .join("store")
+        .into();
     config.modules_dir = dir.path().join("node_modules");
     config.virtual_store_dir = dir.path().join("node_modules/.pacquet");
     let config = config.leak();
@@ -69,6 +72,10 @@ fn pkg_root_for_key_hoisted_missing_returns_none() {
     let key: PackageKey = "absent@1.0.0".parse().expect("parse key");
     let map: HashMap<PackageKey, Vec<PathBuf>> = HashMap::new();
 
-    let result = super::super::PkgRoots { layout: &layout, by_key: Some(&map) }.canonical(&key);
+    let result = super::super::PkgRoots {
+        layout: &layout,
+        by_key: Some(&map),
+    }
+    .canonical(&key);
     assert!(result.is_none(), "absent key surfaces None, got {result:?}");
 }

@@ -21,14 +21,20 @@ fn agent_tick(root: &Path, repo: &str) -> assert_cmd::assert::Assert {
         .with_env("XDG_CACHE_HOME", root.join("xdg-cache"))
         .with_env("XDG_STATE_HOME", root.join("xdg-state"))
         .with_env("XDG_CONFIG_HOME", root.join("xdg-config"))
-        .with_args(["pipeline", "--watch", "--once", "--repo", repo, "--branch", "main"])
+        .with_args([
+            "pipeline", "--watch", "--once", "--repo", repo, "--branch", "main",
+        ])
         .assert()
 }
 
 /// The persistent checkout the agent created: the single repo directory
 /// under the agent state dir.
 fn agent_checkout(root: &Path) -> PathBuf {
-    let agents = root.join("xdg-state").join("pnpm").join("pipeline").join("agent");
+    let agents = root
+        .join("xdg-state")
+        .join("pnpm")
+        .join("pipeline")
+        .join("agent");
     let state_dir = fs::read_dir(&agents)
         .expect("agent state dir exists")
         .next()
@@ -72,28 +78,54 @@ fn watch_agent_builds_new_revisions_and_skips_quiet_ticks() {
     let tick = agent_tick(root.path(), &repo);
     let stdout = String::from_utf8_lossy(&tick.get_output().stdout).into_owned();
     tick.success();
-    assert!(stdout.contains(&format!("New revision {first}")), "unexpected output: {stdout}");
+    assert!(
+        stdout.contains(&format!("New revision {first}")),
+        "unexpected output: {stdout}",
+    );
     assert!(stdout.contains("passed"), "unexpected output: {stdout}");
-    let built = agent_checkout(root.path()).join("pkg").join("out").join("index.txt");
-    assert_eq!(fs::read_to_string(&built).expect("first build produced the output"), "v1");
+    let built = agent_checkout(root.path())
+        .join("pkg")
+        .join("out")
+        .join("index.txt");
+    assert_eq!(
+        fs::read_to_string(&built).expect("first build produced the output"),
+        "v1",
+    );
 
     // Nothing new: no build, no output change.
     let tick = agent_tick(root.path(), &repo);
     let stdout = String::from_utf8_lossy(&tick.get_output().stdout).into_owned();
     tick.success();
-    assert!(stdout.contains("main is up to date"), "unexpected output: {stdout}");
+    assert!(
+        stdout.contains("main is up to date"),
+        "unexpected output: {stdout}",
+    );
 
     // A pushed change is picked up and built.
-    fs::write(agent_checkout(root.path()).join("pkg/src/index.txt"), "dirty source").unwrap();
-    fs::write(agent_checkout(root.path()).join("pkg/new.txt"), "untracked collision").unwrap();
+    fs::write(
+        agent_checkout(root.path()).join("pkg/src/index.txt"),
+        "dirty source",
+    )
+    .unwrap();
+    fs::write(
+        agent_checkout(root.path()).join("pkg/new.txt"),
+        "untracked collision",
+    )
+    .unwrap();
     fixture.write_file("pkg/new.txt", "tracked in the next revision");
     fixture.write_file("pkg/src/index.txt", "v2");
     let second = fixture.commit("two");
     let tick = agent_tick(root.path(), &repo);
     let stdout = String::from_utf8_lossy(&tick.get_output().stdout).into_owned();
     tick.success();
-    assert!(stdout.contains(&format!("New revision {second}")), "unexpected output: {stdout}");
-    assert_eq!(fs::read_to_string(&built).expect("second build refreshed the output"), "v2");
+    assert!(
+        stdout.contains(&format!("New revision {second}")),
+        "unexpected output: {stdout}",
+    );
+    assert_eq!(
+        fs::read_to_string(&built).expect("second build refreshed the output"),
+        "v2",
+    );
 
     fixture.write_file(
         "pkg/package.json",

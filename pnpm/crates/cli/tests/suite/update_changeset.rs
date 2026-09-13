@@ -22,8 +22,11 @@ fn pacquet(workspace: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) 
 
 fn write_manifest(project_dir: &Path, manifest: impl Into<Value>) {
     fs::create_dir_all(project_dir).expect("create project directory");
-    fs::write(project_dir.join("package.json"), manifest.into().to_string())
-        .expect("write package.json");
+    fs::write(
+        project_dir.join("package.json"),
+        manifest.into().to_string(),
+    )
+    .expect("write package.json");
 }
 
 fn append_workspace_yaml(workspace: &Path, yaml: &str) {
@@ -45,11 +48,14 @@ fn write_changeset_config(workspace: &Path, config: impl Into<Value>) {
 
 fn generated_changesets(workspace: &Path) -> Vec<std::path::PathBuf> {
     let changeset_dir = workspace.join(".changeset");
-    let Ok(entries) = fs::read_dir(changeset_dir) else { return Vec::new() };
+    let Ok(entries) = fs::read_dir(changeset_dir) else {
+        return Vec::new();
+    };
     let mut paths = entries
         .map(|entry| entry.expect("read changeset entry").path())
         .filter(|path| {
-            path.file_name()
+            path
+                .file_name()
                 .and_then(OsStr::to_str)
                 .is_some_and(|name| name.starts_with("pnpm-update-") && name.ends_with(".md"))
         })
@@ -192,13 +198,19 @@ fn update_changeset_records_every_consumer_of_a_changed_catalog_entry() {
     write_changeset_config(&workspace, json!({}));
 
     pacquet(&workspace, ["-r", "install"]).assert().success();
-    pacquet(&workspace, ["--filter", "project-1", "update", "--latest", "--changeset"])
-        .assert()
-        .success();
+    pacquet(
+        &workspace,
+        ["--filter", "project-1", "update", "--latest", "--changeset"],
+    )
+    .assert()
+    .success();
 
     let workspace_yaml =
         fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace yaml");
-    assert!(workspace_yaml.contains("^101.0.0"), "unexpected catalog: {workspace_yaml}");
+    assert!(
+        workspace_yaml.contains("^101.0.0"),
+        "unexpected catalog: {workspace_yaml}",
+    );
     assert_eq!(
         generated_changeset_text(&workspace),
         "---\n\"project-1\": patch\n\"project-2\": patch\n---\n\nUpdate dependencies.\n",
@@ -247,7 +259,11 @@ fn update_changeset_warns_and_skips_when_config_is_missing() {
 
     let output =
         pacquet(&workspace, ["update", "--latest", "--changeset"]).output().expect("run update");
-    assert!(output.status.success(), "update failed: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "update failed: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
     let rendered = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
@@ -324,13 +340,19 @@ fn update_changeset_reports_malformed_config_with_a_stable_error() {
 
     let output =
         pacquet(&workspace, ["update", "--latest", "--changeset"]).output().expect("run update");
-    assert!(!output.status.success(), "malformed config must fail the update");
+    assert!(
+        !output.status.success(),
+        "malformed config must fail the update",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     // miette wraps long diagnostic lines at the terminal width, which on
     // Windows CI splits the long temp path — and the `config.json` within it —
     // across lines. Drop whitespace and the box-drawing continuation marker so
     // the substring check doesn't depend on where the wrap lands.
-    let unwrapped: String = stderr.chars().filter(|&c| !c.is_whitespace() && c != '│').collect();
+    let unwrapped: String = stderr
+        .chars()
+        .filter(|&c| !c.is_whitespace() && c != '│')
+        .collect();
     assert!(
         unwrapped.contains("ERR_PNPM_INVALID_CHANGESET_CONFIG")
             && unwrapped.contains("config.json"),
@@ -359,9 +381,15 @@ fn update_changeset_refuses_a_symlinked_changeset_directory() {
 
     let output =
         pacquet(&workspace, ["update", "--latest", "--changeset"]).output().expect("run update");
-    assert!(!output.status.success(), "symlinked changeset directory must fail the update");
+    assert!(
+        !output.status.success(),
+        "symlinked changeset directory must fail the update",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_UNSAFE_CHANGESET_DIR"), "unexpected error: {stderr}");
+    assert!(
+        stderr.contains("ERR_PNPM_UNSAFE_CHANGESET_DIR"),
+        "unexpected error: {stderr}",
+    );
     assert_eq!(
         fs::read_dir(&outside_changeset_dir).expect("read outside changeset directory").count(),
         1,

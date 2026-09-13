@@ -76,8 +76,15 @@ fn load_trusted_shim_settings() -> Result<TrustedShimSettings, LoadGlobalShimsSe
     apply_settings_above_global_config(&mut shims)?;
     let mut env_settings = WorkspaceSettings::from_pnpm_config_env::<Host>();
     env_settings.substitute_env_trusted::<Host>();
-    apply_state_dir_setting(&mut state_dir, env_settings.state_dir.as_deref(), &default_state_dir);
-    Ok(TrustedShimSettings { shims, state_dir })
+    apply_state_dir_setting(
+        &mut state_dir,
+        env_settings.state_dir.as_deref(),
+        &default_state_dir,
+    );
+    Ok(TrustedShimSettings {
+        shims,
+        state_dir,
+    })
 }
 
 pub(super) fn apply_state_dir_setting(
@@ -85,7 +92,9 @@ pub(super) fn apply_state_dir_setting(
     setting: Option<&str>,
     default_state_dir: &Path,
 ) {
-    let Some(setting) = setting.filter(|setting| !setting.is_empty()) else { return };
+    let Some(setting) = setting.filter(|setting| !setting.is_empty()) else {
+        return;
+    };
     *state_dir = resolve_configured_state_dir(default_state_dir, setting);
 }
 
@@ -109,9 +118,12 @@ pub(crate) fn apply_settings_above_global_config(
         if let Ok(value) = std::env::var(env_name)
             && !value.is_empty()
         {
-            let layer = serde_json::from_str::<GlobalShimsSetting>(&value).map_err(|source| {
-                LoadGlobalShimsSettingError::Environment { env_name, value, source }
-            })?;
+            let layer = serde_json::from_str::<GlobalShimsSetting>(&value)
+                .map_err(|source| LoadGlobalShimsSettingError::Environment {
+                    env_name,
+                    value,
+                    source,
+                })?;
             shims.apply(&layer);
             break;
         }
@@ -130,37 +142,14 @@ pub(super) fn validate_candidate(
     package: &str,
     name: &str,
 ) -> Option<Candidate> {
-    match candidate {
-        Candidate::LocalBin { project_dir, bin, .. } => {
-            let local = local_bin_identity(&bin, name)?;
-            (local.provider.name == package).then_some(Candidate::LocalBin {
-                project_dir,
-                bin,
-                identity: local.fingerprint,
-            })
-        }
-        Candidate::RuntimePin { project_dir, version_spec, manifest_hash, .. } => (package == name)
-            .then(|| Candidate::RuntimePin {
-                project_dir,
-                identity: create_hex_hash(&format!(
-                    "runtime\0{name}\0{version_spec}\0{manifest_hash}",
-                )),
-                version_spec,
-                manifest_hash,
-            }),
-        Candidate::PackageManagerPin { project_dir, pm, version_spec, manifest_hash, .. } => {
-            (package == pm.name()).then(|| Candidate::PackageManagerPin {
-                project_dir,
-                identity: create_hex_hash(&format!(
-                    "package-manager\0{}\0{version_spec}\0{manifest_hash}",
-                    pm.name(),
-                )),
-                pm,
-                version_spec,
-                manifest_hash,
-            })
-        }
+    let identity = candidate_identity(&candidate, package, name)?;
+    let mut candidate = candidate;
+    match &mut candidate {
+        Candidate::LocalBin { identity: target, .. }
+        | Candidate::RuntimePin { identity: target, .. }
+        | Candidate::PackageManagerPin { identity: target, .. } => *target = identity,
     }
+    Some(candidate)
 }
 
 /// The version a project's `package.json` pins for the package manager
@@ -238,7 +227,10 @@ fn runtime_entries<'manifest>(
     manifest: &'manifest Value,
     engines_field: &str,
 ) -> Vec<&'manifest Value> {
-    let Some(runtime) = manifest.get(engines_field).and_then(|field| field.get("runtime")) else {
+    let Some(runtime) = manifest
+        .get(engines_field)
+        .and_then(|field| field.get("runtime"))
+    else {
         return Vec::new();
     };
     match runtime {
@@ -250,7 +242,10 @@ fn runtime_entries<'manifest>(
 /// The version an entry pins, when it names `name` and pins one at all.
 fn runtime_entry_version(entry: &Value, name: &str) -> Option<String> {
     (entry.get("name").and_then(Value::as_str) == Some(name)).then_some(())?;
-    let version = entry.get("version").and_then(Value::as_str)?.trim();
+    let version = entry
+        .get("version")
+        .and_then(Value::as_str)?
+        .trim();
     (!version.is_empty()).then(|| version.to_string())
 }
 
@@ -259,7 +254,29 @@ fn runtime_entry_version(entry: &Value, name: &str) -> Option<String> {
 /// `pnpm-workspace.yaml` can redirect the store the executable comes from.
 pub(super) fn trusted_package_manager_config(state_dir: &Path) -> miette::Result<Config> {
     if state_dir.as_os_str().is_empty() {
-        return Err(miette::miette!("the pnpm state directory could not be resolved"));
+        return Err(miette::miette!(
+            "the pnpm state directory could not be resolved"
+        ));
     }
     trusted_runtime_config(&state_dir.join(PACKAGE_MANAGER_ENVS_DIR_NAME))
+}
+
+fn candidate_identity(candidate: &Candidate, package: &str, name: &str) -> Option<String> {
+    match candidate {
+        Candidate::LocalBin { bin, .. } => {
+            let local = local_bin_identity(bin, name)?;
+            (local.provider.name == package).then_some(local.fingerprint)
+        }
+        Candidate::RuntimePin { version_spec, manifest_hash, .. } => (package == name).then(|| {
+            create_hex_hash(&format!("runtime\0{name}\0{version_spec}\0{manifest_hash}"))
+        }),
+        Candidate::PackageManagerPin { pm, version_spec, manifest_hash, .. } => {
+            (package == pm.name()).then(|| {
+                create_hex_hash(&format!(
+                    "package-manager\0{}\0{version_spec}\0{manifest_hash}",
+                    pm.name(),
+                ))
+            })
+        }
+    }
 }

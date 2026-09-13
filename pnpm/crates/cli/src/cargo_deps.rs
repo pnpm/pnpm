@@ -1,5 +1,4 @@
 pub(crate) mod add;
-
 pub(crate) use lockfile::workspace_root;
 pub(crate) use sparse_registry::{cargo_auth_headers, latest_version};
 
@@ -82,7 +81,10 @@ pub(crate) async fn plan<Reporter: self::Reporter + 'static>(
 ) -> Result<InstallTask<'static>> {
     let roots =
         discover_workspace_roots(inventory.manifests(EcosystemManifest::Cargo).await?).await?;
-    let metadata = roots.iter().flat_map(|root| metadata_paths(root)).collect();
+    let metadata = roots
+        .iter()
+        .flat_map(|root| metadata_paths(root))
+        .collect();
     Ok(InstallTask::new(
         metadata,
         prepare::<Reporter>(context, roots, CargoLockfilePolicy::UseExisting),
@@ -98,7 +100,12 @@ pub(crate) async fn prepare<Reporter: self::Reporter + 'static>(
     roots: Vec<PathBuf>,
     lockfile_policy: CargoLockfilePolicy,
 ) -> Result<Vec<Prepared>> {
-    let InstallContext { config, http_client, lockfile_only, frozen_lockfile } = context;
+    let InstallContext {
+        config,
+        http_client,
+        lockfile_only,
+        frozen_lockfile,
+    } = context;
     let mut prepared = stream::iter(roots)
         .map(|root| {
             let http_client = Arc::clone(&http_client);
@@ -279,7 +286,12 @@ fn update_managed_config(
         }
         (Some(start), Some(end)) if start <= end => {
             let after = end + MANAGED_END.len();
-            Ok(format!("{}{}{}", &existing[..start], managed_config, &existing[after..]))
+            Ok(format!(
+                "{}{}{}",
+                &existing[..start],
+                managed_config,
+                &existing[after..],
+            ))
         }
         _ => Err(miette::miette!(
             ".cargo/config.toml contains an incomplete pnpm-managed Cargo source block"
@@ -301,11 +313,13 @@ fn managed_config(index_url: &str, git_sources: &[GitSource]) -> String {
     };
     if !git_sources.is_empty() {
         let git = GIT_SOURCE_DIRECTORY.join("/");
-        let blocks = git_sources.iter().fold(String::new(), |mut blocks, source| {
-            blocks.push('\n');
-            blocks.push_str(&source.config_block());
-            blocks
-        });
+        let blocks = git_sources
+            .iter()
+            .fold(String::new(), |mut blocks, source| {
+                blocks.push('\n');
+                blocks.push_str(&source.config_block());
+                blocks
+            });
         body = format!("{body}\n[source.{GIT_SOURCE_NAME}]\ndirectory = \"{git}\"\n{blocks}");
     }
     format!("{MANAGED_START}\n{body}{MANAGED_END}")
@@ -327,9 +341,12 @@ async fn prepare_workspace_slots<Reporter: self::Reporter + 'static>(
     let logged_methods = Arc::new(AtomicU8::new(0));
     let store_dir = &config.store_dir;
     if !packages.crates.is_empty() || !packages.git.is_empty() {
-        store_dir.init().into_diagnostic().wrap_err_with(|| {
-            format!("initialize cargo package store at {}", store_dir.display())
-        })?;
+        store_dir
+            .init()
+            .into_diagnostic()
+            .wrap_err_with(|| {
+                format!("initialize cargo package store at {}", store_dir.display())
+            })?;
     }
     let crates = download_crates::<Reporter>(DownloadOptions {
         config,
@@ -350,7 +367,11 @@ async fn prepare_workspace_slots<Reporter: self::Reporter + 'static>(
     })
     .await?;
 
-    Ok(WorkspaceSlots { crates, git, git_sources })
+    Ok(WorkspaceSlots {
+        crates,
+        git,
+        git_sources,
+    })
 }
 
 mod workspace_directory;

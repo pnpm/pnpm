@@ -50,14 +50,19 @@ impl AccessSpec {
             validate_access_token(entry)?;
             tokens.push(match entry.strip_prefix("team:") {
                 Some(team) => {
-                    let members = teams.get(team).ok_or_else(|| {
-                        format!(
-                            "access token {entry:?} references a team this registry does not \
+                    let members = teams
+                        .get(team)
+                        .ok_or_else(|| {
+                            format!(
+                                "access token {entry:?} references a team this registry does not \
                              declare{}",
-                            declared_teams(teams),
-                        )
-                    })?;
-                    AccessToken::Team { name: team.to_string(), members: members.clone() }
+                                declared_teams(teams),
+                            )
+                        })?;
+                    AccessToken::Team {
+                        name: team.to_string(),
+                        members: members.clone(),
+                    }
                 }
                 None => AccessToken::from(entry.as_str()),
             });
@@ -90,7 +95,11 @@ pub(super) fn declared_teams(teams: &Teams) -> String {
     if teams.is_empty() {
         return " (it declares no `teams:`)".to_string();
     }
-    let names = teams.keys().map(|name| format!("{name:?}")).collect::<Vec<_>>().join(", ");
+    let names = teams
+        .keys()
+        .map(|name| format!("{name:?}"))
+        .collect::<Vec<_>>()
+        .join(", ");
     format!("; its declared teams are {names}")
 }
 
@@ -102,15 +111,24 @@ pub(super) fn build_teams(
 ) -> Result<Teams, RegistryError> {
     let mut teams = Teams::default();
     for (team, members) in file {
-        validate_team_name(team).map_err(|reason| RegistryError::InvalidConfig {
-            reason: format!("registry {registry:?} has an invalid team name: {reason}"),
-        })?;
-        let members = members.member_names().map_err(|reason| RegistryError::InvalidConfig {
-            reason: format!(
-                "registry {registry:?} team {team:?} has an invalid member list: {reason}",
-            ),
-        })?;
-        teams.insert(team.clone(), members.iter().cloned().collect());
+        validate_team_name(team)
+            .map_err(|reason| RegistryError::InvalidConfig {
+                reason: format!("registry {registry:?} has an invalid team name: {reason}"),
+            })?;
+        let members = members
+            .member_names()
+            .map_err(|reason| RegistryError::InvalidConfig {
+                reason: format!(
+                    "registry {registry:?} team {team:?} has an invalid member list: {reason}",
+                ),
+            })?;
+        teams.insert(
+            team.clone(),
+            members
+                .iter()
+                .cloned()
+                .collect(),
+        );
     }
     Ok(teams)
 }
@@ -172,11 +190,13 @@ pub(super) fn validate_access_token(token: &str) -> Result<(), String> {
     }
     if let Some((kind, name)) = token.split_once(':') {
         return match kind {
-            "team" if name.contains(':') => {
-                Err(format!("access token {token:?} is malformed; a team name cannot contain `:`"))
-            }
+            "team" if name.contains(':') => Err(format!(
+                "access token {token:?} is malformed; a team name cannot contain `:`",
+            )),
             "team" if !name.is_empty() => Ok(()),
-            "team" => Err(format!("access token {token:?} names no team; write `team:<name>`")),
+            "team" => Err(format!(
+                "access token {token:?} names no team; write `team:<name>`",
+            )),
             "group" | "groups" => Err(format!(
                 "unknown access token type {kind:?} in {token:?}; teams are declared per \
                  registry — did you mean \"team:{name}\"?",
@@ -189,7 +209,9 @@ pub(super) fn validate_access_token(token: &str) -> Result<(), String> {
     }
     let bare = token.strip_prefix('@').unwrap_or(token);
     if matches!(bare, "all" | "authenticated" | "anonymous") {
-        return Err(format!(r#"unknown access token {token:?}; did you mean "${bare}"?"#));
+        return Err(format!(
+            r#"unknown access token {token:?}; did you mean "${bare}"?"#,
+        ));
     }
     Ok(())
 }

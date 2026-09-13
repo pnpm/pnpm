@@ -44,16 +44,19 @@ async fn upstream_endpoint_preserves_and_serves_revision_tarballs() {
 
     let tmp = TempDir::new().unwrap();
     let mut config = upstream_endpoint_config(&upstream.url(), tmp.path().to_path_buf(), "alice");
-    config
-        .routing
-        .upstreams
+    config.routing.upstreams
         .get_mut("npmjs")
         .unwrap()
         .headers
         .insert("x-upstream-auth", HeaderValue::from_static("secret"));
     config.routing.registries = Registries::new(
-        std::iter::once(("npmjs".to_string(), Registry::Upstream { patterns: Vec::new() }))
-            .collect(),
+        std::iter::once((
+            "npmjs".to_string(),
+            Registry::Upstream {
+                patterns: Vec::new(),
+            },
+        ))
+        .collect(),
         Some("npmjs".to_string()),
     );
     let auth = AuthState::in_memory();
@@ -79,7 +82,10 @@ async fn upstream_endpoint_preserves_and_serves_revision_tarballs() {
         format!("http://example.test/~npmjs/{revision_path}"),
     );
 
-    for path in [format!("/~npmjs/{revision_path}"), format!("/{revision_path}")] {
+    for path in [
+        format!("/~npmjs/{revision_path}"),
+        format!("/{revision_path}"),
+    ] {
         let response = app
             .clone()
             .oneshot(
@@ -91,7 +97,13 @@ async fn upstream_endpoint_preserves_and_serves_revision_tarballs() {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK, "{path}");
-        assert_eq!(response.headers().get(header::CACHE_CONTROL).unwrap(), "private, no-store");
+        assert_eq!(
+            response
+                .headers()
+                .get(header::CACHE_CONTROL)
+                .unwrap(),
+            "private, no-store",
+        );
         assert_eq!(body_bytes(response.into_body()).await, bytes);
     }
 
@@ -111,7 +123,11 @@ async fn upstream_revision_tarball_does_not_follow_redirects() {
         .expect(1)
         .create_async()
         .await;
-    let redirected = upstream.mock("GET", "/redirected.tgz").expect(0).create_async().await;
+    let redirected = upstream
+        .mock("GET", "/redirected.tgz")
+        .expect(0)
+        .create_async()
+        .await;
 
     let tmp = TempDir::new().unwrap();
     let config = upstream_endpoint_config(&upstream.url(), tmp.path().to_path_buf(), "alice");
@@ -138,18 +154,28 @@ async fn revision_tarballs_require_a_concrete_registry_without_package_access_ru
     let mut upstream = mockito::Server::new_async().await;
     let integrity = sha512_integrity(b"unreachable revision tarball").parse().unwrap();
     let revision_path = integrity_addressed_tarball_path(&integrity).unwrap();
-    let tarball =
-        upstream.mock("GET", format!("/{revision_path}").as_str()).expect(0).create_async().await;
+    let tarball = upstream
+        .mock("GET", format!("/{revision_path}").as_str())
+        .expect(0)
+        .create_async()
+        .await;
 
     let tmp = TempDir::new().unwrap();
     let router_app = router_with_auth(
         router_config(&upstream.url(), &upstream.url(), tmp.path().join("router")),
         AuthState::in_memory(),
     );
-    for path in [format!("/~main/{revision_path}"), format!("/{revision_path}")] {
+    for path in [
+        format!("/~main/{revision_path}"),
+        format!("/{revision_path}"),
+    ] {
         let response = router_app
             .clone()
-            .oneshot(Request::get(path).body(Body::empty()).unwrap())
+            .oneshot(
+                Request::get(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
@@ -159,7 +185,11 @@ async fn revision_tarballs_require_a_concrete_registry_without_package_access_ru
     config.routing.upstreams.get_mut("npmjs").unwrap().rules =
         PackageRules::new(vec![access_rule("restricted", "$authenticated")], None);
     let response = router_with_auth(config, AuthState::in_memory())
-        .oneshot(Request::get(format!("/~npmjs/{revision_path}")).body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get(format!("/~npmjs/{revision_path}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);

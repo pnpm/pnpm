@@ -11,13 +11,19 @@ fn key(pkg_id: &str) -> String {
 
 #[test]
 fn matching_name_and_version_is_no_mismatch() {
-    assert_eq!(pkg_content_mismatch(Some(&manifest("foo", "1.0.0")), &key("foo@1.0.0")), None);
+    assert_eq!(
+        pkg_content_mismatch(Some(&manifest("foo", "1.0.0")), &key("foo@1.0.0")),
+        None,
+    );
 }
 
 #[test]
 fn scoped_names_split_at_the_version_separator() {
     assert_eq!(
-        pkg_content_mismatch(Some(&manifest("@scope/foo", "1.0.0")), &key("@scope/foo@1.0.0")),
+        pkg_content_mismatch(
+            Some(&manifest("@scope/foo", "1.0.0")),
+            &key("@scope/foo@1.0.0")
+        ),
         None,
     );
 }
@@ -40,12 +46,18 @@ fn a_different_version_mismatches() {
 
 #[test]
 fn names_are_compared_case_insensitively() {
-    assert_eq!(pkg_content_mismatch(Some(&manifest("Foo", "1.0.0")), &key("foo@1.0.0")), None);
+    assert_eq!(
+        pkg_content_mismatch(Some(&manifest("Foo", "1.0.0")), &key("foo@1.0.0")),
+        None,
+    );
 }
 
 #[test]
 fn versions_are_compared_as_semver() {
-    assert_eq!(pkg_content_mismatch(Some(&manifest("foo", "v1.0.0")), &key("foo@1.0.0")), None);
+    assert_eq!(
+        pkg_content_mismatch(Some(&manifest("foo", "v1.0.0")), &key("foo@1.0.0")),
+        None,
+    );
 }
 
 /// A field the manifest does not state cannot disagree with the key,
@@ -54,12 +66,17 @@ fn versions_are_compared_as_semver() {
 #[test]
 fn an_absent_manifest_field_is_not_compared() {
     assert_eq!(
-        pkg_content_mismatch(Some(&serde_json::json!({ "name": "foo" })), &key("foo@1.0.0")),
+        pkg_content_mismatch(
+            Some(&serde_json::json!({ "name": "foo" })),
+            &key("foo@1.0.0")
+        ),
         None,
     );
-    let mismatch =
-        pkg_content_mismatch(Some(&serde_json::json!({ "name": "bar" })), &key("foo@1.0.0"))
-            .expect("the name still disagrees");
+    let mismatch = pkg_content_mismatch(
+        Some(&serde_json::json!({ "name": "bar" })),
+        &key("foo@1.0.0"),
+    )
+    .expect("the name still disagrees");
     assert_eq!(mismatch.actual, "bar@undefined");
 }
 
@@ -76,7 +93,10 @@ fn a_row_without_a_manifest_is_not_checked() {
 /// the version behind it.
 #[test]
 fn a_registry_qualified_key_is_compared_against_the_version_it_qualifies() {
-    assert_eq!(pkg_content_mismatch(Some(&manifest("foo", "1.0.0")), &key("foo@work:1.0.0")), None);
+    assert_eq!(
+        pkg_content_mismatch(Some(&manifest("foo", "1.0.0")), &key("foo@work:1.0.0")),
+        None,
+    );
     let mismatch = pkg_content_mismatch(Some(&manifest("bar", "1.0.0")), &key("foo@work:1.0.0"))
         .expect("a row holding another package must be reported");
     assert_eq!(mismatch.expected, "foo@1.0.0");

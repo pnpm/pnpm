@@ -12,6 +12,9 @@ pub mod multipart;
 
 pub use pnpr_package_name::PythonNameError as NameError;
 
+pub use upload::parse_upload;
+mod upload;
+
 use derive_more::{Display, Error};
 use pep440_rs::Version;
 use pnpr_package_name::canonicalize_python_name;
@@ -61,7 +64,9 @@ pub struct VersionError {
 pub fn normalize_version(raw: &str) -> Result<String, VersionError> {
     Version::from_str(raw)
         .map(|version| version.to_string())
-        .map_err(|_| VersionError { version: raw.to_string() })
+        .map_err(|_| VersionError {
+            version: raw.to_string(),
+        })
 }
 
 /// Whether a file has been yanked (PEP 592): a flag, or the reason.
@@ -131,7 +136,10 @@ pub struct ProjectDocument {
 impl ProjectDocument {
     #[must_use]
     pub fn new(name: &str) -> Self {
-        Self { name: name.to_string(), files: Vec::new() }
+        Self {
+            name: name.to_string(),
+            files: Vec::new(),
+        }
     }
 
     pub fn parse(bytes: &[u8]) -> Result<Self, serde_json::Error> {
@@ -145,7 +153,9 @@ impl ProjectDocument {
 
     #[must_use]
     pub fn file(&self, filename: &str) -> Option<&ProjectFile> {
-        self.files.iter().find(|file| file.filename == filename)
+        self.files
+            .iter()
+            .find(|file| file.filename == filename)
     }
 
     /// The distinct versions the listed files belong to, oldest first, for
@@ -153,23 +163,24 @@ impl ProjectDocument {
     /// skipped rather than failing the page.
     #[must_use]
     pub fn versions(&self) -> Vec<String> {
-        let mut versions: Vec<Version> = self
-            .files
+        let mut versions: Vec<Version> = self.files
             .iter()
             .filter_map(|file| parse_distribution_filename(&file.filename).ok())
             .filter_map(|distribution| Version::from_str(&distribution.version).ok())
             .collect();
         versions.sort();
         versions.dedup();
-        versions.iter().map(ToString::to_string).collect()
+        versions
+            .iter()
+            .map(ToString::to_string)
+            .collect()
     }
 
     /// The PEP 691 JSON page, with every file served from
     /// `<file_base>/<filename>`.
     #[must_use]
     pub fn render_json(&self, file_base: &str) -> Value {
-        let files: Vec<Value> = self
-            .files
+        let files: Vec<Value> = self.files
             .iter()
             .map(|file| {
                 let mut entry = json!({
@@ -217,7 +228,11 @@ impl ProjectDocument {
             }
             let _ = write!(html, r#"<a href="{}""#, escape_html(&href));
             if let Some(requires_python) = &file.requires_python {
-                let _ = write!(html, r#" data-requires-python="{}""#, escape_html(requires_python));
+                let _ = write!(
+                    html,
+                    r#" data-requires-python="{}""#,
+                    escape_html(requires_python),
+                );
             }
             match &file.yanked {
                 Yanked::Flag(false) => {}
@@ -234,14 +249,21 @@ impl ProjectDocument {
 }
 
 fn file_url(file_base: &str, filename: &str) -> String {
-    format!("{}/{}", file_base.trim_end_matches('/'), pnpm_network::encode_uri_component(filename))
+    format!(
+        "{}/{}",
+        file_base.trim_end_matches('/'),
+        pnpm_network::encode_uri_component(filename),
+    )
 }
 
 /// The PEP 691 JSON project list, with every project page at
 /// `<simple_base>/<name>/`.
 #[must_use]
 pub fn render_project_list_json<'name>(names: impl IntoIterator<Item = &'name str>) -> Value {
-    let projects: Vec<Value> = names.into_iter().map(|name| json!({ "name": name })).collect();
+    let projects: Vec<Value> = names
+        .into_iter()
+        .map(|name| json!({ "name": name }))
+        .collect();
     json!({ "meta": { "api-version": API_VERSION }, "projects": projects })
 }
 
@@ -306,9 +328,10 @@ pub fn wants_json(accept: Option<&str>) -> bool {
 #[must_use]
 pub fn wants_versioned_html(accept: Option<&str>) -> bool {
     accept.is_some_and(|accept| {
-        quality(accept, HTML_CONTENT_TYPE).is_some_and(|quality| {
-            quality > 0.0 && quality >= media_quality(accept, "text/html").unwrap_or(0.0)
-        })
+        quality(accept, HTML_CONTENT_TYPE)
+            .is_some_and(|quality| {
+                quality > 0.0 && quality >= media_quality(accept, "text/html").unwrap_or(0.0)
+            })
     })
 }
 
@@ -343,7 +366,9 @@ fn quality(accept: &str, media: &str) -> Option<f32> {
                 });
             Some(weight)
         })
-        .fold(None, |best: Option<f32>, q| Some(best.map_or(q, |best| best.max(q))))
+        .fold(None, |best: Option<f32>, q| {
+            Some(best.map_or(q, |best| best.max(q)))
+        })
 }
 
 /// The kind of distribution a filename denotes.
@@ -374,7 +399,9 @@ pub struct FilenameError {
 /// (`name-version.tar.gz` / `.zip`) filename. The name is normalized and
 /// the version must be PEP 440.
 pub fn parse_distribution_filename(filename: &str) -> Result<Distribution, FilenameError> {
-    let invalid = || FilenameError { filename: filename.to_string() };
+    let invalid = || FilenameError {
+        filename: filename.to_string(),
+    };
     if filename.contains(['/', '\\']) {
         return Err(invalid());
     }
@@ -384,8 +411,9 @@ pub fn parse_distribution_filename(filename: &str) -> Result<Distribution, Filen
             return Err(invalid());
         }
         (parts[0], parts[1], DistributionKind::Wheel)
-    } else if let Some(stem) =
-        filename.strip_suffix(".tar.gz").or_else(|| filename.strip_suffix(".zip"))
+    } else if let Some(stem) = filename
+        .strip_suffix(".tar.gz")
+        .or_else(|| filename.strip_suffix(".zip"))
     {
         let (name, version) = stem.rsplit_once('-').ok_or_else(invalid)?;
         (name, version, DistributionKind::Sdist)
@@ -394,7 +422,11 @@ pub fn parse_distribution_filename(filename: &str) -> Result<Distribution, Filen
     };
     let name = normalize_name(name).map_err(|_| invalid())?;
     Version::from_str(version).map_err(|_| invalid())?;
-    Ok(Distribution { name, version: version.to_string(), kind })
+    Ok(Distribution {
+        name,
+        version: version.to_string(),
+        kind,
+    })
 }
 
 /// A legacy-API upload request that cannot be accepted.
@@ -424,44 +456,6 @@ pub struct Upload {
     pub content: Vec<u8>,
     pub sha256_digest: Option<String>,
     pub requires_python: Option<String>,
-}
-
-/// Read a legacy-API upload out of its parsed `multipart/form-data` parts.
-pub fn parse_upload(parts: Vec<multipart::FormPart>) -> Result<Upload, UploadError> {
-    let mut fields: BTreeMap<String, multipart::FormPart> = BTreeMap::new();
-    for part in parts {
-        fields.entry(part.name.clone()).or_insert(part);
-    }
-    let text = |fields: &BTreeMap<String, multipart::FormPart>, name: &'static str| {
-        fields
-            .get(name)
-            .map(|part| {
-                String::from_utf8(part.data.clone()).map_err(|_| UploadError::NotText(name))
-            })
-            .transpose()
-    };
-    if text(&fields, ":action")?.as_deref() != Some("file_upload") {
-        return Err(UploadError::NotAFileUpload);
-    }
-    if text(&fields, "protocol_version")?.is_some_and(|version| version != "1") {
-        return Err(UploadError::UnsupportedProtocolVersion);
-    }
-    let name = text(&fields, "name")?.ok_or(UploadError::MissingField("name"))?;
-    let version = text(&fields, "version")?.ok_or(UploadError::MissingField("version"))?;
-    let filetype = text(&fields, "filetype")?.ok_or(UploadError::MissingField("filetype"))?;
-    let sha256_digest = text(&fields, "sha256_digest")?.filter(|digest| !digest.is_empty());
-    let requires_python = text(&fields, "requires_python")?.filter(|value| !value.is_empty());
-    let content = fields.remove("content").ok_or(UploadError::MissingField("content"))?;
-    let filename = content.filename.ok_or(UploadError::MissingFilename)?;
-    Ok(Upload {
-        name,
-        version,
-        filetype,
-        filename,
-        content: content.data,
-        sha256_digest: sha256_digest.map(|digest| digest.to_ascii_lowercase()),
-        requires_python,
-    })
 }
 
 #[cfg(test)]

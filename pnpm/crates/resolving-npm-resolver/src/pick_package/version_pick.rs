@@ -104,7 +104,9 @@ pub(super) fn filter_blocked_versions(
     if blocked_versions.is_empty() {
         return meta;
     }
-    Arc::new(filter_pkg_metadata_versions(&meta, |version| !blocked_versions.contains(version)))
+    Arc::new(filter_pkg_metadata_versions(&meta, |version| {
+        !blocked_versions.contains(version)
+    }))
 }
 
 /// Picker used at terminal return sites where there's no further

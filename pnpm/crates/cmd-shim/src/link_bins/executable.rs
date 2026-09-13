@@ -29,7 +29,10 @@ pub(super) fn chmod_tolerating_removal(
     match chmod(path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(LinkBinsError::Chmod { path: path.to_path_buf(), error }),
+        Err(error) => Err(LinkBinsError::Chmod {
+            path: path.to_path_buf(),
+            error,
+        }),
     }
 }
 
@@ -42,29 +45,20 @@ pub(super) fn chmod_tolerating_removal(
 /// `dir` must already be symlink-free — [`shim_node_path`](super::shim_node_path) passes the
 /// caller-resolved location or a canonicalized fallback.
 pub(super) fn bin_node_paths(dir: &Path) -> Vec<String> {
-    let Some(node_modules_dir) = dir.ancestors().find(|ancestor| {
-        ancestor.file_name().is_some_and(|name| name == "node_modules")
-            && ancestor
-                .parent()
-                .and_then(Path::file_name)
-                .is_none_or(|parent_name| parent_name != "node_modules")
-    }) else {
+    let Some(node_modules_dir) = dir
+        .ancestors()
+        .find(|ancestor| is_node_modules_dir(ancestor))
+    else {
         return Vec::new();
     };
     let mut result = Vec::new();
-    if let Ok(rel) = dir.strip_prefix(node_modules_dir)
-        && let Some(first) = rel.components().next()
-    {
-        let first_name = first.as_os_str().to_string_lossy();
-        let pkg_dir = if first_name.starts_with('@') {
-            match rel.components().nth(1) {
-                Some(second) => node_modules_dir.join(first).join(second.as_os_str()),
-                None => node_modules_dir.join(first),
-            }
-        } else {
-            node_modules_dir.join(first)
-        };
-        result.push(pkg_dir.join("node_modules").to_string_lossy().into_owned());
+    if let Some(pkg_dir) = package_dir(dir, node_modules_dir) {
+        result.push(
+            pkg_dir
+                .join("node_modules")
+                .to_string_lossy()
+                .into_owned(),
+        );
     }
     result.push(node_modules_dir.to_string_lossy().into_owned());
     result
@@ -74,7 +68,12 @@ pub(super) fn bin_node_paths(dir: &Path) -> Vec<String> {
 /// node-runtime short-circuit in [`write_shim`](super::shim_writer::write_shim). Lifted out so the check
 /// is unit-testable and the call site reads as a predicate.
 pub(super) fn is_node_bin_name(shim_path: &Path) -> bool {
-    matches!(shim_path.file_name().and_then(|s| s.to_str()), Some("node"))
+    matches!(
+        shim_path
+            .file_name()
+            .and_then(|s| s.to_str()),
+        Some("node"),
+    )
 }
 
 /// Link the node runtime binary `target_path` into the bin slot
@@ -103,11 +102,12 @@ pub(super) fn is_node_bin_name(shim_path: &Path) -> bool {
 pub(super) fn link_node_bin(target_path: &Path, shim_path: &Path) -> Result<bool, LinkBinsError> {
     use std::os::unix::fs::symlink;
     remove_stale_bin(shim_path)?;
-    symlink(target_path, shim_path).map_err(|error| LinkBinsError::LinkNodeBin {
-        src: target_path.to_path_buf(),
-        dst: shim_path.to_path_buf(),
-        error,
-    })?;
+    symlink(target_path, shim_path)
+        .map_err(|error| LinkBinsError::LinkNodeBin {
+            src: target_path.to_path_buf(),
+            dst: shim_path.to_path_buf(),
+            error,
+        })?;
     Ok(true)
 }
 
@@ -129,11 +129,12 @@ pub(super) fn link_node_bin(target_path: &Path, shim_path: &Path) -> Result<bool
     }
     remove_stale_bin(&exe_path)?;
     if fs::hard_link(target_path, &exe_path).is_err() {
-        fs::copy(target_path, &exe_path).map_err(|error| LinkBinsError::LinkNodeBin {
-            src: target_path.to_path_buf(),
-            dst: exe_path,
-            error,
-        })?;
+        fs::copy(target_path, &exe_path)
+            .map_err(|error| LinkBinsError::LinkNodeBin {
+                src: target_path.to_path_buf(),
+                dst: exe_path,
+                error,
+            })?;
     }
     Ok(true)
 }
@@ -171,16 +172,19 @@ where
         ensure_target_executable::<Sys>(target_path)?;
         return Ok(true);
     }
-    let link_target = shim_path.parent().map_or_else(
-        || target_path.to_path_buf(),
-        |bins_dir| pnpm_fs::relative_path(bins_dir, target_path),
-    );
+    let link_target = shim_path
+        .parent()
+        .map_or_else(
+            || target_path.to_path_buf(),
+            |bins_dir| pnpm_fs::relative_path(bins_dir, target_path),
+        );
     remove_stale_bin(shim_path)?;
-    symlink(&link_target, shim_path).map_err(|error| LinkBinsError::SymlinkBin {
-        src: target_path.to_path_buf(),
-        dst: shim_path.to_path_buf(),
-        error,
-    })?;
+    symlink(&link_target, shim_path)
+        .map_err(|error| LinkBinsError::SymlinkBin {
+            src: target_path.to_path_buf(),
+            dst: shim_path.to_path_buf(),
+            error,
+        })?;
     match Sys::ensure_executable_bits(target_path) {
         Ok(()) => {}
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
@@ -195,7 +199,10 @@ where
             );
         }
         Err(error) => {
-            return Err(LinkBinsError::Chmod { path: target_path.to_path_buf(), error });
+            return Err(LinkBinsError::Chmod {
+                path: target_path.to_path_buf(),
+                error,
+            });
         }
     }
     Ok(true)
@@ -236,9 +243,10 @@ pub(super) fn symlink_already_points_at(shim_path: &Path, target_path: &Path) ->
 /// byte-identical copy as the same file.
 #[cfg(windows)]
 fn is_same_file(a: &Path, b: &Path) -> bool {
-    if let (Ok(handle_a), Ok(handle_b)) =
-        (same_file::Handle::from_path(a), same_file::Handle::from_path(b))
-        && handle_a == handle_b
+    if let (Ok(handle_a), Ok(handle_b)) = (
+        same_file::Handle::from_path(a),
+        same_file::Handle::from_path(b),
+    ) && handle_a == handle_b
     {
         return true;
     }
@@ -259,9 +267,10 @@ fn have_equal_contents(a: &Path, b: &Path) -> bool {
     let mut buf_a = vec![0u8; CHUNK_SIZE];
     let mut buf_b = vec![0u8; CHUNK_SIZE];
     loop {
-        let (Ok(read_a), Ok(read_b)) =
-            (read_chunk(&mut file_a, &mut buf_a), read_chunk(&mut file_b, &mut buf_b))
-        else {
+        let (Ok(read_a), Ok(read_b)) = (
+            read_chunk(&mut file_a, &mut buf_a),
+            read_chunk(&mut file_b, &mut buf_b),
+        ) else {
             return false;
         };
         if read_a != read_b {
@@ -291,4 +300,34 @@ fn read_chunk(reader: &mut impl std::io::Read, buf: &mut [u8]) -> io::Result<usi
         }
     }
     Ok(filled)
+}
+
+fn is_node_modules_dir(ancestor: &Path) -> bool {
+    ancestor
+        .file_name()
+        .is_some_and(|name| name == "node_modules")
+        && ancestor
+            .parent()
+            .and_then(Path::file_name)
+            .is_none_or(|parent_name| parent_name != "node_modules")
+}
+
+fn package_dir(dir: &Path, node_modules_dir: &Path) -> Option<std::path::PathBuf> {
+    if let Ok(rel) = dir.strip_prefix(node_modules_dir)
+        && let Some(first) = rel.components().next()
+    {
+        let first_name = first.as_os_str().to_string_lossy();
+        let pkg_dir = if first_name.starts_with('@') {
+            match rel.components().nth(1) {
+                Some(second) => node_modules_dir
+                    .join(first)
+                    .join(second.as_os_str()),
+                None => node_modules_dir.join(first),
+            }
+        } else {
+            node_modules_dir.join(first)
+        };
+        return Some(pkg_dir);
+    }
+    None
 }

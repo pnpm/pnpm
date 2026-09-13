@@ -4,12 +4,16 @@
 //! snapshot-driven walk a reused node's children take
 //! ([`fn@resolve_reused_node`]).
 
+pub use package_names::real_package_name_of;
+pub(crate) use package_names::unwrap_package_name;
+
 pub(crate) use direct_versions::record_changed_direct_deps;
 
 pub(super) use direct_versions::{
     higher_direct_dep_version, node_depends_on_changed_direct_dep, record_direct_dep_versions,
 };
 
+mod package_names;
 mod snapshot_children;
 use snapshot_children::{ReusedChildren, reused_children, snapshot_child_refs};
 
@@ -106,7 +110,10 @@ impl ReuseSource {
 
     /// Whether this edge may reuse the prior lockfile's subtree.
     pub(super) fn allows_reuse(&self) -> bool {
-        matches!(self, ReuseSource::Importer { .. } | ReuseSource::Transitive { .. })
+        matches!(
+            self,
+            ReuseSource::Importer { .. } | ReuseSource::Transitive { .. },
+        )
     }
 }
 
@@ -144,7 +151,10 @@ pub(super) fn try_reuse_node(
         return None;
     }
     let result = synthesize_reused_result(lockfile, key, alias)?;
-    Some(ReusedNode { key: key.clone(), result })
+    Some(ReusedNode {
+        key: key.clone(),
+        result,
+    })
 }
 
 /// `true` when a node named `name`, locked at `version`, is a `pacquet
@@ -196,7 +206,10 @@ pub(super) fn wanted_lockfile_contains_satisfying_entry(
     let Some(packages) = lockfile.and_then(|lockfile| lockfile.packages.as_ref()) else {
         return false;
     };
-    let Some(alias) = wanted.alias.as_deref().filter(|alias| !alias.is_empty()) else {
+    let Some(alias) = wanted.alias
+        .as_deref()
+        .filter(|alias| !alias.is_empty())
+    else {
         return false;
     };
     let (pkg_name, range) =
@@ -207,67 +220,14 @@ pub(super) fn wanted_lockfile_contains_satisfying_entry(
     let Ok(pkg_name) = PkgName::parse(pkg_name) else {
         return false;
     };
-    packages.keys().any(|key| {
-        key.name == pkg_name
-            && key.suffix.version_semver().is_some_and(|version| range.satisfies(version))
-    })
-}
-
-/// Normalize an `npm:` alias specifier into the real package name and
-/// the wanted range (`("is-positive", "^1.0.0")` for the edge
-/// `my-alias@npm:is-positive@^1.0.0`; the range is `"*"` for the
-/// spec-less `npm:is-positive` form). A specifier without the `npm:`
-/// prefix is returned as-is: the alias is the real package name.
-///
-/// Mirrors the TypeScript resolver's `unwrapPackageName`; unlike
-/// [`fn@real_package_name_of`] it also yields the range and does not
-/// special-case the `npm:<range>` form, so the locked-entry check
-/// matches its TypeScript counterpart byte for byte.
-pub(crate) fn unwrap_package_name<'a>(
-    alias: &'a str,
-    bare_specifier: &'a str,
-) -> (&'a str, &'a str) {
-    let Some(rest) = bare_specifier.strip_prefix("npm:") else {
-        return (alias, bare_specifier);
-    };
-    match rest.rfind('@') {
-        None | Some(0) => (rest, "*"),
-        Some(index) => (&rest[..index], &rest[index + 1..]),
-    }
-}
-
-/// Resolve the *real* package name an `(alias, bare_specifier)` edge
-/// targets — the name update targeting matches against, not the local
-/// install alias, which an `npm:` alias or a `jsr:` specifier can
-/// differ from. The picker and the lockfile snapshots key on this name.
-/// `walk::overlay_lookup_names` builds its candidate set from it.
-///
-/// `None` when no name can be recovered; the caller reads that as "not
-/// a targeted update", since update targets are keyed by package name.
-pub fn real_package_name_of<'edge>(
-    alias: Option<&'edge str>,
-    bare_specifier: Option<&'edge str>,
-) -> Option<Cow<'edge, str>> {
-    let bare = bare_specifier?;
-    if let Some(rest) = bare.strip_prefix("npm:") {
-        let alias_keeps_name = alias
-            .is_some_and(|alias| !alias.is_empty() && rest.parse::<node_semver::Range>().is_ok());
-        if !alias_keeps_name {
-            let last_at =
-                rest.bytes().enumerate().rev().find_map(|(i, b)| (b == b'@').then_some(i));
-            let name = match last_at {
-                Some(idx) if idx >= 1 => &rest[..idx],
-                _ => rest,
-            };
-            return (!name.is_empty()).then_some(Cow::Borrowed(name));
-        }
-    }
-    if bare.starts_with("jsr:") {
-        let spec =
-            pnpm_resolving_jsr_specifier_parser::parse_jsr_specifier(bare, alias).ok().flatten()?;
-        return Some(Cow::Owned(spec.npm_pkg_name));
-    }
-    alias.map(Cow::Borrowed)
+    packages
+        .keys()
+        .any(|key| {
+            key.name == pkg_name
+                && key.suffix
+                    .version_semver()
+                    .is_some_and(|version| range.satisfies(version))
+        })
 }
 
 /// Whether the running `pacquet update` reaches this edge, so its
@@ -341,7 +301,11 @@ fn subtree_fully_reusable(
     depth: i32,
 ) -> bool {
     let scope = ctx.update_scope();
-    let memo_key = (ctx.update_cache_scope(), key.clone(), scope.max_depth.memo_bucket(depth));
+    let memo_key = (
+        ctx.update_cache_scope(),
+        key.clone(),
+        scope.max_depth.memo_bucket(depth),
+    );
     if let Some(&cached) = lock_recoverable(&ctx.workspace.cache.subtree_reusable).get(&memo_key) {
         return cached;
     }
@@ -370,7 +334,10 @@ fn subtree_children_reusable(
     key: &PkgNameVerPeer,
     depth: i32,
 ) -> bool {
-    let Some(snapshot) = lockfile.snapshots.as_ref().and_then(|snaps| snaps.get(key)) else {
+    let Some(snapshot) = lockfile.snapshots
+        .as_ref()
+        .and_then(|snaps| snaps.get(key))
+    else {
         // No snapshot entry → the lockfile doesn't record this node's
         // children, so the reuse walk can't reproduce its subtree.
         // Force a fresh resolve rather than risk silently dropping
@@ -380,7 +347,10 @@ fn subtree_children_reusable(
         // resolve.
         return false;
     };
-    let dep_maps = [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()];
+    let dep_maps = [
+        snapshot.dependencies.as_ref(),
+        snapshot.optional_dependencies.as_ref(),
+    ];
     for dep_map in dep_maps.into_iter().flatten() {
         for (child_name, dep_ref) in dep_map {
             let Some(child_key) = dep_ref.resolve(child_name) else {
@@ -427,7 +397,6 @@ where
         return Ok(None);
     }
 
-    let alias = node_alias(&wanted, &result, &id);
     let identity = reused_identity(ctx, &id, &result, &reused.key)?;
 
     if register_reused_package(
@@ -441,8 +410,6 @@ where
         emit_deprecation_if_needed(ctx, &result, &id, edge.depth);
     }
 
-    let next_ancestors: Vec<String> =
-        edge.ancestor_ids.iter().cloned().chain(std::iter::once(id.clone())).collect();
     attach_reused_children(
         ctx,
         resolver,
@@ -452,19 +419,21 @@ where
             key: &reused.key,
             snapshot: identity.snapshot,
             child_refs: &identity.child_refs,
-            ancestry: snapshot_children::ReusedNodeAncestry {
-                ancestor_ids: edge.ancestor_ids,
-                next_ancestors: &Arc::new(next_ancestors),
-                depth: edge.depth,
+            ancestry: snapshot_children::ReusedNodeAncestry::new(
+                edge,
+                &super::child_ancestor_ids(edge.ancestor_ids, &id),
                 current_is_optional,
-                parent_pkg_aliases: edge.parent_pkg_aliases,
-            },
+            ),
         },
         &identity.node_id,
     )
     .await?;
 
-    Ok(Some(DirectDep { alias, node_id: identity.node_id, id }))
+    Ok(Some(DirectDep {
+        alias: node_alias(&wanted, &result, &id),
+        node_id: identity.node_id,
+        id,
+    }))
 }
 
 /// What the snapshot graph says about a reused node. Leaf
@@ -489,10 +458,7 @@ fn reused_identity<'l>(
     result: &pnpm_resolving_resolver_base::ResolveResult,
     key: &PkgNameVerPeer,
 ) -> Result<ReusedIdentity<'l>, ResolveDependencyTreeError> {
-    let snapshot = ctx
-        .workspace
-        .reuse
-        .lockfile
+    let snapshot = ctx.workspace.reuse.lockfile
         .as_ref()
         .and_then(|lockfile| lockfile.snapshots.as_ref())
         .and_then(|snaps| snaps.get(key));
@@ -522,8 +488,13 @@ where
     Chain: Resolver + ?Sized,
 {
     let reused_id = reused.id;
-    let children_owner =
-        claim_children_owner(ctx, reused_id, edge.depth, edge.ancestor_ids, HashSet::default());
+    let children_owner = claim_children_owner(
+        ctx,
+        reused_id,
+        edge.depth,
+        edge.ancestor_ids,
+        HashSet::default(),
+    );
     let (children, others_stale) = reused_children(ctx, resolver, &children_owner, reused).await?;
     remember_node_parent_ids(ctx, node_id, Arc::clone(edge.ancestor_ids));
     insert_tree_node(ctx, node_id.clone(), reused_id, children, edge.depth);

@@ -102,7 +102,6 @@ pub mod whoami;
 pub mod why;
 pub mod with;
 pub(crate) mod yarn_workspaces_field;
-
 pub(crate) use cli_command::CliArgs;
 pub(crate) use pnpm_deps_inspection as deps_tree;
 

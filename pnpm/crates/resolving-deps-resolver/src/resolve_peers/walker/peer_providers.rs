@@ -41,7 +41,12 @@ impl Walker<'_> {
         }
 
         let dep_path = self.peer_dep_path(&context.pkg.id, &all_resolved);
-        NodePeers { own_resolved, all_resolved, all_missing, dep_path }
+        NodePeers {
+            own_resolved,
+            all_resolved,
+            all_missing,
+            dep_path,
+        }
     }
 
     /// Empty resolved peers ⇒ pure node: depPath = `pkgIdWithPatchHash`.
@@ -83,15 +88,19 @@ impl Walker<'_> {
     ) -> Vec<(String, ParentRef)> {
         let mut pins = Vec::new();
         let (Some(locked_peer_context), Some(provider_paths)) = (
-            self.tree
-                .dependencies_tree
+            self.tree.dependencies_tree
                 .get(node_id)
                 .and_then(crate::resolved_tree::DependenciesTreeNode::locked_peer_context),
             self.opts.scope.resolved_peer_provider_paths.as_ref(),
         ) else {
             return pins;
         };
-        let context = LockedPinContext { pkg, provider_paths, parent_refs, parent_node_ids };
+        let context = LockedPinContext {
+            pkg,
+            provider_paths,
+            parent_refs,
+            parent_node_ids,
+        };
         for (peer_name, previous_dep_path) in locked_peer_context {
             if let Some(pin) = self.locked_peer_pin(peer_name, previous_dep_path, &context) {
                 pins.push(pin);
@@ -121,9 +130,7 @@ impl Walker<'_> {
         }
         // A provider that already resolved to a different path
         // this pass must not be rebound.
-        if self
-            .caches
-            .node_dep_paths
+        if self.caches.node_dep_paths
             .get(peer_node_id)
             .is_some_and(|current| current != previous_dep_path)
         {
@@ -169,8 +176,9 @@ impl Walker<'_> {
         parent_refs: &ParentRefs,
         parent_node_ids: &SharedChain<NodeId>,
     ) -> bool {
-        let Some(peer_node_id) =
-            parent_refs.get(peer_name).and_then(|parent| parent.node_id.as_ref())
+        let Some(peer_node_id) = parent_refs
+            .get(peer_name)
+            .and_then(|parent| parent.node_id.as_ref())
         else {
             return false;
         };
@@ -183,12 +191,16 @@ impl Walker<'_> {
         peer_name: &str,
         peer_node_id: &NodeId,
     ) -> bool {
-        self.providers.current_provider_sources.iter().any(|source| {
-            source.direct_node_ids_by_alias.iter().any(|(alias, direct_node_id)| {
-                direct_node_id == peer_node_id
-                    && self.direct_alias_must_win(source, alias, peer_name, peer_node_id)
+        self.providers.current_provider_sources
+            .iter()
+            .any(|source| {
+                source.direct_node_ids_by_alias
+                    .iter()
+                    .any(|(alias, direct_node_id)| {
+                        direct_node_id == peer_node_id
+                            && self.direct_alias_must_win(source, alias, peer_name, peer_node_id)
+                    })
             })
-        })
     }
 
     pub(super) fn direct_alias_must_win(
@@ -201,9 +213,7 @@ impl Walker<'_> {
         alias != peer_name
             || source.explicitly_requested_direct_dependencies.contains(alias)
             || (source.declared_direct_dependencies.contains(alias)
-                && self
-                    .tree
-                    .dependencies_tree
+                && self.tree.dependencies_tree
                     .get(peer_node_id)
                     .is_none_or(|node| node.previous_dep_path().is_none()))
     }
@@ -223,8 +233,13 @@ impl Walker<'_> {
                 continue;
             };
             // Ancestors on the walk path always have realized children.
-            let TreeChildren::Realized(children) = &parent_node.children else { continue };
-            if must_win.iter().any(|alias| children.get(alias) == Some(peer_node_id)) {
+            let TreeChildren::Realized(children) = &parent_node.children else {
+                continue;
+            };
+            if must_win
+                .iter()
+                .any(|alias| children.get(alias) == Some(peer_node_id))
+            {
                 return true;
             }
         }

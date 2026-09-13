@@ -3,7 +3,9 @@
 /// canonical "nerf-darted" form npm uses as `.npmrc` keys.
 #[must_use]
 pub fn nerf_dart(url: &str) -> String {
-    let Some(parsed) = ParsedUrl::parse(url) else { return String::new() };
+    let Some(parsed) = ParsedUrl::parse(url) else {
+        return String::new();
+    };
     parsed.nerf_dart()
 }
 
@@ -27,7 +29,10 @@ impl<'a> ParsedUrl<'a> {
         // Strip query string and fragment. Neither participates in
         // nerf-darting per `removeFragment` / `removeSearch` in npm's
         // own implementation.
-        let rest = rest.split(['?', '#']).next().unwrap_or(rest);
+        let rest = rest
+            .split(['?', '#'])
+            .next()
+            .unwrap_or(rest);
         let (authority, path) = match rest.split_once('/') {
             Some((authority, path_tail)) => (authority, path_tail),
             None => (rest, ""),
@@ -51,7 +56,13 @@ impl<'a> ParsedUrl<'a> {
                 None => (host_port, None),
             }
         };
-        Some(ParsedUrl { scheme, user_info, host, port, path })
+        Some(ParsedUrl {
+            scheme,
+            user_info,
+            host,
+            port,
+            path,
+        })
     }
 
     pub(super) fn nerf_dart(&self) -> String {
@@ -92,11 +103,17 @@ impl<'a> ParsedUrl<'a> {
         if user.is_empty() && pass.is_empty() {
             return None;
         }
-        Some(format!("Basic {}", base64_encode(&format!("{user}:{pass}"))))
+        Some(format!(
+            "Basic {}",
+            base64_encode(&format!("{user}:{pass}")),
+        ))
     }
 
     pub(super) fn with_port_stripped(&self) -> ParsedUrl<'a> {
-        ParsedUrl { port: None, ..*self }
+        ParsedUrl {
+            port: None,
+            ..*self
+        }
     }
 }
 
@@ -116,10 +133,11 @@ fn is_loopback_host(host: &str) -> bool {
 /// network link. HTTPS and loopback HTTP endpoints are accepted.
 #[must_use]
 pub fn is_url_secure_for_credentials(url: &str) -> bool {
-    ParsedUrl::parse(url).is_some_and(|parsed| {
-        parsed.scheme.eq_ignore_ascii_case("https")
-            || (parsed.scheme.eq_ignore_ascii_case("http") && is_loopback_host(parsed.host))
-    })
+    ParsedUrl::parse(url)
+        .is_some_and(|parsed| {
+            parsed.scheme.eq_ignore_ascii_case("https")
+                || (parsed.scheme.eq_ignore_ascii_case("http") && is_loopback_host(parsed.host))
+        })
 }
 
 /// Local base64 encode so this crate doesn't pull in `base64` just for

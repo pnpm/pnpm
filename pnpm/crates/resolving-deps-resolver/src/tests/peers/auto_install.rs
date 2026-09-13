@@ -19,7 +19,10 @@ async fn missing_peer_is_reported() {
             }),
         ),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let resolver = StubResolver {
+        table,
+        calls: Mutex::new(Vec::new()),
+    };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "react-dom": "18.0.0" }));
     let mut tree = resolve_dependency_tree(
         &resolver,

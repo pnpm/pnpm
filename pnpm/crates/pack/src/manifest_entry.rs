@@ -7,5 +7,8 @@
 /// applies in three places (tar entry rewrite, size, and contents).
 #[must_use]
 pub fn is_manifest_entry(name: &str) -> bool {
-    matches!(name, "package/package.json" | "package/package.json5" | "package/package.yaml")
+    matches!(
+        name,
+        "package/package.json" | "package/package.json5" | "package/package.yaml",
+    )
 }

@@ -22,8 +22,11 @@ fn setup_mock_workspace(workspace: &Path) {
     let mut yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml");
     yaml.push_str("packages:\n  - packages/*\n");
     fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write yaml");
-    fs::write(workspace.join("package.json"), "{\"name\": \"e2e-root\", \"private\": true}\n")
-        .expect("write root package.json");
+    fs::write(
+        workspace.join("package.json"),
+        "{\"name\": \"e2e-root\", \"private\": true}\n",
+    )
+    .expect("write root package.json");
 }
 
 fn add_scoped_pkg(workspace: &Path, dir: &str, name: &str, version: &str) {
@@ -44,16 +47,22 @@ fn first_release_probe_bumps_a_version_the_registry_reports_published() {
     setup_mock_workspace(&workspace);
     add_scoped_pkg(&workspace, "foo", "@pnpm.e2e/foo", "1.2.0");
 
-    stdout_of(pnpm_probing(&workspace).with_args([
-        "change",
-        "--bump",
-        "minor",
-        "--summary",
-        "A feature.",
-        "@pnpm.e2e/foo",
-    ]));
+    stdout_of(
+        pnpm_probing(&workspace)
+            .with_args([
+                "change",
+                "--bump",
+                "minor",
+                "--summary",
+                "A feature.",
+                "@pnpm.e2e/foo",
+            ]),
+    );
     let applied = stdout_of(pnpm_probing(&workspace).with_args(["version", "-r"]));
-    assert!(applied.contains("@pnpm.e2e/foo: 1.2.0 → 1.3.0"), "unexpected: {applied}");
+    assert!(
+        applied.contains("@pnpm.e2e/foo: 1.2.0 → 1.3.0"),
+        "unexpected: {applied}",
+    );
     assert_eq!(manifest_version(&workspace, "foo"), "1.3.0");
 
     drop(root);
@@ -67,21 +76,30 @@ fn first_release_probe_debuts_an_unpublished_version_verbatim() {
     setup_mock_workspace(&workspace);
     add_scoped_pkg(&workspace, "foo", "@pnpm.e2e/foo", "999.0.0");
 
-    stdout_of(pnpm_probing(&workspace).with_args([
-        "change",
-        "--bump",
-        "minor",
-        "--summary",
-        "Initial release.",
-        "@pnpm.e2e/foo",
-    ]));
+    stdout_of(
+        pnpm_probing(&workspace)
+            .with_args([
+                "change",
+                "--bump",
+                "minor",
+                "--summary",
+                "Initial release.",
+                "@pnpm.e2e/foo",
+            ]),
+    );
     // The dry run previews the same debut: a preview that skipped the probe
     // would announce a bump to 999.1.0 the real run never applies.
     let preview = stdout_of(pnpm_probing(&workspace).with_args(["version", "-r", "--dry-run"]));
-    assert!(preview.contains("@pnpm.e2e/foo: 999.0.0 → 999.0.0"), "unexpected: {preview}");
+    assert!(
+        preview.contains("@pnpm.e2e/foo: 999.0.0 → 999.0.0"),
+        "unexpected: {preview}",
+    );
 
     let applied = stdout_of(pnpm_probing(&workspace).with_args(["version", "-r"]));
-    assert!(applied.contains("@pnpm.e2e/foo: 999.0.0 → 999.0.0"), "unexpected: {applied}");
+    assert!(
+        applied.contains("@pnpm.e2e/foo: 999.0.0 → 999.0.0"),
+        "unexpected: {applied}",
+    );
     assert_eq!(manifest_version(&workspace, "foo"), "999.0.0");
 
     drop(root);
@@ -104,16 +122,22 @@ fn first_release_probe_uses_the_published_name_of_a_renamed_project() {
     )
     .expect("write package.json");
 
-    stdout_of(pnpm_probing(&workspace).with_args([
-        "change",
-        "--bump",
-        "minor",
-        "--summary",
-        "A feature.",
-        "workspace-only-name",
-    ]));
+    stdout_of(
+        pnpm_probing(&workspace)
+            .with_args([
+                "change",
+                "--bump",
+                "minor",
+                "--summary",
+                "A feature.",
+                "workspace-only-name",
+            ]),
+    );
     let applied = stdout_of(pnpm_probing(&workspace).with_args(["version", "-r"]));
-    assert!(applied.contains("workspace-only-name: 1.2.0 → 1.3.0"), "unexpected: {applied}");
+    assert!(
+        applied.contains("workspace-only-name: 1.2.0 → 1.3.0"),
+        "unexpected: {applied}",
+    );
     assert_eq!(manifest_version(&workspace, "foo"), "1.3.0");
 
     drop(root);
@@ -126,29 +150,49 @@ fn first_release_probe_uses_the_published_name_of_a_renamed_project() {
 #[test]
 fn first_release_probe_failure_fails_the_command() {
     let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
-    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
-        .expect("write yaml");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\n",
+    )
+    .expect("write yaml");
     fs::write(workspace.join(".npmrc"), "registry=http://127.0.0.1:1/\n").expect("write npmrc");
-    fs::write(workspace.join("package.json"), "{\"name\": \"e2e-root\", \"private\": true}\n")
-        .expect("write root package.json");
+    fs::write(
+        workspace.join("package.json"),
+        "{\"name\": \"e2e-root\", \"private\": true}\n",
+    )
+    .expect("write root package.json");
     add_scoped_pkg(&workspace, "foo", "@pnpm.e2e/foo", "1.2.0");
 
     // Recording an intent does not probe, so it succeeds despite the dead registry.
-    stdout_of(pnpm_probing(&workspace).with_args([
-        "change",
-        "--bump",
-        "minor",
-        "--summary",
-        "A feature.",
-        "@pnpm.e2e/foo",
-    ]));
+    stdout_of(
+        pnpm_probing(&workspace)
+            .with_args([
+                "change",
+                "--bump",
+                "minor",
+                "--summary",
+                "A feature.",
+                "@pnpm.e2e/foo",
+            ]),
+    );
 
-    let status =
-        pnpm_probing(&workspace).with_args(["change", "status"]).output().expect("run pnpm");
-    assert!(!status.status.success(), "change status must fail when the probe errors");
+    let status = pnpm_probing(&workspace)
+        .with_args(["change", "status"])
+        .output()
+        .expect("run pnpm");
+    assert!(
+        !status.status.success(),
+        "change status must fail when the probe errors",
+    );
 
-    let release = pnpm_probing(&workspace).with_args(["version", "-r"]).output().expect("run pnpm");
-    assert!(!release.status.success(), "version -r must fail when the probe errors");
+    let release = pnpm_probing(&workspace)
+        .with_args(["version", "-r"])
+        .output()
+        .expect("run pnpm");
+    assert!(
+        !release.status.success(),
+        "version -r must fail when the probe errors",
+    );
 
     // No version was guessed: the manifest is untouched.
     assert_eq!(manifest_version(&workspace, "foo"), "1.2.0");
@@ -167,8 +211,11 @@ fn write_workspace(workspace: &Path) {
         "packages:\n  - packages/*\nversioning:\n  changelog:\n    storage: repository\n",
     )
     .expect("write pnpm-workspace.yaml");
-    fs::write(workspace.join("package.json"), "{\"name\": \"e2e-root\", \"private\": true}\n")
-        .expect("write root package.json");
+    fs::write(
+        workspace.join("package.json"),
+        "{\"name\": \"e2e-root\", \"private\": true}\n",
+    )
+    .expect("write root package.json");
 }
 
 fn add_pkg(workspace: &Path, name: &str, version: &str, deps: &str) {
@@ -207,11 +254,19 @@ fn stdout_of(mut command: Command) -> String {
 
 fn manifest_version(workspace: &Path, name: &str) -> String {
     let manifest: serde_json::Value = serde_json::from_str(
-        &fs::read_to_string(workspace.join("packages").join(name).join("package.json"))
-            .expect("read package.json"),
+        &fs::read_to_string(
+            workspace
+                .join("packages")
+                .join(name)
+                .join("package.json"),
+        )
+        .expect("read package.json"),
     )
     .expect("parse package.json");
-    manifest["version"].as_str().expect("version is a string").to_string()
+    manifest["version"]
+        .as_str()
+        .expect("version is a string")
+        .to_string()
 }
 
 #[test]
@@ -221,40 +276,67 @@ fn change_records_an_intent_and_version_applies_the_release_plan() {
     add_pkg(&workspace, "lib", "1.2.0", "{}");
     add_pkg(&workspace, "cli", "3.0.0", r#"{"lib": "workspace:^"}"#);
 
-    let output = stdout_of(pnpm(&workspace).with_args([
-        "change",
-        "--bump",
-        "major",
-        "--summary",
-        "Rewrote the widget API.",
-        "lib",
-    ]));
-    assert!(output.contains("Recorded change intent .changeset/"), "unexpected: {output}");
+    let output = stdout_of(
+        pnpm(&workspace)
+            .with_args([
+                "change",
+                "--bump",
+                "major",
+                "--summary",
+                "Rewrote the widget API.",
+                "lib",
+            ]),
+    );
+    assert!(
+        output.contains("Recorded change intent .changeset/"),
+        "unexpected: {output}",
+    );
 
     let status = stdout_of(pnpm(&workspace).with_args(["change", "status"]));
-    assert!(status.contains("lib: 1.2.0 → 2.0.0 (major, via intent)"), "unexpected: {status}");
+    assert!(
+        status.contains("lib: 1.2.0 → 2.0.0 (major, via intent)"),
+        "unexpected: {status}",
+    );
     assert!(
         status.contains("cli: 3.0.0 → 3.0.1 (patch, via dependencies)"),
         "unexpected: {status}",
     );
 
     let dry_run = stdout_of(pnpm(&workspace).with_args(["version", "-r", "--dry-run"]));
-    assert!(dry_run.contains("lib: 1.2.0 → 2.0.0"), "unexpected: {dry_run}");
+    assert!(
+        dry_run.contains("lib: 1.2.0 → 2.0.0"),
+        "unexpected: {dry_run}",
+    );
 
     let applied = stdout_of(pnpm(&workspace).with_args(["version", "-r"]));
-    assert!(applied.contains("lib: 1.2.0 → 2.0.0"), "unexpected: {applied}");
-    assert!(applied.contains("cli: 3.0.0 → 3.0.1"), "unexpected: {applied}");
+    assert!(
+        applied.contains("lib: 1.2.0 → 2.0.0"),
+        "unexpected: {applied}",
+    );
+    assert!(
+        applied.contains("cli: 3.0.0 → 3.0.1"),
+        "unexpected: {applied}",
+    );
 
     assert_eq!(manifest_version(&workspace, "lib"), "2.0.0");
     assert_eq!(manifest_version(&workspace, "cli"), "3.0.1");
 
     let lib_changelog =
         fs::read_to_string(workspace.join("packages/lib/CHANGELOG.md")).expect("read changelog");
-    assert!(lib_changelog.contains("## 2.0.0"), "unexpected: {lib_changelog}");
-    assert!(lib_changelog.contains("- Rewrote the widget API."), "unexpected: {lib_changelog}");
+    assert!(
+        lib_changelog.contains("## 2.0.0"),
+        "unexpected: {lib_changelog}",
+    );
+    assert!(
+        lib_changelog.contains("- Rewrote the widget API."),
+        "unexpected: {lib_changelog}",
+    );
     let cli_changelog =
         fs::read_to_string(workspace.join("packages/cli/CHANGELOG.md")).expect("read changelog");
-    assert!(cli_changelog.contains("  - lib@2.0.0"), "unexpected: {cli_changelog}");
+    assert!(
+        cli_changelog.contains("  - lib@2.0.0"),
+        "unexpected: {cli_changelog}",
+    );
 
     let ledger = fs::read_to_string(workspace.join(".changeset/ledger.yaml")).expect("read ledger");
     assert!(ledger.contains("lib@2.0.0:"), "unexpected: {ledger}");
@@ -262,12 +344,23 @@ fn change_records_an_intent_and_version_applies_the_release_plan() {
     let leftover_intents: Vec<_> = fs::read_dir(workspace.join(".changeset"))
         .expect("read .changeset")
         .filter_map(Result::ok)
-        .filter(|entry| entry.file_name().to_string_lossy().ends_with(".md"))
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".md")
+        })
         .collect();
-    assert!(leftover_intents.is_empty(), "intent files were not cleaned up");
+    assert!(
+        leftover_intents.is_empty(),
+        "intent files were not cleaned up",
+    );
 
     let no_pending = stdout_of(pnpm(&workspace).with_args(["version", "-r"]));
-    assert!(no_pending.contains("No pending changes"), "unexpected: {no_pending}");
+    assert!(
+        no_pending.contains("No pending changes"),
+        "unexpected: {no_pending}",
+    );
 
     drop(root);
 }
@@ -279,10 +372,16 @@ fn lanes_are_entered_released_and_graduated() {
     add_pkg(&workspace, "cli", "2.0.0", "{}");
 
     let bare = stdout_of(pnpm(&workspace).with_args(["lane"]));
-    assert!(bare.contains("All packages are on the main lane."), "unexpected: {bare}");
+    assert!(
+        bare.contains("All packages are on the main lane."),
+        "unexpected: {bare}",
+    );
 
     let entered = stdout_of(pnpm(&workspace).with_args(["lane", "alpha", "--filter", "cli"]));
-    assert!(entered.contains(r#"Moved to the "alpha" lane:"#), "unexpected: {entered}");
+    assert!(
+        entered.contains(r#"Moved to the "alpha" lane:"#),
+        "unexpected: {entered}",
+    );
 
     let membership = stdout_of(pnpm(&workspace).with_args(["lane"]));
     assert!(membership.contains("alpha:"), "unexpected: {membership}");
@@ -290,38 +389,61 @@ fn lanes_are_entered_released_and_graduated() {
     let manifest = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml");
     assert!(manifest.contains("cli: alpha"), "unexpected: {manifest}");
 
-    stdout_of(pnpm(&workspace).with_args([
-        "change",
-        "--bump",
-        "minor",
-        "--summary",
-        "Added a flag.",
-        "cli",
-    ]));
+    stdout_of(
+        pnpm(&workspace)
+            .with_args([
+                "change",
+                "--bump",
+                "minor",
+                "--summary",
+                "Added a flag.",
+                "cli",
+            ]),
+    );
     let applied = stdout_of(pnpm(&workspace).with_args(["version", "-r"]));
-    assert!(applied.contains("cli: 2.0.0 → 2.1.0-alpha.0"), "unexpected: {applied}");
+    assert!(
+        applied.contains("cli: 2.0.0 → 2.1.0-alpha.0"),
+        "unexpected: {applied}",
+    );
 
     // The intent survives the prerelease: its prose is needed at graduation.
     let intents: Vec<_> = fs::read_dir(workspace.join(".changeset"))
         .expect("read .changeset")
         .filter_map(Result::ok)
-        .filter(|entry| entry.file_name().to_string_lossy().ends_with(".md"))
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".md")
+        })
         .collect();
     assert_eq!(intents.len(), 1, "the intent must survive until graduation");
 
     let exited = stdout_of(pnpm(&workspace).with_args(["lane", "main", "--filter", "cli"]));
-    assert!(exited.contains("Moved to the main lane:"), "unexpected: {exited}");
+    assert!(
+        exited.contains("Moved to the main lane:"),
+        "unexpected: {exited}",
+    );
 
     let graduated = stdout_of(pnpm(&workspace).with_args(["version", "-r"]));
-    assert!(graduated.contains("cli: 2.1.0-alpha.0 → 2.1.0"), "unexpected: {graduated}");
+    assert!(
+        graduated.contains("cli: 2.1.0-alpha.0 → 2.1.0"),
+        "unexpected: {graduated}",
+    );
 
     let changelog =
         fs::read_to_string(workspace.join("packages/cli/CHANGELOG.md")).expect("read changelog");
-    assert!(changelog.contains("## 2.1.0-alpha.0"), "unexpected: {changelog}");
+    assert!(
+        changelog.contains("## 2.1.0-alpha.0"),
+        "unexpected: {changelog}",
+    );
     assert!(changelog.contains("## 2.1.0"), "unexpected: {changelog}");
 
     let manifest = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml");
-    assert!(!manifest.contains("alpha"), "the versioning key must be cleaned up: {manifest}");
+    assert!(
+        !manifest.contains("alpha"),
+        "the versioning key must be cleaned up: {manifest}",
+    );
 
     drop(root);
 }
@@ -332,10 +454,16 @@ fn version_without_arguments_outside_recursive_mode_requires_a_bump() {
     write_workspace(&workspace);
     add_pkg(&workspace, "lib", "1.0.0", "{}");
 
-    let output = pnpm(&workspace).with_arg("version").output().expect("run pnpm");
+    let output = pnpm(&workspace)
+        .with_arg("version")
+        .output()
+        .expect("run pnpm");
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("A version argument is required"), "unexpected: {stderr}");
+    assert!(
+        stderr.contains("A version argument is required"),
+        "unexpected: {stderr}",
+    );
 
     drop(root);
 }
@@ -346,7 +474,10 @@ fn lane_assignment_requires_a_filter() {
     write_workspace(&workspace);
     add_pkg(&workspace, "cli", "2.0.0", "{}");
 
-    let output = pnpm(&workspace).with_args(["lane", "alpha"]).output().expect("run pnpm");
+    let output = pnpm(&workspace)
+        .with_args(["lane", "alpha"])
+        .output()
+        .expect("run pnpm");
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("--filter"), "unexpected: {stderr}");
@@ -363,23 +494,38 @@ fn a_filtered_version_run_leaves_out_of_scope_intents_untouched() {
     add_pkg(&workspace, "lib", "1.0.0", "{}");
     add_pkg(&workspace, "cli", "2.0.0", "{}");
 
-    stdout_of(pnpm(&workspace).with_args([
-        "change",
-        "--bump",
-        "none",
-        "--summary",
-        "refactor, no release needed",
-        "lib",
-    ]));
+    stdout_of(
+        pnpm(&workspace)
+            .with_args([
+                "change",
+                "--bump",
+                "none",
+                "--summary",
+                "refactor, no release needed",
+                "lib",
+            ]),
+    );
 
     let output = stdout_of(pnpm(&workspace).with_args(["version", "-r", "--filter", "cli"]));
-    assert!(output.contains("No pending changes"), "unexpected: {output}");
+    assert!(
+        output.contains("No pending changes"),
+        "unexpected: {output}",
+    );
     let intents: Vec<_> = fs::read_dir(workspace.join(".changeset"))
         .expect("read .changeset")
         .filter_map(Result::ok)
-        .filter(|entry| entry.file_name().to_string_lossy().ends_with(".md"))
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".md")
+        })
         .collect();
-    assert_eq!(intents.len(), 1, "the out-of-scope none-only intent must survive");
+    assert_eq!(
+        intents.len(),
+        1,
+        "the out-of-scope none-only intent must survive",
+    );
 
     drop(root);
 }
@@ -393,22 +539,23 @@ fn change_status_is_read_only_about_unmigrated_internal_deps() {
     add_pkg(&workspace, "lib", "1.0.0", "{}");
     add_pkg(&workspace, "cli", "2.0.0", r#"{"lib": "^1.0.0"}"#);
 
-    let status = pnpm(&workspace).with_args(["change", "status"]).output().expect("run pnpm");
+    let status = pnpm(&workspace)
+        .with_args(["change", "status"])
+        .output()
+        .expect("run pnpm");
     assert!(
         status.status.success(),
         "change status must not fail: {}",
         String::from_utf8_lossy(&status.stderr),
     );
 
-    stdout_of(pnpm(&workspace).with_args([
-        "change",
-        "--bump",
-        "patch",
-        "--summary",
-        "A fix.",
-        "lib",
-    ]));
-    let release = pnpm(&workspace).with_args(["version", "-r"]).output().expect("run pnpm");
+    stdout_of(
+        pnpm(&workspace).with_args(["change", "--bump", "patch", "--summary", "A fix.", "lib"]),
+    );
+    let release = pnpm(&workspace)
+        .with_args(["version", "-r"])
+        .output()
+        .expect("run pnpm");
     assert!(!release.status.success());
     assert!(
         String::from_utf8_lossy(&release.stderr).contains("workspace: protocol"),
@@ -425,10 +572,16 @@ fn change_status_is_read_only_about_unmigrated_internal_deps() {
 #[test]
 fn a_name_shared_by_two_projects_must_be_referenced_by_directory() {
     let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
-    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - ts/pnpm\n  - rust/pnpm\n")
-        .expect("write pnpm-workspace.yaml");
-    fs::write(workspace.join("package.json"), "{\"name\": \"e2e-root\", \"private\": true}\n")
-        .expect("write root package.json");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - ts/pnpm\n  - rust/pnpm\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        "{\"name\": \"e2e-root\", \"private\": true}\n",
+    )
+    .expect("write root package.json");
     for (dir, version) in [("ts/pnpm", "11.0.0"), ("rust/pnpm", "12.0.0")] {
         let pkg_dir = workspace.join(dir);
         fs::create_dir_all(&pkg_dir).expect("create package dir");
@@ -445,21 +598,36 @@ fn a_name_shared_by_two_projects_must_be_referenced_by_directory() {
         .expect("run pnpm");
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("matches multiple workspace projects"), "unexpected: {stderr}");
+    assert!(
+        stderr.contains("matches multiple workspace projects"),
+        "unexpected: {stderr}",
+    );
 
-    let recorded = stdout_of(pnpm(&workspace).with_args([
-        "change",
-        "--bump",
-        "patch",
-        "--summary",
-        "Rust-line fix.",
-        "./rust/pnpm",
-    ]));
-    assert!(recorded.contains("Recorded change intent"), "unexpected: {recorded}");
+    let recorded = stdout_of(
+        pnpm(&workspace)
+            .with_args([
+                "change",
+                "--bump",
+                "patch",
+                "--summary",
+                "Rust-line fix.",
+                "./rust/pnpm",
+            ]),
+    );
+    assert!(
+        recorded.contains("Recorded change intent"),
+        "unexpected: {recorded}",
+    );
 
     let applied = stdout_of(pnpm(&workspace).with_args(["version", "-r"]));
-    assert!(applied.contains("pnpm: 12.0.0 → 12.0.1"), "unexpected: {applied}");
-    assert!(!applied.contains("11.0.0"), "the TS line must not release: {applied}");
+    assert!(
+        applied.contains("pnpm: 12.0.0 → 12.0.1"),
+        "unexpected: {applied}",
+    );
+    assert!(
+        !applied.contains("11.0.0"),
+        "the TS line must not release: {applied}",
+    );
 
     let rust_manifest: serde_json::Value = serde_json::from_str(
         &fs::read_to_string(workspace.join("rust/pnpm/package.json")).expect("read"),
@@ -468,8 +636,14 @@ fn a_name_shared_by_two_projects_must_be_referenced_by_directory() {
     assert_eq!(rust_manifest["version"].as_str(), Some("12.0.1"));
 
     let ledger = fs::read_to_string(workspace.join(".changeset/ledger.yaml")).expect("read ledger");
-    assert!(ledger.contains("pnpm@12.0.1:"), "unexpected ledger: {ledger}");
-    assert!(ledger.contains("dir: rust/pnpm"), "ledger must attribute by dir: {ledger}");
+    assert!(
+        ledger.contains("pnpm@12.0.1:"),
+        "unexpected ledger: {ledger}",
+    );
+    assert!(
+        ledger.contains("dir: rust/pnpm"),
+        "ledger must attribute by dir: {ledger}",
+    );
 
     drop(root);
 }
@@ -482,8 +656,11 @@ fn change_check_validates_committed_versions_against_configured_invariants() {
         "packages:\n  - packages/*\nversioning:\n  epics:\n    - lead: pnpm\n      packages:\n        - lib\n",
     )
     .expect("write pnpm-workspace.yaml");
-    fs::write(workspace.join("package.json"), "{\"name\": \"e2e-root\", \"private\": true}\n")
-        .expect("write root package.json");
+    fs::write(
+        workspace.join("package.json"),
+        "{\"name\": \"e2e-root\", \"private\": true}\n",
+    )
+    .expect("write root package.json");
     add_pkg(&workspace, "pnpm", "11.15.1", "{}");
     add_pkg(&workspace, "lib", "1102.0.0", "{}");
 
@@ -495,9 +672,18 @@ fn change_check_validates_committed_versions_against_configured_invariants() {
 
     // Drift the member out of its band: the check fails and names the violation.
     add_pkg(&workspace, "lib", "5.0.0", "{}");
-    let failed = pnpm(&workspace).with_args(["change", "check"]).output().expect("run pnpm");
+    let failed = pnpm(&workspace)
+        .with_args(["change", "check"])
+        .output()
+        .expect("run pnpm");
     assert!(!failed.status.success(), "expected a non-zero exit");
     let stderr = String::from_utf8_lossy(&failed.stderr);
-    assert!(stderr.contains("ERR_PNPM_VERSIONING_INVARIANTS_VIOLATED"), "unexpected: {stderr}");
-    assert!(stderr.contains("outside the band 1100-1199"), "unexpected: {stderr}");
+    assert!(
+        stderr.contains("ERR_PNPM_VERSIONING_INVARIANTS_VIOLATED"),
+        "unexpected: {stderr}",
+    );
+    assert!(
+        stderr.contains("outside the band 1100-1199"),
+        "unexpected: {stderr}",
+    );
 }

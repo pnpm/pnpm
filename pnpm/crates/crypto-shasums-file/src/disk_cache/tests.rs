@@ -62,7 +62,10 @@ fn round_trips_a_cached_body() {
     let cache_dir = tempfile::tempdir().expect("create temp cache dir");
     let url = "https://nodejs.org/download/release/v22.11.0/SHASUMS256.txt";
 
-    assert_eq!(read_cached_shasums(Some(cache_dir.path()), ShasumsTrust::Verified, url), None);
+    assert_eq!(
+        read_cached_shasums(Some(cache_dir.path()), ShasumsTrust::Verified, url),
+        None,
+    );
     write_cached_shasums(
         Some(cache_dir.path()),
         ShasumsTrust::Verified,
@@ -82,9 +85,17 @@ fn round_trips_a_cached_body() {
 fn trust_classes_do_not_share_entries() {
     let cache_dir = tempfile::tempdir().expect("create temp cache dir");
     let url = "https://nodejs.org/download/release/v22.11.0/SHASUMS256.txt";
-    write_cached_shasums(Some(cache_dir.path()), ShasumsTrust::Unverified, url, b"unverified body");
+    write_cached_shasums(
+        Some(cache_dir.path()),
+        ShasumsTrust::Unverified,
+        url,
+        b"unverified body",
+    );
 
-    assert_eq!(read_cached_shasums(Some(cache_dir.path()), ShasumsTrust::Verified, url), None);
+    assert_eq!(
+        read_cached_shasums(Some(cache_dir.path()), ShasumsTrust::Verified, url),
+        None,
+    );
     assert_eq!(
         read_cached_shasums(Some(cache_dir.path()), ShasumsTrust::Unverified, url).as_deref(),
         Some("unverified body"),
@@ -99,5 +110,8 @@ fn treats_an_empty_cache_file_as_a_miss() {
     let url = "https://nodejs.org/download/release/v22.11.0/SHASUMS256.txt";
     write_cached_shasums(Some(cache_dir.path()), ShasumsTrust::Verified, url, b"");
 
-    assert_eq!(read_cached_shasums(Some(cache_dir.path()), ShasumsTrust::Verified, url), None);
+    assert_eq!(
+        read_cached_shasums(Some(cache_dir.path()), ShasumsTrust::Verified, url),
+        None,
+    );
 }

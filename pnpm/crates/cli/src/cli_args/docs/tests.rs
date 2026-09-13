@@ -30,7 +30,10 @@ fn packument() -> String {
 }
 
 fn config_for(registry: &str) -> Config {
-    Config { registry: format!("{registry}/"), ..Config::default() }
+    Config {
+        registry: format!("{registry}/"),
+        ..Config::default()
+    }
 }
 
 static OPENED_URLS: Mutex<Vec<String>> = Mutex::new(Vec::new());
@@ -39,7 +42,10 @@ struct RecordingBrowser;
 
 impl OpenUrl for RecordingBrowser {
     fn open_url(url: &str) -> io::Result<()> {
-        OPENED_URLS.lock().unwrap().push(url.to_owned());
+        OPENED_URLS
+            .lock()
+            .unwrap()
+            .push(url.to_owned());
         Ok(())
     }
 }
@@ -76,7 +82,10 @@ fn test_is_http_url_spaces() {
 
 #[tokio::test]
 async fn requested_version_uses_its_homepage() {
-    OPENED_URLS.lock().unwrap().clear();
+    OPENED_URLS
+        .lock()
+        .unwrap()
+        .clear();
     let mut server = mockito::Server::new_async().await;
     let mock = server
         .mock("GET", "/is-negative")
@@ -84,12 +93,23 @@ async fn requested_version_uses_its_homepage() {
         .with_body(packument())
         .create_async()
         .await;
-    let args = DocsArgs { package: "is-negative@1.0.0".to_string() };
+    let args = DocsArgs {
+        package: "is-negative@1.0.0".to_string(),
+    };
 
-    args.run::<RecordingBrowser>(&config_for(&server.url())).await.expect("docs URL must open");
+    args
+        .run::<RecordingBrowser>(&config_for(&server.url()))
+        .await
+        .expect("docs URL must open");
 
     mock.assert_async().await;
-    assert_eq!(OPENED_URLS.lock().unwrap().as_slice(), ["https://v1.example/docs"]);
+    assert_eq!(
+        OPENED_URLS
+            .lock()
+            .unwrap()
+            .as_slice(),
+        ["https://v1.example/docs"],
+    );
 }
 
 #[tokio::test]
@@ -101,10 +121,14 @@ async fn unversioned_spec_uses_the_latest_tag_homepage() {
         .with_body(packument())
         .create_async()
         .await;
-    let args = DocsArgs { package: "is-negative".to_string() };
+    let args = DocsArgs {
+        package: "is-negative".to_string(),
+    };
 
-    let url =
-        args.documentation_url(&config_for(&server.url())).await.expect("docs URL must resolve");
+    let url = args
+        .documentation_url(&config_for(&server.url()))
+        .await
+        .expect("docs URL must resolve");
 
     mock.assert_async().await;
     assert_eq!(url, "https://v2.example/docs");
@@ -119,10 +143,14 @@ async fn named_tag_uses_the_tagged_version_homepage() {
         .with_body(packument())
         .create_async()
         .await;
-    let args = DocsArgs { package: "is-negative@legacy".to_string() };
+    let args = DocsArgs {
+        package: "is-negative@legacy".to_string(),
+    };
 
-    let url =
-        args.documentation_url(&config_for(&server.url())).await.expect("docs URL must resolve");
+    let url = args
+        .documentation_url(&config_for(&server.url()))
+        .await
+        .expect("docs URL must resolve");
 
     mock.assert_async().await;
     assert_eq!(url, "https://v1.example/docs");
@@ -137,10 +165,14 @@ async fn semver_range_uses_the_highest_matching_version_homepage() {
         .with_body(packument())
         .create_async()
         .await;
-    let args = DocsArgs { package: "is-negative@^1.0.0".to_string() };
+    let args = DocsArgs {
+        package: "is-negative@^1.0.0".to_string(),
+    };
 
-    let url =
-        args.documentation_url(&config_for(&server.url())).await.expect("docs URL must resolve");
+    let url = args
+        .documentation_url(&config_for(&server.url()))
+        .await
+        .expect("docs URL must resolve");
 
     mock.assert_async().await;
     assert_eq!(url, "https://v1.example/docs");
@@ -171,7 +203,9 @@ async fn missing_requested_version_fails() {
         .with_body(packument())
         .create_async()
         .await;
-    let args = DocsArgs { package: "is-negative@9999.0.0".to_string() };
+    let args = DocsArgs {
+        package: "is-negative@9999.0.0".to_string(),
+    };
 
     let error = args
         .documentation_url(&config_for(&server.url()))
@@ -180,7 +214,10 @@ async fn missing_requested_version_fails() {
 
     mock.assert_async().await;
     assert!(
-        matches!(error.downcast_ref::<ViewError>(), Some(ViewError::PackageNotFound { .. })),
+        matches!(
+            error.downcast_ref::<ViewError>(),
+            Some(ViewError::PackageNotFound { .. })
+        ),
         "unexpected error: {error:?}",
     );
 }

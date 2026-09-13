@@ -80,7 +80,10 @@ impl Searcher {
         version: &str,
         node: Option<&TreeNodeId>,
     ) -> SearchMatch {
-        if self.queries.iter().any(|query| query_matches(query, alias, name, version)) {
+        if self.queries
+            .iter()
+            .any(|query| query_matches(query, alias, name, version))
+        {
             return SearchMatch::Yes;
         }
         if self.has_finders {
@@ -112,11 +115,20 @@ fn parse_search_query(query: &str) -> miette::Result<ParsedQuery> {
     let match_name = create_matcher(std::slice::from_ref(&name.to_string()));
     let match_version = match spec {
         None => None,
-        Some(spec) => Some(spec.parse::<Range>().map_err(|_| {
-            miette::miette!("Invalid query - {query}. List can search only by version or range")
-        })?),
+        Some(spec) => Some(
+            spec
+                .parse::<Range>()
+                .map_err(|_| {
+                    miette::miette!(
+                        "Invalid query - {query}. List can search only by version or range"
+                    )
+                })?,
+        ),
     };
-    Ok(ParsedQuery { match_name, match_version })
+    Ok(ParsedQuery {
+        match_name,
+        match_version,
+    })
 }
 
 /// Split `<name>[@<spec>]`, honoring the `@scope/` prefix.

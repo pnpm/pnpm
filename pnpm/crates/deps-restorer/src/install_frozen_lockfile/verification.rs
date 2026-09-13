@@ -33,10 +33,14 @@ pub(super) struct ConcurrentVerification<'a> {
 /// waits for the verdict and only surfaces once the lockfile is trusted.
 pub(super) async fn fetch_verified<Reporter: self::Reporter>(
     create_virtual_store: CreateVirtualStore<'_>,
-    verification: ConcurrentVerification<'_>,
+    ConcurrentVerification {
+        lockfile,
+        verifiers,
+        precomputed,
+        lockfile_path,
+        cache_dir,
+    }: ConcurrentVerification<'_>,
 ) -> Result<CreateVirtualStoreOutput, InstallFrozenLockfileError> {
-    let ConcurrentVerification { lockfile, verifiers, precomputed, lockfile_path, cache_dir } =
-        verification;
     let verify = async {
         if let Some(precomputed) = precomputed {
             return precomputed.await;
@@ -85,13 +89,16 @@ pub(super) async fn load_custom_fetcher_session(
     hook: Option<&Arc<dyn pnpm_hooks::PnpmfileHooks>>,
 ) -> Result<Option<Arc<crate::CustomFetcherSession>>, InstallFrozenLockfileError> {
     let Some(hook) = hook else { return Ok(None) };
-    let fetchers = hook.get_custom_fetchers().await.map_err(|err| {
-        tracing::error!(
-            target: "pacquet::install",
-            "Failed to get custom fetchers from pnpmfile: {err}",
-        );
-        InstallFrozenLockfileError::CustomFetcherHook(err)
-    })?;
+    let fetchers = hook
+        .get_custom_fetchers()
+        .await
+        .map_err(|err| {
+            tracing::error!(
+                target: "pacquet::install",
+                "Failed to get custom fetchers from pnpmfile: {err}",
+            );
+            InstallFrozenLockfileError::CustomFetcherHook(err)
+        })?;
     if fetchers.is_empty() {
         return Ok(None);
     }

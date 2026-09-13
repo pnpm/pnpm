@@ -67,7 +67,10 @@ pub fn convert_to_create_name(package_name: &str) -> String {
 
         match scoped_package {
             Some("") | None => format!("@{scope}/create{preferred_version}"),
-            Some(pkg) => format!("@{scope}/{}{preferred_version}", ensure_create_prefixed(pkg)),
+            Some(pkg) => format!(
+                "@{scope}/{}{preferred_version}",
+                ensure_create_prefixed(pkg),
+            ),
         }
     } else {
         ensure_create_prefixed(package_name)
@@ -88,7 +91,14 @@ impl CreateArgs {
         dir: &Path,
         config: &'static mut Config,
     ) -> miette::Result<()> {
-        let CreateArgs { command, allow_build, shell_mode, cpu, os, libc } = self;
+        let CreateArgs {
+            command,
+            allow_build,
+            shell_mode,
+            cpu,
+            os,
+            libc,
+        } = self;
         let mut command_iter = command.into_iter();
         let name = command_iter.next().ok_or(CreateError::MissingArgs)?;
         let args: Vec<String> = command_iter.collect();

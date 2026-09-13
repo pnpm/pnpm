@@ -38,7 +38,10 @@ fn own_peer_is_resolved_from_peer_relevant_child() {
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
     let dep_path = DepPath::from("consumer@1.0.0(types@1.0.0)");
 
-    assert_eq!(result.direct_dependencies_by_alias.get("consumer"), Some(&dep_path));
+    assert_eq!(
+        result.direct_dependencies_by_alias.get("consumer"),
+        Some(&dep_path),
+    );
     assert_eq!(
         result.graph[&dep_path].edges.children.get("types"),
         Some(&DepPath::from("types@1.0.0")),
@@ -127,9 +130,15 @@ fn alias_child_resolves_peer_by_real_package_name() {
             id: "consumer@1.0.0".to_string(),
         }],
         packages: HashMap::from_iter([
-            ("consumer@1.0.0".into(), package("consumer", "1.0.0", &[], false)),
+            (
+                "consumer@1.0.0".into(),
+                package("consumer", "1.0.0", &[], false),
+            ),
             ("peer@1.0.0".into(), package("peer", "1.0.0", &[], true)),
-            ("plugin@1.0.0".into(), package("plugin", "1.0.0", &[("peer", "*")], false)),
+            (
+                "plugin@1.0.0".into(),
+                package("plugin", "1.0.0", &[("peer", "*")], false),
+            ),
         ]),
         dependencies_tree: HashMap::from_iter([
             (provider, tree_node("peer@1.0.0", BTreeMap::new(), 1)),
@@ -182,10 +191,19 @@ fn transitive_pending_peer_uses_provider_final_suffix() {
             },
         ],
         packages: HashMap::from_iter([
-            ("a@1.0.0".into(), package("a", "1.0.0", &[("c", "*")], false)),
-            ("b@1.0.0".into(), package("b", "1.0.0", &[("a", "*")], false)),
+            (
+                "a@1.0.0".into(),
+                package("a", "1.0.0", &[("c", "*")], false),
+            ),
+            (
+                "b@1.0.0".into(),
+                package("b", "1.0.0", &[("a", "*")], false),
+            ),
             ("c@1.0.0".into(), package("c", "1.0.0", &[], true)),
-            ("x@1.0.0".into(), package("x", "1.0.0", &[("b", "*")], false)),
+            (
+                "x@1.0.0".into(),
+                package("x", "1.0.0", &[("b", "*")], false),
+            ),
         ]),
         dependencies_tree: HashMap::from_iter([
             (a_node_id, tree_node("a@1.0.0", a_children, 0)),
@@ -244,12 +262,21 @@ fn resolved_peer_providers_from_direct_outputs_are_last_write_wins() {
         packages: HashMap::from_iter([
             ("peer@1.0.0".into(), package("peer", "1.0.0", &[], true)),
             ("peer@2.0.0".into(), package("peer", "2.0.0", &[], true)),
-            ("first@1.0.0".into(), package("first", "1.0.0", &[("peer", "*")], false)),
-            ("second@1.0.0".into(), package("second", "1.0.0", &[("peer", "*")], false)),
+            (
+                "first@1.0.0".into(),
+                package("first", "1.0.0", &[("peer", "*")], false),
+            ),
+            (
+                "second@1.0.0".into(),
+                package("second", "1.0.0", &[("peer", "*")], false),
+            ),
         ]),
         dependencies_tree: HashMap::from_iter([
             (first_peer, tree_node("peer@1.0.0", BTreeMap::new(), 1)),
-            (second_peer.clone(), tree_node("peer@2.0.0", BTreeMap::new(), 1)),
+            (
+                second_peer.clone(),
+                tree_node("peer@2.0.0", BTreeMap::new(), 1),
+            ),
             (first, tree_node("first@1.0.0", first_children, 0)),
             (second, tree_node("second@1.0.0", second_children, 0)),
         ]),
@@ -261,7 +288,10 @@ fn resolved_peer_providers_from_direct_outputs_are_last_write_wins() {
 
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
 
-    assert_eq!(result.resolved_peer_providers_by_alias.get("peer"), Some(&second_peer));
+    assert_eq!(
+        result.resolved_peer_providers_by_alias.get("peer"),
+        Some(&second_peer),
+    );
 }
 
 #[test]
@@ -297,11 +327,20 @@ fn peer_name_cycle_collapses_provider_suffixes() {
                 "webpack-cli@6.0.0".into(),
                 package("webpack-cli", "6.0.0", &[("webpack", "*")], false),
             ),
-            ("webpack@5.0.0".into(), package("webpack", "5.0.0", &[("webpack-cli", "*")], false)),
+            (
+                "webpack@5.0.0".into(),
+                package("webpack", "5.0.0", &[("webpack-cli", "*")], false),
+            ),
         ]),
         dependencies_tree: HashMap::from_iter([
-            (loader, tree_node("source-map-loader@1.0.0", BTreeMap::new(), 0)),
-            (webpack_cli, tree_node("webpack-cli@6.0.0", BTreeMap::new(), 0)),
+            (
+                loader,
+                tree_node("source-map-loader@1.0.0", BTreeMap::new(), 0),
+            ),
+            (
+                webpack_cli,
+                tree_node("webpack-cli@6.0.0", BTreeMap::new(), 0),
+            ),
             (webpack, tree_node("webpack@5.0.0", BTreeMap::new(), 0)),
         ]),
         all_peer_dep_names: HashSet::from_iter(["webpack".to_string(), "webpack-cli".to_string()]),
@@ -426,7 +465,10 @@ fn own_peer_is_resolved_from_aliased_sibling_real_name() {
                     false,
                 ),
             ),
-            ("parent@1.0.0".into(), package("parent", "1.0.0", &[], false)),
+            (
+                "parent@1.0.0".into(),
+                package("parent", "1.0.0", &[], false),
+            ),
         ]),
         dependencies_tree: HashMap::from_iter([
             (peer_c, tree_node("peer-c@2.0.0", BTreeMap::new(), 1)),
@@ -493,8 +535,14 @@ fn cached_optional_peer_resolution_does_not_match_later_parent_without_provider(
         ]),
         dependencies_tree: HashMap::from_iter([
             (types, tree_node("types@1.0.0", BTreeMap::new(), 1)),
-            (config_from_core, tree_node("config@1.0.0", BTreeMap::new(), 1)),
-            (config_from_cli, tree_node("config@1.0.0", BTreeMap::new(), 1)),
+            (
+                config_from_core,
+                tree_node("config@1.0.0", BTreeMap::new(), 1),
+            ),
+            (
+                config_from_cli,
+                tree_node("config@1.0.0", BTreeMap::new(), 1),
+            ),
             (core, tree_node("core@1.0.0", core_children, 0)),
             (cli, tree_node("cli@1.0.0", cli_children, 0)),
         ]),
@@ -509,8 +557,14 @@ fn cached_optional_peer_resolution_does_not_match_later_parent_without_provider(
     let config_without_types = DepPath::from("config@1.0.0");
     let cli_dep_path = DepPath::from("cli@1.0.0");
 
-    assert_eq!(result.direct_dependencies_by_alias.get("core"), Some(&DepPath::from("core@1.0.0")));
-    assert_eq!(result.direct_dependencies_by_alias.get("cli"), Some(&cli_dep_path));
+    assert_eq!(
+        result.direct_dependencies_by_alias.get("core"),
+        Some(&DepPath::from("core@1.0.0")),
+    );
+    assert_eq!(
+        result.direct_dependencies_by_alias.get("cli"),
+        Some(&cli_dep_path),
+    );
     assert!(result.graph.contains_key(&config_with_types));
     assert!(result.graph.contains_key(&config_without_types));
     assert_eq!(
@@ -536,7 +590,11 @@ fn same_package_child_replaces_inherited_parent_when_peer_diamond_conflicts() {
 
     let mut tree = ResolvedTree {
         direct: vec![
-            DirectDep { alias: "ts".to_string(), node_id: ts2.clone(), id: "ts@2.0.0".to_string() },
+            DirectDep {
+                alias: "ts".to_string(),
+                node_id: ts2.clone(),
+                id: "ts@2.0.0".to_string(),
+            },
             DirectDep {
                 alias: "parser".to_string(),
                 node_id: parser_root.clone(),
@@ -551,12 +609,18 @@ fn same_package_child_replaces_inherited_parent_when_peer_diamond_conflicts() {
         packages: HashMap::from_iter([
             ("ts@1.0.0".into(), package("ts", "1.0.0", &[], true)),
             ("ts@2.0.0".into(), package("ts", "2.0.0", &[], true)),
-            ("parser@1.0.0".into(), package("parser", "1.0.0", &[("ts", "*")], false)),
+            (
+                "parser@1.0.0".into(),
+                package("parser", "1.0.0", &[("ts", "*")], false),
+            ),
             (
                 Arc::from("plugin@1.0.0".to_string()),
                 package("plugin", "1.0.0", &[("parser", "*"), ("ts", "*")], false),
             ),
-            ("bundle@1.0.0".into(), package("bundle", "1.0.0", &[], false)),
+            (
+                "bundle@1.0.0".into(),
+                package("bundle", "1.0.0", &[], false),
+            ),
         ]),
         dependencies_tree: HashMap::from_iter([
             (ts1, tree_node("ts@1.0.0", BTreeMap::new(), 1)),
@@ -628,7 +692,10 @@ fn shared_package_optional_transitive_peer_resolves_deterministically() {
                 },
             ],
             packages: HashMap::from_iter([
-                ("@babel/core@7.0.0".into(), package("@babel/core", "7.0.0", &[], true)),
+                (
+                    "@babel/core@7.0.0".into(),
+                    package("@babel/core", "7.0.0", &[], true),
+                ),
                 (
                     Arc::from("styled-jsx@1.0.0".to_string()),
                     package_with_peer_dependencies(
@@ -643,8 +710,14 @@ fn shared_package_optional_transitive_peer_resolves_deterministically() {
             ]),
             dependencies_tree: HashMap::from_iter([
                 (babel, tree_node("@babel/core@7.0.0", BTreeMap::new(), 1)),
-                (styled_shallow, tree_node("styled-jsx@1.0.0", BTreeMap::new(), 1)),
-                (styled_deep, tree_node("styled-jsx@1.0.0", BTreeMap::new(), 2)),
+                (
+                    styled_shallow,
+                    tree_node("styled-jsx@1.0.0", BTreeMap::new(), 1),
+                ),
+                (
+                    styled_deep,
+                    tree_node("styled-jsx@1.0.0", BTreeMap::new(), 2),
+                ),
                 (app, tree_node("app@1.0.0", app_children, 0)),
                 (mid, tree_node("mid@1.0.0", mid_children, 1)),
             ]),
@@ -678,7 +751,10 @@ fn shared_package_optional_transitive_peer_resolves_deterministically() {
         assert!(result.graph.contains_key(&styled_with_babel));
         assert!(result.graph.contains_key(&styled_without_babel));
 
-        let mut keys: Vec<String> = result.graph.keys().map(DepPath::to_string).collect();
+        let mut keys: Vec<String> = result.graph
+            .keys()
+            .map(DepPath::to_string)
+            .collect();
         keys.sort();
         match &first_keys {
             None => first_keys = Some(keys),

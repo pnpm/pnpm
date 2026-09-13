@@ -113,7 +113,10 @@ impl TryFrom<String> for JsonAuthRegistry {
     fn try_from(value: String) -> Result<Self, Self::Error> {
         let normalized = validate_json_auth_registry(&value)?;
         let nerfed = nerf_dart(&normalized);
-        Ok(JsonAuthRegistry { normalized, nerfed })
+        Ok(JsonAuthRegistry {
+            normalized,
+            nerfed,
+        })
     }
 }
 
@@ -136,7 +139,9 @@ impl TryFrom<String> for JsonAuthScope {
         if is_package_scope(&value) {
             return Ok(JsonAuthScope::Package(value));
         }
-        Err(format!(r#"scope "{value}" must be "@" or a package scope like "@org""#))
+        Err(format!(
+            r#"scope "{value}" must be "@" or a package scope like "@org""#,
+        ))
     }
 }
 
@@ -242,7 +247,10 @@ impl NpmrcAuth {
         declared: &DeclaredRegistries,
     ) {
         let file_routes = std::mem::take(&mut self.routes.json_file);
-        for (scope, url) in file_routes.into_iter().filter(|(scope, _)| !declared.covers(scope)) {
+        for (scope, url) in file_routes
+            .into_iter()
+            .filter(|(scope, _)| !declared.covers(scope))
+        {
             if scope == "default" {
                 config.registry.clone_from(&url);
                 continue;

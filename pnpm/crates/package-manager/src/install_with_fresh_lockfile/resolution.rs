@@ -1,7 +1,10 @@
+pub(super) use completion::collect_resolution;
+
 pub(super) use early_materializer::{
     FastOverrideFit, fast_override_eligible, interactive_policy, start_early_materialization,
 };
 
+mod completion;
 mod early_materializer;
 
 use super::{
@@ -80,7 +83,10 @@ pub(super) struct ManifestSlots<'a> {
 pub(super) type ManifestsView<'m> = std::borrow::Cow<'m, BTreeMap<String, &'m PackageManifest>>;
 impl<'a> ManifestSlots<'a> {
     pub(super) fn declared(declared: BTreeMap<String, &'a PackageManifest>) -> Self {
-        Self { declared, effective: BTreeMap::new() }
+        Self {
+            declared,
+            effective: BTreeMap::new(),
+        }
     }
 
     /// Build the read-package hook chain and rewrite every importer's
@@ -110,7 +116,10 @@ impl<'a> ManifestSlots<'a> {
             std::borrow::Cow::Borrowed(&self.declared)
         } else {
             std::borrow::Cow::Owned(
-                self.effective.iter().map(|(id, manifest)| (id.clone(), manifest)).collect(),
+                self.effective
+                    .iter()
+                    .map(|(id, manifest)| (id.clone(), manifest))
+                    .collect(),
             )
         }
     }
@@ -127,12 +136,23 @@ pub(super) async fn resolve_graph<'a: 'm, 'm, Reporter: self::Reporter + 'static
     let prep = prepare_resolution::<Reporter>(install, owned, setup, manifests).await?;
     let importer_manifests = manifests.view();
     let pass = run_prepared_resolve(
-        ResolutionContext { install, owned, setup, prep: &prep, registries },
+        ResolutionContext {
+            install,
+            owned,
+            setup,
+            prep: &prep,
+            registries,
+        },
         importer_manifests,
     )
     .await?;
-    collect_resolution::<Reporter>(install, owned.resolution.peer_issues_sink.as_ref(), prep, pass)
-        .await
+    collect_resolution::<Reporter>(
+        install,
+        owned.resolution.peer_issues_sink.as_ref(),
+        prep,
+        pass,
+    )
+    .await
 }
 pub(super) struct ResolutionContext<'a, Reporter> {
     install: FreshInputs<'a>,
@@ -210,9 +230,7 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
             hooks: crate::install_with_fresh_lockfile::resolution_inputs::WorkspaceLifecycleHooks {
                 pnpmfile: self.prep.hooks.pnpmfile_hook.clone(),
                 read_package_log: self.prep.hooks.read_package_log.clone(),
-                finalized_package: self
-                    .prep
-                    .early_materializer
+                finalized_package: self.prep.early_materializer
                     .as_ref()
                     .map(crate::early_materializer::EarlyMaterializer::hook),
             },
@@ -220,7 +238,12 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
                 lockfile: lockfile_reuse_seed
                     .cloned()
                     .or_else(|| self.prep.wanted_lockfile_shared.clone())
-                    .or_else(|| self.wanted_lockfile().cloned().map(Arc::new)),
+                    .or_else(|| {
+                        self
+                            .wanted_lockfile()
+                            .cloned()
+                            .map(Arc::new)
+                    }),
                 subtrees: lockfile_reuse_seed.is_some(),
                 scope: self.prep.reuse.scope.clone(),
                 scopes_by_importer: self.prep.reuse.by_importer.clone(),
@@ -331,37 +354,7 @@ pub(super) async fn run_prepared_resolve<'m, Reporter: self::Reporter + 'static>
         importer_manifests,
     ))
 }
-pub(super) async fn enforce_resolution_policies<Reporter: self::Reporter + 'static>(
-    install: FreshInputs<'_>,
-    prep: &ResolutionPrep<Reporter>,
-    workspace_result: &pnpm_resolving_deps_resolver::ResolveWorkspaceResult,
-) -> Result<(), InstallWithFreshLockfileError> {
-    let (can_prompt_now, policy_excludes_now) = interactive_policy(
-        install.execution.can_prompt,
-        install.execution.policy_excludes,
-        install.execution.dry_run,
-    );
-    crate::minimum_release_age::handle_minimum_release_age_violations::<Reporter>(
-        install.drivers.config,
-        install.projects.lockfile_dir,
-        &workspace_result.merged_tree.policy_violations,
-        can_prompt_now,
-        policy_excludes_now,
-    )
-    .await
-    .map_err(InstallWithFreshLockfileError::MinimumReleaseAge)?;
-    check_patch_usage::<Reporter>(
-        install.drivers.config,
-        prep.patches.record.as_deref(),
-        &workspace_result.merged_tree.applied_patches,
-        PatchUsageScope {
-            real_importer_ids: install.projects.real_ids,
-            selected_importer_ids: install.projects.selected_ids,
-            merge_wanted_lockfile: install.lockfiles.merge_wanted,
-        },
-    )?;
-    Ok(())
-}
+
 /// A finished resolve pass, with what the phase around it decided.
 pub(super) struct ResolvePass<'m> {
     result: pnpm_resolving_deps_resolver::ResolveWorkspaceResult,
@@ -371,64 +364,13 @@ pub(super) struct ResolvePass<'m> {
     linked_peer_importers: HashSet<String>,
     importer_manifests: ManifestsView<'m>,
 }
-/// Enforce the policies the pass reports against, gather the peer
-/// issues, and assemble the phase's output.
-pub(super) async fn collect_resolution<'m, Reporter: self::Reporter + 'static>(
-    install: FreshInputs<'m>,
-    peer_issues_sink: Option<&crate::PeerIssuesSink>,
-    prep: ResolutionPrep<Reporter>,
-    pass: ResolvePass<'m>,
-) -> Result<Resolved<'m, Reporter>, InstallWithFreshLockfileError> {
-    let workspace_result = pass.result;
-    enforce_resolution_policies::<Reporter>(install, &prep, &workspace_result).await?;
-    let peer_issues = &workspace_result.peers.peer_dependency_issues_by_importer;
-    let mut peer_issue_importer_ids: HashSet<String> = peer_issues.keys().cloned().collect();
-    peer_issue_importer_ids.extend(pass.linked_peer_importers);
-    report_peer_issues(peer_issues_sink, peer_issues);
-    report_resolve_phase(pass.started, &workspace_result, pass.importer_manifests.len());
-    Ok(Resolved {
-        early_materializer: prep.early_materializer,
-        importer_manifests: pass.importer_manifests,
-        fixed_wanted_lockfile: prep.fixed_wanted_lockfile,
-        overrides: crate::install_with_fresh_lockfile::resolution::ResolvedOverrides {
-            parsed_overrides: prep.transforms.parsed_overrides,
-            overrides: prep.transforms.resolved_overrides,
-            versions_overrider: prep.transforms.versions_overrider,
-        },
-        patches: prep.patches,
-        hooks: crate::install_with_fresh_lockfile::resolution::ResolvedHooks {
-            after_all_resolved_hook: prep.hooks.pnpmfile_hook,
-            after_all_resolved_log: prep.hooks.after_all_resolved_log,
-        },
-        reuse: crate::install_with_fresh_lockfile::resolution::ResolutionReuseGuard {
-            guard_previous_importers: install
-                .lockfiles
-                .merge_wanted
-                .filter(|_| install.drivers.config.dedupe_injected_deps)
-                .map(|lockfile| &lockfile.importers),
-            guard_update_reuse_scope: prep.reuse.scope,
-            guard_update_reuse_scopes_by_importer: prep.reuse.by_importer,
-            full_resolution: pass.full_resolution,
-        },
-        graph: crate::install_with_fresh_lockfile::resolution::ResolvedGraph {
-            peer_issue_importer_ids,
-            merged_graph: workspace_result.peers.graph,
-            direct_by_importer: workspace_result.peers.direct_dependencies_by_importer,
-            time: workspace_result.time,
-        },
-    })
-}
-pub(super) fn report_resolve_phase(
-    started: std::time::Instant,
-    workspace_result: &pnpm_resolving_deps_resolver::ResolveWorkspaceResult,
-    importer_count: usize,
-) {
-    tracing::info!(
-        target: "pacquet::install::phase",
-        phase = "resolve_workspace",
-        elapsed_ms = started.elapsed().as_millis() as u64,
-        importers = importer_count,
-        nodes = workspace_result.peers.graph.len(),
-        "phase complete",
-    );
+
+impl From<manifest_transforms::ManifestTransforms> for ResolvedOverrides {
+    fn from(transforms: manifest_transforms::ManifestTransforms) -> Self {
+        Self {
+            parsed_overrides: transforms.parsed_overrides,
+            overrides: transforms.resolved_overrides,
+            versions_overrider: transforms.versions_overrider,
+        }
+    }
 }

@@ -25,13 +25,28 @@ fn at(seconds_ago: u64) -> String {
 
 #[test]
 fn global_virtual_store_never_prunes() {
-    assert!(!should_prune_virtual_store(true, None, SEVEN_DAYS_MINUTES, now()));
-    assert!(!should_prune_virtual_store(true, Some(&at(0)), SEVEN_DAYS_MINUTES, now()));
+    assert!(!should_prune_virtual_store(
+        true,
+        None,
+        SEVEN_DAYS_MINUTES,
+        now()
+    ));
+    assert!(!should_prune_virtual_store(
+        true,
+        Some(&at(0)),
+        SEVEN_DAYS_MINUTES,
+        now()
+    ));
 }
 
 #[test]
 fn missing_modules_file_prunes() {
-    assert!(should_prune_virtual_store(false, None, SEVEN_DAYS_MINUTES, now()));
+    assert!(should_prune_virtual_store(
+        false,
+        None,
+        SEVEN_DAYS_MINUTES,
+        now()
+    ));
 }
 
 /// Defensive contract only: the real caller never passes `Some("")`
@@ -40,7 +55,12 @@ fn missing_modules_file_prunes() {
 /// upstream's `modulesFile?.prunedAt` check.
 #[test]
 fn empty_pruned_at_prunes() {
-    assert!(should_prune_virtual_store(false, Some(""), SEVEN_DAYS_MINUTES, now()));
+    assert!(should_prune_virtual_store(
+        false,
+        Some(""),
+        SEVEN_DAYS_MINUTES,
+        now()
+    ));
 }
 
 #[test]
@@ -51,24 +71,44 @@ fn zero_max_age_always_prunes() {
 #[test]
 fn fresh_cache_is_kept() {
     let one_minute_ago = at(60);
-    assert!(!should_prune_virtual_store(false, Some(&one_minute_ago), SEVEN_DAYS_MINUTES, now()));
+    assert!(!should_prune_virtual_store(
+        false,
+        Some(&one_minute_ago),
+        SEVEN_DAYS_MINUTES,
+        now()
+    ));
 }
 
 #[test]
 fn expired_cache_prunes() {
     let eight_days_ago = at(8 * 24 * 60 * 60);
-    assert!(should_prune_virtual_store(false, Some(&eight_days_ago), SEVEN_DAYS_MINUTES, now()));
+    assert!(should_prune_virtual_store(
+        false,
+        Some(&eight_days_ago),
+        SEVEN_DAYS_MINUTES,
+        now()
+    ));
 }
 
 #[test]
 fn unparsable_pruned_at_is_kept() {
-    assert!(!should_prune_virtual_store(false, Some("not a date"), SEVEN_DAYS_MINUTES, now()));
+    assert!(!should_prune_virtual_store(
+        false,
+        Some("not a date"),
+        SEVEN_DAYS_MINUTES,
+        now()
+    ));
 }
 
 #[test]
 fn future_pruned_at_is_kept() {
     let future = httpdate::fmt_http_date(now() + Duration::from_hours(1));
-    assert!(!should_prune_virtual_store(false, Some(&future), SEVEN_DAYS_MINUTES, now()));
+    assert!(!should_prune_virtual_store(
+        false,
+        Some(&future),
+        SEVEN_DAYS_MINUTES,
+        now()
+    ));
 }
 
 #[test]
@@ -100,12 +140,24 @@ fn sweep_keeps_needed_removes_surplus_and_skipped() {
     let removed = prune_virtual_store(vsdir, keys.iter(), &skipped, max);
 
     assert_eq!(removed, Some(2));
-    assert!(vsdir.join(keep.to_virtual_store_name(max)).exists());
-    assert!(vsdir.join(keep_peer.to_virtual_store_name(max)).exists());
+    assert!(
+        vsdir
+            .join(keep.to_virtual_store_name(max))
+            .exists(),
+    );
+    assert!(
+        vsdir
+            .join(keep_peer.to_virtual_store_name(max))
+            .exists(),
+    );
     assert!(vsdir.join("node_modules").exists());
     assert!(vsdir.join("lock.yaml").exists());
     assert!(!vsdir.join("surplus@9.9.9").exists());
-    assert!(!vsdir.join(skipped_key.to_virtual_store_name(max)).exists());
+    assert!(
+        !vsdir
+            .join(skipped_key.to_virtual_store_name(max))
+            .exists(),
+    );
 }
 
 #[test]
@@ -158,7 +210,10 @@ fn prune_target_must_be_inside_node_modules() {
     // A not-yet-created path that escapes node_modules is refused even though
     // it is absent at check time: it could be created/swapped in mid-install.
     let outside_missing = root.path().join("not-created-outside");
-    assert_eq!(prune_target_within_modules(&outside_missing, &modules), None);
+    assert_eq!(
+        prune_target_within_modules(&outside_missing, &modules),
+        None,
+    );
 }
 
 #[test]
@@ -166,7 +221,10 @@ fn missing_modules_dir_is_not_a_prune_root() {
     let root = tempfile::tempdir().unwrap();
     let modules = root.path().join("node_modules");
 
-    assert_eq!(prune_target_within_modules(&modules.join(".pnpm"), &modules), None);
+    assert_eq!(
+        prune_target_within_modules(&modules.join(".pnpm"), &modules),
+        None,
+    );
 }
 
 #[test]

@@ -51,7 +51,11 @@ impl StoreDir {
     /// `hex[..2]` slice inside `file_path_by_hex_str` from panicking on
     /// non-UTF-8-char-boundary input.
     pub fn cas_file_path_by_mode(&self, hex: &str, mode: u32) -> Option<PathBuf> {
-        if hex.len() <= 2 || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+        if hex.len() <= 2
+            || !hex
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit())
+        {
             return None;
         }
         // Same executable-bit rule the write side uses
@@ -222,7 +226,10 @@ fn stream_into_temp_file(
     let mut copy_buffer = vec![0u8; COPY_BUFFER_SIZE];
     let mut size: u64 = 0;
     let io_write_error = |error| {
-        write_cas_error(EnsureFileError::WriteFile { file_path: tmp_path.to_path_buf(), error })
+        write_cas_error(EnsureFileError::WriteFile {
+            file_path: tmp_path.to_path_buf(),
+            error,
+        })
     };
 
     loop {
@@ -230,14 +237,18 @@ fn stream_into_temp_file(
             Ok(0) => break,
             Ok(read) => {
                 hasher.update(&copy_buffer[..read]);
-                writer.write_all(&copy_buffer[..read]).map_err(io_write_error)?;
+                writer
+                    .write_all(&copy_buffer[..read])
+                    .map_err(io_write_error)?;
                 size += read as u64;
             }
             Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
             Err(error) => return Err(WriteCasFileFromReaderError::Read(error)),
         }
     }
-    writer.into_inner().map_err(|error| io_write_error(error.into_error()))?;
+    writer
+        .into_inner()
+        .map_err(|error| io_write_error(error.into_error()))?;
 
     if let Some(expected) = expected_size
         && size != expected
@@ -263,8 +274,12 @@ const COPY_BUFFER_SIZE: usize = 128 * 1024;
 fn files_have_equal_contents(left: &Path, right: &Path) -> bool {
     use std::io::BufRead;
 
-    let Ok(file_a) = fs::File::open(left) else { return false };
-    let Ok(file_b) = fs::File::open(right) else { return false };
+    let Ok(file_a) = fs::File::open(left) else {
+        return false;
+    };
+    let Ok(file_b) = fs::File::open(right) else {
+        return false;
+    };
     let mut reader_a = io::BufReader::with_capacity(COPY_BUFFER_SIZE, file_a);
     let mut reader_b = io::BufReader::with_capacity(COPY_BUFFER_SIZE, file_b);
     loop {
@@ -274,7 +289,9 @@ fn files_have_equal_contents(left: &Path, right: &Path) -> bool {
         if chunk_a.is_empty() || chunk_b.is_empty() {
             return chunk_a.is_empty() && chunk_b.is_empty();
         }
-        let len = chunk_a.len().min(chunk_b.len());
+        let len = chunk_a
+            .len()
+            .min(chunk_b.len());
         if chunk_a[..len] != chunk_b[..len] {
             return false;
         }

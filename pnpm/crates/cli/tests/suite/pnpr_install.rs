@@ -54,11 +54,10 @@ fn start_pnpr(registry_url: &str) -> (String, String) {
 
     let addr = server.serve(move |config| {
         config.identity.auth.tokens.file = Some(tokens_path);
-        config
-            .routing
-            .route_policy
-            .public
-            .push(pnpr::PublicRoute { registry: Some(registry_url), package: None });
+        config.routing.route_policy.public.push(pnpr::PublicRoute {
+            registry: Some(registry_url),
+            package: None,
+        });
     });
     (format!("http://{addr}/"), token)
 }
@@ -68,20 +67,23 @@ fn start_pnpr(registry_url: &str) -> (String, String) {
 fn start_pnpr_registry(upstream_url: &str, ecosystem: Ecosystem) -> String {
     let upstream_url = upstream_url.to_string();
     let name = "upstream";
-    let addr = PnprServer::bind("pnpr-registry").serve(move |config| {
-        config.routing.upstreams.insert(
-            name.to_string(),
-            UpstreamConfig::with_defaults(upstream_url, HeaderMap::new()),
-        );
-        config.routing.registries = Registries::new(
-            indexmap::IndexMap::from([(
+    let addr = PnprServer::bind("pnpr-registry")
+        .serve(move |config| {
+            config.routing.upstreams.insert(
                 name.to_string(),
-                Registry::Upstream { patterns: Vec::new() },
-            )]),
-            Some(name.to_string()),
-        )
-        .with_ecosystem(name, ecosystem);
-    });
+                UpstreamConfig::with_defaults(upstream_url, HeaderMap::new()),
+            );
+            config.routing.registries = Registries::new(
+                indexmap::IndexMap::from([(
+                    name.to_string(),
+                    Registry::Upstream {
+                        patterns: Vec::new(),
+                    },
+                )]),
+                Some(name.to_string()),
+            )
+            .with_ecosystem(name, ecosystem);
+        });
     // The server's root is its npm alias; every other ecosystem is
     // addressed under its own prefix.
     if ecosystem == Ecosystem::Npm {
@@ -110,7 +112,12 @@ impl PnprServer {
         // tokio's `from_std` requires the listener to be non-blocking.
         listener.set_nonblocking(true).expect("set pnpr listener non-blocking");
         let addr = listener.local_addr().expect("pnpr addr");
-        Self { name, listener, addr, storage }
+        Self {
+            name,
+            listener,
+            addr,
+            storage,
+        }
     }
 
     /// Run the server on a detached thread until the process exits, with
@@ -141,12 +148,17 @@ impl PnprServer {
 }
 
 fn configure_pnpr_auth(npmrc_path: &std::path::Path, pnpr_url: &str, token: &str) {
-    let authority =
-        pnpr_url.strip_prefix("http://").expect("test pnpr URL uses http").trim_end_matches('/');
+    let authority = pnpr_url
+        .strip_prefix("http://")
+        .expect("test pnpr URL uses http")
+        .trim_end_matches('/');
     let current = fs::read_to_string(npmrc_path).expect("read .npmrc");
     let separator = if current.ends_with('\n') { "" } else { "\n" };
-    fs::write(npmrc_path, format!("{current}{separator}//{authority}/:_authToken={token}\n"))
-        .expect("write pnpr auth to .npmrc");
+    fs::write(
+        npmrc_path,
+        format!("{current}{separator}//{authority}/:_authToken={token}\n"),
+    )
+    .expect("write pnpr auth to .npmrc");
 }
 
 fn wait_until_ready(addr: SocketAddr) {
@@ -190,9 +202,10 @@ fn revision_fixture_tarball_with_value(value: &str) -> Vec<u8> {
     let manifest = br#"{"name":"revision-pkg","version":"1.0.0","main":"index.js"}"#;
     let source = format!("module.exports = '{value}'\n");
     let mut tar = tar::Builder::new(Vec::new());
-    for (path, body) in
-        [("package/package.json", manifest.as_slice()), ("package/index.js", source.as_bytes())]
-    {
+    for (path, body) in [
+        ("package/package.json", manifest.as_slice()),
+        ("package/index.js", source.as_bytes()),
+    ] {
         let mut header = tar::Header::new_gnu();
         header.set_size(body.len() as u64);
         header.set_mode(0o644);
@@ -211,8 +224,10 @@ fn revision_packument(
     revision: u64,
     history: &[(&ssri::Integrity, u64)],
 ) -> (ssri::Integrity, serde_json::Value) {
-    let integrity =
-        ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512).chain(tarball).result();
+    let integrity = ssri::IntegrityOpts::new()
+        .algorithm(ssri::Algorithm::Sha512)
+        .chain(tarball)
+        .result();
     let revision_path = integrity_addressed_tarball_path(&integrity).unwrap();
     let revisions = history
         .iter()
@@ -283,13 +298,19 @@ fn write_workspace_project(workspace: &Path, dir: &str, name: &str, dependency: 
 }
 
 fn replace_workspace_dependency(workspace: &Path, dir: &str, dependency: (&str, &str)) {
-    let path = workspace.join("packages").join(dir).join("package.json");
+    let path = workspace
+        .join("packages")
+        .join(dir)
+        .join("package.json");
     let mut manifest: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(&path).expect("read package.json"))
             .expect("parse package.json");
     manifest["dependencies"] = serde_json::json!({ dependency.0: dependency.1 });
-    fs::write(path, serde_json::to_string_pretty(&manifest).expect("serialize package.json"))
-        .expect("write package.json");
+    fs::write(
+        path,
+        serde_json::to_string_pretty(&manifest).expect("serialize package.json"),
+    )
+    .expect("write package.json");
 }
 
 fn read_workspace_lockfile(workspace: &Path) -> Lockfile {
@@ -307,16 +328,14 @@ fn read_workspace_current_lockfile(workspace: &Path) -> Lockfile {
 }
 
 fn workspace_importer<'a>(lockfile: &'a Lockfile, id: &str) -> &'a ProjectSnapshot {
-    lockfile
-        .importers
+    lockfile.importers
         .get(id)
         .unwrap_or_else(|| panic!("missing importer {id}: {:?}", lockfile.importers.keys()))
 }
 
 fn workspace_importer_version(lockfile: &Lockfile, id: &str, dependency: &str) -> String {
     let name: PkgName = dependency.parse().expect("parse package name");
-    workspace_importer(lockfile, id)
-        .dependencies
+    workspace_importer(lockfile, id).dependencies
         .as_ref()
         .and_then(|dependencies| dependencies.get(&name))
         .unwrap_or_else(|| panic!("missing {dependency} from importer {id}"))
@@ -325,25 +344,34 @@ fn workspace_importer_version(lockfile: &Lockfile, id: &str, dependency: &str) -
 }
 
 fn workspace_snapshot_entries(lockfile: &Lockfile, name: &str) -> Vec<(String, SnapshotEntry)> {
-    lockfile
-        .snapshots
+    lockfile.snapshots
         .as_ref()
         .into_iter()
         .flatten()
-        .filter(|(key, _)| key.to_string().starts_with(&format!("{name}@")))
+        .filter(|(key, _)| {
+            key
+                .to_string()
+                .starts_with(&format!("{name}@"))
+        })
         .map(|(key, entry)| (key.to_string(), entry.clone()))
         .collect()
 }
 
 fn workspace_has_link(workspace: &Path, project: &str, dependency: &str) -> bool {
     is_symlink_or_junction(
-        &workspace.join("packages").join(project).join("node_modules").join(dependency),
+        &workspace
+            .join("packages")
+            .join(project)
+            .join("node_modules")
+            .join(dependency),
     )
     .unwrap_or(false)
 }
 
 fn workspace_slot(workspace: &Path, dependency: &str, version: &str) -> std::path::PathBuf {
-    workspace.join("node_modules/.pnpm").join(format!("{}@{version}", dependency.replace('/', "+")))
+    workspace
+        .join("node_modules/.pnpm")
+        .join(format!("{}@{version}", dependency.replace('/', "+")))
 }
 
 fn assert_standard_workspace_pnpr_from(project: Option<&str>) {
@@ -365,7 +393,10 @@ fn assert_standard_workspace_pnpr_from(project: Option<&str>) {
 
     let wanted = read_workspace_lockfile(&workspace);
     assert_eq!(
-        wanted.importers.keys().cloned().collect::<std::collections::BTreeSet<_>>(),
+        wanted.importers
+            .keys()
+            .cloned()
+            .collect::<std::collections::BTreeSet<_>>(),
         std::collections::BTreeSet::from(["packages/app".to_string(), "packages/lib".to_string(),]),
     );
     assert!(workspace_has_link(&workspace, "app", WORKSPACE_HELLO));
@@ -377,7 +408,12 @@ fn assert_standard_workspace_pnpr_from(project: Option<&str>) {
 fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { npmrc_path, store_dir, mock_instance, .. } = npmrc_info;
+    let AddMockedRegistry {
+        npmrc_path,
+        store_dir,
+        mock_instance,
+        ..
+    } = npmrc_info;
     configure_workspace(&workspace);
     fs::write(
         workspace.join("package.json"),
@@ -389,8 +425,18 @@ fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
         .to_string(),
     )
     .expect("write workspace root manifest");
-    write_workspace_project(&workspace, "selected", "selected", (WORKSPACE_HELLO, "0.0.0"));
-    write_workspace_project(&workspace, "unselected", "unselected", (WORKSPACE_PARENT, "100.0.0"));
+    write_workspace_project(
+        &workspace,
+        "selected",
+        "selected",
+        (WORKSPACE_HELLO, "0.0.0"),
+    );
+    write_workspace_project(
+        &workspace,
+        "unselected",
+        "unselected",
+        (WORKSPACE_PARENT, "100.0.0"),
+    );
     pacquet_at(&workspace)
         .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
         .with_args(["install", "--lockfile-only"])
@@ -421,7 +467,13 @@ fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
     }
     let (pnpr_url, token) = start_pnpr(&mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
-    let mut args = vec!["--filter", "selected", "install", "--pnpr-server", &pnpr_url];
+    let mut args = vec![
+        "--filter",
+        "selected",
+        "install",
+        "--pnpr-server",
+        &pnpr_url,
+    ];
     if lockfile_only {
         args.push("--lockfile-only");
     }
@@ -436,12 +488,27 @@ fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
         fs::read(workspace.join("packages/unselected/package.json")).expect("read manifest"),
         unselected_manifest,
     );
-    assert_eq!(workspace_importer(&after, "packages/unselected"), &prior_unselected);
-    assert_eq!(workspace_snapshot_entries(&after, WORKSPACE_PARENT), prior_parent);
-    assert_eq!(workspace_snapshot_entries(&after, WORKSPACE_DEP), prior_child);
+    assert_eq!(
+        workspace_importer(&after, "packages/unselected"),
+        &prior_unselected,
+    );
+    assert_eq!(
+        workspace_snapshot_entries(&after, WORKSPACE_PARENT),
+        prior_parent,
+    );
+    assert_eq!(
+        workspace_snapshot_entries(&after, WORKSPACE_DEP),
+        prior_child,
+    );
     assert!(workspace_snapshot_entries(&after, WORKSPACE_HELLO_PARENT).is_empty());
-    assert_eq!(workspace_importer_version(&after, "packages/selected", WORKSPACE_HELLO), "1.0.0");
-    assert_eq!(workspace_importer_version(&after, ".", WORKSPACE_ROOT_DEP), "1.0.0");
+    assert_eq!(
+        workspace_importer_version(&after, "packages/selected", WORKSPACE_HELLO),
+        "1.0.0",
+    );
+    assert_eq!(
+        workspace_importer_version(&after, ".", WORKSPACE_ROOT_DEP),
+        "1.0.0",
+    );
     assert_eq!(
         fs::read(workspace.join("package.json")).expect("read root manifest"),
         root_manifest,
@@ -464,7 +531,10 @@ fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
         assert!(!workspace_slot(&workspace, WORKSPACE_DEP, "100.1.0").exists());
         let current = read_workspace_current_lockfile(&workspace);
         assert_eq!(
-            current.importers.keys().cloned().collect::<std::collections::BTreeSet<_>>(),
+            current.importers
+                .keys()
+                .cloned()
+                .collect::<std::collections::BTreeSet<_>>(),
             std::collections::BTreeSet::from([".".to_string(), "packages/selected".to_string()]),
         );
     }
@@ -474,8 +544,18 @@ fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
 
 fn seed_filtered_repair_workspace(workspace: &Path, registry_url: &str) {
     configure_workspace(workspace);
-    write_workspace_project(workspace, "selected", "selected", (WORKSPACE_HELLO, "0.0.0"));
-    write_workspace_project(workspace, "unselected", "unselected", (WORKSPACE_PARENT, "100.0.0"));
+    write_workspace_project(
+        workspace,
+        "selected",
+        "selected",
+        (WORKSPACE_HELLO, "0.0.0"),
+    );
+    write_workspace_project(
+        workspace,
+        "unselected",
+        "unselected",
+        (WORKSPACE_PARENT, "100.0.0"),
+    );
     pacquet_at(workspace)
         .with_env("PNPM_CONFIG_REGISTRY", registry_url)
         .with_args(["install", "--lockfile-only"])
@@ -557,8 +637,11 @@ fn cargo_install_uses_a_configured_pnpr_registry_and_accelerator() {
         ))
         .expect(1)
         .create();
-    let download_mock =
-        upstream.mock("GET", "/dl/demo/1.0.0").with_body(&archive).expect(1).create();
+    let download_mock = upstream
+        .mock("GET", "/dl/demo/1.0.0")
+        .with_body(&archive)
+        .expect(1)
+        .create();
     let registry_url = start_pnpr_registry(&upstream.url(), Ecosystem::Cargo);
     let (pnpr_url, token) = start_pnpr(&format!("{registry_url}index"));
 
@@ -594,15 +677,25 @@ fn cargo_install_uses_a_configured_pnpr_registry_and_accelerator() {
         .success();
 
     let lockfile = fs::read_to_string(root.path().join("Cargo.lock")).expect("read Cargo lockfile");
-    assert!(lockfile.contains(&format!(r#"source = "sparse+{registry_url}index/""#)), "{lockfile}");
-    assert!(root.path().join(".pnpm/crates/crates-io/demo-1.0.0/src/lib.rs").is_file());
+    assert!(
+        lockfile.contains(&format!(r#"source = "sparse+{registry_url}index/""#)),
+        "{lockfile}",
+    );
+    assert!(
+        root
+            .path()
+            .join(".pnpm/crates/crates-io/demo-1.0.0/src/lib.rs")
+            .is_file(),
+    );
     // The accelerator resolved: a local resolve would have walked the sparse
     // index itself and left the entry it read in the client's index cache.
     // Only the registry's config.json, which the download needs either way,
     // is cached here.
     let cached_index_files = get_all_files(&root.path().join("cache/v11/cargo-index"));
     assert!(
-        cached_index_files.iter().all(|path| path.ends_with("config.json")),
+        cached_index_files
+            .iter()
+            .all(|path| path.ends_with("config.json")),
         "{cached_index_files:?}",
     );
     Command::new("cargo")

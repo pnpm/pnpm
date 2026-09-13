@@ -40,12 +40,13 @@ pub async fn fetch_attestation_published_at(
     let registry = opts.registry.trim_end_matches('/');
     let url = format!("{registry}/-/npm/v1/attestations/{pkg_name}@{version}");
     if !opts.auth_headers.allows_fetch(&url) {
-        return Err(FetchMetadataError::OffAllowlist { url: redact_url_credentials(&url) });
+        return Err(FetchMetadataError::OffAllowlist {
+            url: redact_url_credentials(&url),
+        });
     }
     // Verification-only lookup: queue in the background class so it
     // never outranks resolution-gating fetches.
-    let mut request = opts
-        .http_client
+    let mut request = opts.http_client
         .acquire_for_url_with_priority(&url, pnpm_network::BACKGROUND)
         .await
         .get(&url);
@@ -85,7 +86,9 @@ fn extract_published_at(body: &serde_json::Value) -> Option<String> {
     let attestations = body.get("attestations")?.as_array()?;
     let mut earliest: Option<i64> = None;
     for attestation in attestations {
-        let Some(seconds) = read_earliest_integrated_time(attestation) else { continue };
+        let Some(seconds) = read_earliest_integrated_time(attestation) else {
+            continue;
+        };
         earliest = Some(earliest.map_or(seconds, |current| current.min(seconds)));
     }
     let seconds = earliest?;
@@ -110,7 +113,10 @@ fn read_earliest_integrated_time(attestation: &serde_json::Value) -> Option<i64>
 
 fn parse_integrated_time_seconds(value: &serde_json::Value) -> Option<i64> {
     if let Some(text) = value.as_str() {
-        return text.parse::<i64>().ok().filter(|&seconds| seconds > 0);
+        return text
+            .parse::<i64>()
+            .ok()
+            .filter(|&seconds| seconds > 0);
     }
     if let Some(seconds) = value.as_i64() {
         return Some(seconds).filter(|&s| s > 0);

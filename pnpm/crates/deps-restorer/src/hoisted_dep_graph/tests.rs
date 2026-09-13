@@ -17,7 +17,10 @@ use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
 use std::path::PathBuf;
 
 fn sample_resolution() -> LockfileResolution {
-    DirectoryResolution { directory: "../local-pkg".to_string() }.into()
+    DirectoryResolution {
+        directory: "../local-pkg".to_string(),
+    }
+    .into()
 }
 
 /// Sample v9 depPath. v9 lockfiles use `name@version[(peers)]`
@@ -52,11 +55,17 @@ fn dep_key(name: &str, version: &str) -> PkgNameVerPeer {
 }
 
 fn resolved_dep(version: &str) -> ResolvedDependencySpec {
-    ResolvedDependencySpec { specifier: version.to_string(), version: ver_peer(version).into() }
+    ResolvedDependencySpec {
+        specifier: version.to_string(),
+        version: ver_peer(version).into(),
+    }
 }
 
 fn directory_resolution(directory: &str) -> LockfileResolution {
-    DirectoryResolution { directory: directory.to_string() }.into()
+    DirectoryResolution {
+        directory: directory.to_string(),
+    }
+    .into()
 }
 
 /// Uses a synthetic `directory:` resolution: walker tests don't exercise
@@ -87,7 +96,10 @@ fn lockfile_with(
     let mut importers = HashMap::new();
     importers.insert(
         Lockfile::ROOT_IMPORTER_KEY.to_string(),
-        ProjectSnapshot { dependencies: Some(importer_deps), ..ProjectSnapshot::default() },
+        ProjectSnapshot {
+            dependencies: Some(importer_deps),
+            ..ProjectSnapshot::default()
+        },
     );
     Lockfile {
         lockfile_version: lockfile_version(),
@@ -129,7 +141,10 @@ fn host_aware_opts() -> LockfileToHoistedDepGraphOptions<'static> {
 }
 
 fn metadata_with_os(os: &str) -> PackageMetadata {
-    PackageMetadata { os: Some(vec![os.to_string()]), ..metadata_stub() }
+    PackageMetadata {
+        os: Some(vec![os.to_string()]),
+        ..metadata_stub()
+    }
 }
 
 // --- Multi-importer (workspace) walker tests --------------------------
@@ -149,7 +164,10 @@ fn workspace_lockfile(
     for (id, deps) in importer_deps {
         importers.insert(
             id.to_string(),
-            ProjectSnapshot { dependencies: Some(deps), ..ProjectSnapshot::default() },
+            ProjectSnapshot {
+                dependencies: Some(deps),
+                ..ProjectSnapshot::default()
+            },
         );
     }
     Lockfile {

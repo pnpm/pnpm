@@ -256,10 +256,9 @@ impl FreshInputs<'_> {
         IncludedDependencies {
             dependencies: self.projects.dependency_groups.contains(&DependencyGroup::Prod),
             dev_dependencies: self.projects.dependency_groups.contains(&DependencyGroup::Dev),
-            optional_dependencies: self
-                .projects
-                .dependency_groups
-                .contains(&DependencyGroup::Optional),
+            optional_dependencies: self.projects.dependency_groups.contains(
+                &DependencyGroup::Optional,
+            ),
         }
     }
 }
@@ -436,30 +435,33 @@ pub(crate) fn hook_log_fn<Reporter: self::Reporter>(
 /// matching pnpm's `skippedOptionalDependencyLogger.debug` payload.
 fn skipped_optional_log_fn<Reporter: self::Reporter>()
 -> pnpm_resolving_deps_resolver::SkippedOptionalLogFn {
-    Arc::new(|skipped: pnpm_resolving_deps_resolver::SkippedOptionalDependency| {
-        Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
-            level: LogLevel::Debug,
-            details: Some(skipped.details),
-            package: SkippedOptionalPackage::ResolutionFailure {
-                name: skipped.name,
-                version: skipped.version,
-                bare_specifier: skipped.bare_specifier,
-            },
-            parents: Some(
-                skipped
-                    .parents
-                    .into_iter()
-                    .map(|parent| SkippedOptionalParent {
-                        id: parent.id,
-                        name: parent.name,
-                        version: parent.version,
-                    })
-                    .collect(),
-            ),
-            prefix: skipped.prefix,
-            reason: SkippedOptionalReason::ResolutionFailure,
-        }));
-    })
+    Arc::new(
+        |skipped: pnpm_resolving_deps_resolver::SkippedOptionalDependency| {
+            Reporter::emit(&LogEvent::SkippedOptionalDependency(
+                SkippedOptionalDependencyLog {
+                    level: LogLevel::Debug,
+                    details: Some(skipped.details),
+                    package: SkippedOptionalPackage::ResolutionFailure {
+                        name: skipped.name,
+                        version: skipped.version,
+                        bare_specifier: skipped.bare_specifier,
+                    },
+                    parents: Some(
+                        skipped.parents
+                            .into_iter()
+                            .map(|parent| SkippedOptionalParent {
+                                id: parent.id,
+                                name: parent.name,
+                                version: parent.version,
+                            })
+                            .collect(),
+                    ),
+                    prefix: skipped.prefix,
+                    reason: SkippedOptionalReason::ResolutionFailure,
+                },
+            ));
+        },
+    )
 }
 
 /// Build the resolver's deprecation sink: each notification emits a
@@ -520,7 +522,9 @@ fn check_patch_usage<Reporter: self::Reporter>(
     applied_patches: &rustc_hash::FxHashSet<String>,
     scope: PatchUsageScope<'_>,
 ) -> Result<(), InstallWithFreshLockfileError> {
-    let Some(deps) = patched_dependencies else { return Ok(()) };
+    let Some(deps) = patched_dependencies else {
+        return Ok(());
+    };
     let verify = match scope.selected_importer_ids {
         None => true,
         Some(selected_importer_ids) => {
@@ -535,7 +539,10 @@ fn check_patch_usage<Reporter: self::Reporter>(
     }
     match pnpm_patching::verify_patches(
         deps,
-        &applied_patches.iter().cloned().collect(),
+        &applied_patches
+            .iter()
+            .cloned()
+            .collect(),
         config.allow_unused_patches,
     ) {
         Ok(None) => Ok(()),
@@ -583,7 +590,9 @@ async fn warn_stale_convergence_overrides_if_any<Reporter: pnpm_reporter::Report
         Option<&pnpm_config::version_policy::PackageVersionPolicy>,
     ),
 ) {
-    let (Some(parsed), Some(overrider)) = (parsed_overrides, versions_overrider) else { return };
+    let (Some(parsed), Some(overrider)) = (parsed_overrides, versions_overrider) else {
+        return;
+    };
     let (published_by, published_by_exclude) = published_by;
     resolve::warn_stale_convergence_overrides::<Reporter>(
         npm_resolver,

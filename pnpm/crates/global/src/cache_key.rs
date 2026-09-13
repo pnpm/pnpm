@@ -22,8 +22,18 @@ pub fn create_global_cache_key(aliases: &[String], registries: &[(String, String
     sorted_registries.sort_by(|a, b| a.0.cmp(&b.0));
 
     let payload = Value::Array(vec![
-        Value::Array(sorted_aliases.iter().map(|alias| json!(alias)).collect()),
-        Value::Array(sorted_registries.iter().map(|(key, value)| json!([key, value])).collect()),
+        Value::Array(
+            sorted_aliases
+                .iter()
+                .map(|alias| json!(alias))
+                .collect(),
+        ),
+        Value::Array(
+            sorted_registries
+                .iter()
+                .map(|(key, value)| json!([key, value]))
+                .collect(),
+        ),
     ]);
     // `serde_json::to_string` matches `JSON.stringify`'s compact form
     // (no spaces) for arrays of strings, which is what pnpm hashes.

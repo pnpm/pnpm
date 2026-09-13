@@ -1,4 +1,7 @@
-use super::{Arc, Duration, HeaderMap, RedirectGuard, ThrottledClient, UpstreamConfig};
+use super::{
+    Arc, Duration, HeaderMap, RedirectGuard, ThrottledClient, UPSTREAM_ERROR_BODY_LIMIT,
+    UpstreamConfig, read_limited_body,
+};
 
 #[derive(Clone)]
 pub(super) struct UpstreamHttp {
@@ -20,4 +23,23 @@ impl UpstreamHttp {
             timeout: config.requests.timeout,
         }
     }
+}
+
+pub(super) async fn read_upstream_error_body(response: reqwest::Response) -> String {
+    let Ok(body) = read_limited_body(response, UPSTREAM_ERROR_BODY_LIMIT).await else {
+        return String::new();
+    };
+    let mut text = String::from_utf8_lossy(&body.bytes).into_owned();
+    if body.truncated {
+        if !text.is_empty()
+            && !text
+                .chars()
+                .next_back()
+                .is_some_and(char::is_whitespace)
+        {
+            text.push(' ');
+        }
+        text.push_str("(response body truncated)");
+    }
+    text
 }

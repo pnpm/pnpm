@@ -90,8 +90,14 @@ const ALWAYS_EXCLUDED_DIR_SEGMENTS: &[&str] = &[".git", ".svn", ".hg", "CVS"];
 /// Basenames always excluded regardless of where the file sits.
 /// Matches npm-packlist's per-file cruft set: lockfiles for sibling
 /// package managers, debug logs, OS junk, npm runtime config.
-const ALWAYS_EXCLUDED_BASENAMES: &[&str] =
-    &[".npmrc", "npm-debug.log", ".DS_Store", "package-lock.json", "yarn.lock", "pnpm-lock.yaml"];
+const ALWAYS_EXCLUDED_BASENAMES: &[&str] = &[
+    ".npmrc",
+    "npm-debug.log",
+    ".DS_Store",
+    "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+];
 
 /// Suffix-based always-excluded set, matching `npm-packlist`'s
 /// `*.orig` exclusion family.
@@ -143,7 +149,10 @@ fn collect_own_files(
         .get("bin")
         .map(|bin| match bin {
             Value::String(s) => vec![s.as_str()],
-            Value::Object(map) => map.values().filter_map(Value::as_str).collect(),
+            Value::Object(map) => map
+                .values()
+                .filter_map(Value::as_str)
+                .collect(),
             _ => Vec::new(),
         })
         .unwrap_or_default();
@@ -159,8 +168,11 @@ fn collect_own_files(
     // honor `.gitignore` even though a git-hosted snapshot's `.git/`
     // has already been deleted by [`crate::GitFetcher`] before this
     // point.
-    let selection =
-        FileSelection { files_matcher: files_matcher.as_ref(), main_path, bin_paths: &bin_paths };
+    let selection = FileSelection {
+        files_matcher: files_matcher.as_ref(),
+        main_path,
+        bin_paths: &bin_paths,
+    };
     let builder = ignore_walk_builder(pkg_dir, workspace_dir, files_matcher.is_some())?;
     collect_walked_files(&builder, pkg_dir, &selection, &mut out)?;
     collect_always_included_at_root(pkg_dir, &mut out)?;
@@ -210,7 +222,9 @@ fn ignore_walk_builder(
         if entry.depth() == 1 && name == OsStr::new("node_modules") {
             return false;
         }
-        !ALWAYS_EXCLUDED_DIR_SEGMENTS.iter().any(|segment| name == OsStr::new(segment))
+        !ALWAYS_EXCLUDED_DIR_SEGMENTS
+            .iter()
+            .any(|segment| name == OsStr::new(segment))
     });
     if has_files_field {
         builder.git_ignore(false);
@@ -236,7 +250,10 @@ fn collect_walked_files(
 ) -> Result<(), PacklistError> {
     for entry in builder.build() {
         let entry = entry.map_err(|err| io_error(pkg_dir, into_io(err)))?;
-        if !entry.file_type().is_some_and(|file_type| file_type.is_file()) {
+        if !entry
+            .file_type()
+            .is_some_and(|file_type| file_type.is_file())
+        {
             continue;
         }
         let rel = relative_forward_slash(pkg_dir, entry.path());
@@ -273,16 +290,25 @@ fn collect_always_included_at_root(
     out: &mut BTreeSet<String>,
 ) -> Result<(), PacklistError> {
     let root_entries = fs::read_dir(pkg_dir)
-        .map_err(|source| PacklistError::Io { pkg_dir: pkg_dir.display().to_string(), source })?;
+        .map_err(|source| PacklistError::Io {
+            pkg_dir: pkg_dir.display().to_string(),
+            source,
+        })?;
     for entry in root_entries {
         let entry = entry.map_err(|source| PacklistError::Io {
             pkg_dir: pkg_dir.display().to_string(),
             source,
         })?;
-        if !entry.file_type().is_ok_and(|file_type| file_type.is_file()) {
+        if !entry
+            .file_type()
+            .is_ok_and(|file_type| file_type.is_file())
+        {
             continue;
         }
-        let name = entry.file_name().to_string_lossy().into_owned();
+        let name = entry
+            .file_name()
+            .to_string_lossy()
+            .into_owned();
         if !should_always_exclude(&name) && is_always_included_at_root(&name) {
             out.insert(name);
         }
@@ -301,7 +327,9 @@ fn force_include_main_and_bin(
     selection: &FileSelection<'_>,
     out: &mut BTreeSet<String>,
 ) {
-    let declared = selection.main_path.into_iter().chain(selection.bin_paths.iter().copied());
+    let declared = selection.main_path
+        .into_iter()
+        .chain(selection.bin_paths.iter().copied());
     for path in declared {
         let normalized = normalize_field_path(path);
         if is_contained_field_path(&normalized)
@@ -318,16 +346,24 @@ fn add_workspace_ignore_files(
     pkg_dir: &Path,
     workspace_dir: Option<&Path>,
 ) -> Result<(), PacklistError> {
-    let Some(workspace_dir) = workspace_dir else { return Ok(()) };
+    let Some(workspace_dir) = workspace_dir else {
+        return Ok(());
+    };
     if pkg_dir.join(".npmignore").is_file() {
         return Ok(());
     }
-    let Ok(rel) = pkg_dir.strip_prefix(workspace_dir) else { return Ok(()) };
+    let Ok(rel) = pkg_dir.strip_prefix(workspace_dir) else {
+        return Ok(());
+    };
     if rel.as_os_str().is_empty() {
         return Ok(());
     }
-    let Some(pkg_parent) = pkg_dir.parent() else { return Ok(()) };
-    let Ok(parent_rel) = pkg_parent.strip_prefix(workspace_dir) else { return Ok(()) };
+    let Some(pkg_parent) = pkg_dir.parent() else {
+        return Ok(());
+    };
+    let Ok(parent_rel) = pkg_parent.strip_prefix(workspace_dir) else {
+        return Ok(());
+    };
 
     let mut current = workspace_dir.to_path_buf();
     add_workspace_ignore_file(builder, pkg_dir, &current)?;
@@ -337,7 +373,9 @@ fn add_workspace_ignore_files(
         // else (a stray `..` or root/prefix from a non-canonical path) means
         // we can't trust the remaining chain, so stop rather than walk out of
         // the workspace; the already-added root ignore stays in effect.
-        let Component::Normal(segment) = component else { return Ok(()) };
+        let Component::Normal(segment) = component else {
+            return Ok(());
+        };
         current.push(segment);
         add_workspace_ignore_file(builder, pkg_dir, &current)?;
     }
@@ -446,7 +484,9 @@ fn is_always_included_at_root(rel: &str) -> bool {
     if lower == "package.json" {
         return true;
     }
-    ALWAYS_INCLUDED_PREFIXES.iter().any(|prefix| lower.starts_with(prefix))
+    ALWAYS_INCLUDED_PREFIXES
+        .iter()
+        .any(|prefix| lower.starts_with(prefix))
 }
 
 fn is_main_or_bin(rel: &str, main: Option<&str>, bins: &[&str]) -> bool {
@@ -455,11 +495,16 @@ fn is_main_or_bin(rel: &str, main: Option<&str>, bins: &[&str]) -> bool {
     {
         return true;
     }
-    bins.iter().any(|bin| normalize_field_path(bin) == rel)
+    bins
+        .iter()
+        .any(|bin| normalize_field_path(bin) == rel)
 }
 
 fn should_always_exclude(rel: &str) -> bool {
-    let basename = rel.rsplit('/').next().unwrap_or(rel);
+    let basename = rel
+        .rsplit('/')
+        .next()
+        .unwrap_or(rel);
     // Basename-cruft check: per-file entries (`.npmrc`, lockfiles,
     // debug logs, OS junk) are excluded at any depth.
     if ALWAYS_EXCLUDED_BASENAMES.contains(&basename) {
@@ -469,15 +514,23 @@ fn should_always_exclude(rel: &str) -> bool {
     // `.git` / `.svn` / `.hg` / `CVS`. Exact-segment match (not
     // prefix) so a regular file `lib/foo.hg-stub` isn't accidentally
     // dropped just because its basename mentions `.hg`.
-    if rel.split('/').any(|seg| ALWAYS_EXCLUDED_DIR_SEGMENTS.contains(&seg)) {
+    if rel
+        .split('/')
+        .any(|seg| ALWAYS_EXCLUDED_DIR_SEGMENTS.contains(&seg))
+    {
         return true;
     }
-    ALWAYS_EXCLUDED_SUFFIXES.iter().any(|suffix| basename.ends_with(suffix))
+    ALWAYS_EXCLUDED_SUFFIXES
+        .iter()
+        .any(|suffix| basename.ends_with(suffix))
 }
 
 fn relative_forward_slash(root: &Path, full: &Path) -> String {
     let rel = full.strip_prefix(root).unwrap_or(full);
-    let mut buf = PathBuf::from(rel).into_os_string().to_string_lossy().into_owned();
+    let mut buf = PathBuf::from(rel)
+        .into_os_string()
+        .to_string_lossy()
+        .into_owned();
     if std::path::MAIN_SEPARATOR != '/' {
         buf = buf.replace(std::path::MAIN_SEPARATOR, "/");
     }
@@ -519,16 +572,22 @@ fn is_regular_file_within(root: &Path, candidate: &Path) -> bool {
     let Ok(resolved) = candidate.canonicalize() else {
         return false;
     };
-    let canonical_root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+    let canonical_root = root
+        .canonicalize()
+        .unwrap_or_else(|_| root.to_path_buf());
     resolved.starts_with(&canonical_root) && resolved.is_file()
 }
 
 fn io_error(pkg_dir: &Path, source: std::io::Error) -> PacklistError {
-    PacklistError::Io { pkg_dir: pkg_dir.display().to_string(), source }
+    PacklistError::Io {
+        pkg_dir: pkg_dir.display().to_string(),
+        source,
+    }
 }
 
 fn into_io(err: ignore::Error) -> std::io::Error {
-    err.into_io_error()
+    err
+        .into_io_error()
         .unwrap_or_else(|| std::io::Error::other("ignore walker produced a non-io error"))
 }
 

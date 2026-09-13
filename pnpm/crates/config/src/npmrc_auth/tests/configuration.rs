@@ -23,7 +23,11 @@ fn project_ini_ignores_env_placeholders_in_registry_urls() {
     );
 
     assert_eq!(auth.routes.default, None);
-    assert!(auth.warnings.iter().any(|warning| warning.contains("registry")));
+    assert!(
+        auth.warnings
+            .iter()
+            .any(|warning| warning.contains("registry")),
+    );
 
     let mut config = Config::new();
     auth.apply_to::<EnvWithSecret>(&mut config);
@@ -40,7 +44,11 @@ fn project_ini_ignores_env_placeholders_in_scoped_registry_urls() {
     );
 
     assert!(auth.routes.scoped.is_empty());
-    assert!(auth.warnings.iter().any(|warning| warning.contains("@scope:registry")));
+    assert!(
+        auth.warnings
+            .iter()
+            .any(|warning| warning.contains("@scope:registry")),
+    );
 }
 
 #[test]
@@ -52,7 +60,10 @@ fn trusted_ini_expands_env_placeholders_in_registry_urls() {
         Path::new(""),
     );
 
-    assert_eq!(auth.routes.default.as_deref(), Some("https://registry.example.com/trusted/"));
+    assert_eq!(
+        auth.routes.default.as_deref(),
+        Some("https://registry.example.com/trusted/"),
+    );
 }
 
 #[test]
@@ -114,7 +125,10 @@ fn env_replace_failure_preserves_resolved_and_default_placeholders() {
     }
     let ini = "//reg.com/:_authToken=${SET}-${UNSET}-${DEFAULTED:-fallback}\n";
     let auth = NpmrcAuth::from_ini::<EnvWithSet>(ini, Path::new(""));
-    assert_eq!(default_auth_token(&auth, "//reg.com/"), Some(Some("AAA--fallback")));
+    assert_eq!(
+        default_auth_token(&auth, "//reg.com/"),
+        Some(Some("AAA--fallback")),
+    );
     assert_eq!(auth.warnings.len(), 1);
     assert!(auth.warnings[0].contains("${UNSET}"));
 }
@@ -124,7 +138,11 @@ fn env_replace_failure_on_key_warns_and_drops_unresolved_to_empty() {
     let ini = "${MISSING}_authToken=abc\n";
     let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
     assert_eq!(auth.default_creds.auth_token.as_deref(), Some("abc"));
-    assert!(auth.warnings.iter().any(|warning| warning.contains("${MISSING}")));
+    assert!(
+        auth.warnings
+            .iter()
+            .any(|warning| warning.contains("${MISSING}")),
+    );
 }
 
 #[test]
@@ -140,16 +158,28 @@ fn cascade_env_fallback_only_fires_when_npmrc_unset() {
     let auth = NpmrcAuth::default();
     let mut config = Config::new();
     auth.apply_to::<AllProxyEnvs>(&mut config);
-    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://https-env.example:8080"));
-    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://https-env.example:8080"));
-    assert_eq!(config.proxy.no_proxy, Some(NoProxySetting::List(vec!["skip.example".to_string()])));
+    assert_eq!(
+        config.proxy.https_proxy.as_deref(),
+        Some("http://https-env.example:8080"),
+    );
+    assert_eq!(
+        config.proxy.http_proxy.as_deref(),
+        Some("http://https-env.example:8080"),
+    );
+    assert_eq!(
+        config.proxy.no_proxy,
+        Some(NoProxySetting::List(vec!["skip.example".to_string()])),
+    );
 }
 
 #[test]
 fn cascade_npmrc_value_wins_over_env() {
     static_env!(
         ConflictingEnv,
-        &[("HTTPS_PROXY", "http://env.example:8080"), ("NO_PROXY", "env.example")]
+        &[
+            ("HTTPS_PROXY", "http://env.example:8080"),
+            ("NO_PROXY", "env.example")
+        ]
     );
     let auth = NpmrcAuth::from_ini::<NoEnv>(
         "https-proxy=http://npmrc.example:8080\nno-proxy=npmrc.example\n",
@@ -157,7 +187,10 @@ fn cascade_npmrc_value_wins_over_env() {
     );
     let mut config = Config::new();
     auth.apply_to::<ConflictingEnv>(&mut config);
-    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://npmrc.example:8080"));
+    assert_eq!(
+        config.proxy.https_proxy.as_deref(),
+        Some("http://npmrc.example:8080"),
+    );
     assert_eq!(
         config.proxy.no_proxy,
         Some(NoProxySetting::List(vec!["npmrc.example".to_string()])),
@@ -170,7 +203,10 @@ fn cascade_http_proxy_env_fallback_chain_proxy_var() {
     let auth = NpmrcAuth::default();
     let mut config = Config::new();
     auth.apply_to::<BareProxy>(&mut config);
-    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://barenv.example:80"));
+    assert_eq!(
+        config.proxy.http_proxy.as_deref(),
+        Some("http://barenv.example:80"),
+    );
     assert_eq!(config.proxy.https_proxy, None);
 }
 
@@ -188,9 +224,18 @@ fn cascade_empty_npmrc_proxy_keys_fall_through_to_env() {
         NpmrcAuth::from_ini::<NoEnv>("https-proxy=\nhttp-proxy=\nno-proxy=\n", Path::new(""));
     let mut config = Config::new();
     auth.apply_to::<AllProxyEnvs>(&mut config);
-    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://https-env.example:8080"));
-    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://https-env.example:8080"));
-    assert_eq!(config.proxy.no_proxy, Some(NoProxySetting::List(vec!["skip.example".to_string()])));
+    assert_eq!(
+        config.proxy.https_proxy.as_deref(),
+        Some("http://https-env.example:8080"),
+    );
+    assert_eq!(
+        config.proxy.http_proxy.as_deref(),
+        Some("http://https-env.example:8080"),
+    );
+    assert_eq!(
+        config.proxy.no_proxy,
+        Some(NoProxySetting::List(vec!["skip.example".to_string()])),
+    );
 }
 
 /// An empty env var still shadows the lower-priority env vars below it,
@@ -200,7 +245,10 @@ fn cascade_empty_npmrc_proxy_keys_fall_through_to_env() {
 fn cascade_empty_https_proxy_env_shadows_http_proxy_env() {
     static_env!(
         EmptyHttpsEnv,
-        &[("HTTPS_PROXY", ""), ("HTTP_PROXY", "http://http-env.example:8080")]
+        &[
+            ("HTTPS_PROXY", ""),
+            ("HTTP_PROXY", "http://http-env.example:8080")
+        ]
     );
     let auth = NpmrcAuth::default();
     let mut config = Config::new();
@@ -211,11 +259,17 @@ fn cascade_empty_https_proxy_env_shadows_http_proxy_env() {
 
 #[test]
 fn cascade_env_var_lowercase_lookup() {
-    static_env!(LowercaseEnv, &[("https_proxy", "http://lower.example:8080")]);
+    static_env!(
+        LowercaseEnv,
+        &[("https_proxy", "http://lower.example:8080")]
+    );
     let auth = NpmrcAuth::default();
     let mut config = Config::new();
     auth.apply_to::<LowercaseEnv>(&mut config);
-    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://lower.example:8080"));
+    assert_eq!(
+        config.proxy.https_proxy.as_deref(),
+        Some("http://lower.example:8080"),
+    );
 }
 
 // Regression for <https://github.com/pnpm/pnpm/issues/11624>.
@@ -223,7 +277,11 @@ fn cascade_env_var_lowercase_lookup() {
 fn cafile_relative_path_resolves_against_npmrc_dir() {
     let npmrc_dir = tempfile::tempdir().expect("tempdir");
     let auth = NpmrcAuth::from_ini::<NoEnv>("cafile=certs/ca.pem\n", npmrc_dir.path());
-    let expected = npmrc_dir.path().join("certs/ca.pem").to_string_lossy().into_owned();
+    let expected = npmrc_dir
+        .path()
+        .join("certs/ca.pem")
+        .to_string_lossy()
+        .into_owned();
     assert_eq!(auth.tls.cafile.as_deref(), Some(expected.as_str()));
 }
 
@@ -240,7 +298,10 @@ fn applies_inline_ca_to_config() {
     auth.apply_to::<NoEnv>(&mut config);
     assert_eq!(config.tls.ca.len(), 1);
     let first = &config.tls.ca[0];
-    assert!(first.contains("BEGIN CERTIFICATE"), "inline CA missing header: {first:?}");
+    assert!(
+        first.contains("BEGIN CERTIFICATE"),
+        "inline CA missing header: {first:?}",
+    );
 }
 
 #[test]
@@ -248,12 +309,21 @@ fn url_scoped_env_pnpm_prefix_wins_over_npm() {
     static_env_with_vars!(
         Env,
         &[
-            ("npm_config_//registry.npmjs.org/:_authToken", "npm-env-token"),
-            ("pnpm_config_//registry.npmjs.org/:_authToken", "pnpm-env-token"),
+            (
+                "npm_config_//registry.npmjs.org/:_authToken",
+                "npm-env-token"
+            ),
+            (
+                "pnpm_config_//registry.npmjs.org/:_authToken",
+                "pnpm-env-token"
+            ),
         ]
     );
     let auth = NpmrcAuth::from_url_scoped_env::<Env>();
-    assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some("pnpm-env-token")));
+    assert_eq!(
+        default_auth_token(&auth, "//registry.npmjs.org/"),
+        Some(Some("pnpm-env-token")),
+    );
 }
 
 #[test]
@@ -278,7 +348,10 @@ fn url_scoped_env_ignores_non_ascii_names_without_panicking() {
     static_env_with_vars!(
         Env,
         &[
-            ("プログラム_config_//registry.example/:_authToken", "ignored"),
+            (
+                "プログラム_config_//registry.example/:_authToken",
+                "ignored"
+            ),
             ("ñpm_config_//registry.example/:_authToken", "ignored"),
         ]
     );
@@ -327,7 +400,10 @@ fn json_env_duplicate_route_keeps_last_in_source_order() {
 fn json_env_default_scope_infers_default_registry_route() {
     static_env!(
         Env,
-        &[("pnpm_config__auth", r#"{"https://my-npm-proxy.example":{"@":{"authToken":"tok"}}}"#)]
+        &[(
+            "pnpm_config__auth",
+            r#"{"https://my-npm-proxy.example":{"@":{"authToken":"tok"}}}"#
+        )]
     );
     let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
     assert_eq!(
@@ -340,7 +416,10 @@ fn json_env_default_scope_infers_default_registry_route() {
 fn json_env_package_scope_infers_scoped_registry_route() {
     static_env!(
         Env,
-        &[("pnpm_config__auth", r#"{"https://npm.pkg.github.com":{"@org":{"authToken":"tok"}}}"#)]
+        &[(
+            "pnpm_config__auth",
+            r#"{"https://npm.pkg.github.com":{"@org":{"authToken":"tok"}}}"#
+        )]
     );
     let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
     assert_eq!(
@@ -363,7 +442,10 @@ fn json_env_honors_upper_case_form() {
         )]
     );
     let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
-    assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some("upper-token")));
+    assert_eq!(
+        default_auth_token(&auth, "//registry.npmjs.org/"),
+        Some(Some("upper-token")),
+    );
 }
 
 #[test]
@@ -384,7 +466,10 @@ fn json_env_lower_case_wins_over_upper_case_when_both_are_set() {
         ]
     );
     let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
-    assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some("lower-token")));
+    assert_eq!(
+        default_auth_token(&auth, "//registry.npmjs.org/"),
+        Some(Some("lower-token")),
+    );
 }
 
 #[test]
@@ -400,27 +485,45 @@ fn json_env_empty_lowercase_falls_back_to_uppercase() {
         ]
     );
     let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
-    assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some("upper-token")));
+    assert_eq!(
+        default_auth_token(&auth, "//registry.npmjs.org/"),
+        Some(Some("upper-token")),
+    );
 }
 
 #[test]
 fn json_env_rejects_host_value_that_is_not_a_scope_object() {
-    static_env!(Env, &[("pnpm_config__auth", r#"{"https://registry.example":123}"#)]);
+    static_env!(
+        Env,
+        &[("pnpm_config__auth", r#"{"https://registry.example":123}"#)]
+    );
     assert!(NpmrcAuth::from_json_sources::<Env>(None).is_err());
 }
 
 #[test]
 fn json_env_rejects_host_key_that_is_not_a_registry_url() {
-    static_env!(Env, &[("pnpm_config__auth", r#"{"not a url":{"@":{"authToken":"tok"}}}"#)]);
+    static_env!(
+        Env,
+        &[(
+            "pnpm_config__auth",
+            r#"{"not a url":{"@":{"authToken":"tok"}}}"#
+        )]
+    );
     let error = NpmrcAuth::from_json_sources::<Env>(None).unwrap_err().to_string();
-    assert!(!error.contains("not a url"), "raw key must not leak into the error: {error}");
+    assert!(
+        !error.contains("not a url"),
+        "raw key must not leak into the error: {error}",
+    );
 }
 
 #[test]
 fn json_env_rejects_non_http_scheme() {
     static_env!(
         Env,
-        &[("pnpm_config__auth", r#"{"ftp://registry.example":{"@":{"authToken":"tok"}}}"#)]
+        &[(
+            "pnpm_config__auth",
+            r#"{"ftp://registry.example":{"@":{"authToken":"tok"}}}"#
+        )]
     );
     assert!(NpmrcAuth::from_json_sources::<Env>(None).is_err());
 }
@@ -429,7 +532,10 @@ fn json_env_rejects_non_http_scheme() {
 fn json_env_rejects_invalid_scope_name() {
     static_env!(
         Env,
-        &[("pnpm_config__auth", r#"{"https://registry.example":{"org":{"authToken":"tok"}}}"#)]
+        &[(
+            "pnpm_config__auth",
+            r#"{"https://registry.example":{"org":{"authToken":"tok"}}}"#
+        )]
     );
     assert!(NpmrcAuth::from_json_sources::<Env>(None).is_err());
 }
@@ -443,7 +549,13 @@ fn json_env_rejects_malformed_json() {
 #[test]
 fn json_env_rejects_non_object_top_level() {
     // Arrays expose their indices as keys, so reject them outright.
-    static_env!(Env, &[("pnpm_config__auth", r#"["//registry.example/:_authToken","sneaky"]"#)]);
+    static_env!(
+        Env,
+        &[(
+            "pnpm_config__auth",
+            r#"["//registry.example/:_authToken","sneaky"]"#
+        )]
+    );
     assert!(NpmrcAuth::from_json_sources::<Env>(None).is_err());
 }
 
@@ -471,10 +583,16 @@ fn json_env_normalizes_registry_url_key() {
     // matching the TS side's `new URL()`.
     static_env!(
         Env,
-        &[("pnpm_config__auth", r#"{"HTTPS://Reg.Example:443":{"@":{"authToken":"tok"}}}"#)]
+        &[(
+            "pnpm_config__auth",
+            r#"{"HTTPS://Reg.Example:443":{"@":{"authToken":"tok"}}}"#
+        )]
     );
     let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
-    assert_eq!(default_auth_token(&auth, "//reg.example/"), Some(Some("tok")));
+    assert_eq!(
+        default_auth_token(&auth, "//reg.example/"),
+        Some(Some("tok")),
+    );
     assert_eq!(
         auth.routes.json_env.get("default").map(String::as_str),
         Some("https://reg.example/"),

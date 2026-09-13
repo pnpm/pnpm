@@ -1,6 +1,8 @@
-# Make Rust more readable given most people have wide screens nowadays.
-# This is also the setting used by [rustc](https://github.com/rust-lang/rust/blob/c7fe5e9d1e/rustfmt.toml)
-use_small_heuristics = "Max"
+use_small_heuristics = "Default"
+
+chain_complexity_layout = true
+struct_lit_width = 0
+struct_pattern_width = 35
 
 # Use field initialize shorthand if possible
 use_field_init_shorthand = true

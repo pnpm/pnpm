@@ -91,7 +91,10 @@ impl AuthTables {
             );
         }
         if creds != RegistryCreds::default() {
-            self.registry_creds.entry(uri.to_owned()).or_default().insert(scope, creds);
+            self.registry_creds
+                .entry(uri.to_owned())
+                .or_default()
+                .insert(scope, creds);
         }
         Ok(())
     }
@@ -129,7 +132,9 @@ impl RegistryCreds {
     /// see [`parse_token_helper_field`].
     fn from_raw(raw: &RawCreds) -> Result<Self, LoadWorkspaceYamlError> {
         Ok(Self {
-            auth_token: raw.auth_token.clone().filter(|token| !token.is_empty()),
+            auth_token: raw.auth_token
+                .clone()
+                .filter(|token| !token.is_empty()),
             basic_auth: decode_basic_auth(raw),
             token_helper: parse_token_helper_field(raw.token_helper.as_deref())?,
         })
@@ -142,15 +147,28 @@ impl RegistryCreds {
 /// password as written, since that is what the header carries. `None` when
 /// `raw` names no complete pair or `_auth` does not decode.
 fn decode_basic_auth(raw: &RawCreds) -> Option<BasicAuth> {
-    if let Some(pair) = raw.auth_pair_base64.as_deref().filter(|pair| !pair.is_empty()) {
+    if let Some(pair) = raw.auth_pair_base64
+        .as_deref()
+        .filter(|pair| !pair.is_empty())
+    {
         let decoded = base64_decode(pair)?;
         let (username, password) = decoded.split_once(':')?;
-        return Some(BasicAuth { username: username.to_owned(), password: password.to_owned() });
+        return Some(BasicAuth {
+            username: username.to_owned(),
+            password: password.to_owned(),
+        });
     }
-    let username = raw.username.clone().filter(|username| !username.is_empty())?;
-    let password_b64 = raw.password.as_ref().filter(|password| !password.is_empty())?;
+    let username = raw.username
+        .clone()
+        .filter(|username| !username.is_empty())?;
+    let password_b64 = raw.password
+        .as_ref()
+        .filter(|password| !password.is_empty())?;
     let password = base64_decode(password_b64).unwrap_or_else(|| password_b64.clone());
-    Some(BasicAuth { username, password })
+    Some(BasicAuth {
+        username,
+        password,
+    })
 }
 
 /// The registry a file's unscoped settings pin to: the one it declares, or
@@ -165,7 +183,9 @@ fn pinned_registry(declared: &str) -> String {
 /// The raw `_authToken` of a default-scope credential, kept alongside the
 /// baked header for `pnpm logout`.
 fn default_scope_token(scope: &str, raw: &RawCreds) -> Option<String> {
-    (scope == DEFAULT_REGISTRY_SCOPE).then(|| raw.auth_token.clone()).flatten()
+    (scope == DEFAULT_REGISTRY_SCOPE)
+        .then(|| raw.auth_token.clone())
+        .flatten()
 }
 
 /// Record a per-registry value in the default-scope map or in the
@@ -180,7 +200,10 @@ fn insert_by_scope<Value>(
     if scope == DEFAULT_REGISTRY_SCOPE {
         by_uri.insert(uri.to_owned(), value);
     } else {
-        by_scope_by_uri.entry(uri.to_owned()).or_default().insert(scope, value);
+        by_scope_by_uri
+            .entry(uri.to_owned())
+            .or_default()
+            .insert(scope, value);
     }
 }
 
@@ -217,9 +240,14 @@ fn creds_to_header(creds: &RawCreds) -> Result<Option<String>, LoadWorkspaceYaml
     }
     // An empty `_auth` names no credential — the shape an unresolved
     // `${VAR}` leaves behind — and pnpm skips it rather than failing.
-    if let Some(pair) = creds.auth_pair_base64.as_deref().filter(|pair| !pair.is_empty()) {
+    if let Some(pair) = creds.auth_pair_base64
+        .as_deref()
+        .filter(|pair| !pair.is_empty())
+    {
         let decoded = base64_decode_bytes(pair)
-            .ok_or(LoadWorkspaceYamlError::AuthInvalidBase64 { key: "_auth" })?;
+            .ok_or(LoadWorkspaceYamlError::AuthInvalidBase64 {
+                key: "_auth",
+            })?;
         if !decoded.contains(&b':') {
             return Err(LoadWorkspaceYamlError::AuthMissingSeparator);
         }
@@ -230,7 +258,10 @@ fn creds_to_header(creds: &RawCreds) -> Result<Option<String>, LoadWorkspaceYaml
         // header itself is `Basic base64(user:password)`, so we decode
         // the password back and re-encode the pair.
         let password = base64_decode(pass_b64).unwrap_or_else(|| pass_b64.clone());
-        return Ok(Some(format!("Basic {}", base64_encode(&format!("{user}:{password}")))));
+        return Ok(Some(format!(
+            "Basic {}",
+            base64_encode(&format!("{user}:{password}")),
+        )));
     }
     Ok(None)
 }
@@ -254,8 +285,14 @@ const CREDENTIAL_BASE64: base64::engine::GeneralPurpose = base64::engine::Genera
 /// a `.npmrc` by hand or from a shell pipeline. `None` when the value is
 /// not base64 at all.
 fn base64_decode_bytes(input: &str) -> Option<Vec<u8>> {
-    let cleaned: Vec<u8> = input.bytes().filter(|byte| !byte.is_ascii_whitespace()).collect();
-    let Some(last) = cleaned.iter().rposition(|byte| *byte != b'=') else {
+    let cleaned: Vec<u8> = input
+        .bytes()
+        .filter(|byte| !byte.is_ascii_whitespace())
+        .collect();
+    let Some(last) = cleaned
+        .iter()
+        .rposition(|byte| *byte != b'=')
+    else {
         // Padding with nothing to pad is not base64; `atob` rejects it,
         // and only an empty value decodes to nothing.
         return cleaned.is_empty().then(Vec::new);
@@ -352,9 +389,7 @@ impl NpmrcAuth {
         let names = unscoped.join(", ");
         let raw_values = self.take_unscoped_raw_values(&unscoped, &creds);
 
-        let declared_registry = self
-            .routes
-            .default
+        let declared_registry = self.routes.default
             .as_deref()
             .filter(|registry| !registry.is_empty())
             .unwrap_or_default()
@@ -377,7 +412,9 @@ impl NpmrcAuth {
         self.fill_scoped_credentials(&uri, creds, cert, private_key);
 
         for (raw_key, value) in raw_values {
-            self.raw_ini_config.entry(format!("{uri}:{raw_key}")).or_insert(value);
+            self.raw_ini_config
+                .entry(format!("{uri}:{raw_key}"))
+                .or_insert(value);
         }
         self.warnings.push(format!(
             "Unscoped per-registry settings ({names}) in \"{source_label}\" are deprecated. \
@@ -405,7 +442,9 @@ impl NpmrcAuth {
                 .fill_from(creds);
         }
         if cert.is_some() || private_key.is_some() {
-            let entry = self.tls.by_uri.entry(uri.to_owned()).or_default();
+            let entry = self.tls.by_uri
+                .entry(uri.to_owned())
+                .or_default();
             entry.cert = entry.cert.take().or(cert);
             entry.key = entry.key.take().or(private_key);
         }
@@ -427,7 +466,9 @@ impl NpmrcAuth {
                 self.raw_ini_config
                     .remove(*key)
                     .or_else(|| {
-                        (*key == "tokenHelper").then(|| creds.token_helper.clone()).flatten()
+                        (*key == "tokenHelper")
+                            .then(|| creds.token_helper.clone())
+                            .flatten()
                     })
                     .map(|value| (*key, value))
             })

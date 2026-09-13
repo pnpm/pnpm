@@ -4,7 +4,11 @@ use super::{
 };
 
 fn manifest_root(manifest: &pnpm_package_manifest::PackageManifest) -> std::path::PathBuf {
-    manifest.path().parent().expect("manifest path always has a parent directory").to_path_buf()
+    manifest
+        .path()
+        .parent()
+        .expect("manifest path always has a parent directory")
+        .to_path_buf()
 }
 
 /// The matcher for the workflow selectors, when this run updates
@@ -12,7 +16,9 @@ fn manifest_root(manifest: &pnpm_package_manifest::PackageManifest) -> std::path
 fn loaded_lockfile(
     lockfile: &pnpm_lockfile::LazyLockfile,
 ) -> miette::Result<Option<&pnpm_lockfile::Lockfile>> {
-    lockfile.get().map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))
+    lockfile
+        .get()
+        .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))
 }
 
 /// The workspace's packages when the update runs inside one.
@@ -30,7 +36,9 @@ fn discovered_workspace_packages(
 }
 
 fn actions_selector_matcher(update_actions: bool, selectors: &[String]) -> Option<Matcher> {
-    update_actions.then(|| github_actions::selector_matcher(selectors)).flatten()
+    update_actions
+        .then(|| github_actions::selector_matcher(selectors))
+        .flatten()
 }
 
 fn filter_package_selectors(packages: &[String], include_github_actions: bool) -> Vec<String> {
@@ -54,7 +62,11 @@ fn update_actions_root(
     selection: Option<&InstallFamilySelection>,
 ) -> std::path::PathBuf {
     selection.map_or_else(
-        || state.config.workspace_dir.clone().unwrap_or_else(|| manifest_root(&state.manifest)),
+        || {
+            state.config.workspace_dir
+                .clone()
+                .unwrap_or_else(|| manifest_root(&state.manifest))
+        },
         |selection| selection.workspace_root.clone(),
     )
 }
@@ -74,14 +86,13 @@ impl UpdateArgs {
         if let Some(pnpr_server) =
             self.delegated_pnpr_server(state.config, update_actions, &include_direct)
         {
-            return self
-                .run_patch_refresh::<Reporter>(
-                    &state,
-                    selection.as_ref(),
-                    pnpr_server,
-                    &lockfile_path,
-                )
-                .await;
+            return self.run_patch_refresh::<Reporter>(
+                &state,
+                selection.as_ref(),
+                pnpr_server,
+                &lockfile_path,
+            )
+            .await;
         }
         let workspace_packages = match &selection {
             Some(selection) => {
@@ -239,9 +250,9 @@ impl UpdateArgs {
                 tarball_mem_cache: std::sync::Arc::clone(&state.tarball_mem_cache),
                 http_client_arc: std::sync::Arc::clone(&state.http_client),
                 include_direct: inputs.include_direct.clone(),
-                supported_architectures: self
-                    .supported_architectures
-                    .apply_to(state.config.supported_architectures.clone()),
+                supported_architectures: self.supported_architectures.apply_to(
+                    state.config.supported_architectures.clone(),
+                ),
                 resolution_observer: None,
             },
         })
@@ -282,7 +293,8 @@ impl UpdateArgs {
         update_actions: bool,
         include_direct: &[DependencyGroup],
     ) -> Option<&'config str> {
-        self.can_delegate_patch_refresh(update_actions, include_direct)
+        self
+            .can_delegate_patch_refresh(update_actions, include_direct)
             .then_some(config.pnpr_server.as_deref())
             .flatten()
     }

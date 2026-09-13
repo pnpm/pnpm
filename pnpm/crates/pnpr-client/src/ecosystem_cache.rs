@@ -22,7 +22,10 @@ pub async fn server_resolves(
     );
     answer
         .get_or_init(|| async {
-            client.supports_ecosystem(ecosystem).await.map_err(|err| err.to_string())
+            client
+                .supports_ecosystem(ecosystem)
+                .await
+                .map_err(|err| err.to_string())
         })
         .await
         .as_ref()

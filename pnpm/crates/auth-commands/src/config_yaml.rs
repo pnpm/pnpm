@@ -57,10 +57,15 @@ pub fn login_fields(
     token: &str,
 ) -> Result<ConfigYamlFields, ParseConfigYamlError> {
     let root = parse_document(document)?;
-    let mut fields =
-        vec![(AUTH_KEY, auth_with_token(&root, registry, scope.unwrap_or(DEFAULT_SCOPE), token))];
+    let mut fields = vec![(
+        AUTH_KEY,
+        auth_with_token(&root, registry, scope.unwrap_or(DEFAULT_SCOPE), token),
+    )];
     if let Some(scope) = scope {
-        fields.push((REGISTRIES_KEY, registries_with_route(&root, registry, scope)));
+        fields.push((
+            REGISTRIES_KEY,
+            registries_with_route(&root, registry, scope),
+        ));
     }
     Ok(fields)
 }
@@ -93,7 +98,11 @@ pub fn logout_fields(
     } else {
         auth.insert(registry.to_owned(), Value::Object(scopes));
     }
-    let value = if auth.is_empty() { Value::Null } else { Value::Object(auth) };
+    let value = if auth.is_empty() {
+        Value::Null
+    } else {
+        Value::Object(auth)
+    };
     Ok(vec![(AUTH_KEY, value)])
 }
 
@@ -106,7 +115,9 @@ fn parse_document(document: Option<&str>) -> Result<Map<String, Value>, ParseCon
         // A document that is valid YAML but not a mapping holds no settings
         // to preserve, so the fields replace it wholesale.
         Ok(_) => Ok(Map::new()),
-        Err(source) => Err(ParseConfigYamlError { source: Box::new(source) }),
+        Err(source) => Err(ParseConfigYamlError {
+            source: Box::new(source),
+        }),
     }
 }
 
@@ -130,9 +141,16 @@ fn auth_with_token(root: &Map<String, Value>, registry: &str, scope: &str, token
                 scopes.remove(scope);
             }
         }
-        auth.retain(|_, scopes| scopes.as_object().is_none_or(|scopes| !scopes.is_empty()));
+        auth.retain(|_, scopes| {
+            scopes
+                .as_object()
+                .is_none_or(|scopes| !scopes.is_empty())
+        });
     }
-    let mut scopes = auth.get(registry).and_then(as_object).unwrap_or_default();
+    let mut scopes = auth
+        .get(registry)
+        .and_then(as_object)
+        .unwrap_or_default();
     scopes.insert(scope.to_owned(), json!({ "authToken": token }));
     auth.insert(registry.to_owned(), Value::Object(scopes));
     Value::Object(auth)
@@ -160,12 +178,25 @@ fn registries_with_route(root: &Map<String, Value>, registry: &str, scope: &str)
             unroute_scope(entry, scope);
         }
     }
-    registries.retain(|_, entry| entry.as_object().is_none_or(|entry| !entry.is_empty()));
+    registries.retain(|_, entry| {
+        entry
+            .as_object()
+            .is_none_or(|entry| !entry.is_empty())
+    });
 
-    let mut declaration = registries.get(registry).and_then(as_object).unwrap_or_default();
-    let mut scopes =
-        declaration.get("scopes").and_then(Value::as_array).cloned().unwrap_or_default();
-    if !scopes.iter().any(|existing| existing.as_str() == Some(scope)) {
+    let mut declaration = registries
+        .get(registry)
+        .and_then(as_object)
+        .unwrap_or_default();
+    let mut scopes = declaration
+        .get("scopes")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    if !scopes
+        .iter()
+        .any(|existing| existing.as_str() == Some(scope))
+    {
         scopes.push(Value::String(scope.to_owned()));
     }
     declaration.insert("scopes".to_owned(), Value::Array(scopes));
@@ -198,7 +229,8 @@ fn unroute_scope(entry: &mut Value, scope: &str) {
 /// would leave it behind. Canonicalized the same way for the same reason, and
 /// the last match taken for the same reason.
 fn key_for_registry(auth: &Map<String, Value>, registry: &str) -> String {
-    auth.keys()
+    auth
+        .keys()
         .rfind(|key| validate_json_auth_registry(key).as_deref() == Ok(registry))
         .cloned()
         .unwrap_or_else(|| registry.to_owned())

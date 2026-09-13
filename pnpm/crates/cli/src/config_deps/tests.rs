@@ -15,17 +15,16 @@ async fn update_config_records_prefer_frozen_lockfile_as_explicit() {
             ),
         )
         .expect("write pnpmfile");
-        let mut config =
-            Config::default().current::<Host>(root.path()).expect("load configuration");
+        let mut config = Config::default()
+            .current::<Host>(root.path())
+            .expect("load configuration");
 
-        run_update_config_hooks::<SilentReporter>(&mut config, root.path())
-            .await
+        run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
             .expect("run updateConfig hook");
 
         assert_eq!(config.prefer_frozen_lockfile, prefer_value);
         assert_eq!(
-            config
-                .explicit_settings
+            config.explicit_settings
                 .get("preferFrozenLockfile")
                 .and_then(serde_json::Value::as_bool),
             Some(prefer_value),
@@ -38,18 +37,22 @@ async fn update_config_records_prefer_frozen_lockfile_as_explicit() {
 #[tokio::test]
 async fn update_config_null_restores_the_prefer_frozen_lockfile_default() {
     let root = tempfile::tempdir().expect("workspace tempdir");
-    fs::write(root.path().join("pnpm-workspace.yaml"), "preferFrozenLockfile: false\n")
-        .expect("write workspace settings");
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        "preferFrozenLockfile: false\n",
+    )
+    .expect("write workspace settings");
     fs::write(
         root.path().join(".pnpmfile.cjs"),
         "module.exports = { hooks: { updateConfig (config) { config.preferFrozenLockfile = null; return config } } }",
     )
     .expect("write pnpmfile");
-    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    let mut config = Config::default()
+        .current::<Host>(root.path())
+        .expect("load configuration");
     assert!(!config.prefer_frozen_lockfile);
 
-    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
-        .await
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
         .expect("run updateConfig hook");
 
     assert!(config.prefer_frozen_lockfile);
@@ -73,15 +76,16 @@ async fn update_config_null_restores_the_default_of_any_setting() {
         "module.exports = { hooks: { updateConfig (config) { for (const key of ['nodeLinker', 'lockfile', 'storeDir', 'hoist']) config[key] = null; return config } } }",
     )
     .expect("write pnpmfile");
-    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    let mut config = Config::default()
+        .current::<Host>(root.path())
+        .expect("load configuration");
     assert_eq!(config.node_linker, NodeLinker::Hoisted);
     assert_eq!(config.prefer_symlinked_executables, Some(true));
     assert!(config.lockfile);
     assert!(format!("{:?}", config.store_dir).contains("pinned-store"));
     assert_eq!(config.hoist_pattern, None);
 
-    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
-        .await
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
         .expect("run updateConfig hook");
 
     // The derivations follow: the isolated linker's executables, the
@@ -95,7 +99,10 @@ async fn update_config_null_restores_the_default_of_any_setting() {
     assert!(config.hoist);
     assert!(config.hoist_pattern.is_some());
     for key in ["nodeLinker", "lockfile", "storeDir", "hoist"] {
-        assert!(!config.explicit_settings.contains_key(key), "{key} is still explicit");
+        assert!(
+            !config.explicit_settings.contains_key(key),
+            "{key} is still explicit",
+        );
     }
 }
 
@@ -104,18 +111,22 @@ async fn update_config_null_restores_the_default_of_any_setting() {
 #[tokio::test]
 async fn update_config_shamefully_hoist_false_stops_public_hoisting() {
     let root = tempfile::tempdir().expect("workspace tempdir");
-    fs::write(root.path().join("pnpm-workspace.yaml"), "shamefullyHoist: true\n")
-        .expect("write workspace settings");
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        "shamefullyHoist: true\n",
+    )
+    .expect("write workspace settings");
     fs::write(
         root.path().join(".pnpmfile.cjs"),
         "module.exports = { hooks: { updateConfig (config) { config.shamefullyHoist = false; return config } } }",
     )
     .expect("write pnpmfile");
-    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    let mut config = Config::default()
+        .current::<Host>(root.path())
+        .expect("load configuration");
     assert_eq!(config.public_hoist_pattern, Some(vec!["*".to_string()]));
 
-    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
-        .await
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
         .expect("run updateConfig hook");
 
     assert!(!config.shamefully_hoist);
@@ -139,10 +150,11 @@ async fn update_config_can_change_the_state_dir() {
         ),
     )
     .expect("write pnpmfile");
-    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    let mut config = Config::default()
+        .current::<Host>(root.path())
+        .expect("load configuration");
 
-    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
-        .await
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
         .expect("run updateConfig hook");
 
     assert_eq!(config.state_dir, state_dir);
@@ -159,10 +171,11 @@ async fn update_config_default_route_lands_on_the_registry_setting() {
         "module.exports = { hooks: { updateConfig (config) { config.registriesByScope = { ...config.registriesByScope, default: 'https://hook.example/', '@acme': 'https://acme.example/' }; return config } } }",
     )
     .expect("write pnpmfile");
-    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    let mut config = Config::default()
+        .current::<Host>(root.path())
+        .expect("load configuration");
 
-    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
-        .await
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
         .expect("run updateConfig hook");
 
     assert_eq!(config.registry, "https://hook.example/");
@@ -176,20 +189,27 @@ async fn update_config_default_route_lands_on_the_registry_setting() {
 #[tokio::test]
 async fn update_config_null_clears_virtual_store_dir() {
     let root = tempfile::tempdir().expect("workspace tempdir");
-    fs::write(root.path().join("pnpm-workspace.yaml"), "virtualStoreDir: pinned-virtual\n")
-        .expect("write workspace settings");
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        "virtualStoreDir: pinned-virtual\n",
+    )
+    .expect("write workspace settings");
     fs::write(
         root.path().join(".pnpmfile.cjs"),
         "module.exports = { hooks: { updateConfig (config) { config.virtualStoreDir = null; return config } } }",
     )
     .expect("write pnpmfile");
-    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    let mut config = Config::default()
+        .current::<Host>(root.path())
+        .expect("load configuration");
 
-    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
-        .await
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
         .expect("run updateConfig hook");
 
-    assert_eq!(config.virtual_store_dir, root.path().join("node_modules/.pnpm"));
+    assert_eq!(
+        config.virtual_store_dir,
+        root.path().join("node_modules/.pnpm"),
+    );
     assert!(!config.explicit_settings.contains_key("virtualStoreDir"));
 }
 
@@ -206,13 +226,17 @@ async fn update_config_null_clears_global_virtual_store_dir() {
         "module.exports = { hooks: { updateConfig (config) { config.globalVirtualStoreDir = null; return config } } }",
     )
     .expect("write pnpmfile");
-    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    let mut config = Config::default()
+        .current::<Host>(root.path())
+        .expect("load configuration");
 
-    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
-        .await
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
         .expect("run updateConfig hook");
 
-    assert_eq!(config.global_virtual_store_dir, root.path().join("pinned-virtual"));
+    assert_eq!(
+        config.global_virtual_store_dir,
+        root.path().join("pinned-virtual"),
+    );
     assert!(!config.explicit_settings.contains_key("globalVirtualStoreDir"));
 }
 
@@ -227,12 +251,21 @@ async fn update_config_can_extend_extra_bin_paths() {
         "module.exports = { hooks: { updateConfig (config) { config.extraBinPaths = [...config.extraBinPaths, '/opt/pnpm-build/bin']; return config } } }",
     )
     .expect("write pnpmfile");
-    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    let mut config = Config::default()
+        .current::<Host>(root.path())
+        .expect("load configuration");
     let seeded = config.extra_bin_paths.clone();
-    assert_eq!(seeded, vec![root.path().join("node_modules").join(".bin")]);
+    assert_eq!(
+        seeded,
+        vec![
+            root
+                .path()
+                .join("node_modules")
+                .join(".bin")
+        ],
+    );
 
-    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
-        .await
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
         .expect("run updateConfig hook");
 
     let mut expected = seeded;
@@ -249,14 +282,15 @@ async fn update_config_can_set_extra_env() {
         "module.exports = { hooks: { updateConfig (config) { config.extraEnv = { ...config.extraEnv, npm_config_nodedir: '/brazil/node' }; return config } } }",
     )
     .expect("write pnpmfile");
-    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    let mut config = Config::default()
+        .current::<Host>(root.path())
+        .expect("load configuration");
     // `current::<Host>` reads the developer's real global config, which
     // may seed `extra_env` (a global virtual store adds `NODE_PATH`), so
     // assert only on the entry the hook adds.
     assert_eq!(config.extra_env.get("npm_config_nodedir"), None);
 
-    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
-        .await
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
         .expect("run updateConfig hook");
 
     assert_eq!(
@@ -270,20 +304,30 @@ async fn update_config_can_set_extra_env() {
 #[tokio::test]
 async fn update_config_script_shell_output_is_not_resolved_again() {
     let root = tempfile::tempdir().expect("workspace tempdir");
-    fs::write(root.path().join("pnpm-workspace.yaml"), "scriptShell: ./manifest-shell.sh\n")
-        .expect("write workspace settings");
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        "scriptShell: ./manifest-shell.sh\n",
+    )
+    .expect("write workspace settings");
     fs::write(
         root.path().join(".pnpmfile.cjs"),
         "module.exports = { hooks: { updateConfig (config) { config.scriptShell = './hook-shell.sh'; return config } } }",
     )
     .expect("write pnpmfile");
-    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
-    let expected_manifest_shell =
-        root.path().join("manifest-shell.sh").to_string_lossy().into_owned();
-    assert_eq!(config.script_shell.as_deref(), Some(expected_manifest_shell.as_str()));
+    let mut config = Config::default()
+        .current::<Host>(root.path())
+        .expect("load configuration");
+    let expected_manifest_shell = root
+        .path()
+        .join("manifest-shell.sh")
+        .to_string_lossy()
+        .into_owned();
+    assert_eq!(
+        config.script_shell.as_deref(),
+        Some(expected_manifest_shell.as_str()),
+    );
 
-    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
-        .await
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
         .expect("run updateConfig hook");
 
     assert_eq!(config.script_shell.as_deref(), Some("./hook-shell.sh"));
@@ -292,18 +336,28 @@ async fn update_config_script_shell_output_is_not_resolved_again() {
 #[tokio::test]
 async fn update_config_hook_reads_resolved_script_shell_value() {
     let root = tempfile::tempdir().expect("workspace tempdir");
-    fs::write(root.path().join("pnpm-workspace.yaml"), "scriptShell: ./manifest-shell.sh\n")
-        .expect("write workspace settings");
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        "scriptShell: ./manifest-shell.sh\n",
+    )
+    .expect("write workspace settings");
     fs::write(
         root.path().join(".pnpmfile.cjs"),
         "module.exports = { hooks: { updateConfig (config) { config.scriptShell += '-from-hook'; return config } } }",
     )
     .expect("write pnpmfile");
-    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
-    let expected = format!("{}-from-hook", root.path().join("manifest-shell.sh").display());
+    let mut config = Config::default()
+        .current::<Host>(root.path())
+        .expect("load configuration");
+    let expected = format!(
+        "{}-from-hook",
+        root
+            .path()
+            .join("manifest-shell.sh")
+            .display(),
+    );
 
-    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
-        .await
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
         .expect("run updateConfig hook");
 
     assert_eq!(config.script_shell.as_deref(), Some(expected.as_str()));
@@ -312,18 +366,22 @@ async fn update_config_hook_reads_resolved_script_shell_value() {
 #[tokio::test]
 async fn update_config_hook_deleting_script_shell_clears_value() {
     let root = tempfile::tempdir().expect("workspace tempdir");
-    fs::write(root.path().join("pnpm-workspace.yaml"), "scriptShell: ./manifest-shell.sh\n")
-        .expect("write workspace settings");
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        "scriptShell: ./manifest-shell.sh\n",
+    )
+    .expect("write workspace settings");
     fs::write(
         root.path().join(".pnpmfile.cjs"),
         "module.exports = { hooks: { updateConfig (config) { delete config.scriptShell; return config } } }",
     )
     .expect("write pnpmfile");
-    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    let mut config = Config::default()
+        .current::<Host>(root.path())
+        .expect("load configuration");
     assert!(config.script_shell.is_some());
 
-    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
-        .await
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
         .expect("run updateConfig hook");
 
     assert_eq!(config.script_shell, None);
@@ -332,18 +390,22 @@ async fn update_config_hook_deleting_script_shell_clears_value() {
 #[tokio::test]
 async fn update_config_hook_setting_script_shell_to_null_clears_value() {
     let root = tempfile::tempdir().expect("workspace tempdir");
-    fs::write(root.path().join("pnpm-workspace.yaml"), "scriptShell: ./manifest-shell.sh\n")
-        .expect("write workspace settings");
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        "scriptShell: ./manifest-shell.sh\n",
+    )
+    .expect("write workspace settings");
     fs::write(
         root.path().join(".pnpmfile.cjs"),
         "module.exports = { hooks: { updateConfig (config) { config.scriptShell = null; return config } } }",
     )
     .expect("write pnpmfile");
-    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    let mut config = Config::default()
+        .current::<Host>(root.path())
+        .expect("load configuration");
     assert!(config.script_shell.is_some());
 
-    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
-        .await
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
         .expect("run updateConfig hook");
 
     assert_eq!(config.script_shell, None);
@@ -532,8 +594,7 @@ async fn resolve_pnpm_version_fetches_full_metadata_and_rejects_a_downgrade() {
     let cache_dir = tempfile::TempDir::new().expect("cache tempdir");
     let config = no_downgrade_config(format!("{}/", server.url()), cache_dir.path());
 
-    let err = resolve_engine_version(&config, "pnpm", "^1.0.0")
-        .await
+    let err = resolve_engine_version(&config, "pnpm", "^1.0.0").await
         .expect_err("a trust downgrade must be rejected");
     let report = format!("{err:?}");
     assert!(
@@ -569,8 +630,7 @@ async fn resolve_pnpm_version_resolves_a_clean_update_under_no_downgrade() {
     let cache_dir = tempfile::TempDir::new().expect("cache tempdir");
     let config = no_downgrade_config(format!("{}/", server.url()), cache_dir.path());
 
-    let resolved = resolve_engine_version(&config, "pnpm", "^1.0.0")
-        .await
+    let resolved = resolve_engine_version(&config, "pnpm", "^1.0.0").await
         .expect("a clean update must resolve")
         .expect("a matching pnpm version resolves");
 
@@ -607,8 +667,7 @@ async fn resolve_pnpm_version_forces_full_metadata_for_no_downgrade_despite_regi
     let mut config = no_downgrade_config(format!("{}/", server.url()), cache_dir.path());
     config.registry_supports_time_field = true;
 
-    let err = resolve_engine_version(&config, "pnpm", "^1.0.0")
-        .await
+    let err = resolve_engine_version(&config, "pnpm", "^1.0.0").await
         .expect_err("the downgrade must be rejected even with registrySupportsTimeField");
     let report = format!("{err:?}");
     assert!(
@@ -676,8 +735,7 @@ async fn resolve_pnpm_version_keeps_a_dist_tag_on_the_running_version() {
     };
     config.package_manager_bootstrap.registry = format!("{}/", server.url());
 
-    let resolved = resolve_engine_version(&config, "pnpm", "latest")
-        .await
+    let resolved = resolve_engine_version(&config, "pnpm", "latest").await
         .expect("the tag must resolve")
         .expect("a matching pnpm version resolves");
 

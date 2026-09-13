@@ -7,7 +7,10 @@ use super::{YarnSyntaxError, collect_yarn_lockfile_versions};
 fn collect(contents: &str) -> Vec<(String, Vec<String>)> {
     let mut versions = VersionsByPackageName::new();
     collect_yarn_lockfile_versions(contents, &mut versions).expect("parse yarn.lock");
-    versions.into_iter().map(|(name, versions)| (name, versions.into_iter().collect())).collect()
+    versions
+        .into_iter()
+        .map(|(name, versions)| (name, versions.into_iter().collect()))
+        .collect()
 }
 
 fn collect_err(contents: &str) -> YarnSyntaxError {
@@ -37,8 +40,14 @@ fn yarn_classic() {
     assert_eq!(
         versions,
         vec![
-            ("@pnpm.e2e/dep-of-pkg-with-1-dep".to_string(), vec!["100.0.0".to_string()]),
-            ("@pnpm.e2e/pkg-with-1-dep".to_string(), vec!["100.0.0".to_string()]),
+            (
+                "@pnpm.e2e/dep-of-pkg-with-1-dep".to_string(),
+                vec!["100.0.0".to_string()]
+            ),
+            (
+                "@pnpm.e2e/pkg-with-1-dep".to_string(),
+                vec!["100.0.0".to_string()]
+            ),
         ],
     );
 }
@@ -53,7 +62,10 @@ fn a_url_fragment_is_not_a_comment() {
   resolved "https://registry.yarnpkg.com/is-positive/-/is-positive-1.0.0.tgz#88009856b64a"
 "#,
     );
-    assert_eq!(versions, vec![("is-positive".to_string(), vec!["1.0.0".to_string()])]);
+    assert_eq!(
+        versions,
+        vec![("is-positive".to_string(), vec!["1.0.0".to_string()])],
+    );
 }
 
 #[test]
@@ -103,7 +115,10 @@ __metadata:
     assert_eq!(
         versions,
         vec![
-            ("has-yarn2-lock".to_string(), vec!["0.0.0-use.local".to_string()]),
+            (
+                "has-yarn2-lock".to_string(),
+                vec!["0.0.0-use.local".to_string()]
+            ),
             ("minimatch".to_string(), vec!["3.0.4".to_string()]),
         ],
     );
@@ -126,7 +141,10 @@ fn a_dependency_named_version_is_not_read_as_a_version() {
     version "^2.0.0"
 "#,
     );
-    assert_eq!(versions, vec![("depends-on-version".to_string(), vec!["1.0.0".to_string()])]);
+    assert_eq!(
+        versions,
+        vec![("depends-on-version".to_string(), vec!["1.0.0".to_string()])],
+    );
 }
 
 /// Yarn writes a header-only lockfile for a project with no
@@ -141,19 +159,43 @@ fn a_lockfile_without_entries_is_valid_and_yields_nothing() {
 #[test]
 fn a_classic_entry_key_without_a_colon_is_rejected() {
     let error = collect_err("is-positive@^1.0.0\n  version \"1.0.0\"\n");
-    assert!(matches!(error, YarnSyntaxError::EntryKeyExpected { line: 1 }), "got {error}");
+    assert!(
+        matches!(
+            error,
+            YarnSyntaxError::EntryKeyExpected {
+                line: 1
+            }
+        ),
+        "got {error}",
+    );
 }
 
 #[test]
 fn a_property_before_any_entry_is_rejected() {
     let error = collect_err("# yarn lockfile v1\n  version \"1.0.0\"\n");
-    assert!(matches!(error, YarnSyntaxError::OrphanedProperty { line: 2 }), "got {error}");
+    assert!(
+        matches!(
+            error,
+            YarnSyntaxError::OrphanedProperty {
+                line: 2
+            }
+        ),
+        "got {error}",
+    );
 }
 
 #[test]
 fn a_valueless_classic_property_is_rejected() {
     let error = collect_err("is-positive@^1.0.0:\n  version\n");
-    assert!(matches!(error, YarnSyntaxError::PropertyExpected { line: 2 }), "got {error}");
+    assert!(
+        matches!(
+            error,
+            YarnSyntaxError::PropertyExpected {
+                line: 2
+            }
+        ),
+        "got {error}",
+    );
 }
 
 #[test]

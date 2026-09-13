@@ -3,11 +3,17 @@ use std::ffi::OsString;
 
 /// Build an argv (with a leading program name) from string slices.
 fn argv(tokens: &[&str]) -> Vec<OsString> {
-    std::iter::once("pnpm").chain(tokens.iter().copied()).map(OsString::from).collect()
+    std::iter::once("pnpm")
+        .chain(tokens.iter().copied())
+        .map(OsString::from)
+        .collect()
 }
 
 fn strings(argv: &[OsString]) -> Vec<String> {
-    argv.iter().map(|token| token.to_string_lossy().into_owned()).collect()
+    argv
+        .iter()
+        .map(|token| token.to_string_lossy().into_owned())
+        .collect()
 }
 
 #[test]
@@ -21,7 +27,10 @@ fn strips_the_with_current_tokens_and_flags_the_override() {
 fn forwards_the_command_arguments() {
     let (rewritten, _) =
         plan(argv(&["with", "current", "add", "foo", "--save-dev"])).expect("plan");
-    assert_eq!(strings(&rewritten), vec!["pnpm", "add", "foo", "--save-dev"]);
+    assert_eq!(
+        strings(&rewritten),
+        vec!["pnpm", "add", "foo", "--save-dev"],
+    );
 }
 
 #[test]
@@ -63,7 +72,10 @@ fn skips_a_with_consumed_by_a_value_taking_option() {
     let (rewritten, force) =
         plan(argv(&["--reporter", "with", "current", "install"])).expect("plan");
     assert!(!force);
-    assert_eq!(strings(&rewritten), vec!["pnpm", "--reporter", "with", "current", "install"]);
+    assert_eq!(
+        strings(&rewritten),
+        vec!["pnpm", "--reporter", "with", "current", "install"],
+    );
 }
 
 #[test]
@@ -77,18 +89,34 @@ fn does_not_rewrite_with_current_inside_another_subcommand() {
     ] {
         let original = argv(&tokens);
         let (rewritten, force) = plan(original.clone()).expect("plan");
-        assert!(!force, "`with current` as an argument must not force pmOnFail: {tokens:?}");
-        assert_eq!(strings(&rewritten), strings(&original), "argv must be untouched: {tokens:?}");
+        assert!(
+            !force,
+            "`with current` as an argument must not force pmOnFail: {tokens:?}",
+        );
+        assert_eq!(
+            strings(&rewritten),
+            strings(&original),
+            "argv must be untouched: {tokens:?}",
+        );
     }
 }
 
 #[test]
 fn rewrites_with_current_after_a_value_taking_global_flag() {
     // `--reporter ndjson` consumes its value, so `with` is the subcommand.
-    let (rewritten, force) =
-        plan(argv(&["--reporter", "ndjson", "with", "current", "install"])).expect("plan");
+    let (rewritten, force) = plan(argv(&[
+        "--reporter",
+        "ndjson",
+        "with",
+        "current",
+        "install",
+    ]))
+    .expect("plan");
     assert!(force);
-    assert_eq!(strings(&rewritten), vec!["pnpm", "--reporter", "ndjson", "install"]);
+    assert_eq!(
+        strings(&rewritten),
+        vec!["pnpm", "--reporter", "ndjson", "install"],
+    );
 }
 
 #[test]
@@ -97,7 +125,10 @@ fn rewrites_with_current_after_a_clustered_value_taking_short() {
     let (rewritten, force) =
         plan(argv(&["-rC", "packages/foo", "with", "current", "install"])).expect("plan");
     assert!(force);
-    assert_eq!(strings(&rewritten), vec!["pnpm", "-rC", "packages/foo", "install"]);
+    assert_eq!(
+        strings(&rewritten),
+        vec!["pnpm", "-rC", "packages/foo", "install"],
+    );
 }
 
 #[test]

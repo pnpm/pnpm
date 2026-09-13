@@ -42,7 +42,9 @@ pub fn create_install_dir(global_dir: &Path) -> io::Result<PathBuf> {
     let pid = std::process::id();
     let mut last_err = None;
     for _ in 0..10 {
-        let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_nanos());
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos());
         let seq = COUNTER.fetch_add(1, Ordering::Relaxed);
         let dir = global_dir.join(format!("{pid:x}-{nanos:x}-{seq:x}"));
         match std::fs::create_dir(&dir) {
@@ -53,6 +55,7 @@ pub fn create_install_dir(global_dir: &Path) -> io::Result<PathBuf> {
             Err(error) => return Err(error),
         }
     }
-    Err(last_err
-        .unwrap_or_else(|| io::Error::other("could not create a unique global install dir")))
+    Err(last_err.unwrap_or_else(|| {
+        io::Error::other("could not create a unique global install dir")
+    }))
 }

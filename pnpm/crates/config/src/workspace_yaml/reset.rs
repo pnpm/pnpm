@@ -3,11 +3,15 @@ use super::{
     explicit_or_default, explicit_pattern, to_camel_case,
 };
 
+type Reset = fn(&mut Config, &Config);
+
 /// The paths anchored on the lockfile directory, re-anchored the way
 /// pinning it does, so a `modulesDir` still set keeps its shape and a
 /// pinned lockfile directory keeps its paths.
 fn reanchor_lockfile_paths(config: &mut Config, base_dir: &Path) {
-    let dir = config.lockfile_dir.clone().unwrap_or_else(|| base_dir.to_path_buf());
+    let dir = config.lockfile_dir
+        .clone()
+        .unwrap_or_else(|| base_dir.to_path_buf());
     config.anchor_lockfile_paths(&dir);
 }
 
@@ -23,8 +27,7 @@ fn derive_lockfile(config: &mut Config) {
 /// and none at all while hoisting is off. A `virtualStoreOnly` install
 /// still in force keeps both patterns empty.
 fn reset_hoist_pattern(config: &mut Config, defaults: &Config) {
-    config.hoist_pattern = config
-        .hoist
+    config.hoist_pattern = config.hoist
         .then(|| explicit_or_default(config, "hoistPattern", defaults.hoist_pattern.as_deref()))
         .flatten();
     config.apply_virtual_store_only_derivation();
@@ -34,8 +37,11 @@ fn reset_hoist_pattern(config: &mut Config, defaults: &Config) {
 /// `shamefullyHoist` overriding it as it does when the config is built,
 /// and a `virtualStoreOnly` install still in force keeping it empty.
 fn reset_public_hoist_pattern(config: &mut Config, defaults: &Config) {
-    config.public_hoist_pattern =
-        explicit_or_default(config, "publicHoistPattern", defaults.public_hoist_pattern.as_deref());
+    config.public_hoist_pattern = explicit_or_default(
+        config,
+        "publicHoistPattern",
+        defaults.public_hoist_pattern.as_deref(),
+    );
     config.apply_shamefully_hoist_derivation();
     config.apply_virtual_store_only_derivation();
 }
@@ -88,7 +94,6 @@ impl WorkspaceSettings {
     where
         Sys: EnvVar + GetCurrentDir + GetHomeDir + LinkProbe,
     {
-        type Reset = fn(&mut Config, &Config);
         macro_rules! same_named {
             ($($field:ident),* $(,)?) => {
                 vec![$((
@@ -124,11 +129,7 @@ impl WorkspaceSettings {
         if Self::reset_derived_setting_to_default::<Sys>(config, defaults, key, base_dir) {
             return true;
         }
-        let Some((_, reset)) = resets.iter().find(|(name, _)| name == key) else {
-            return false;
-        };
-        reset(config, defaults);
-        true
+        apply_named_reset(config, defaults, key, &resets)
     }
 
     /// [`Self::reset_setting_to_default`] for the settings another setting
@@ -232,4 +233,20 @@ impl WorkspaceSettings {
         }
         true
     }
+}
+
+fn apply_named_reset(
+    config: &mut Config,
+    defaults: &Config,
+    key: &str,
+    resets: &[(String, Reset)],
+) -> bool {
+    let Some((_, reset)) = resets
+        .iter()
+        .find(|(name, _)| name == key)
+    else {
+        return false;
+    };
+    reset(config, defaults);
+    true
 }

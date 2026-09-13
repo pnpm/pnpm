@@ -61,7 +61,10 @@ enum CatalogVersionUpdate {
     /// The locked version stands; only the recorded specifier may differ.
     Unmoved(ResolvedCatalogEntry),
     /// The entry moves to a new version, which every reference has to follow.
-    Bumped { entry: ResolvedCatalogEntry, bump: Box<FastOverride> },
+    Bumped {
+        entry: ResolvedCatalogEntry,
+        bump: Box<FastOverride>,
+    },
 }
 
 /// `None` when the entry needs a resolution: it is no longer declared, its
@@ -93,7 +96,10 @@ fn catalog_version_update(
         return None;
     }
     Some(CatalogVersionUpdate::Bumped {
-        entry: ResolvedCatalogEntry { specifier: specifier.clone(), version: wanted.to_string() },
+        entry: ResolvedCatalogEntry {
+            specifier: specifier.clone(),
+            version: wanted.to_string(),
+        },
         bump: Box::new(FastOverride {
             name,
             new_version: Some(wanted),
@@ -110,29 +116,40 @@ fn catalog_entry_is_sole_reference(
     catalog_name: &str,
     name: &PkgName,
 ) -> bool {
-    let importers_agree = lockfile.importers.values().all(|importer| {
-        [
-            importer.dependencies.as_ref(),
-            importer.dev_dependencies.as_ref(),
-            importer.optional_dependencies.as_ref(),
-        ]
-        .into_iter()
-        .flatten()
-        .all(|dependencies| {
-            dependencies.get(name).is_none_or(|dependency| {
-                pnpm_catalogs_protocol_parser::parse_catalog_protocol(&dependency.specifier)
-                    == Some(catalog_name)
+    let importers_agree = lockfile.importers
+        .values()
+        .all(|importer| {
+            [
+                importer.dependencies.as_ref(),
+                importer.dev_dependencies.as_ref(),
+                importer.optional_dependencies.as_ref(),
+            ]
+            .into_iter()
+            .flatten()
+            .all(|dependencies| {
+                dependencies
+                    .get(name)
+                    .is_none_or(|dependency| {
+                        pnpm_catalogs_protocol_parser::parse_catalog_protocol(&dependency.specifier)
+                            == Some(catalog_name)
+                    })
             })
-        })
-    });
-    let no_package_depends_on_it = lockfile.snapshots.as_ref().is_none_or(|snapshots| {
-        snapshots.values().all(|snapshot| {
-            [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()]
-                .into_iter()
-                .flatten()
-                .all(|dependencies| !dependencies.contains_key(name))
-        })
-    });
+        });
+    let no_package_depends_on_it = lockfile.snapshots
+        .as_ref()
+        .is_none_or(|snapshots| {
+            snapshots
+                .values()
+                .all(|snapshot| {
+                    [
+                        snapshot.dependencies.as_ref(),
+                        snapshot.optional_dependencies.as_ref(),
+                    ]
+                    .into_iter()
+                    .flatten()
+                    .all(|dependencies| !dependencies.contains_key(name))
+                })
+        });
     importers_agree && no_package_depends_on_it
 }
 

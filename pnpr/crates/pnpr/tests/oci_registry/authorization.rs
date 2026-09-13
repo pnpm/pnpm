@@ -11,13 +11,26 @@ async fn reads_of_a_private_repository_are_kept_out_of_shared_caches() {
     let auth = basic(&token(&app).await);
     push_image(&app, &auth, "acme/app", "1.0").await;
 
-    for path in ["/v2/acme/app/manifests/1.0", "/v2/acme/app/tags/list", "/v2/_catalog"] {
-        let request =
-            Request::get(path).header(header::AUTHORIZATION, &auth).body(Body::empty()).unwrap();
-        let response = app.clone().oneshot(request).await.unwrap();
+    for path in [
+        "/v2/acme/app/manifests/1.0",
+        "/v2/acme/app/tags/list",
+        "/v2/_catalog",
+    ] {
+        let request = Request::get(path)
+            .header(header::AUTHORIZATION, &auth)
+            .body(Body::empty())
+            .unwrap();
+        let response = app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::OK, "{path}");
         assert_eq!(
-            response.headers().get(header::CACHE_CONTROL).map(|value| value.to_str().unwrap()),
+            response
+                .headers()
+                .get(header::CACHE_CONTROL)
+                .map(|value| value.to_str().unwrap()),
             Some("private, no-store"),
             "{path} must not be storable by a shared cache",
         );
@@ -35,11 +48,19 @@ async fn deletion_requires_read_access_even_with_a_permissive_unpublish_rule() {
     let auth = basic(&token(&app).await);
     push_image(&app, &auth, "acme/app", "latest").await;
     let digest = push_blob(&app, &auth, "acme/app", b"orphan").await;
-    for path in
-        ["/v2/acme/app/manifests/latest".to_string(), format!("/v2/acme/app/blobs/{digest}")]
-    {
-        let response =
-            app.clone().oneshot(Request::delete(path).body(Body::empty()).unwrap()).await.unwrap();
+    for path in [
+        "/v2/acme/app/manifests/latest".to_string(),
+        format!("/v2/acme/app/blobs/{digest}"),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::delete(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
     let response = app
@@ -102,6 +123,10 @@ async fn token_scopes_ignore_unknown_resources_and_count_distinct_repositories()
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
-    let response = get(&app, &format!("/v2/token?{query}&scope=repository:other/extra:pull")).await;
+    let response = get(
+        &app,
+        &format!("/v2/token?{query}&scope=repository:other/extra:pull"),
+    )
+    .await;
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }

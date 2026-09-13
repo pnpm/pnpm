@@ -41,15 +41,18 @@ pub(crate) fn get_automatically_ignored_builds(
                 .into_iter()
                 .collect()
         });
-    Ok(IgnoredBuildsScan { names, modules_dir, modules_manifest })
+    Ok(IgnoredBuildsScan {
+        names,
+        modules_dir,
+        modules_manifest,
+    })
 }
 
 pub(crate) fn render_ignored_builds(config: &Config) -> miette::Result<String> {
     // pnpm preserves `allowBuilds` insertion order; pacquet's
     // `Config::allow_builds` is a `HashMap`, so the source order is already
     // lost. Sort for a deterministic, reproducible listing.
-    let mut disallowed_builds: Vec<String> = config
-        .allow_builds
+    let mut disallowed_builds: Vec<String> = config.allow_builds
         .iter()
         .filter(|&(_, &allowed)| !allowed)
         .map(|(pkg, _)| pkg.clone())

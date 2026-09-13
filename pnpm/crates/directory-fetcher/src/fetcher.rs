@@ -55,7 +55,11 @@ impl DirectoryFetcher {
             }
             files_map
         } else {
-            walker::walk_all_files(&self.directory, self.resolve_symlinks, self.allow_path_escape)?
+            walker::walk_all_files(
+                &self.directory,
+                self.resolve_symlinks,
+                self.allow_path_escape,
+            )?
         };
         let manifest = safe_read_package_json_from_dir(&self.directory)
             .map_err(DirectoryFetcherError::ReadManifest)?;
@@ -68,7 +72,11 @@ impl DirectoryFetcher {
         // from the published tarball — uncommon, but a real gap.
         // Revisit when a real package surfaces it.
         let requires_build = pkg_requires_build(&self.directory);
-        Ok(DirectoryFetchOutput { files_map, manifest, requires_build })
+        Ok(DirectoryFetchOutput {
+            files_map,
+            manifest,
+            requires_build,
+        })
     }
 }
 

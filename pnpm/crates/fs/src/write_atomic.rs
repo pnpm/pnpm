@@ -40,32 +40,16 @@ enum InheritMode {
 }
 
 fn write_tmp_over(path: &Path, bytes: &[u8], inherit: InheritMode) -> io::Result<()> {
-    let dir = path.parent().filter(|parent| !parent.as_os_str().is_empty());
+    let dir = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty());
     if let Some(parent) = dir {
         fs::create_dir_all(parent)?;
     }
     let mut tmp = tempfile::NamedTempFile::new_in(dir.unwrap_or_else(|| Path::new(".")))?;
     tmp.write_all(bytes)?;
     tmp.as_file().sync_all()?;
-    // `NamedTempFile` creates with mode 0600 on Unix; persisting it over an
-    // existing regular file would silently tighten that file's permissions, so
-    // carry the target's mode across the rename to preserve it.
-    //
-    // `symlink_metadata` (not `metadata`) so a symlinked target is detected
-    // rather than followed: the rename replaces the symlink with a fresh
-    // regular file, and copying the link target's (possibly 0644) mode would
-    // loosen permissions on freshly written credentials. A symlink keeps 0600.
-    #[cfg(unix)]
-    if matches!(inherit, InheritMode::Yes)
-        && let Ok(metadata) = fs::symlink_metadata(path)
-        && !metadata.file_type().is_symlink()
-    {
-        use std::os::unix::fs::PermissionsExt as _;
-        let mode = metadata.permissions().mode();
-        tmp.as_file().set_permissions(std::fs::Permissions::from_mode(mode))?;
-    }
-    #[cfg(not(unix))]
-    let _ = inherit;
+    inherit_permissions(path, &tmp, inherit)?;
     let mut pending = Some(tmp.into_temp_path());
     crate::retry::retry_transient_file_locks(|| {
         let temporary = pending.take().expect("temporary path retained after a failed persist");
@@ -82,3 +66,32 @@ fn write_tmp_over(path: &Path, bytes: &[u8], inherit: InheritMode) -> io::Result
 
 #[cfg(test)]
 mod tests;
+
+fn inherit_permissions(
+    path: &Path,
+    tmp: &tempfile::NamedTempFile,
+    inherit: InheritMode,
+) -> io::Result<()> {
+    // `NamedTempFile` creates with mode 0600 on Unix; persisting it over an
+    // existing regular file would silently tighten that file's permissions, so
+    // carry the target's mode across the rename to preserve it.
+    //
+    // `symlink_metadata` (not `metadata`) so a symlinked target is detected
+    // rather than followed: the rename replaces the symlink with a fresh
+    // regular file, and copying the link target's (possibly 0644) mode would
+    // loosen permissions on freshly written credentials. A symlink keeps 0600.
+    #[cfg(unix)]
+    if matches!(inherit, InheritMode::Yes)
+        && let Ok(metadata) = fs::symlink_metadata(path)
+        && !metadata.file_type().is_symlink()
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        let mode = metadata.permissions().mode();
+        tmp
+            .as_file()
+            .set_permissions(std::fs::Permissions::from_mode(mode))?;
+    }
+    #[cfg(not(unix))]
+    let _ = (path, tmp, inherit);
+    Ok(())
+}

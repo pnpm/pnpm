@@ -129,7 +129,10 @@ fn placeholder_at(bytes: &[u8], index: usize) -> Option<Placeholder> {
         backslashes += 1;
     }
     let end = find_placeholder_end(bytes, index)?;
-    Some(Placeholder { end, backslashes })
+    Some(Placeholder {
+        end,
+        backslashes,
+    })
 }
 
 /// Substitute one `${NAME}` or `${NAME:-default}`, recording a name that

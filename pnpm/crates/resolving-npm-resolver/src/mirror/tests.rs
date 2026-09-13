@@ -18,24 +18,37 @@ fn scoped_meta_dir_public_is_unchanged() {
         scoped_meta_dir(&MetadataCacheScope::Public, ABBREVIATED_META_DIR),
         ABBREVIATED_META_DIR,
     );
-    assert_eq!(scoped_meta_dir(&MetadataCacheScope::Public, FULL_META_DIR), FULL_META_DIR);
+    assert_eq!(
+        scoped_meta_dir(&MetadataCacheScope::Public, FULL_META_DIR),
+        FULL_META_DIR,
+    );
 }
 
 #[test]
 fn scoped_meta_dir_private_namespaces_by_descriptor() {
-    let scope = MetadataCacheScope::Private { descriptor_id: "abc123".to_string() };
+    let scope = MetadataCacheScope::Private {
+        descriptor_id: "abc123".to_string(),
+    };
     assert_eq!(
         scoped_meta_dir(&scope, ABBREVIATED_META_DIR),
         "v11/metadata-private/abc123/metadata",
     );
-    assert_eq!(scoped_meta_dir(&scope, FULL_META_DIR), "v11/metadata-private/abc123/metadata-full");
+    assert_eq!(
+        scoped_meta_dir(&scope, FULL_META_DIR),
+        "v11/metadata-private/abc123/metadata-full",
+    );
     assert_eq!(
         scoped_meta_dir(&scope, FULL_FILTERED_META_DIR),
         "v11/metadata-private/abc123/metadata-full-filtered",
     );
     // Distinct descriptors never share a directory.
-    let other = MetadataCacheScope::Private { descriptor_id: "def456".to_string() };
-    assert_ne!(scoped_meta_dir(&scope, FULL_META_DIR), scoped_meta_dir(&other, FULL_META_DIR));
+    let other = MetadataCacheScope::Private {
+        descriptor_id: "def456".to_string(),
+    };
+    assert_ne!(
+        scoped_meta_dir(&scope, FULL_META_DIR),
+        scoped_meta_dir(&other, FULL_META_DIR),
+    );
 }
 
 #[test]
@@ -50,7 +63,11 @@ fn encode_pkg_name_hash_suffix_for_mixed_case() {
     assert!(got.starts_with("LRUCache_"), "got: {got}");
     let suffix = got.trim_start_matches("LRUCache_");
     assert_eq!(suffix.len(), 64, "sha256 hex is 64 chars");
-    assert!(suffix.chars().all(|ch| ch.is_ascii_hexdigit()));
+    assert!(
+        suffix
+            .chars()
+            .all(|ch| ch.is_ascii_hexdigit()),
+    );
 }
 
 #[test]
@@ -76,7 +93,10 @@ fn get_registry_name_with_path() {
     let got =
         get_registry_name("https://releases.jfrog.io/artifactory/api/npm/coding-agents-npm-a/")
             .expect("encode");
-    assert_eq!(got, "https%3A+releases.jfrog.io%2Fartifactory+api+npm+coding-agents-npm-a");
+    assert_eq!(
+        got,
+        "https%3A+releases.jfrog.io%2Fartifactory+api+npm+coding-agents-npm-a",
+    );
 }
 
 /// Two teams on one Artifactory host each get their own metadata
@@ -122,12 +142,18 @@ fn get_registry_name_escapes_delimiters() {
         "https://npm.example/a%2Fb/",
         "https://npm.example/a%3Ab/",
     ];
-    let mut keys: Vec<String> =
-        distinct.iter().map(|url| get_registry_name(url).expect("encode")).collect();
+    let mut keys: Vec<String> = distinct
+        .iter()
+        .map(|url| get_registry_name(url).expect("encode"))
+        .collect();
     keys.sort();
     let key_count = keys.len();
     keys.dedup();
-    assert_eq!(keys.len(), key_count, "every registry must get its own directory");
+    assert_eq!(
+        keys.len(),
+        key_count,
+        "every registry must get its own directory",
+    );
 
     assert_eq!(
         get_registry_name("https://npm.example/team+a/").expect("encode"),
@@ -150,8 +176,14 @@ fn get_registry_name_cannot_collide_with_an_earlier_pnpm_version() {
         let got = get_registry_name(registry).expect("encode");
         assert!(got.contains('%'), "got: {got}");
     }
-    assert_eq!(get_registry_name("https://nexus_npm/").expect("encode"), "https%3A+nexus_npm");
-    assert_eq!(get_registry_name("https://nexus/npm/").expect("encode"), "https%3A+nexus%2Fnpm");
+    assert_eq!(
+        get_registry_name("https://nexus_npm/").expect("encode"),
+        "https%3A+nexus_npm",
+    );
+    assert_eq!(
+        get_registry_name("https://nexus/npm/").expect("encode"),
+        "https%3A+nexus%2Fnpm",
+    );
 }
 
 /// `http` metadata can be rewritten in transit and must never be handed to
@@ -170,7 +202,10 @@ fn get_registry_name_separates_schemes() {
 /// `///lodash`.
 #[test]
 fn get_registry_name_keeps_a_repeated_slash() {
-    assert_eq!(get_registry_name("https://npm.example/").expect("encode"), "https%3A+npm.example");
+    assert_eq!(
+        get_registry_name("https://npm.example/").expect("encode"),
+        "https%3A+npm.example",
+    );
     assert_eq!(
         get_registry_name("https://npm.example//").expect("encode"),
         "https%3A+npm.example%2F",
@@ -251,16 +286,29 @@ fn get_registry_name_hashes_an_oversized_key() {
     let long_path = "a".repeat(300);
     let got = get_registry_name(&format!("https://npm.example/{long_path}/")).expect("encode");
     assert_eq!(got.len(), 64);
-    assert!(got.chars().all(|character| character.is_ascii_hexdigit()));
+    assert!(
+        got
+            .chars()
+            .all(|character| character.is_ascii_hexdigit()),
+    );
     let other = get_registry_name(&format!("https://npm.example/{long_path}b/")).expect("encode");
     assert_ne!(got, other);
 }
 
 #[test]
 fn decode_registry_name_restores_scheme_host_port_and_path() {
-    assert_eq!(decode_registry_name("https%3A+registry.npmjs.org"), "https://registry.npmjs.org/");
-    assert_eq!(decode_registry_name("http%3A+localhost+4873"), "http://localhost:4873/");
-    assert_eq!(decode_registry_name("http%3A+%5B%3A%3A1%5D+8080"), "http://[::1]:8080/");
+    assert_eq!(
+        decode_registry_name("https%3A+registry.npmjs.org"),
+        "https://registry.npmjs.org/",
+    );
+    assert_eq!(
+        decode_registry_name("http%3A+localhost+4873"),
+        "http://localhost:4873/",
+    );
+    assert_eq!(
+        decode_registry_name("http%3A+%5B%3A%3A1%5D+8080"),
+        "http://[::1]:8080/",
+    );
     assert_eq!(
         decode_registry_name("https%3A+releases.jfrog.io%2Fartifactory+api+npm+team-a"),
         "https://releases.jfrog.io/artifactory/api/npm/team-a/",
@@ -278,7 +326,10 @@ fn decode_registry_name_restores_scheme_host_port_and_path() {
     );
     // Directories written before the scheme joined the key still label
     // sensibly.
-    assert_eq!(decode_registry_name("registry.npmjs.org"), "registry.npmjs.org");
+    assert_eq!(
+        decode_registry_name("registry.npmjs.org"),
+        "registry.npmjs.org",
+    );
     assert_eq!(decode_registry_name("localhost+4873"), "localhost:4873");
 }
 
@@ -308,7 +359,10 @@ fn decode_registry_name_is_the_exact_inverse_of_get_registry_name() {
 #[test]
 fn decode_registry_name_passes_through_an_undecodable_key() {
     assert_eq!(decode_registry_name("%FF"), "%FF");
-    assert_eq!(decode_registry_name("https%3A+npm.example%2F%FF"), "https%3A+npm.example%2F%FF");
+    assert_eq!(
+        decode_registry_name("https%3A+npm.example%2F%FF"),
+        "https%3A+npm.example%2F%FF",
+    );
     assert_eq!(decode_registry_name("%not-a-key"), "%not-a-key");
     // A malformed escape must not decode further just because the `+` was
     // already swapped: pnpm v11's `decodeURIComponent` throws on this.
@@ -320,13 +374,19 @@ fn decode_registry_name_passes_through_an_undecodable_key() {
 #[test]
 fn get_registry_name_rejects_malformed_url() {
     let err = get_registry_name("not a url").expect_err("malformed url must error");
-    assert!(matches!(err, super::EncodeRegistryError::ParseUrl { .. }), "got: {err:?}");
+    assert!(
+        matches!(err, super::EncodeRegistryError::ParseUrl { .. }),
+        "got: {err:?}",
+    );
 }
 
 #[test]
 fn get_registry_name_rejects_a_url_without_a_host() {
     let err = get_registry_name("file:///tmp/registry").expect_err("hostless url must error");
-    assert!(matches!(err, super::EncodeRegistryError::MissingHost { .. }), "got: {err:?}");
+    assert!(
+        matches!(err, super::EncodeRegistryError::MissingHost { .. }),
+        "got: {err:?}",
+    );
 }
 
 /// A registry can carry `user:pass@` credentials, which must not reach a
@@ -382,12 +442,18 @@ fn fixture_package() -> Package {
 #[test]
 fn load_meta_headers_round_trip() {
     let dir = TempDir::new().expect("tmp dir");
-    let mirror = dir.path().join("nested").join("lodash.jsonl");
+    let mirror = dir
+        .path()
+        .join("nested")
+        .join("lodash.jsonl");
     let pkg = fixture_package();
     save_meta_indexed(&mirror, &pkg, Some(r#"W/"abc""#)).expect("save");
     let headers = load_meta_headers(&mirror).expect("read headers back");
     assert_eq!(headers.etag.as_deref(), Some(r#"W/"abc""#));
-    assert_eq!(headers.modified.as_deref(), Some("2025-01-15T12:00:00.000Z"));
+    assert_eq!(
+        headers.modified.as_deref(),
+        Some("2025-01-15T12:00:00.000Z"),
+    );
 }
 
 #[test]
@@ -399,7 +465,10 @@ fn load_meta_round_trip_hydrates_versions_from_spans() {
     let loaded = load_meta(&mirror).expect("read full back");
     assert_eq!(loaded.name, "acme");
     assert_eq!(loaded.etag.as_deref(), Some(r#"W/"abc""#));
-    assert_eq!(loaded.published_at("1.0.0"), Some("2025-01-10T08:30:00.000Z"));
+    assert_eq!(
+        loaded.published_at("1.0.0"),
+        Some("2025-01-10T08:30:00.000Z"),
+    );
     assert_eq!(loaded.dist_tag("latest"), Some("1.0.0"));
     let manifest = loaded.versions.get("1.0.0").expect("hydrate from file span");
     assert_eq!(manifest.dist.tarball, "https://registry/acme-1.0.0.tgz");
@@ -471,9 +540,17 @@ fn load_meta_past_the_hold_cap_ignores_a_sparse_tail() {
     let mirror = dir.path().join("acme.jsonl");
     let pkg = fixture_package();
     save_meta_indexed(&mirror, &pkg, None).expect("save");
-    let file = std::fs::OpenOptions::new().write(true).open(&mirror).expect("open");
-    let size = file.metadata().expect("metadata").len();
-    file.set_len(size + 64 * 1024 * 1024).expect("extend sparsely");
+    let file = std::fs::OpenOptions::new()
+        .write(true)
+        .open(&mirror)
+        .expect("open");
+    let size = file
+        .metadata()
+        .expect("metadata")
+        .len();
+    file
+        .set_len(size + 64 * 1024 * 1024)
+        .expect("extend sparsely");
     let loaded = load_meta_with_hold_cap(&mirror, 0).expect("read full back without a handle");
     let manifest = loaded.versions.get("1.0.0").expect("hydrate from buffered fragment");
     assert_eq!(manifest.dist.tarball, "https://registry/acme-1.0.0.tgz");
@@ -490,11 +567,19 @@ fn load_meta_past_the_hold_cap_skips_a_sparse_gap_between_spans() {
         r#"{{"name":"acme","distTags":{{}},"versions":[["1.0.0",0,{}],["2.0.0",{far_offset},16]]}}"#,
         fragment.len(),
     );
-    let contents =
-        format!("pacquet-meta-v1 {} {}\n{headers}{index}{fragment}", headers.len(), index.len());
+    let contents = format!(
+        "pacquet-meta-v1 {} {}\n{headers}{index}{fragment}",
+        headers.len(),
+        index.len(),
+    );
     std::fs::write(&mirror, &contents).expect("write");
-    let file = std::fs::OpenOptions::new().write(true).open(&mirror).expect("open");
-    file.set_len(contents.len() as u64 + far_offset + 16).expect("extend sparsely");
+    let file = std::fs::OpenOptions::new()
+        .write(true)
+        .open(&mirror)
+        .expect("open");
+    file
+        .set_len(contents.len() as u64 + far_offset + 16)
+        .expect("extend sparsely");
     let loaded = load_meta_with_hold_cap(&mirror, 0).expect("read full back without a handle");
     let manifest = loaded.versions.get("1.0.0").expect("hydrate the near fragment");
     assert_eq!(manifest.dist.tarball, "https://registry/acme-1.0.0.tgz");
@@ -515,15 +600,26 @@ fn load_meta_treats_an_oversized_fragment_span_as_absent() {
         fragment.len(),
         32 * 1024 * 1024,
     );
-    let contents =
-        format!("pacquet-meta-v1 {} {}\n{headers}{index}{fragment}", headers.len(), index.len());
+    let contents = format!(
+        "pacquet-meta-v1 {} {}\n{headers}{index}{fragment}",
+        headers.len(),
+        index.len(),
+    );
     std::fs::write(&mirror, &contents).expect("write");
     // A sparse tail makes the file size cover the declared span
     // without paying for the bytes, like a corrupt mirror would.
-    let file = std::fs::OpenOptions::new().write(true).open(&mirror).expect("open");
-    file.set_len(contents.len() as u64 + 64 * 1024 * 1024).expect("extend sparsely");
+    let file = std::fs::OpenOptions::new()
+        .write(true)
+        .open(&mirror)
+        .expect("open");
+    file
+        .set_len(contents.len() as u64 + 64 * 1024 * 1024)
+        .expect("extend sparsely");
     let loaded = load_meta(&mirror).expect("read full back");
-    assert!(loaded.versions.get("9.9.9").is_none(), "oversized span must read as absent");
+    assert!(
+        loaded.versions.get("9.9.9").is_none(),
+        "oversized span must read as absent",
+    );
     let manifest = loaded.versions.get("1.0.0").expect("hydrate the in-bounds fragment");
     assert_eq!(manifest.dist.tarball, "https://registry/acme-1.0.0.tgz");
 }

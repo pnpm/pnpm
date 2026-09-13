@@ -22,7 +22,10 @@ fn main() -> ExitCode {
     let selected = match stacks::select(&args.stacks) {
         Ok(stacks) => stacks,
         Err(unknown) => {
-            eprintln!("Unknown stack {unknown:?}. Known stacks: {}", known_stack_names());
+            eprintln!(
+                "Unknown stack {unknown:?}. Known stacks: {}",
+                known_stack_names(),
+            );
             return ExitCode::FAILURE;
         }
     };
@@ -36,11 +39,21 @@ fn main() -> ExitCode {
 
     let mut report: Vec<(String, Outcome)> = Vec::new();
     for stack in &selected {
-        report.extend(run_stack(stack, &args, &binaries, &layouts, &template_root, &cells_root));
+        report.extend(run_stack(
+            stack,
+            &args,
+            &binaries,
+            &layouts,
+            &template_root,
+            &cells_root,
+        ));
     }
 
     print_report(&report);
-    if report.iter().all(|(_, outcome)| outcome.passed) {
+    if report
+        .iter()
+        .all(|(_, outcome)| outcome.passed)
+    {
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE
@@ -86,7 +99,11 @@ fn run_stack(
     let mut report = Vec::new();
     for &binary in binaries {
         for &layout in layouts {
-            let cell = Cell { stack, binary, layout };
+            let cell = Cell {
+                stack,
+                binary,
+                layout,
+            };
             let id = cell.id();
             eprintln!("== running {id} ==");
             let outcome = run_cell(
@@ -116,7 +133,11 @@ fn doomed_cells(
     let mut cells = Vec::new();
     for &binary in binaries {
         for &layout in layouts {
-            let cell = Cell { stack, binary, layout };
+            let cell = Cell {
+                stack,
+                binary,
+                layout,
+            };
             cells.push((
                 cell.id(),
                 Outcome {
@@ -147,12 +168,22 @@ fn report_cell(outcome: &Outcome) {
 
 fn print_report(report: &[(String, Outcome)]) {
     println!("\n=== Ecosystem E2E results ===");
-    let id_width = report.iter().map(|(id, _)| id.len()).max().unwrap_or(0).max(4);
+    let id_width = report
+        .iter()
+        .map(|(id, _)| id.len())
+        .max()
+        .unwrap_or(0)
+        .max(4);
     for (id, outcome) in report {
         let detail = if outcome.passed {
             String::new()
         } else {
-            format!("[{}] {} (log: {})", outcome.stage, outcome.message, outcome.log_path.display())
+            format!(
+                "[{}] {} (log: {})",
+                outcome.stage,
+                outcome.message,
+                outcome.log_path.display(),
+            )
         };
         println!(
             "{:<id_width$}  {:<4}  {:>6.1}s  {detail}",
@@ -161,7 +192,10 @@ fn print_report(report: &[(String, Outcome)]) {
             outcome.duration_secs,
         );
     }
-    let failed = report.iter().filter(|(_, outcome)| !outcome.passed).count();
+    let failed = report
+        .iter()
+        .filter(|(_, outcome)| !outcome.passed)
+        .count();
     println!("\n{} cell(s), {failed} failed", report.len());
 }
 
@@ -177,5 +211,9 @@ fn ensure_program(program: &str) {
 }
 
 fn known_stack_names() -> String {
-    stacks::STACKS.iter().map(|stack| stack.name).collect::<Vec<_>>().join(", ")
+    stacks::STACKS
+        .iter()
+        .map(|stack| stack.name)
+        .collect::<Vec<_>>()
+        .join(", ")
 }

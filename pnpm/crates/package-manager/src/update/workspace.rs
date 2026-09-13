@@ -19,9 +19,7 @@ pub(super) fn workspace_targets(
     selectors: &[ParsedSelector],
     direct: &[(String, DependencyGroup, String)],
 ) -> Result<Vec<WorkspaceLinkTarget>, UpdateError> {
-    Ok(update
-        .selection
-        .workspace_packages
+    Ok(update.selection.workspace_packages
         .map(|packages| workspace_link_targets(selectors, direct, packages, update.config))
         .transpose()?
         .unwrap_or_default())
@@ -52,10 +50,17 @@ pub(super) fn workspace_link_targets(
     config: &Config,
 ) -> Result<Vec<WorkspaceLinkTarget>, UpdateError> {
     if selectors.is_empty() {
-        return Ok(all_workspace_link_targets(direct, workspace_packages, config));
+        return Ok(all_workspace_link_targets(
+            direct,
+            workspace_packages,
+            config,
+        ));
     }
     let mut targets = Vec::new();
-    let patterns = selectors.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>();
+    let patterns = selectors
+        .iter()
+        .map(|selector| selector.pattern.clone())
+        .collect::<Vec<_>>();
     let matcher = create_matcher(&patterns);
     // Per-selector matchers, compiled once, map a matched dependency back
     // to the selector that claimed it — and so to the version it asked for.
@@ -75,12 +80,7 @@ pub(super) fn workspace_link_targets(
             .find(|(matcher, _)| matcher.matches(name))
             .and_then(|(_, version)| *version)
             .unwrap_or("*");
-        targets.push(WorkspaceLinkTarget {
-            name: name.clone(),
-            group: *group,
-            declared: declared.clone(),
-            wanted_range: wanted.strip_prefix("workspace:").unwrap_or(wanted).to_string(),
-        });
+        targets.push(workspace_link_target(name, *group, declared, wanted));
     }
     Ok(targets)
 }
@@ -96,7 +96,9 @@ pub(super) fn all_workspace_link_targets(
     direct
         .iter()
         .filter(|(name, _, _)| {
-            !ignore_matcher.as_ref().is_some_and(|matcher| matcher.matches(name.as_str()))
+            !ignore_matcher
+                .as_ref()
+                .is_some_and(|matcher| matcher.matches(name.as_str()))
                 && workspace_packages.contains_key(name)
         })
         .map(|(name, group, declared)| WorkspaceLinkTarget {
@@ -126,7 +128,10 @@ pub(super) fn workspace_specifier(
         return format!("workspace:{}", target.wanted_range);
     };
     calc_specifier_for_workspace_dep(
-        DeclaredSpecifiers { prev: Some(&target.declared), bare: None },
+        DeclaredSpecifiers {
+            prev: Some(&target.declared),
+            bare: None,
+        },
         None,
         &target.name,
         Some(&version),
@@ -141,6 +146,33 @@ pub(super) fn pick_workspace_version(
     versions: &WorkspacePackagesByVersion,
     range: &str,
 ) -> Option<String> {
-    let range = if node_semver::Range::parse(range).is_ok() { range } else { "*" };
-    resolve_workspace_range(range, &versions.keys().cloned().collect::<Vec<_>>())
+    let range = if node_semver::Range::parse(range).is_ok() {
+        range
+    } else {
+        "*"
+    };
+    resolve_workspace_range(
+        range,
+        &versions
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
+    )
+}
+
+fn workspace_link_target(
+    name: &str,
+    group: DependencyGroup,
+    declared: &str,
+    wanted: &str,
+) -> WorkspaceLinkTarget {
+    WorkspaceLinkTarget {
+        name: name.to_string(),
+        group,
+        declared: declared.to_string(),
+        wanted_range: wanted
+            .strip_prefix("workspace:")
+            .unwrap_or(wanted)
+            .to_string(),
+    }
 }

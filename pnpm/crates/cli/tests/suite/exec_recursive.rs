@@ -18,7 +18,10 @@ use std::{
 /// Write a `pnpm-workspace.yaml` listing `names` as packages, plus a
 /// `package.json` per name under its own subdirectory of `workspace`.
 fn write_workspace(workspace: &Path, names: &[&str]) {
-    let packages = names.iter().map(|name| format!("  - {name}")).collect::<Vec<_>>();
+    let packages = names
+        .iter()
+        .map(|name| format!("  - {name}"))
+        .collect::<Vec<_>>();
     let workspace_yaml = format!("packages:\n{}\n", packages.join("\n"));
     fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml)
         .expect("write pnpm-workspace.yaml");
@@ -46,7 +49,10 @@ fn summary_statuses(workspace: &Path) -> HashMap<String, String> {
                 .expect("prefix has a basename")
                 .to_string_lossy()
                 .into_owned();
-            let status = entry["status"].as_str().expect("status is a string").to_string();
+            let status = entry["status"]
+                .as_str()
+                .expect("status is a string")
+                .to_string();
             (basename, status)
         })
         .collect()
@@ -93,7 +99,10 @@ fn recursive_exec_runs_command_in_every_project() {
 
     for name in ["project-1", "project-2", "project-3"] {
         assert!(
-            workspace.join(name).join("ran.txt").exists(),
+            workspace
+                .join(name)
+                .join("ran.txt")
+                .exists(),
             "{name} should have run the command in its own directory",
         );
     }
@@ -110,7 +119,14 @@ fn filtered_exec_keeps_single_command_in_foreground_process_group() {
     write_workspace(&workspace, &["project-1", "project-2"]);
 
     pacquet
-        .with_args(["--filter", "project-1", "exec", "sh", "-c", process_group_probe()])
+        .with_args([
+            "--filter",
+            "project-1",
+            "exec",
+            "sh",
+            "-c",
+            process_group_probe(),
+        ])
         .assert()
         .success();
 
@@ -134,11 +150,20 @@ fn recursive_exec_respects_workspace_concurrency() {
     write_concurrency_probe(&workspace);
 
     pacquet
-        .with_args(["--workspace-concurrency=2", "-r", "exec", "sh", "../track-concurrency.sh"])
+        .with_args([
+            "--workspace-concurrency=2",
+            "-r",
+            "exec",
+            "sh",
+            "../track-concurrency.sh",
+        ])
         .assert()
         .success();
 
-    assert!(workspace.join("saw-parallel").exists(), "two commands should overlap");
+    assert!(
+        workspace.join("saw-parallel").exists(),
+        "two commands should overlap",
+    );
     assert!(
         !workspace.join("exceeded-concurrency").exists(),
         "no more than two commands should overlap",
@@ -181,7 +206,10 @@ fn parallel_recursive_exec_has_no_workspace_concurrency_cap() {
     write_workspace(&workspace, &["project-1", "project-2", "project-3"]);
     write_concurrency_probe(&workspace);
 
-    pacquet.with_args(["--parallel", "exec", "sh", "../track-concurrency.sh"]).assert().success();
+    pacquet
+        .with_args(["--parallel", "exec", "sh", "../track-concurrency.sh"])
+        .assert()
+        .success();
 
     assert!(
         workspace.join("exceeded-concurrency").exists(),
@@ -210,12 +238,18 @@ fn recursive_exec_filter_selects_only_matching_project() {
         .success();
 
     assert!(
-        workspace.join("project-1").join("ran.txt").exists(),
+        workspace
+            .join("project-1")
+            .join("ran.txt")
+            .exists(),
         "the selected project-1 should run the command",
     );
     for name in ["project-2", "project-3"] {
         assert!(
-            !workspace.join(name).join("ran.txt").exists(),
+            !workspace
+                .join(name)
+                .join("ran.txt")
+                .exists(),
             "{name} is not selected by --filter and must not run",
         );
     }
@@ -241,11 +275,17 @@ fn filter_without_recursive_flag_enters_recursive_exec() {
         .success();
 
     assert!(
-        workspace.join("project-1").join("ran.txt").exists(),
+        workspace
+            .join("project-1")
+            .join("ran.txt")
+            .exists(),
         "the selected project-1 should run the command",
     );
     assert!(
-        !workspace.join("project-2").join("ran.txt").exists(),
+        !workspace
+            .join("project-2")
+            .join("ran.txt")
+            .exists(),
         "a bare --filter (no -r) should still scope the exec to the selection",
     );
 
@@ -288,11 +328,17 @@ fn recursive_exec_diff_selector_selects_changed_projects() {
         .success();
 
     assert!(
-        workspace.join("project-1").join("ran.txt").exists(),
+        workspace
+            .join("project-1")
+            .join("ran.txt")
+            .exists(),
         "the changed project-1 should run the command",
     );
     assert!(
-        !workspace.join("project-2").join("ran.txt").exists(),
+        !workspace
+            .join("project-2")
+            .join("ran.txt")
+            .exists(),
         "the unchanged project-2 must stay outside the selection",
     );
 
@@ -321,7 +367,10 @@ fn recursive_exec_filter_no_match_is_a_noop() {
 
     for name in ["project-1", "project-2"] {
         assert!(
-            !workspace.join(name).join("ran.txt").exists(),
+            !workspace
+                .join(name)
+                .join("ran.txt")
+                .exists(),
             "no project is selected, so {name} should not run",
         );
     }
@@ -349,8 +398,14 @@ fn recursive_exec_report_summary_records_every_package_status() {
         .success();
 
     let statuses = summary_statuses(&workspace);
-    assert_eq!(statuses.get("project-1").map(String::as_str), Some("passed"));
-    assert_eq!(statuses.get("project-2").map(String::as_str), Some("passed"));
+    assert_eq!(
+        statuses.get("project-1").map(String::as_str),
+        Some("passed"),
+    );
+    assert_eq!(
+        statuses.get("project-2").map(String::as_str),
+        Some("passed"),
+    );
 
     drop(root);
 }
@@ -376,7 +431,10 @@ fn recursive_exec_bail_cancels_in_flight_processes() {
     let elapsed = start.elapsed();
     let stderr = String::from_utf8_lossy(&output.stderr);
     eprintln!("STDERR:\n{stderr}\n");
-    assert!(!output.status.success(), "the failing project should fail the exec");
+    assert!(
+        !output.status.success(),
+        "the failing project should fail the exec",
+    );
     eprintln!("recursive exec elapsed: {elapsed:?}");
     assert!(
         elapsed < Duration::from_secs(4),
@@ -385,11 +443,22 @@ fn recursive_exec_bail_cancels_in_flight_processes() {
 
     let statuses = summary_statuses(&workspace);
     dbg!(&statuses);
-    assert_eq!(statuses.get("a-slow-1").map(String::as_str), Some("running"));
+    assert_eq!(
+        statuses.get("a-slow-1").map(String::as_str),
+        Some("running"),
+    );
     assert_eq!(statuses.get("b-fails").map(String::as_str), Some("failure"));
-    assert_eq!(statuses.get("c-slow-2").map(String::as_str), Some("running"));
+    assert_eq!(
+        statuses.get("c-slow-2").map(String::as_str),
+        Some("running"),
+    );
     assert_eq!(statuses.get("z-queued").map(String::as_str), Some("queued"));
-    assert!(!workspace.join("z-queued").join("ran.txt").exists());
+    assert!(
+        !workspace
+            .join("z-queued")
+            .join("ran.txt")
+            .exists(),
+    );
 
     drop(root);
 }
@@ -410,10 +479,16 @@ fn recursive_exec_no_bail_runs_all_then_fails() {
         .output()
         .expect("spawn pacquet -r exec");
 
-    assert!(!output.status.success(), "a failing command must surface a non-zero exit");
+    assert!(
+        !output.status.success(),
+        "a failing command must surface a non-zero exit",
+    );
     for name in ["project-1", "project-2", "project-3"] {
         assert!(
-            workspace.join(name).join("ran.txt").exists(),
+            workspace
+                .join(name)
+                .join("ran.txt")
+                .exists(),
             "--no-bail should still run {name} despite earlier failures",
         );
     }
@@ -437,12 +512,23 @@ fn recursive_exec_bail_stops_at_first_failure() {
         .output()
         .expect("spawn pacquet -r exec");
 
-    assert!(!output.status.success(), "a failing command must surface a non-zero exit");
+    assert!(
+        !output.status.success(),
+        "a failing command must surface a non-zero exit",
+    );
     let ran = ["project-1", "project-2", "project-3"]
         .into_iter()
-        .filter(|name| workspace.join(name).join("ran.txt").exists())
+        .filter(|name| {
+            workspace
+                .join(name)
+                .join("ran.txt")
+                .exists()
+        })
         .count();
-    assert!(ran < 3, "bail should stop before every project runs, but {ran}/3 ran");
+    assert!(
+        ran < 3,
+        "bail should stop before every project runs, but {ran}/3 ran",
+    );
 
     drop(root);
 }
@@ -458,8 +544,11 @@ fn recursive_exec_settings_only_workspace_enumerates_root_only() {
         json!({ "name": "root", "version": "1.0.0" }).to_string(),
     )
     .expect("write root package.json");
-    fs::write(workspace.join("pnpm-workspace.yaml"), "allowBuilds:\n  esbuild: false\n")
-        .expect("write settings-only workspace manifest");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "allowBuilds:\n  esbuild: false\n",
+    )
+    .expect("write settings-only workspace manifest");
 
     let nested = workspace.join("test-e2e/fixtures/vendor/preact/.cache/10.10.2");
     fs::create_dir_all(&nested).expect("create vendored package dir");
@@ -477,7 +566,10 @@ fn recursive_exec_settings_only_workspace_enumerates_root_only() {
         .assert()
         .success();
 
-    assert!(workspace.join("ran.txt").exists(), "root project should run the command");
+    assert!(
+        workspace.join("ran.txt").exists(),
+        "root project should run the command",
+    );
     assert!(
         !nested.join("ran.txt").exists(),
         "settings-only workspace manifests must not recursively enumerate vendored packages",
@@ -536,7 +628,10 @@ fn a_dir_selector_selects_the_project_in_that_dir() {
         .assert()
         .success();
 
-    assert!(workspace.join("nested/ran.txt").exists(), "the project at {{nested}} should run");
+    assert!(
+        workspace.join("nested/ran.txt").exists(),
+        "the project at {{nested}} should run",
+    );
     assert!(
         !workspace.join("nested/inner/ran.txt").exists(),
         "a project below {{nested}} is not selected by the glob match",
@@ -553,7 +648,11 @@ fn recursive_exec_inherits_stdio_by_default() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     write_workspace(&workspace, &["project-1", "project-2"]);
 
-    for extra in [[].as_slice(), ["--stream"].as_slice(), ["--reporter-hide-prefix"].as_slice()] {
+    for extra in [
+        [].as_slice(),
+        ["--stream"].as_slice(),
+        ["--reporter-hide-prefix"].as_slice(),
+    ] {
         let mut args = vec!["-r", "--config.verify-deps-before-run=false"];
         args.extend_from_slice(extra);
         args.extend_from_slice(&["exec", "echo", "hello"]);
@@ -564,7 +663,10 @@ fn recursive_exec_inherits_stdio_by_default() {
             .with_args(args)
             .output()
             .expect("run exec");
-        assert!(output.status.success(), "exec failed with {extra:?}: {output:?}");
+        assert!(
+            output.status.success(),
+            "exec failed with {extra:?}: {output:?}",
+        );
         assert_eq!(sorted_lines(&output.stdout), ["hello", "hello"]);
     }
 
@@ -575,7 +677,11 @@ fn recursive_exec_inherits_stdio_by_default() {
 fn sorted_lines(stdout: &[u8]) -> Vec<String> {
     let stdout = String::from_utf8_lossy(stdout);
     eprintln!("STDOUT:\n{stdout}\n");
-    let mut lines = stdout.trim().lines().map(str::to_string).collect::<Vec<_>>();
+    let mut lines = stdout
+        .trim()
+        .lines()
+        .map(str::to_string)
+        .collect::<Vec<_>>();
     lines.sort();
     lines
 }
@@ -639,7 +745,13 @@ fn legacy_dir_filtering_leaves_the_generated_root_exclusion_alone() {
     .expect("write the root package.json");
 
     pacquet
-        .with_args(["-r", "--config.verify-deps-before-run=false", "exec", "touch", "ran.txt"])
+        .with_args([
+            "-r",
+            "--config.verify-deps-before-run=false",
+            "exec",
+            "touch",
+            "ran.txt",
+        ])
         .assert()
         .success();
 
@@ -702,7 +814,10 @@ fn legacy_dir_filtering_leaves_the_generated_root_inclusion_alone() {
 /// Write projects with explicit manifests (workspace dependencies and
 /// all), for the graph-shaped scenarios below.
 fn write_workspace_manifests(workspace: &Path, manifests: &[(&str, Value)]) {
-    let packages = manifests.iter().map(|(name, _)| format!("  - {name}")).collect::<Vec<_>>();
+    let packages = manifests
+        .iter()
+        .map(|(name, _)| format!("  - {name}"))
+        .collect::<Vec<_>>();
     let workspace_yaml = format!("packages:\n{}\n", packages.join("\n"));
     fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml)
         .expect("write pnpm-workspace.yaml");
@@ -729,8 +844,14 @@ fn recursive_exec_no_bail_skips_dependents_of_a_failed_command() {
                     "dependencies": { "project-b": "workspace:*" },
                 }),
             ),
-            ("project-b", json!({ "name": "project-b", "version": "1.0.0" })),
-            ("project-c", json!({ "name": "project-c", "version": "1.0.0" })),
+            (
+                "project-b",
+                json!({ "name": "project-b", "version": "1.0.0" }),
+            ),
+            (
+                "project-c",
+                json!({ "name": "project-c", "version": "1.0.0" }),
+            ),
         ],
     );
 
@@ -745,16 +866,31 @@ fn recursive_exec_no_bail_skips_dependents_of_a_failed_command() {
         ])
         .output()
         .expect("run recursive exec");
-    assert!(!output.status.success(), "the failed project must fail the run");
+    assert!(
+        !output.status.success(),
+        "the failed project must fail the run",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("failed in 1 packages"), "one failure, not two: {stderr}");
+    assert!(
+        stderr.contains("failed in 1 packages"),
+        "one failure, not two: {stderr}",
+    );
 
     let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
     assert_eq!(order, "project-c\n");
     let statuses = summary_statuses(&workspace);
-    assert_eq!(statuses.get("project-a").map(String::as_str), Some("skipped"));
-    assert_eq!(statuses.get("project-b").map(String::as_str), Some("failure"));
-    assert_eq!(statuses.get("project-c").map(String::as_str), Some("passed"));
+    assert_eq!(
+        statuses.get("project-a").map(String::as_str),
+        Some("skipped"),
+    );
+    assert_eq!(
+        statuses.get("project-b").map(String::as_str),
+        Some("failure"),
+    );
+    assert_eq!(
+        statuses.get("project-c").map(String::as_str),
+        Some("passed"),
+    );
 
     drop(root);
 }
@@ -767,7 +903,10 @@ fn recursive_exec_resume_from_skips_only_the_anchors_dependencies() {
     write_workspace_manifests(
         &workspace,
         &[
-            ("project-1", json!({ "name": "project-1", "version": "1.0.0" })),
+            (
+                "project-1",
+                json!({ "name": "project-1", "version": "1.0.0" }),
+            ),
             (
                 "project-2",
                 json!({
@@ -784,7 +923,10 @@ fn recursive_exec_resume_from_skips_only_the_anchors_dependencies() {
                     "dependencies": { "project-1": "workspace:*" },
                 }),
             ),
-            ("project-4", json!({ "name": "project-4", "version": "1.0.0" })),
+            (
+                "project-4",
+                json!({ "name": "project-4", "version": "1.0.0" }),
+            ),
         ],
     );
 
@@ -814,7 +956,10 @@ fn recursive_exec_resumes_from_exactly_the_projects_that_passed_before_a_failure
     write_workspace_manifests(
         &workspace,
         &[
-            ("dependency", json!({ "name": "dependency", "version": "1.0.0" })),
+            (
+                "dependency",
+                json!({ "name": "dependency", "version": "1.0.0" }),
+            ),
             (
                 "anchor",
                 json!({
@@ -823,14 +968,25 @@ fn recursive_exec_resumes_from_exactly_the_projects_that_passed_before_a_failure
                     "dependencies": { "dependency": "workspace:*" },
                 }),
             ),
-            ("completed", json!({ "name": "completed", "version": "1.0.0" })),
+            (
+                "completed",
+                json!({ "name": "completed", "version": "1.0.0" }),
+            ),
         ],
     );
     fs::write(workspace.join("fail"), "").expect("write failure marker");
     let command = r#"name=$(basename "$PWD"); echo "$name" >> ../order.log; [ "$name" != dependency ] || [ ! -e ../fail ]"#;
 
     pacquet
-        .with_args(["--no-bail", "--workspace-concurrency=1", "-r", "exec", "sh", "-c", command])
+        .with_args([
+            "--no-bail",
+            "--workspace-concurrency=1",
+            "-r",
+            "exec",
+            "sh",
+            "-c",
+            command,
+        ])
         .assert()
         .failure();
     let first_run = fs::read_to_string(workspace.join("order.log")).expect("read first run");
@@ -855,8 +1011,17 @@ fn recursive_exec_resumes_from_exactly_the_projects_that_passed_before_a_failure
         .success();
 
     let order = fs::read_to_string(workspace.join("order.log")).expect("read resumed run");
-    assert!(order.ends_with("dependency\nanchor\n"), "unfinished dependency must rerun: {order}");
-    assert_eq!(order.lines().filter(|project| *project == "completed").count(), 1);
+    assert!(
+        order.ends_with("dependency\nanchor\n"),
+        "unfinished dependency must rerun: {order}",
+    );
+    assert_eq!(
+        order
+            .lines()
+            .filter(|project| *project == "completed")
+            .count(),
+        1,
+    );
 
     drop(root);
 }

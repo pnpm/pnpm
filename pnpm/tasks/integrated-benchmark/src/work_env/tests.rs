@@ -14,7 +14,10 @@ use std::{collections::HashMap, fs};
 #[test]
 fn offline_scenario_writes_online_prewarm_script() {
     let dir = std::env::temp_dir()
-        .join(format!("pacquet-integrated-benchmark-offline-prewarm-{}", std::process::id()));
+        .join(format!(
+            "pacquet-integrated-benchmark-offline-prewarm-{}",
+            std::process::id(),
+        ));
     fs::create_dir_all(&dir).expect("create script test dir");
 
     create_install_script(
@@ -27,15 +30,24 @@ fn offline_scenario_writes_online_prewarm_script() {
     let prewarm = fs::read_to_string(dir.join("prewarm.bash")).expect("read prewarm.bash");
     let _ = fs::remove_dir_all(&dir);
 
-    assert!(install.contains("install --offline --lockfile-only"), "install = {install}");
+    assert!(
+        install.contains("install --offline --lockfile-only"),
+        "install = {install}",
+    );
     // The priming run must reach the registry: a plain online install.
-    assert!(prewarm.ends_with("exec pnpm install\n"), "prewarm = {prewarm}");
+    assert!(
+        prewarm.ends_with("exec pnpm install\n"),
+        "prewarm = {prewarm}",
+    );
 }
 
 #[test]
 fn online_scenario_writes_no_prewarm_script() {
     let dir = std::env::temp_dir()
-        .join(format!("pacquet-integrated-benchmark-online-prewarm-{}", std::process::id()));
+        .join(format!(
+            "pacquet-integrated-benchmark-online-prewarm-{}",
+            std::process::id(),
+        ));
     fs::create_dir_all(&dir).expect("create script test dir");
 
     create_install_script(
@@ -67,18 +79,31 @@ fn repeat_install_scenarios_keep_node_modules_populated() {
             cleanup.restore.is_empty(),
             "{scenario:?} must not restore files a repeat install never mutates",
         );
-        assert!(scenario.prewarms_node_modules(), "{scenario:?} must pre-warm node_modules");
-        assert!(scenario.seeds_lockfile(), "{scenario:?} needs the seeded lockfile");
+        assert!(
+            scenario.prewarms_node_modules(),
+            "{scenario:?} must pre-warm node_modules",
+        );
+        assert!(
+            scenario.seeds_lockfile(),
+            "{scenario:?} needs the seeded lockfile",
+        );
     }
 }
 
 #[test]
 fn peer_heavy_scenario_generates_shared_subgraph_root() {
     let dir = std::env::temp_dir()
-        .join(format!("pacquet-integrated-benchmark-peer-heavy-workspace-{}", std::process::id()));
+        .join(format!(
+            "pacquet-integrated-benchmark-peer-heavy-workspace-{}",
+            std::process::id(),
+        ));
     fs::create_dir_all(&dir).expect("create peer-heavy workspace test dir");
 
-    create_package_json(&dir, None, BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline);
+    create_package_json(
+        &dir,
+        None,
+        BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline,
+    );
     create_pnpm_workspace(
         &dir,
         None,
@@ -102,13 +127,19 @@ fn peer_heavy_scenario_generates_shared_subgraph_root() {
     let registry = dir.join("registry");
     seed_peer_heavy_registry(&registry);
     let first_packument: serde_json::Value = serde_json::from_slice(
-        &fs::read(registry.join(peer_heavy_package_name(0, 0)).join("package.json"))
-            .expect("read first peer-heavy packument"),
+        &fs::read(
+            registry
+                .join(peer_heavy_package_name(0, 0))
+                .join("package.json"),
+        )
+        .expect("read first peer-heavy packument"),
     )
     .expect("parse first peer-heavy packument");
     let leaf_packument: serde_json::Value = serde_json::from_slice(
         &fs::read(
-            registry.join(peer_heavy_package_name(PEER_HEAVY_DEPTH - 1, 0)).join("package.json"),
+            registry
+                .join(peer_heavy_package_name(PEER_HEAVY_DEPTH - 1, 0))
+                .join("package.json"),
         )
         .expect("read leaf peer-heavy packument"),
     )
@@ -121,8 +152,14 @@ fn peer_heavy_scenario_generates_shared_subgraph_root() {
     assert_eq!(dependencies.len(), PEER_HEAVY_WIDTH + 1);
     assert_eq!(dependencies[PEER_HEAVY_PROVIDER], "1.0.0");
     assert!(workspace.contains("packages:") && workspace.contains("- '.'"));
-    assert!(prewarm.ends_with("exec pnpm install --lockfile-only\n"), "prewarm = {prewarm}");
-    assert_eq!(registry_package_count, PEER_HEAVY_DEPTH * PEER_HEAVY_WIDTH + 1);
+    assert!(
+        prewarm.ends_with("exec pnpm install --lockfile-only\n"),
+        "prewarm = {prewarm}",
+    );
+    assert_eq!(
+        registry_package_count,
+        PEER_HEAVY_DEPTH * PEER_HEAVY_WIDTH + 1,
+    );
     assert_eq!(
         first_packument["versions"]["1.0.0"]["dependencies"]
             .as_object()
@@ -145,7 +182,10 @@ fn peer_heavy_scenario_generates_shared_subgraph_root() {
 #[test]
 fn phase_event_parser_reads_flat_and_nested_json_trace_fields() {
     let path = std::env::temp_dir()
-        .join(format!("pacquet-integrated-benchmark-phase-events-{}.ndjson", std::process::id()));
+        .join(format!(
+            "pacquet-integrated-benchmark-phase-events-{}.ndjson",
+            std::process::id(),
+        ));
     fs::write(
         &path,
         concat!(
@@ -221,7 +261,10 @@ fn phase_summary_reports_partition_and_means() {
     assert_eq!(partition.cold, 9);
     assert_eq!(summary.create_virtual_store_mean_ms, Some(150.0));
     assert_eq!(summary.link_slots[0].batch, "cold");
-    #[expect(clippy::float_cmp, reason = "deterministic mean of fixed fixture inputs is exact")]
+    #[expect(
+        clippy::float_cmp,
+        reason = "deterministic mean of fixed fixture inputs is exact"
+    )]
     {
         assert_eq!(summary.link_slots[0].mean_ms, 30.0);
     }
@@ -257,7 +300,10 @@ fn peer_heavy_gate_reads_the_fastest_run_not_the_mean() {
 
     let verdict = super::check_peer_heavy_speedup(&diagnostics);
     dbg!(&verdict);
-    assert!(verdict.is_ok(), "gate must clear the floor on the fastest runs");
+    assert!(
+        verdict.is_ok(),
+        "gate must clear the floor on the fastest runs",
+    );
 }
 
 /// A genuine blowup lands below the floor on every sample, so the gate must
@@ -307,7 +353,10 @@ fn pnpr_direct_ratios_pair_matching_revisions() {
 
     assert_eq!(ratios.len(), 1);
     assert_eq!(ratios[0].revision, "HEAD");
-    #[expect(clippy::float_cmp, reason = "deterministic ratio of fixed fixture inputs is exact")]
+    #[expect(
+        clippy::float_cmp,
+        reason = "deterministic ratio of fixed fixture inputs is exact"
+    )]
     {
         assert_eq!(ratios[0].ratio, 0.8);
     }
@@ -330,8 +379,14 @@ fn cold_batch_metrics_canary_targets_current_pnpr_revision() {
 
 #[test]
 fn pnpr_auth_config_key_uses_npmrc_nerf_shape() {
-    assert_eq!(pnpr_auth_config_key("http://127.0.0.1:42509"), "//127.0.0.1:42509/");
-    assert_eq!(pnpr_auth_config_key("http://localhost:4873/pnpr/"), "//localhost:4873/pnpr/");
+    assert_eq!(
+        pnpr_auth_config_key("http://127.0.0.1:42509"),
+        "//127.0.0.1:42509/",
+    );
+    assert_eq!(
+        pnpr_auth_config_key("http://localhost:4873/pnpr/"),
+        "//localhost:4873/pnpr/",
+    );
 }
 
 #[test]
@@ -443,11 +498,17 @@ fn diagnostics_markdown_omits_baseline_note_after_pnpr_main_is_instrumented() {
 #[test]
 fn cli_bin_name_reads_the_declared_bin_from_either_layout() {
     let root = std::env::temp_dir()
-        .join(format!("pacquet-integrated-benchmark-cli-bin-name-{}", std::process::id()));
+        .join(format!(
+            "pacquet-integrated-benchmark-cli-bin-name-{}",
+            std::process::id(),
+        ));
 
     // Current layout, `pnpm` bin, with taplo-style key padding.
     let current = root.join("current");
-    let manifest_dir = current.join("pnpm").join("crates").join("cli");
+    let manifest_dir = current
+        .join("pnpm")
+        .join("crates")
+        .join("cli");
     fs::create_dir_all(&manifest_dir).expect("create current-layout manifest dir");
     fs::write(
         manifest_dir.join("Cargo.toml"),
@@ -458,7 +519,10 @@ fn cli_bin_name_reads_the_declared_bin_from_either_layout() {
 
     // Old layout, `pacquet` bin.
     let old = root.join("old");
-    let manifest_dir = old.join("pacquet").join("crates").join("cli");
+    let manifest_dir = old
+        .join("pacquet")
+        .join("crates")
+        .join("cli");
     fs::create_dir_all(&manifest_dir).expect("create old-layout manifest dir");
     fs::write(
         manifest_dir.join("Cargo.toml"),
@@ -476,7 +540,10 @@ fn cli_bin_name_reads_the_declared_bin_from_either_layout() {
 #[test]
 fn client_binary_in_prefers_the_existing_binary() {
     let root = std::env::temp_dir()
-        .join(format!("pacquet-integrated-benchmark-client-binary-{}", std::process::id()));
+        .join(format!(
+            "pacquet-integrated-benchmark-client-binary-{}",
+            std::process::id(),
+        ));
     let release = root.join("target").join("release");
     fs::create_dir_all(&release).expect("create release dir");
 

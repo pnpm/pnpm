@@ -61,7 +61,9 @@ impl Manifest {
     /// none of its own.
     pub fn parse(bytes: &[u8], content_type: Option<&str>) -> Result<Self, ManifestError> {
         let mut manifest: Self = serde_json::from_slice(bytes)
-            .map_err(|error| ManifestError::Malformed { reason: error.to_string() })?;
+            .map_err(|error| ManifestError::Malformed {
+                reason: error.to_string(),
+            })?;
         if manifest.schema_version != SCHEMA_VERSION {
             return Err(ManifestError::UnsupportedSchemaVersion {
                 version: manifest.schema_version,
@@ -73,7 +75,9 @@ impl Manifest {
         let media_type =
             manifest.media_type.get_or_insert_with(|| media_type::DEFAULT_MANIFEST.to_string());
         if !crate::MANIFEST_MEDIA_TYPES.contains(&media_type.as_str()) {
-            return Err(ManifestError::UnsupportedMediaType { media_type: media_type.clone() });
+            return Err(ManifestError::UnsupportedMediaType {
+                media_type: media_type.clone(),
+            });
         }
         if !media_type::is_index(media_type) && manifest.config.is_none() {
             return Err(ManifestError::MissingConfig);
@@ -96,27 +100,35 @@ impl Manifest {
 
     #[must_use]
     pub fn referrer_metadata(&self) -> crate::ReferrerMetadata {
-        let subject = self.subject.as_ref().map(|subject| subject.digest.clone());
+        let subject = self.subject
+            .as_ref()
+            .map(|subject| subject.digest.clone());
         let artifact_type_digest = subject
             .as_ref()
             .and_then(|_| self.artifact_type())
             .map(|value| Digest::of(value.as_bytes()));
-        crate::ReferrerMetadata { subject, artifact_type_digest }
+        crate::ReferrerMetadata {
+            subject,
+            artifact_type_digest,
+        }
     }
 
     /// An image without an artifact type uses its config media type. An index
     /// has no fallback artifact type.
     #[must_use]
     pub fn artifact_type(&self) -> Option<&str> {
-        self.artifact_type.as_deref().filter(|value| !value.is_empty()).or_else(|| {
-            if media_type::is_index(self.media_type()) {
-                return None;
-            }
-            self.config
-                .as_ref()
-                .and_then(|config| config.media_type.as_deref())
-                .filter(|value| !value.is_empty())
-        })
+        self.artifact_type
+            .as_deref()
+            .filter(|value| !value.is_empty())
+            .or_else(|| {
+                if media_type::is_index(self.media_type()) {
+                    return None;
+                }
+                self.config
+                    .as_ref()
+                    .and_then(|config| config.media_type.as_deref())
+                    .filter(|value| !value.is_empty())
+            })
     }
 
     #[must_use]
@@ -129,6 +141,9 @@ impl Manifest {
     /// config and layers. A `subject` is deliberately absent, because the
     /// spec lets a referrer name one the registry does not hold.
     pub fn references(&self) -> impl Iterator<Item = &Descriptor> {
-        self.manifests.iter().chain(self.config.iter()).chain(self.layers.iter())
+        self.manifests
+            .iter()
+            .chain(self.config.iter())
+            .chain(self.layers.iter())
     }
 }

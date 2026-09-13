@@ -23,7 +23,11 @@ fn compatible() {
 
 #[test]
 fn incompatible() {
-    let error = "6.0".parse::<ComVer>().unwrap().pipe(LockfileVersion::<9>::try_from).unwrap_err();
+    let error = "6.0"
+        .parse::<ComVer>()
+        .unwrap()
+        .pipe(LockfileVersion::<9>::try_from)
+        .unwrap_err();
     dbg!(&error);
     assert_eq!(
         error.to_string(),
@@ -31,6 +35,9 @@ fn incompatible() {
     );
     assert!(matches!(
         error,
-        LockfileVersionError::IncompatibleMajor(ComVer { major: 6, minor: 0 }),
+        LockfileVersionError::IncompatibleMajor(ComVer {
+            major: 6,
+            minor: 0
+        }),
     ));
 }

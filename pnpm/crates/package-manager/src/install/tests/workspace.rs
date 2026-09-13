@@ -27,7 +27,10 @@ fn project_lifecycle_detection_includes_scripts_and_binding_gyp_fallback() {
         project_dir.join("package.json"),
         serde_json::json!({ "name": "project" }),
     );
-    assert!(!project_requires_lifecycle_scripts(project_dir, &scriptless));
+    assert!(!project_requires_lifecycle_scripts(
+        project_dir,
+        &scriptless
+    ));
 
     fs::write(project_dir.join("binding.gyp"), "{}").unwrap();
     assert!(project_requires_lifecycle_scripts(project_dir, &scriptless));
@@ -37,7 +40,10 @@ fn project_lifecycle_detection_includes_scripts_and_binding_gyp_fallback() {
         project_dir.join("package.json"),
         serde_json::json!({ "scripts": { "prepare": "node prepare.js" } }),
     );
-    assert!(project_requires_lifecycle_scripts(project_dir, &with_prepare));
+    assert!(project_requires_lifecycle_scripts(
+        project_dir,
+        &with_prepare
+    ));
 }
 #[test]
 fn workspace_without_packages_field_enumerates_root_only() {
@@ -54,8 +60,11 @@ fn workspace_without_packages_field_enumerates_root_only() {
         r#"{"name":"preact","version":"10.10.2","scripts":{"prepare":"run-s build"}}"#,
     )
     .expect("write vendored package.json");
-    fs::write(dir.path().join("pnpm-workspace.yaml"), "allowBuilds:\n  esbuild: false\n")
-        .expect("write settings-only workspace manifest");
+    fs::write(
+        dir.path().join("pnpm-workspace.yaml"),
+        "allowBuilds:\n  esbuild: false\n",
+    )
+    .expect("write settings-only workspace manifest");
 
     let manifest = pnpm_workspace::read_workspace_manifest(dir.path())
         .expect("read workspace manifest")
@@ -66,7 +75,12 @@ fn workspace_without_packages_field_enumerates_root_only() {
         .expect("workspace projects");
     let names: Vec<&str> = projects
         .iter()
-        .filter_map(|project| project.manifest.value().get("name").and_then(|name| name.as_str()))
+        .filter_map(|project| {
+            project.manifest
+                .value()
+                .get("name")
+                .and_then(|name| name.as_str())
+        })
         .collect();
 
     assert_eq!(names, vec!["root"]);
@@ -81,12 +95,19 @@ async fn fresh_install_persists_loose_minimum_release_age_picks_to_workspace_man
     let virtual_store_dir = modules_dir.join(".pacquet");
     let mut manifest = PackageManifest::create_if_needed(dir.path().join("package.json")).unwrap();
     manifest
-        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .add_dependency(
+            "@pnpm.e2e/hello-world-js-bin",
+            "1.0.0",
+            DependencyGroup::Prod,
+        )
         .unwrap();
     manifest.save().unwrap();
 
     let mut config = Config::new();
-    config.store_dir = dir.path().join("store").into();
+    config.store_dir = dir
+        .path()
+        .join("store")
+        .into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
     config.registry = mock_instance.url();
@@ -144,7 +165,12 @@ async fn fresh_install_persists_loose_minimum_release_age_picks_to_workspace_man
     .await
     .expect("loose mode lets the immature pick through");
 
-    assert!(dir.path().join("pnpm-lock.yaml").exists());
+    assert!(
+        dir
+            .path()
+            .join("pnpm-lock.yaml")
+            .exists(),
+    );
     let workspace = std::fs::read_to_string(dir.path().join("pnpm-workspace.yaml"))
         .expect("install must create pnpm-workspace.yaml with the persisted excludes");
     assert!(
@@ -266,9 +292,11 @@ async fn install_writes_workspace_state() {
     // check passes. Single-project install → exactly one entry, keyed
     // on the workspace dirs.dir.
     assert_eq!(state.projects.len(), 1);
-    let project_key = dirs.path().to_string_lossy().into_owned();
-    let project = state
-        .projects
+    let project_key = dirs
+        .path()
+        .to_string_lossy()
+        .into_owned();
+    let project = state.projects
         .get(&project_key)
         .unwrap_or_else(|| panic!("project entry for {project_key:?} should exist"));
     assert_eq!(
@@ -280,7 +308,8 @@ async fn install_writes_workspace_state() {
             // that loses them (e.g. switching to a non-string serde
             // shape) trips here.
             name: Some(
-                dirs.path()
+                dirs
+                    .path()
                     .file_name()
                     .and_then(|n| n.to_str())
                     .expect("tmpdir has a UTF-8 basename")
@@ -294,7 +323,10 @@ async fn install_writes_workspace_state() {
     assert!(state.pnpmfiles.is_empty());
 
     let settings = &state.settings;
-    assert_eq!(settings.node_linker, Some(WorkspaceStateNodeLinker::Isolated));
+    assert_eq!(
+        settings.node_linker,
+        Some(WorkspaceStateNodeLinker::Isolated),
+    );
     assert_eq!(settings.dev, Some(false));
     assert_eq!(settings.optional, Some(true));
     assert_eq!(settings.production, Some(true));
@@ -303,7 +335,10 @@ async fn install_writes_workspace_state() {
     assert_eq!(settings.dedupe_peers, Some(false));
     assert_eq!(settings.prefer_workspace_packages, Some(false));
     assert_eq!(settings.hoist_workspace_packages, Some(true));
-    assert_eq!(settings.hoist_pattern.as_deref(), Some(&["*".to_string()][..]));
+    assert_eq!(
+        settings.hoist_pattern.as_deref(),
+        Some(&["*".to_string()][..]),
+    );
 
     drop(dirs.dir);
 }
@@ -368,20 +403,40 @@ fn filtered_modules_metadata_preserves_only_retained_unselected_entries() {
         ]),
         hoisted_locations: Some(std::collections::BTreeMap::from([
             (retained.to_string(), vec!["retained/location".to_string()]),
-            (shared.to_string(), vec!["stale/shared/location".to_string()]),
+            (
+                shared.to_string(),
+                vec!["stale/shared/location".to_string()],
+            ),
         ])),
-        pending_builds: vec![retained.to_string(), shared.to_string(), stale_selected.to_string()],
+        pending_builds: vec![
+            retained.to_string(),
+            shared.to_string(),
+            stale_selected.to_string(),
+        ],
         ignored_builds: Some(
             [retained, shared, stale_selected]
                 .into_iter()
                 .map(|value| pnpm_modules_yaml::DepPath::from(value.to_string()))
                 .collect(),
         ),
-        skipped: vec![retained.to_string(), shared.to_string(), stale_selected.to_string()],
+        skipped: vec![
+            retained.to_string(),
+            shared.to_string(),
+            stale_selected.to_string(),
+        ],
         injected_deps: Some(std::collections::BTreeMap::from([
-            ("packages/retained-source".to_string(), vec!["retained/target".to_string()]),
-            ("packages/selected-source".to_string(), vec!["stale/selected/target".to_string()]),
-            ("packages/shared-source".to_string(), vec!["stale/shared/target".to_string()]),
+            (
+                "packages/retained-source".to_string(),
+                vec!["retained/target".to_string()],
+            ),
+            (
+                "packages/selected-source".to_string(),
+                vec!["stale/selected/target".to_string()],
+            ),
+            (
+                "packages/shared-source".to_string(),
+                vec!["stale/shared/target".to_string()],
+            ),
         ])),
         ..Default::default()
     };
@@ -403,8 +458,14 @@ fn filtered_modules_metadata_preserves_only_retained_unselected_entries() {
         ),
         skipped: vec![selected.to_string()],
         injected_deps: Some(std::collections::BTreeMap::from([
-            ("packages/selected-source".to_string(), vec!["selected/target".to_string()]),
-            ("packages/shared-source".to_string(), vec!["shared/target".to_string()]),
+            (
+                "packages/selected-source".to_string(),
+                vec!["selected/target".to_string()],
+            ),
+            (
+                "packages/shared-source".to_string(),
+                vec!["shared/target".to_string()],
+            ),
         ])),
         ..Default::default()
     };
@@ -427,7 +488,10 @@ fn filtered_modules_metadata_preserves_only_retained_unselected_entries() {
             (selected.to_string(), vec!["selected/location".to_string()]),
         ]),
     );
-    assert_eq!(next.pending_builds, [retained.to_string(), selected.to_string()]);
+    assert_eq!(
+        next.pending_builds,
+        [retained.to_string(), selected.to_string()],
+    );
     assert_eq!(
         next.ignored_builds
             .as_ref()
@@ -441,9 +505,18 @@ fn filtered_modules_metadata_preserves_only_retained_unselected_entries() {
     assert_eq!(
         next.injected_deps.as_ref().unwrap(),
         &std::collections::BTreeMap::from([
-            ("packages/retained-source".to_string(), vec!["retained/target".to_string()],),
-            ("packages/selected-source".to_string(), vec!["selected/target".to_string()],),
-            ("packages/shared-source".to_string(), vec!["shared/target".to_string()],),
+            (
+                "packages/retained-source".to_string(),
+                vec!["retained/target".to_string()],
+            ),
+            (
+                "packages/selected-source".to_string(),
+                vec!["selected/target".to_string()],
+            ),
+            (
+                "packages/shared-source".to_string(),
+                vec!["shared/target".to_string()],
+            ),
         ]),
     );
 }
@@ -498,7 +571,11 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
     let manifest_path = dirs.project_root.join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     manifest
-        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .add_dependency(
+            "@pnpm.e2e/hello-world-js-bin",
+            "1.0.0",
+            DependencyGroup::Prod,
+        )
         .unwrap();
     manifest.save().unwrap();
 
@@ -578,12 +655,18 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
     // Now run the second install against the same manifest. Capture
     // events to prove the fast path fired.
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS.lock().unwrap().clear();
+    EVENTS
+        .lock()
+        .unwrap()
+        .clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -645,10 +728,12 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
 
     let captured = EVENTS.lock().unwrap();
     assert!(
-        captured.iter().any(|event| matches!(
-            event,
-            LogEvent::Pnpm(log) if log.message == "Already up to date"
-        )),
+        captured
+            .iter()
+            .any(|event| matches!(
+                event,
+                LogEvent::Pnpm(log) if log.message == "Already up to date"
+            )),
         "second install must emit `Already up to date`; got events: {captured:#?}",
     );
 
@@ -786,7 +871,10 @@ fn workspace_packages_map_prefers_the_dependency_manifest() {
     }];
 
     let map = crate::build_workspace_packages_map(Some(&projects)).expect("map for projects");
-    let package = map.get("component").and_then(|by_version| by_version.get("1.2.3")).unwrap();
+    let package = map
+        .get("component")
+        .and_then(|by_version| by_version.get("1.2.3"))
+        .unwrap();
     assert_eq!(
         package.manifest.get("dependencies"),
         Some(&serde_json::json!({ "sibling": "workspace:*" })),

@@ -20,8 +20,13 @@ fn pacquet_at(workspace: &Path) -> Command {
 /// `node_modules`.
 #[test]
 fn dry_run_reports_changes_without_writing() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -30,7 +35,10 @@ fn dry_run_reports_changes_without_writing() {
     )
     .expect("write package.json");
 
-    let output = pacquet.with_args(["install", "--dry-run"]).output().expect("spawn pacquet");
+    let output = pacquet
+        .with_args(["install", "--dry-run"])
+        .output()
+        .expect("spawn pacquet");
     assert!(
         output.status.success(),
         "--dry-run must exit 0 (stderr: {})",
@@ -42,8 +50,14 @@ fn dry_run_reports_changes_without_writing() {
         "the report must name the dependency a real install would add; got:\n{stdout}",
     );
 
-    assert!(!workspace.join("pnpm-lock.yaml").exists(), "--dry-run must not write pnpm-lock.yaml");
-    assert!(!workspace.join("node_modules").exists(), "--dry-run must not create node_modules");
+    assert!(
+        !workspace.join("pnpm-lock.yaml").exists(),
+        "--dry-run must not write pnpm-lock.yaml",
+    );
+    assert!(
+        !workspace.join("node_modules").exists(),
+        "--dry-run must not create node_modules",
+    );
 
     drop((root, mock_instance));
 }
@@ -52,8 +66,13 @@ fn dry_run_reports_changes_without_writing() {
 /// real install would add and leaves the lockfile byte-for-byte unchanged.
 #[test]
 fn dry_run_reports_added_dependency_without_touching_the_lockfile() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let manifest_path = workspace.join("package.json");
@@ -63,7 +82,10 @@ fn dry_run_reports_added_dependency_without_touching_the_lockfile() {
     )
     .expect("write package.json");
 
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let lockfile_before = fs::read_to_string(&lockfile_path).expect("read seeded lockfile");
 
@@ -74,8 +96,10 @@ fn dry_run_reports_added_dependency_without_touching_the_lockfile() {
     )
     .expect("rewrite package.json");
 
-    let output =
-        pacquet_at(&workspace).with_args(["install", "--dry-run"]).output().expect("spawn pacquet");
+    let output = pacquet_at(&workspace)
+        .with_args(["install", "--dry-run"])
+        .output()
+        .expect("spawn pacquet");
     assert!(
         output.status.success(),
         "--dry-run must exit 0 even when the lockfile is stale (stderr: {})",
@@ -88,8 +112,14 @@ fn dry_run_reports_added_dependency_without_touching_the_lockfile() {
     );
 
     let lockfile_after = fs::read_to_string(&lockfile_path).expect("read lockfile after --dry-run");
-    assert_eq!(lockfile_before, lockfile_after, "--dry-run must not rewrite pnpm-lock.yaml");
-    assert!(!workspace.join("node_modules").exists(), "--dry-run must not create node_modules");
+    assert_eq!(
+        lockfile_before, lockfile_after,
+        "--dry-run must not rewrite pnpm-lock.yaml",
+    );
+    assert!(
+        !workspace.join("node_modules").exists(),
+        "--dry-run must not create node_modules",
+    );
 
     drop((root, mock_instance));
 }
@@ -98,8 +128,13 @@ fn dry_run_reports_added_dependency_without_touching_the_lockfile() {
 /// and still exits 0.
 #[test]
 fn dry_run_reports_no_changes_when_up_to_date() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -108,10 +143,15 @@ fn dry_run_reports_no_changes_when_up_to_date() {
     )
     .expect("write package.json");
 
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
 
-    let output =
-        pacquet_at(&workspace).with_args(["install", "--dry-run"]).output().expect("spawn pacquet");
+    let output = pacquet_at(&workspace)
+        .with_args(["install", "--dry-run"])
+        .output()
+        .expect("spawn pacquet");
     assert!(
         output.status.success(),
         "--dry-run must exit 0 (stderr: {})",
@@ -131,8 +171,13 @@ fn dry_run_reports_no_changes_when_up_to_date() {
 /// contract. Mirrors pnpm's `CONFIG_CONFLICT_DRY_RUN_WITH_PNPR_SERVER`.
 #[test]
 fn dry_run_rejects_pnpr_server() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -142,7 +187,12 @@ fn dry_run_rejects_pnpr_server() {
     .expect("write package.json");
 
     let output = pacquet
-        .with_args(["install", "--dry-run", "--pnpr-server", "http://localhost:1"])
+        .with_args([
+            "install",
+            "--dry-run",
+            "--pnpr-server",
+            "http://localhost:1",
+        ])
         .output()
         .expect("spawn pacquet");
     assert!(

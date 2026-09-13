@@ -153,11 +153,15 @@ pub fn find_workspace_projects_no_check(
 /// wax's `not` takes a single pattern; combine the ignores with
 /// `wax::any` so the walk filters them all in one pass.
 fn dot_pruning_ignore_template() -> Result<wax::Any<'static>, FindWorkspaceProjectsError> {
-    wax::any(IGNORE_PATTERNS.iter().copied().chain([DOT_COMPONENT_IGNORE_PATTERN])).map_err(|err| {
-        FindWorkspaceProjectsError::InvalidGlob {
-            pattern: "<built-in ignore>".to_string(),
-            message: err.to_string(),
-        }
+    wax::any(
+        IGNORE_PATTERNS
+            .iter()
+            .copied()
+            .chain([DOT_COMPONENT_IGNORE_PATTERN]),
+    )
+    .map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
+        pattern: "<built-in ignore>".to_string(),
+        message: err.to_string(),
     })
 }
 
@@ -166,12 +170,11 @@ fn dot_pruning_ignore_template() -> Result<wax::Any<'static>, FindWorkspaceProje
 /// matched against the path each entry has *from the workspace root*
 /// rather than handed to `Walk::not` alongside the built-in ignores.
 fn compile_user_negations(globs: &[String]) -> Result<wax::Any<'_>, FindWorkspaceProjectsError> {
-    wax::any(globs.iter().map(String::as_str)).map_err(|err| {
-        FindWorkspaceProjectsError::InvalidGlob {
+    wax::any(globs.iter().map(String::as_str))
+        .map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
             pattern: "<negated pattern>".to_string(),
             message: err.to_string(),
-        }
-    })
+        })
 }
 
 fn read_projects(
@@ -203,7 +206,10 @@ fn split_include_and_negation(
     for pattern in patterns {
         if !pattern.starts_with('!') {
             if let Some(normalized) = normalize_directory_pattern(pattern) {
-                include_patterns.push(WorkspacePattern { source: pattern, normalized });
+                include_patterns.push(WorkspacePattern {
+                    source: pattern,
+                    normalized,
+                });
             }
             continue;
         }
@@ -227,10 +233,11 @@ fn parse_check_walk_patterns(
             let Some((_, normalized)) = split_parent_prefix(workspace_root, &normalized) else {
                 continue;
             };
-            Glob::new(normalized).map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
-                pattern: (*source).to_string(),
-                message: err.to_string(),
-            })?;
+            Glob::new(normalized)
+                .map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
+                    pattern: (*source).to_string(),
+                    message: err.to_string(),
+                })?;
         }
     }
     Ok(())
@@ -248,10 +255,11 @@ fn collect_negation_globs(
         return Ok(());
     };
     for normalized in normalize_manifest_patterns(&directory) {
-        Glob::new(&normalized).map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
-            pattern: pattern.to_string(),
-            message: err.to_string(),
-        })?;
+        Glob::new(&normalized)
+            .map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
+                pattern: pattern.to_string(),
+                message: err.to_string(),
+            })?;
         user_negation_globs.push(normalized);
     }
     Ok(())
@@ -276,8 +284,7 @@ fn merge_pattern_manifests(
     merge: &MergePatterns<'_>,
 ) -> Result<BTreeSet<PathBuf>, FindWorkspaceProjectsError> {
     let merged: std::sync::Mutex<BTreeSet<PathBuf>> = std::sync::Mutex::default();
-    let pattern_errors: Vec<Option<FindWorkspaceProjectsError>> = merge
-        .include_patterns
+    let pattern_errors: Vec<Option<FindWorkspaceProjectsError>> = merge.include_patterns
         .par_iter()
         .map(|pattern| {
             match collect_pattern_manifests(
@@ -287,14 +294,21 @@ fn merge_pattern_manifests(
                 merge.user_negations,
             ) {
                 Ok(set) => {
-                    merged.lock().expect("merge lock never poisoned").extend(set);
+                    merged
+                        .lock()
+                        .expect("merge lock never poisoned")
+                        .extend(set);
                     None
                 }
                 Err(error) => Some(error),
             }
         })
         .collect();
-    if let Some(error) = pattern_errors.into_iter().flatten().next() {
+    if let Some(error) = pattern_errors
+        .into_iter()
+        .flatten()
+        .next()
+    {
         return Err(error);
     }
     Ok(merged.into_inner().expect("merge lock never poisoned"))
@@ -314,13 +328,20 @@ fn group_manifests_by_root(
 ) -> Vec<(PathBuf, Vec<PathBuf>)> {
     let mut sorted: Vec<PathBuf> = manifest_paths.into_iter().collect();
     sorted.sort_by(|left, right| {
-        let dir_left = left.parent().unwrap_or_else(|| Path::new(""));
-        let dir_right = right.parent().unwrap_or_else(|| Path::new(""));
+        let dir_left = left
+            .parent()
+            .unwrap_or_else(|| Path::new(""));
+        let dir_right = right
+            .parent()
+            .unwrap_or_else(|| Path::new(""));
         dir_left.cmp(dir_right)
     });
     let mut root_groups: Vec<(PathBuf, Vec<PathBuf>)> = Vec::new();
     for manifest_path in sorted {
-        let root_dir = manifest_path.parent().unwrap_or(workspace_root).to_path_buf();
+        let root_dir = manifest_path
+            .parent()
+            .unwrap_or(workspace_root)
+            .to_path_buf();
         match root_groups.last_mut() {
             Some((last_root, candidates)) if *last_root == root_dir => {
                 candidates.push(manifest_path);
@@ -389,8 +410,8 @@ fn collect_glob_manifests(
         if is_literal_pattern(normalized) && !walk_root.join(normalized).is_file() {
             continue;
         }
-        let glob =
-            Glob::new(normalized).map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
+        let glob = Glob::new(normalized)
+            .map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
                 pattern: pattern.source.to_string(),
                 message: err.to_string(),
             })?;
@@ -402,7 +423,10 @@ fn collect_glob_manifests(
         let ignores =
             manifest_walk_ignores(normalized, dot_pruning_ignore_template).map_err(invalid_glob)?;
         collect_walk_manifests(
-            glob.walk(walk_root).not(ignores).map_err(invalid_glob)?,
+            glob
+                .walk(walk_root)
+                .not(ignores)
+                .map_err(invalid_glob)?,
             walk_root,
             workspace_root,
             user_negations,
@@ -455,7 +479,11 @@ fn read_first_project_manifest(
             ))) => continue,
             Err(err) => return Err(FindWorkspaceProjectsError::ReadManifest(err)),
         };
-        return Ok(Some(Project { root_dir, manifest, dependency_manifest: None }));
+        return Ok(Some(Project {
+            root_dir,
+            manifest,
+            dependency_manifest: None,
+        }));
     }
     Ok(None)
 }

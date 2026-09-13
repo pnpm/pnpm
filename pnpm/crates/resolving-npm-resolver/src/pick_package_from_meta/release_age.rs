@@ -36,10 +36,16 @@ pub(crate) fn apply_published_by_policy(
 ) -> PublishedByView {
     let exclude_result = exclude.map_or(PolicyMatch::No, |policy| policy.matches(&meta.name));
     if matches!(exclude_result, PolicyMatch::AnyVersion) {
-        return PublishedByView { filtered: None, needs_full_metadata: false };
+        return PublishedByView {
+            filtered: None,
+            needs_full_metadata: false,
+        };
     }
     if meta.time.is_none() {
-        return PublishedByView { filtered: None, needs_full_metadata: true };
+        return PublishedByView {
+            filtered: None,
+            needs_full_metadata: true,
+        };
     }
     let trusted = match &exclude_result {
         PolicyMatch::ExactVersions(versions) => Some(versions.as_slice()),
@@ -103,10 +109,12 @@ pub(super) fn filter_pkg_metadata_by_publish_date_uncached(
     cutoff: chrono::DateTime<chrono::Utc>,
     trusted_versions: Option<&[String]>,
 ) -> Package {
-    let time = meta.time.as_ref().expect(
-        "filter_pkg_metadata_by_publish_date called without `time`; \
+    let time = meta.time
+        .as_ref()
+        .expect(
+            "filter_pkg_metadata_by_publish_date called without `time`; \
          caller must check before invoking",
-    );
+        );
 
     filter_pkg_metadata_versions_with_dist_tag_bound(
         meta,
@@ -116,8 +124,11 @@ pub(super) fn filter_pkg_metadata_by_publish_date_uncached(
                 .and_then(serde_json::Value::as_str)
                 .and_then(parse_packument_timestamp)
                 .is_some_and(|date| date <= cutoff);
-            let trusted = trusted_versions
-                .is_some_and(|allow| allow.iter().any(|allowed| allowed == version));
+            let trusted = trusted_versions.is_some_and(|allow| {
+                allow
+                    .iter()
+                    .any(|allowed| allowed == version)
+            });
             mature || trusted
         },
         true,
@@ -177,7 +188,9 @@ pub(super) fn repopulate_dist_tags(
             dist_tags_within_date.insert(tag.clone(), version.clone());
             continue;
         }
-        let Ok(original) = Version::parse(version) else { continue };
+        let Ok(original) = Version::parse(version) else {
+            continue;
+        };
         let candidates = parsed_candidates.get_or_insert_with(|| {
             filtered_versions
                 .keys()
@@ -187,9 +200,13 @@ pub(super) fn repopulate_dist_tags(
                 })
                 .collect()
         });
-        if let Some(best) =
-            best_tag_candidate(candidates, filtered_versions, tag, &original, bound_dist_tags)
-        {
+        if let Some(best) = best_tag_candidate(
+            candidates,
+            filtered_versions,
+            tag,
+            &original,
+            bound_dist_tags,
+        ) {
             dist_tags_within_date.insert(tag.clone(), best.clone());
         }
     }
@@ -215,11 +232,13 @@ pub(super) fn best_tag_candidate<'a>(
     let deprecated = |slot: &TagCandidate<'a>| -> bool {
         *slot.2.get_or_init(|| filtered_versions.is_deprecated(slot.1))
     };
-    let eligible = candidates.iter().filter(|(candidate, _, _)| {
-        !(bound_dist_tags && candidate > original)
-            && (tag == "latest" || candidate.major == original.major)
-            && candidate.pre_release.is_empty() != original_is_prerelease
-    });
+    let eligible = candidates
+        .iter()
+        .filter(|(candidate, _, _)| {
+            !(bound_dist_tags && candidate > original)
+                && (tag == "latest" || candidate.major == original.major)
+                && candidate.pre_release.is_empty() != original_is_prerelease
+        });
     let mut best: Option<&TagCandidate<'a>> = None;
     for slot in eligible {
         let (candidate, _, _) = slot;

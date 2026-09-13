@@ -7,7 +7,10 @@ use super::{
 
 #[test]
 fn direct_bumps_highest_pending_bump_type_wins_per_package() {
-    let projects = [make_project("a", "1.0.0", &[]), make_project("b", "2.3.4", &[])];
+    let projects = [
+        make_project("a", "1.0.0", &[]),
+        make_project("b", "2.3.4", &[]),
+    ];
     let intents = [
         make_intent("one", &[("a", "patch"), ("b", "minor")]),
         make_intent("two", &[("a", "minor")]),
@@ -30,7 +33,10 @@ fn a_none_bump_type_releases_nothing() {
 
 #[test]
 fn fixed_groups_release_together_at_one_shared_version() {
-    let projects = [make_project("a", "1.2.0", &[]), make_project("b", "1.0.5", &[])];
+    let projects = [
+        make_project("a", "1.2.0", &[]),
+        make_project("b", "1.0.5", &[]),
+    ];
     let intents = [make_intent("one", &[("a", "minor")])];
     let versioning = VersioningSettings {
         fixed: vec![vec!["a".to_string(), "b".to_string()]],
@@ -58,12 +64,18 @@ fn max_bump_rejects_a_plan_whose_effective_bump_exceeds_the_cap() {
         &AssembleReleasePlanOptions::default(),
     )
     .expect_err("plan must fail");
-    assert!(err.to_string().contains("maxBump"), "unexpected error: {err}");
+    assert!(
+        err.to_string().contains("maxBump"),
+        "unexpected error: {err}",
+    );
 }
 
 #[test]
 fn max_bump_measures_the_real_version_distance_including_fixed_group_jumps() {
-    let projects = [make_project("a", "1.0.5", &[]), make_project("b", "2.0.0", &[])];
+    let projects = [
+        make_project("a", "1.0.5", &[]),
+        make_project("b", "2.0.0", &[]),
+    ];
     let intents = [make_intent("one", &[("a", "minor")])];
     let versioning = VersioningSettings {
         fixed: vec![vec!["a".to_string(), "b".to_string()]],
@@ -79,7 +91,10 @@ fn max_bump_measures_the_real_version_distance_including_fixed_group_jumps() {
         &AssembleReleasePlanOptions::default(),
     )
     .expect_err("plan must fail");
-    assert!(err.to_string().contains("maxBump"), "unexpected error: {err}");
+    assert!(
+        err.to_string().contains("maxBump"),
+        "unexpected error: {err}",
+    );
 }
 
 #[test]
@@ -92,8 +107,10 @@ fn a_package_on_a_lane_emits_tagged_versions_with_an_incrementing_counter() {
     assert_eq!(enter_plan.releases[0].version.next, "2.1.0-alpha.0");
 
     let projects = [make_project("cli", "2.1.0-alpha.0", &[])];
-    let intents =
-        [make_intent("one", &[("cli", "minor")]), make_intent("two", &[("cli", "patch")])];
+    let intents = [
+        make_intent("one", &[("cli", "minor")]),
+        make_intent("two", &[("cli", "patch")]),
+    ];
     let consumed = ledger(&[("cli@2.1.0-alpha.0", &["one"])]);
     let next_plan = assemble(&projects, &intents, &consumed, Some(&versioning));
     assert_eq!(next_plan.releases[0].version.next, "2.1.0-alpha.1");
@@ -102,18 +119,33 @@ fn a_package_on_a_lane_emits_tagged_versions_with_an_incrementing_counter() {
 #[test]
 fn a_bigger_bump_landing_later_escalates_the_stable_target_of_the_lane() {
     let projects = [make_project("cli", "2.1.0-alpha.1", &[])];
-    let intents =
-        [make_intent("one", &[("cli", "minor")]), make_intent("two", &[("cli", "major")])];
+    let intents = [
+        make_intent("one", &[("cli", "minor")]),
+        make_intent("two", &[("cli", "major")]),
+    ];
     let consumed = ledger(&[("cli@2.1.0-alpha.0", &["one"]), ("cli@2.1.0-alpha.1", &[])]);
-    let plan = assemble(&projects, &intents, &consumed, Some(&on_lane("cli", "alpha")));
+    let plan = assemble(
+        &projects,
+        &intents,
+        &consumed,
+        Some(&on_lane("cli", "alpha")),
+    );
     assert_eq!(plan.releases[0].version.next, "3.0.0-alpha.0");
 }
 
 #[test]
 fn packages_on_the_main_lane_release_stable_versions_from_the_same_run() {
-    let projects = [make_project("cli", "2.0.0", &[]), make_project("lib", "1.0.0", &[])];
+    let projects = [
+        make_project("cli", "2.0.0", &[]),
+        make_project("lib", "1.0.0", &[]),
+    ];
     let intents = [make_intent("one", &[("cli", "minor"), ("lib", "minor")])];
-    let plan = assemble(&projects, &intents, &Ledger::new(), Some(&on_lane("cli", "alpha")));
+    let plan = assemble(
+        &projects,
+        &intents,
+        &Ledger::new(),
+        Some(&on_lane("cli", "alpha")),
+    );
     assert_eq!(release(&plan, "cli").version.next, "2.1.0-alpha.0");
     assert_eq!(release(&plan, "lib").version.next, "1.1.0");
 }
@@ -122,14 +154,21 @@ fn packages_on_the_main_lane_release_stable_versions_from_the_same_run() {
 fn returning_to_the_main_lane_releases_the_accumulated_stable_version_even_without_pending_intents()
 {
     let projects = [make_project("cli", "2.1.0-alpha.2", &[])];
-    let intents =
-        [make_intent("one", &[("cli", "minor")]), make_intent("two", &[("cli", "patch")])];
-    let consumed = ledger(&[("cli@2.1.0-alpha.0", &["one"]), ("cli@2.1.0-alpha.2", &["two"])]);
+    let intents = [
+        make_intent("one", &[("cli", "minor")]),
+        make_intent("two", &[("cli", "patch")]),
+    ];
+    let consumed = ledger(&[
+        ("cli@2.1.0-alpha.0", &["one"]),
+        ("cli@2.1.0-alpha.2", &["two"]),
+    ]);
     let plan = assemble(&projects, &intents, &consumed, None);
     assert_eq!(plan.releases.len(), 1);
     assert_eq!(plan.releases[0].version.next, "2.1.0");
-    let mut consumed_ids: Vec<&str> =
-        plan.releases[0].intents.iter().map(|intent| intent.id.as_str()).collect();
+    let mut consumed_ids: Vec<&str> = plan.releases[0].intents
+        .iter()
+        .map(|intent| intent.id.as_str())
+        .collect();
     consumed_ids.sort_unstable();
     assert_eq!(consumed_ids, ["one", "two"]);
 }
@@ -154,9 +193,17 @@ fn snapshot_plans_release_the_same_set_under_snapshot_versions() {
         &opts,
     )
     .expect("plan assembles");
-    let versions: Vec<&str> =
-        plan.releases.iter().map(|release| release.version.next.as_str()).collect();
-    assert_eq!(versions, ["0.0.0-preview-20260712000000", "0.0.0-preview-20260712000000"]);
+    let versions: Vec<&str> = plan.releases
+        .iter()
+        .map(|release| release.version.next.as_str())
+        .collect();
+    assert_eq!(
+        versions,
+        [
+            "0.0.0-preview-20260712000000",
+            "0.0.0-preview-20260712000000"
+        ],
+    );
 }
 
 #[test]
@@ -175,7 +222,10 @@ fn two_same_named_projects_releasing_to_the_same_version_is_a_hard_error() {
             prod_dependencies: Vec::new(),
         },
     ];
-    let intents = [make_intent("one", &[("./a/util", "patch"), ("./b/util", "patch")])];
+    let intents = [make_intent(
+        "one",
+        &[("./a/util", "patch"), ("./b/util", "patch")],
+    )];
     let err = assemble_release_plan(
         &same_version,
         std::path::Path::new("/ws"),
@@ -193,10 +243,15 @@ fn two_same_named_projects_releasing_to_the_same_version_is_a_hard_error() {
 
 #[test]
 fn epic_members_move_independently_inside_the_band_while_the_lead_major_holds() {
-    let projects = [make_project("pnpm", "11.2.0", &[]), make_project("lib", "1101.4.2", &[])];
+    let projects = [
+        make_project("pnpm", "11.2.0", &[]),
+        make_project("lib", "1101.4.2", &[]),
+    ];
     let intents = [make_intent("one", &[("pnpm", "patch"), ("lib", "minor")])];
-    let versioning =
-        VersioningSettings { epics: vec![epic("pnpm", &["lib"])], ..VersioningSettings::default() };
+    let versioning = VersioningSettings {
+        epics: vec![epic("pnpm", &["lib"])],
+        ..VersioningSettings::default()
+    };
     let plan = assemble(&projects, &intents, &Ledger::new(), Some(&versioning));
     assert_eq!(release(&plan, "pnpm").version.next, "11.2.1");
     assert_eq!(release(&plan, "lib").version.next, "1101.5.0");
@@ -204,10 +259,15 @@ fn epic_members_move_independently_inside_the_band_while_the_lead_major_holds() 
 
 #[test]
 fn a_major_intent_bumps_a_member_to_the_next_major_inside_the_band() {
-    let projects = [make_project("pnpm", "11.0.0", &[]), make_project("lib", "1101.4.2", &[])];
+    let projects = [
+        make_project("pnpm", "11.0.0", &[]),
+        make_project("lib", "1101.4.2", &[]),
+    ];
     let intents = [make_intent("one", &[("lib", "major")])];
-    let versioning =
-        VersioningSettings { epics: vec![epic("pnpm", &["lib"])], ..VersioningSettings::default() };
+    let versioning = VersioningSettings {
+        epics: vec![epic("pnpm", &["lib"])],
+        ..VersioningSettings::default()
+    };
     let plan = assemble(&projects, &intents, &Ledger::new(), Some(&versioning));
     assert_eq!(release_names(&plan), ["lib"]);
     assert_eq!(release(&plan, "lib").version.next, "1102.0.0");
@@ -250,10 +310,15 @@ fn epic_selectors_are_order_dependent_a_later_include_overrides_an_earlier_negat
 
 #[test]
 fn a_member_major_bump_that_would_exceed_the_band_ceiling_is_rejected() {
-    let projects = [make_project("pnpm", "11.0.0", &[]), make_project("lib", "1199.4.2", &[])];
+    let projects = [
+        make_project("pnpm", "11.0.0", &[]),
+        make_project("lib", "1199.4.2", &[]),
+    ];
     let intents = [make_intent("one", &[("lib", "major")])];
-    let versioning =
-        VersioningSettings { epics: vec![epic("pnpm", &["lib"])], ..VersioningSettings::default() };
+    let versioning = VersioningSettings {
+        epics: vec![epic("pnpm", &["lib"])],
+        ..VersioningSettings::default()
+    };
     let err = assemble_release_plan(
         &projects,
         std::path::Path::new("/ws"),
@@ -263,15 +328,23 @@ fn a_member_major_bump_that_would_exceed_the_band_ceiling_is_rejected() {
         &AssembleReleasePlanOptions::default(),
     )
     .expect_err("plan must fail");
-    assert!(err.to_string().contains("band is exhausted"), "unexpected error: {err}");
+    assert!(
+        err.to_string().contains("band is exhausted"),
+        "unexpected error: {err}",
+    );
 }
 
 #[test]
 fn a_member_below_its_epic_band_is_rejected_when_it_releases() {
-    let projects = [make_project("pnpm", "11.0.0", &[]), make_project("lib", "5.0.0", &[])];
+    let projects = [
+        make_project("pnpm", "11.0.0", &[]),
+        make_project("lib", "5.0.0", &[]),
+    ];
     let intents = [make_intent("one", &[("lib", "patch")])];
-    let versioning =
-        VersioningSettings { epics: vec![epic("pnpm", &["lib"])], ..VersioningSettings::default() };
+    let versioning = VersioningSettings {
+        epics: vec![epic("pnpm", &["lib"])],
+        ..VersioningSettings::default()
+    };
     let err = assemble_release_plan(
         &projects,
         std::path::Path::new("/ws"),
@@ -281,7 +354,10 @@ fn a_member_below_its_epic_band_is_rejected_when_it_releases() {
         &AssembleReleasePlanOptions::default(),
     )
     .expect_err("plan must fail");
-    assert!(err.to_string().contains("outside the band 1100-1199"), "unexpected error: {err}");
+    assert!(
+        err.to_string().contains("outside the band 1100-1199"),
+        "unexpected error: {err}",
+    );
 }
 
 #[test]
@@ -314,7 +390,10 @@ fn a_first_release_publishes_the_current_version_verbatim_ignoring_the_intent_bu
     let release = release(&plan, "newpkg");
     assert_eq!(release.version.next, "1100.0.0");
     // The intent is still consumed for the changelog and the ledger.
-    let intent_ids: Vec<&str> = release.intents.iter().map(|intent| intent.id.as_str()).collect();
+    let intent_ids: Vec<&str> = release.intents
+        .iter()
+        .map(|intent| intent.id.as_str())
+        .collect();
     assert_eq!(intent_ids, ["one"]);
 }
 
@@ -349,10 +428,15 @@ fn a_first_release_on_a_lane_debuts_at_a_prerelease_of_the_current_version() {
 
 #[test]
 fn an_unpublished_epic_member_re_bases_to_the_new_band_floor_when_the_lead_crosses_a_major() {
-    let projects = [make_project("pnpm", "11.0.0", &[]), make_project("lib", "1100.0.0", &[])];
+    let projects = [
+        make_project("pnpm", "11.0.0", &[]),
+        make_project("lib", "1100.0.0", &[]),
+    ];
     let intents = [make_intent("one", &[("pnpm", "major"), ("lib", "minor")])];
-    let versioning =
-        VersioningSettings { epics: vec![epic("pnpm", &["lib"])], ..VersioningSettings::default() };
+    let versioning = VersioningSettings {
+        epics: vec![epic("pnpm", &["lib"])],
+        ..VersioningSettings::default()
+    };
     let plan = assemble_with_unpublished(&projects, &intents, Some(&versioning), &["lib"]);
     // Debuting verbatim at 1100.0.0 would land the member outside the new
     // 1200-1299 band, so the epic re-base to the floor supersedes it.
@@ -374,25 +458,36 @@ fn check_versioning_invariants_passes_when_bands_and_lockstep_hold() {
     };
     let violations =
         check_versioning_invariants(&projects, Path::new("/ws"), Some(&versioning)).unwrap();
-    assert!(violations.is_empty(), "unexpected violations: {violations:?}");
+    assert!(
+        violations.is_empty(),
+        "unexpected violations: {violations:?}",
+    );
 }
 
 #[test]
 fn check_versioning_invariants_keeps_the_previous_band_for_a_prerelease_lead() {
-    let projects =
-        [make_project("pnpm", "12.0.0-alpha.1", &[]), make_project("@pnpm/lib", "1102.0.7", &[])];
+    let projects = [
+        make_project("pnpm", "12.0.0-alpha.1", &[]),
+        make_project("@pnpm/lib", "1102.0.7", &[]),
+    ];
     let versioning = VersioningSettings {
         epics: vec![epic("pnpm", &["@pnpm/lib"])],
         ..VersioningSettings::default()
     };
     let violations =
         check_versioning_invariants(&projects, Path::new("/ws"), Some(&versioning)).unwrap();
-    assert!(violations.is_empty(), "unexpected violations: {violations:?}");
+    assert!(
+        violations.is_empty(),
+        "unexpected violations: {violations:?}",
+    );
 }
 
 #[test]
 fn check_versioning_invariants_reports_an_out_of_band_member() {
-    let projects = [make_project("pnpm", "11.15.1", &[]), make_project("@pnpm/lib", "5.0.0", &[])];
+    let projects = [
+        make_project("pnpm", "11.15.1", &[]),
+        make_project("@pnpm/lib", "5.0.0", &[]),
+    ];
     let versioning = VersioningSettings {
         epics: vec![epic("pnpm", &["@pnpm/lib"])],
         ..VersioningSettings::default()
@@ -406,8 +501,10 @@ fn check_versioning_invariants_reports_an_out_of_band_member() {
 
 #[test]
 fn check_versioning_invariants_reports_a_fixed_group_out_of_lockstep() {
-    let projects =
-        [make_project("pnpm", "11.15.1", &[]), make_project("@pnpm/exe", "11.15.0", &[])];
+    let projects = [
+        make_project("pnpm", "11.15.1", &[]),
+        make_project("@pnpm/exe", "11.15.0", &[]),
+    ];
     let versioning = VersioningSettings {
         fixed: vec![vec!["pnpm".to_string(), "@pnpm/exe".to_string()]],
         ..VersioningSettings::default()
@@ -415,7 +512,10 @@ fn check_versioning_invariants_reports_a_fixed_group_out_of_lockstep() {
     let violations =
         check_versioning_invariants(&projects, Path::new("/ws"), Some(&versioning)).unwrap();
     assert_eq!(violations.len(), 1);
-    assert_eq!(violations[0].code, VersioningInvariantCode::FixedGroupMismatch);
+    assert_eq!(
+        violations[0].code,
+        VersioningInvariantCode::FixedGroupMismatch,
+    );
     assert!(violations[0].message.contains("not in lockstep"));
 }
 
@@ -433,11 +533,17 @@ fn check_versioning_invariants_reports_every_violation_at_once() {
     };
     let violations =
         check_versioning_invariants(&projects, Path::new("/ws"), Some(&versioning)).unwrap();
-    let mut codes: Vec<_> = violations.iter().map(|violation| violation.code).collect();
+    let mut codes: Vec<_> = violations
+        .iter()
+        .map(|violation| violation.code)
+        .collect();
     codes.sort_by_key(|code| format!("{code:?}"));
     assert_eq!(
         codes,
-        [VersioningInvariantCode::EpicOutOfBand, VersioningInvariantCode::FixedGroupMismatch],
+        [
+            VersioningInvariantCode::EpicOutOfBand,
+            VersioningInvariantCode::FixedGroupMismatch
+        ],
     );
 }
 
@@ -457,8 +563,10 @@ fn check_versioning_invariants_rejects_the_reserved_main_lane() {
 
 #[test]
 fn check_versioning_invariants_rejects_a_fixed_group_split_across_lanes() {
-    let projects =
-        [make_project("pnpm", "11.15.1", &[]), make_project("@pnpm/exe", "11.15.1", &[])];
+    let projects = [
+        make_project("pnpm", "11.15.1", &[]),
+        make_project("@pnpm/exe", "11.15.1", &[]),
+    ];
     let versioning = VersioningSettings {
         fixed: vec![vec!["pnpm".to_string(), "@pnpm/exe".to_string()]],
         lanes: IndexMap::from([("pnpm".to_string(), "alpha".to_string())]),

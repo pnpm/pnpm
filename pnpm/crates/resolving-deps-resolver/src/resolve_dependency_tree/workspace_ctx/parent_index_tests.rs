@@ -5,15 +5,23 @@ use super::children_ownership::update_parent_index;
 use crate::resolved_tree::ChildEdge;
 
 fn edge(pkg_id: &str) -> ChildEdge {
-    ChildEdge { alias: pkg_id.to_string(), pkg_id: Arc::from(pkg_id), optional: false }
+    ChildEdge {
+        alias: pkg_id.to_string(),
+        pkg_id: Arc::from(pkg_id),
+        optional: false,
+    }
 }
 
 fn parents_of<'index>(
     index: &'index HashMap<Arc<str>, HashSet<Arc<str>>>,
     pkg_id: &str,
 ) -> Vec<&'index str> {
-    let mut parents: Vec<&str> =
-        index.get(pkg_id).into_iter().flatten().map(AsRef::as_ref).collect();
+    let mut parents: Vec<&str> = index
+        .get(pkg_id)
+        .into_iter()
+        .flatten()
+        .map(AsRef::as_ref)
+        .collect();
     parents.sort_unstable();
     parents
 }

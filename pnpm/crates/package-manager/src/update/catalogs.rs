@@ -44,7 +44,9 @@ pub(super) fn reconcile_catalog_rewrites<Reporter: self::Reporter>(
         }
     }
     *rewrites = reconciled;
-    Ok(ctx.workspace_dir_opt.clone().or_else(|| Some(ctx.manifest_dir.clone())))
+    Ok(ctx.workspace_dir_opt
+        .clone()
+        .or_else(|| Some(ctx.manifest_dir.clone())))
 }
 /// The specifier one rewrite records in the manifest, or `None` when the
 /// catalog mode moved it into a catalog instead.
@@ -66,8 +68,11 @@ pub(super) fn reconcile_rewrite<Reporter: self::Reporter>(
     if config.catalog_mode == CatalogMode::Manual {
         return Ok(Some(specifier.to_string()));
     }
-    let dependency =
-        CatalogModeDep { alias: name, bare_specifier: specifier, prev_specifier: previous };
+    let dependency = CatalogModeDep {
+        alias: name,
+        bare_specifier: specifier,
+        prev_specifier: previous,
+    };
     let decision = decide_catalog::<Reporter>(
         config.catalog_mode,
         None,
@@ -91,7 +96,9 @@ pub(super) fn reconcile_rewrite<Reporter: self::Reporter>(
 }
 pub(super) fn merge_catalogs(target: &mut Catalogs, updates: &Catalogs) {
     for (catalog_name, entries) in updates {
-        let catalog = target.entry(catalog_name.clone()).or_default();
+        let catalog = target
+            .entry(catalog_name.clone())
+            .or_default();
         for (dependency, specifier) in entries {
             catalog.insert(dependency.clone(), specifier.clone());
         }
@@ -129,7 +136,10 @@ pub(super) fn effective_specifier(
 ) -> Result<String, UpdateError> {
     if let Some(catalog_name) = parse_catalog_protocol(prev) {
         let ctx = ensure_catalog_ctx(catalog_ctx, manifest, config)?;
-        if let Some(spec) = ctx.catalogs.get(catalog_name).and_then(|catalog| catalog.get(name)) {
+        if let Some(spec) = ctx.catalogs
+            .get(catalog_name)
+            .and_then(|catalog| catalog.get(name))
+        {
             return Ok(spec.clone());
         }
     }
@@ -147,8 +157,11 @@ pub(super) fn read_catalog_ctx(
     manifest: &PackageManifest,
     config: &Config,
 ) -> Result<CatalogCtx, UpdateError> {
-    let manifest_dir =
-        manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
+    let manifest_dir = manifest
+        .path()
+        .parent()
+        .expect("manifest path always has a parent dir")
+        .to_path_buf();
     let workspace_dir_opt =
         pnpm_workspace::find_workspace_dir(&manifest_dir).map_err(UpdateError::FindWorkspaceDir)?;
     let catalogs = if let Some(catalogs) = config.catalogs.clone() {
@@ -162,19 +175,38 @@ pub(super) fn read_catalog_ctx(
         get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
             .map_err(UpdateError::InvalidCatalogsConfiguration)?
     };
-    let prefix =
-        workspace_dir_opt.as_deref().unwrap_or(&manifest_dir).to_string_lossy().into_owned();
-    Ok(CatalogCtx { catalogs, workspace_dir_opt, manifest_dir, prefix })
+    let prefix = workspace_dir_opt
+        .as_deref()
+        .unwrap_or(&manifest_dir)
+        .to_string_lossy()
+        .into_owned();
+    Ok(CatalogCtx {
+        catalogs,
+        workspace_dir_opt,
+        manifest_dir,
+        prefix,
+    })
 }
 pub(super) fn read_catalog_ctx_with_catalogs(
     manifest: &PackageManifest,
     catalogs: Catalogs,
 ) -> Result<CatalogCtx, UpdateError> {
-    let manifest_dir =
-        manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
+    let manifest_dir = manifest
+        .path()
+        .parent()
+        .expect("manifest path always has a parent dir")
+        .to_path_buf();
     let workspace_dir_opt =
         pnpm_workspace::find_workspace_dir(&manifest_dir).map_err(UpdateError::FindWorkspaceDir)?;
-    let prefix =
-        workspace_dir_opt.as_deref().unwrap_or(&manifest_dir).to_string_lossy().into_owned();
-    Ok(CatalogCtx { catalogs, workspace_dir_opt, manifest_dir, prefix })
+    let prefix = workspace_dir_opt
+        .as_deref()
+        .unwrap_or(&manifest_dir)
+        .to_string_lossy()
+        .into_owned();
+    Ok(CatalogCtx {
+        catalogs,
+        workspace_dir_opt,
+        manifest_dir,
+        prefix,
+    })
 }

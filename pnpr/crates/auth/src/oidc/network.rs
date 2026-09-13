@@ -14,7 +14,9 @@ impl Resolve for PublicResolver {
         Box::pin(async move {
             let addresses: Vec<_> = future.await?.collect();
             if addresses.is_empty()
-                || addresses.iter().any(|address| !is_public_address(address.ip()))
+                || addresses
+                    .iter()
+                    .any(|address| !is_public_address(address.ip()))
             {
                 return Err(Box::new(blocked()) as Box<dyn std::error::Error + Send + Sync>);
             }
@@ -35,7 +37,11 @@ pub(super) fn validate_destination(raw: &str) -> Result<()> {
         Some(Host::Domain(_)) => return Ok(()),
         None => return Err(blocked()),
     };
-    if is_public_address(address) { Ok(()) } else { Err(blocked()) }
+    if is_public_address(address) {
+        Ok(())
+    } else {
+        Err(blocked())
+    }
 }
 
 fn is_public_address(address: IpAddr) -> bool {

@@ -42,7 +42,10 @@ fn sbom_omits_a_blank_root_author() {
         spdx_package(&spdx, "simple-sbom-test").get("supplier").is_none(),
         "a whitespace-only root supplier must not be emitted",
     );
-    assert_eq!(spdx_package(&spdx, "is-positive")["supplier"], "Person: Dep Author");
+    assert_eq!(
+        spdx_package(&spdx, "is-positive")["supplier"],
+        "Person: Dep Author",
+    );
 }
 
 /// The mirror of [`sbom_omits_a_blank_root_author`]: the blank name sits on a
@@ -66,7 +69,10 @@ fn sbom_omits_a_blank_dependency_author() {
     );
 
     let spdx = run_sbom_json_from_store(tmp.path(), "spdx");
-    assert_eq!(spdx_package(&spdx, "simple-sbom-test")["supplier"], "Person: Root Author");
+    assert_eq!(
+        spdx_package(&spdx, "simple-sbom-test")["supplier"],
+        "Person: Root Author",
+    );
     let package = spdx_package(&spdx, "is-positive");
     assert_eq!(package["description"], "sbom author fixture");
     assert!(
@@ -80,7 +86,14 @@ fn sbom_spec_version_with_spdx_fails() {
     let tmp = copy_fixture("simple-sbom");
     let output = pacquet(
         tmp.path(),
-        ["sbom", "--sbom-format", "spdx", "--lockfile-only", "--sbom-spec-version", "1.6"],
+        [
+            "sbom",
+            "--sbom-format",
+            "spdx",
+            "--lockfile-only",
+            "--sbom-spec-version",
+            "1.6",
+        ],
     )
     .output()
     .expect("run pacquet");
@@ -92,7 +105,10 @@ fn sbom_has_serial_number() {
     let tmp = copy_fixture("simple-sbom");
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &[]);
     let serial = parsed["serialNumber"].as_str().expect("serialNumber");
-    assert!(serial.starts_with("urn:uuid:"), "serialNumber should start with urn:uuid:");
+    assert!(
+        serial.starts_with("urn:uuid:"),
+        "serialNumber should start with urn:uuid:",
+    );
 }
 
 #[test]
@@ -107,7 +123,11 @@ fn sbom_has_tools() {
     let tmp = copy_fixture("simple-sbom");
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &[]);
     let tools = parsed["metadata"]["tools"]["components"].as_array().expect("tools");
-    assert!(tools.iter().any(|tool| tool["name"] == "pnpm"));
+    assert!(
+        tools
+            .iter()
+            .any(|tool| tool["name"] == "pnpm"),
+    );
 }
 
 #[test]
@@ -131,7 +151,14 @@ fn sbom_spdx_creation_info() {
     let parsed = run_sbom_json(tmp.path(), "spdx", &[]);
     assert!(parsed["creationInfo"]["created"].is_string());
     let creators = parsed["creationInfo"]["creators"].as_array().expect("creators");
-    assert!(creators.iter().any(|creator| creator.as_str().unwrap().contains("pnpm")));
+    assert!(
+        creators
+            .iter()
+            .any(|creator| creator
+                .as_str()
+                .unwrap()
+                .contains("pnpm")),
+    );
 }
 
 #[test]
@@ -141,7 +168,13 @@ fn sbom_spdx_creation_info_whole_seconds() {
     let created = parsed["creationInfo"]["created"].as_str().expect("created string");
     let shape: String = created
         .chars()
-        .map(|character| if character.is_ascii_digit() { 'd' } else { character })
+        .map(|character| {
+            if character.is_ascii_digit() {
+                'd'
+            } else {
+                character
+            }
+        })
         .collect();
     assert_eq!(
         shape, "dddd-dd-ddTdd:dd:ddZ",
@@ -154,7 +187,11 @@ fn sbom_spdx_describes_relationship() {
     let tmp = copy_fixture("simple-sbom");
     let parsed = run_sbom_json(tmp.path(), "spdx", &[]);
     let rels = parsed["relationships"].as_array().expect("relationships");
-    assert!(rels.iter().any(|rel| rel["relationshipType"] == "DESCRIBES"));
+    assert!(
+        rels
+            .iter()
+            .any(|rel| rel["relationshipType"] == "DESCRIBES"),
+    );
 }
 
 #[test]
@@ -171,10 +208,15 @@ fn sbom_spdx_download_location() {
     let tmp = copy_fixture("simple-sbom");
     let parsed = run_sbom_json(tmp.path(), "spdx", &[]);
     let packages = parsed["packages"].as_array().expect("packages");
-    let is_positive =
-        packages.iter().find(|pkg| pkg["name"] == "is-positive").expect("is-positive");
+    let is_positive = packages
+        .iter()
+        .find(|pkg| pkg["name"] == "is-positive")
+        .expect("is-positive");
     let dl = is_positive["downloadLocation"].as_str().expect("downloadLocation");
-    assert!(dl.contains("registry.npmjs.org"), "should have registry URL, got {dl}");
+    assert!(
+        dl.contains("registry.npmjs.org"),
+        "should have registry URL, got {dl}",
+    );
 }
 
 #[test]
@@ -199,7 +241,10 @@ fn sbom_schema_url_matches_spec_version() {
     let tmp = copy_fixture("simple-sbom");
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--sbom-spec-version", "1.5"]);
     let schema = parsed["$schema"].as_str().expect("$schema");
-    assert!(schema.contains("1.5"), "schema should match spec version 1.5, got {schema}");
+    assert!(
+        schema.contains("1.5"),
+        "schema should match spec version 1.5, got {schema}",
+    );
 }
 
 #[test]
@@ -223,7 +268,13 @@ fn sbom_spdx_document_namespace_has_uuid() {
     let tmp = copy_fixture("simple-sbom");
     let parsed = run_sbom_json(tmp.path(), "spdx", &[]);
     let ns = parsed["documentNamespace"].as_str().expect("documentNamespace");
-    assert!(ns.contains("spdx.org/spdxdocs/"), "namespace should contain spdx.org");
+    assert!(
+        ns.contains("spdx.org/spdxdocs/"),
+        "namespace should contain spdx.org",
+    );
     let parts: Vec<&str> = ns.rsplitn(2, '-').collect();
-    assert!(parts[0].len() >= 8, "namespace should end with UUID-like suffix");
+    assert!(
+        parts[0].len() >= 8,
+        "namespace should end with UUID-like suffix",
+    );
 }

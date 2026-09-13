@@ -14,7 +14,10 @@ impl<'a> RunExecution<'a> {
         InstallScope::select(
             self.install,
             &self.workspace.dirs.workspace_root,
-            workspace_projects(self.loaded_workspace_projects, self.options.selection.as_ref()),
+            workspace_projects(
+                self.loaded_workspace_projects,
+                self.options.selection.as_ref(),
+            ),
             self.workspace.workspace_projects_are_overridden,
             &self.options,
         )
@@ -43,7 +46,10 @@ impl<'a> RunExecution<'a> {
             &self.workspace,
             &scope,
             self.options.selection.as_ref(),
-            (&self.options.manifests.hooked_paths, self.loaded_workspace_projects),
+            (
+                &self.options.manifests.hooked_paths,
+                self.loaded_workspace_projects,
+            ),
         )
         .await?;
         let manifests = std::mem::take(&mut loaded.manifests);
@@ -135,7 +141,9 @@ impl<'a> RunExecution<'a> {
             "; some rows may not be persisted",
         )
         .await;
-        Ok(InstallRunOutcome::LockfileSettled { workspace_manifest_dir })
+        Ok(InstallRunOutcome::LockfileSettled {
+            workspace_manifest_dir,
+        })
     }
 
     fn materialization_inputs<'r>(
@@ -149,7 +157,6 @@ impl<'a> RunExecution<'a> {
         let resolution = self.materialization_resolution(loaded);
         let early_host_detection = loaded.early_host_detection.take();
         let lockfiles = materialization_lockfiles(loaded, lockfiles, dispatched, verification);
-        let prior_modules = dispatched.modules.previous_modules_metadata.as_ref();
         MaterializationInputs {
             install: self.install,
             resolution,
@@ -168,15 +175,6 @@ impl<'a> RunExecution<'a> {
                 ),
                 scope,
             ),
-            modules: crate::install::materialize::MaterializationModules {
-                included: self.mode.included,
-                rebuild: self.options.rebuild.as_ref(),
-                modules_manifest: dispatched.modules.old_modules.as_ref(),
-                prior_hoisted_dependencies: prior_hoisted_dependencies(prior_modules),
-                prior_hoisted_locations: prior_hoisted_locations(prior_modules),
-                prune_orphans: !scope.importers.filtered_install,
-                logged_methods,
-            },
             execution: self.mode.materialization_execution(
                 &self.owned,
                 &self.options,
@@ -184,7 +182,26 @@ impl<'a> RunExecution<'a> {
                 early_host_detection,
                 &self.workspace.prefix,
             ),
+            modules: self.materialization_modules(dispatched, scope, logged_methods),
             downloads: (&self.owned).into(),
+        }
+    }
+
+    fn materialization_modules<'r>(
+        &'r self,
+        dispatched: &'r Dispatched<'a>,
+        scope: &InstallScope<'_>,
+        logged_methods: &'r AtomicU8,
+    ) -> crate::install::materialize::MaterializationModules<'r> {
+        let prior_modules = dispatched.modules.previous_modules_metadata.as_ref();
+        crate::install::materialize::MaterializationModules {
+            included: self.mode.included,
+            rebuild: self.options.rebuild.as_ref(),
+            modules_manifest: dispatched.modules.old_modules.as_ref(),
+            prior_hoisted_dependencies: prior_hoisted_dependencies(prior_modules),
+            prior_hoisted_locations: prior_hoisted_locations(prior_modules),
+            prune_orphans: !scope.importers.filtered_install,
+            logged_methods,
         }
     }
 

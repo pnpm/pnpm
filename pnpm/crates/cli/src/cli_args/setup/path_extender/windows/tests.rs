@@ -15,13 +15,22 @@ const SAMPLE: &str = "\r\nHKEY_CURRENT_USER\\Environment\r\n    Path    REG_EXPA
 
 #[test]
 fn reads_a_value_by_name() {
-    assert_eq!(get_env_value_from_registry(SAMPLE, "Path").as_deref(), Some(r"C:\Users\me\bin"));
-    assert_eq!(get_env_value_from_registry(SAMPLE, "PNPM_HOME").as_deref(), Some(r"C:\pnpm"));
+    assert_eq!(
+        get_env_value_from_registry(SAMPLE, "Path").as_deref(),
+        Some(r"C:\Users\me\bin"),
+    );
+    assert_eq!(
+        get_env_value_from_registry(SAMPLE, "PNPM_HOME").as_deref(),
+        Some(r"C:\pnpm"),
+    );
 }
 
 #[test]
 fn matches_the_name_case_insensitively() {
-    assert_eq!(get_env_value_from_registry(SAMPLE, "path").as_deref(), Some(r"C:\Users\me\bin"));
+    assert_eq!(
+        get_env_value_from_registry(SAMPLE, "path").as_deref(),
+        Some(r"C:\Users\me\bin"),
+    );
 }
 
 #[test]
@@ -48,7 +57,13 @@ fn rejects_pnpm_home_that_would_split_the_path() {
     };
     let err = add_dir_to_windows_env_path_inner(Path::new(r"C:\pnpm;C:\evil"), &opts)
         .expect_err("a semicolon in PNPM_HOME must be rejected");
-    assert!(matches!(err, PathExtenderError::UnsafePnpmHome { character: ';', .. }));
+    assert!(matches!(
+        err,
+        PathExtenderError::UnsafePnpmHome {
+            character: ';',
+            ..
+        }
+    ));
 }
 
 #[test]
@@ -68,14 +83,23 @@ fn render_report_lists_changed_variables() {
     let report = super::super::render_windows_report(&changes);
     assert!(report.config_file.is_none());
     assert_eq!(report.old_settings, r"Path=C:\old");
-    assert_eq!(report.new_settings, "PNPM_HOME=C:\\pnpm\nPath=%PNPM_HOME%;C:\\old");
+    assert_eq!(
+        report.new_settings,
+        "PNPM_HOME=C:\\pnpm\nPath=%PNPM_HOME%;C:\\old",
+    );
 }
 
 #[test]
 fn chcp_prefers_chcp_com_when_available() {
     let mut calls = Vec::new();
     let res = run_capture_chcp_with(&["65001"], |prog, args| {
-        calls.push((prog.to_string(), args.iter().map(ToString::to_string).collect::<Vec<_>>()));
+        calls.push((
+            prog.to_string(),
+            args
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>(),
+        ));
         Ok("Active code page: 65001\n".to_string())
     });
     assert!(res.is_ok());
@@ -88,7 +112,13 @@ fn chcp_prefers_chcp_com_when_available() {
 fn chcp_falls_back_to_chcp_when_chcp_com_not_found() {
     let mut calls = Vec::new();
     let res = run_capture_chcp_with(&["65001"], |prog, args| {
-        calls.push((prog.to_string(), args.iter().map(ToString::to_string).collect::<Vec<_>>()));
+        calls.push((
+            prog.to_string(),
+            args
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>(),
+        ));
         if prog == "chcp.com" {
             Err(PathExtenderError::Io(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
@@ -108,7 +138,13 @@ fn chcp_falls_back_to_chcp_when_chcp_com_not_found() {
 fn chcp_propagates_non_not_found_errors_without_fallback() {
     let mut calls = Vec::new();
     let res = run_capture_chcp_with(&["65001"], |prog, args| {
-        calls.push((prog.to_string(), args.iter().map(ToString::to_string).collect::<Vec<_>>()));
+        calls.push((
+            prog.to_string(),
+            args
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>(),
+        ));
         Err(PathExtenderError::CommandFailed {
             command: prog.to_string(),
             stderr: "Access denied".to_string(),

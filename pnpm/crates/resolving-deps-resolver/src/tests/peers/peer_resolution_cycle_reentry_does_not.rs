@@ -27,9 +27,15 @@ async fn cycle_reentry_does_not_drop_sibling_occurrence_transitive_peers() {
             serde_json::json!({ "name": "w", "version": "1.0.0", "dependencies": { "p": "1.0.0" } }),
         ),
     ] {
-        table.insert((name.to_string(), "1.0.0".to_string()), fake_result(name, "1.0.0", manifest));
+        table.insert(
+            (name.to_string(), "1.0.0".to_string()),
+            fake_result(name, "1.0.0", manifest),
+        );
     }
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let resolver = StubResolver {
+        table,
+        calls: Mutex::new(Vec::new()),
+    };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "p": "1.0.0", "w": "1.0.0" }));
     let mut tree = resolve_dependency_tree(
         &resolver,
@@ -51,7 +57,9 @@ async fn cycle_reentry_does_not_drop_sibling_occurrence_transitive_peers() {
 
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
     for name in ["p@1.0.0", "w@1.0.0"] {
-        let entry = result.graph.get(&DepPath::from(name.to_string())).expect("entry in graph");
+        let entry = result.graph
+            .get(&DepPath::from(name.to_string()))
+            .expect("entry in graph");
         assert!(
             entry.edges.transitive_peer_dependencies.contains("e"),
             "{name} should carry transitive peer 'e', got {:?}",
@@ -65,7 +73,11 @@ async fn peer_resolved_against_sibling_at_parent_level() {
     let mut table = HashMap::default();
     table.insert(
         ("react".to_string(), "18.0.0".to_string()),
-        fake_result("react", "18.0.0", serde_json::json!({ "name": "react", "version": "18.0.0" })),
+        fake_result(
+            "react",
+            "18.0.0",
+            serde_json::json!({ "name": "react", "version": "18.0.0" }),
+        ),
     );
     table.insert(
         ("react-dom".to_string(), "18.0.0".to_string()),
@@ -79,7 +91,10 @@ async fn peer_resolved_against_sibling_at_parent_level() {
             }),
         ),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let resolver = StubResolver {
+        table,
+        calls: Mutex::new(Vec::new()),
+    };
     let (_tmp, manifest) =
         fake_manifest(serde_json::json!({ "react": "18.0.0", "react-dom": "18.0.0" }));
     let mut tree = resolve_dependency_tree(
@@ -101,12 +116,14 @@ async fn peer_resolved_against_sibling_at_parent_level() {
     assert!(tree.all_peer_dep_names.contains("react"));
 
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
-    let react_dom_dep_path = result
-        .direct_dependencies_by_alias
+    let react_dom_dep_path = result.direct_dependencies_by_alias
         .get("react-dom")
         .cloned()
         .expect("react-dom is a direct dep");
-    assert_eq!(react_dom_dep_path, DepPath::from("react-dom@18.0.0(react@18.0.0)".to_string()));
+    assert_eq!(
+        react_dom_dep_path,
+        DepPath::from("react-dom@18.0.0(react@18.0.0)".to_string()),
+    );
     assert_eq!(
         result.direct_dependencies_by_alias.get("react"),
         Some(&DepPath::from("react@18.0.0".to_string())),
@@ -120,7 +137,11 @@ async fn bad_peer_version_is_reported() {
     let mut table = HashMap::default();
     table.insert(
         ("react".to_string(), "17.0.0".to_string()),
-        fake_result("react", "17.0.0", serde_json::json!({ "name": "react", "version": "17.0.0" })),
+        fake_result(
+            "react",
+            "17.0.0",
+            serde_json::json!({ "name": "react", "version": "17.0.0" }),
+        ),
     );
     table.insert(
         ("react-dom".to_string(), "18.0.0".to_string()),
@@ -134,7 +155,10 @@ async fn bad_peer_version_is_reported() {
             }),
         ),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let resolver = StubResolver {
+        table,
+        calls: Mutex::new(Vec::new()),
+    };
     let (_tmp, manifest) =
         fake_manifest(serde_json::json!({ "react": "17.0.0", "react-dom": "18.0.0" }));
     let mut tree = resolve_dependency_tree(
@@ -182,7 +206,10 @@ async fn dedupe_peers_collapses_nested_peer_suffixes() {
         ..ResolvePeersOptions::default()
     })
     .await;
-    let mut keys: Vec<String> = result.graph.keys().map(|dp| dp.as_str().to_string()).collect();
+    let mut keys: Vec<String> = result.graph
+        .keys()
+        .map(|dp| dp.as_str().to_string())
+        .collect();
     keys.sort();
     assert_eq!(
         keys,
@@ -201,7 +228,10 @@ async fn dedupe_peers_collapses_nested_peer_suffixes() {
 #[tokio::test]
 async fn no_dedupe_peers_keeps_nested_peer_suffixes() {
     let result = resolve_emotion_fixture(ResolvePeersOptions::default()).await;
-    let mut keys: Vec<String> = result.graph.keys().map(|dp| dp.as_str().to_string()).collect();
+    let mut keys: Vec<String> = result.graph
+        .keys()
+        .map(|dp| dp.as_str().to_string())
+        .collect();
     keys.sort();
     assert_eq!(
         keys,
@@ -253,9 +283,16 @@ async fn dedupe_peers_propagates_transitive_peer_to_parent() {
     );
     table.insert(
         ("c".to_string(), "1.0.0".to_string()),
-        fake_result("c", "1.0.0", serde_json::json!({ "name": "c", "version": "1.0.0" })),
+        fake_result(
+            "c",
+            "1.0.0",
+            serde_json::json!({ "name": "c", "version": "1.0.0" }),
+        ),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let resolver = StubResolver {
+        table,
+        calls: Mutex::new(Vec::new()),
+    };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "a": "1.0.0", "c": "1.0.0" }));
     let mut tree = resolve_dependency_tree(
         &resolver,
@@ -276,13 +313,23 @@ async fn dedupe_peers_propagates_transitive_peer_to_parent() {
 
     let result = resolve_peers(
         &mut tree,
-        ResolvePeersOptions { dedupe_peers: true, ..ResolvePeersOptions::default() },
+        ResolvePeersOptions {
+            dedupe_peers: true,
+            ..ResolvePeersOptions::default()
+        },
     );
-    let mut keys: Vec<String> = result.graph.keys().map(|dp| dp.as_str().to_string()).collect();
+    let mut keys: Vec<String> = result.graph
+        .keys()
+        .map(|dp| dp.as_str().to_string())
+        .collect();
     keys.sort();
     assert_eq!(
         keys,
-        vec!["a@1.0.0(c@1.0.0)".to_string(), "b@1.0.0(c@1.0.0)".to_string(), "c@1.0.0".to_string(),],
+        vec![
+            "a@1.0.0(c@1.0.0)".to_string(),
+            "b@1.0.0(c@1.0.0)".to_string(),
+            "c@1.0.0".to_string(),
+        ],
     );
 }
 
@@ -356,7 +403,10 @@ async fn peers_own_peer_shared_with_sibling_that_peer_depends_both() {
             }),
         ),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let resolver = StubResolver {
+        table,
+        calls: Mutex::new(Vec::new()),
+    };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({
         "typescript": "2.0.0",
         "parser": "1.0.0",
@@ -380,7 +430,10 @@ async fn peers_own_peer_shared_with_sibling_that_peer_depends_both() {
     .unwrap();
 
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
-    let keys: Vec<String> = result.graph.keys().map(|dp| dp.as_str().to_string()).collect();
+    let keys: Vec<String> = result.graph
+        .keys()
+        .map(|dp| dp.as_str().to_string())
+        .collect();
     assert!(
         keys.contains(
             &"plugin@1.0.0(parser@1.0.0(typescript@1.0.0))(typescript@1.0.0)".to_string()
@@ -435,9 +488,16 @@ async fn ancestor_peer_carries_its_own_suffix() {
     );
     table.insert(
         ("c".to_string(), "1.0.0".to_string()),
-        fake_result("c", "1.0.0", serde_json::json!({ "name": "c", "version": "1.0.0" })),
+        fake_result(
+            "c",
+            "1.0.0",
+            serde_json::json!({ "name": "c", "version": "1.0.0" }),
+        ),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let resolver = StubResolver {
+        table,
+        calls: Mutex::new(Vec::new()),
+    };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "a": "1.0.0", "c": "1.0.0" }));
     let mut tree = resolve_dependency_tree(
         &resolver,
@@ -457,7 +517,10 @@ async fn ancestor_peer_carries_its_own_suffix() {
     .unwrap();
 
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
-    let mut keys: Vec<String> = result.graph.keys().map(|dp| dp.as_str().to_string()).collect();
+    let mut keys: Vec<String> = result.graph
+        .keys()
+        .map(|dp| dp.as_str().to_string())
+        .collect();
     keys.sort();
     assert_eq!(
         keys,
@@ -471,7 +534,10 @@ async fn ancestor_peer_carries_its_own_suffix() {
     // `c` is `a`'s peer, not `b`'s — it must not leak into `b`'s
     // dependencies (only `b`'s own peer `a` is a child of `b`).
     let b_node = &result.graph[&DepPath::from("b@1.0.0(a@1.0.0(c@1.0.0))".to_string())];
-    let b_children: Vec<&str> = b_node.edges.children.keys().map(String::as_str).collect();
+    let b_children: Vec<&str> = b_node.edges.children
+        .keys()
+        .map(String::as_str)
+        .collect();
     assert_eq!(b_children, vec!["a"]);
 }
 
@@ -498,9 +564,16 @@ async fn peer_edge_is_patched_when_peer_walked_after_consumer() {
     );
     table.insert(
         ("react".to_string(), "18.0.0".to_string()),
-        fake_result("react", "18.0.0", serde_json::json!({ "name": "react", "version": "18.0.0" })),
+        fake_result(
+            "react",
+            "18.0.0",
+            serde_json::json!({ "name": "react", "version": "18.0.0" }),
+        ),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let resolver = StubResolver {
+        table,
+        calls: Mutex::new(Vec::new()),
+    };
     // Manifest order puts react-dom first.
     let (_tmp, manifest) =
         fake_manifest(serde_json::json!({ "react-dom": "18.0.0", "react": "18.0.0" }));
@@ -522,8 +595,7 @@ async fn peer_edge_is_patched_when_peer_walked_after_consumer() {
     .unwrap();
 
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
-    let react_dom_dep_path = result
-        .direct_dependencies_by_alias
+    let react_dom_dep_path = result.direct_dependencies_by_alias
         .get("react-dom")
         .cloned()
         .expect("react-dom is a direct dep");
@@ -531,7 +603,10 @@ async fn peer_edge_is_patched_when_peer_walked_after_consumer() {
     // Without the post-pass, this edge would be missing because
     // `node_dep_paths` doesn't yet contain react when react-dom is
     // being walked.
-    assert_eq!(node.edges.children.get("react"), Some(&DepPath::from("react@18.0.0".to_string())));
+    assert_eq!(
+        node.edges.children.get("react"),
+        Some(&DepPath::from("react@18.0.0".to_string())),
+    );
 }
 
 /// Cyclic peer dependencies: `foo` peer-depends on `qar` and `zoo`,
@@ -594,7 +669,10 @@ async fn cyclic_peer_dependencies_resolve_cleanly() {
             }),
         ),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let resolver = StubResolver {
+        table,
+        calls: Mutex::new(Vec::new()),
+    };
     // Importer carries `foo` (auto-install-peers off here — we
     // exercise the peer matcher, not the hoister). With
     // auto-install-peers the qar/zoo/bar peers would get hoisted
@@ -631,11 +709,16 @@ async fn cyclic_peer_dependencies_resolve_cleanly() {
     // their peers form a cycle. The exact peer-suffix shape is
     // sensitive to walk order; the important invariant is that
     // every depPath starts with the expected pkg id.
-    let dep_paths: Vec<String> = result.graph.keys().map(|dp| dp.as_str().to_string()).collect();
+    let dep_paths: Vec<String> = result.graph
+        .keys()
+        .map(|dp| dp.as_str().to_string())
+        .collect();
     for (name, _) in &[("foo", ""), ("bar", ""), ("qar", ""), ("zoo", "")] {
         let prefix = format!("{name}@1.0.0");
         assert!(
-            dep_paths.iter().any(|dp| dp.starts_with(&prefix)),
+            dep_paths
+                .iter()
+                .any(|dp| dp.starts_with(&prefix)),
             "no graph entry starts with {prefix}: {dep_paths:?}",
         );
     }
@@ -687,9 +770,16 @@ async fn revisit_resolves_peer_in_one_occurrence_misses_in_other() {
     );
     table.insert(
         ("qar".to_string(), "1.0.0".to_string()),
-        fake_result("qar", "1.0.0", serde_json::json!({ "name": "qar", "version": "1.0.0" })),
+        fake_result(
+            "qar",
+            "1.0.0",
+            serde_json::json!({ "name": "qar", "version": "1.0.0" }),
+        ),
     );
-    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let resolver = StubResolver {
+        table,
+        calls: Mutex::new(Vec::new()),
+    };
     // Root depends on zoo (direct: foo's qar peer is missing) and
     // bar (transitive: foo's qar peer resolves via bar's qar
     // sibling).
@@ -714,8 +804,10 @@ async fn revisit_resolves_peer_in_one_occurrence_misses_in_other() {
 
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
 
-    let dep_paths: std::collections::HashSet<String> =
-        result.graph.keys().map(|dp| dp.as_str().to_string()).collect();
+    let dep_paths: std::collections::HashSet<String> = result.graph
+        .keys()
+        .map(|dp| dp.as_str().to_string())
+        .collect();
 
     assert!(
         dep_paths.contains("foo@1.0.0"),
@@ -728,7 +820,10 @@ async fn revisit_resolves_peer_in_one_occurrence_misses_in_other() {
 
     assert!(dep_paths.contains("bar@1.0.0"), "{dep_paths:?}");
     assert!(dep_paths.contains("qar@1.0.0"), "{dep_paths:?}");
-    assert!(dep_paths.contains("zoo@1.0.0"), "direct zoo (no peer suffix) missing: {dep_paths:?}");
+    assert!(
+        dep_paths.contains("zoo@1.0.0"),
+        "direct zoo (no peer suffix) missing: {dep_paths:?}",
+    );
     assert!(
         dep_paths.contains("zoo@1.0.0(qar@1.0.0)"),
         "transitive zoo (qar peer bubbled up) missing: {dep_paths:?}",

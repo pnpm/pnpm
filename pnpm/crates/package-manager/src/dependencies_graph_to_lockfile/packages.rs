@@ -13,8 +13,10 @@ use rayon::prelude::*;
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 
-pub(super) type PackagesAndSnapshots =
-    (HashMap<PackageKey, PackageMetadata>, HashMap<PackageKey, SnapshotEntry>);
+pub(super) type PackagesAndSnapshots = (
+    HashMap<PackageKey, PackageMetadata>,
+    HashMap<PackageKey, SnapshotEntry>,
+);
 /// Registry configuration and prior package records used to serialize package metadata.
 pub struct PackageMetadataSources<'a> {
     pub registry: &'a str,
@@ -53,7 +55,9 @@ pub(super) fn build_packages_and_snapshots(
     let mut packages: HashMap<PackageKey, PackageMetadata> = HashMap::new();
     let mut snapshots: HashMap<PackageKey, SnapshotEntry> = HashMap::new();
     for built_node in built {
-        let Some(BuiltNode { node, snapshot_key, snapshot }) = built_node? else { continue };
+        let Some(BuiltNode { node, snapshot_key, snapshot }) = built_node? else {
+            continue;
+        };
         insert_package_metadata(&mut packages, node, snapshot_key.without_peer(), sources)?;
         snapshots.insert(snapshot_key, snapshot);
     }
@@ -85,7 +89,11 @@ pub(super) fn build_node<'graph>(
         }),
     }?;
     let snapshot = build_snapshot_entry(node, graph, optional_overrides);
-    Ok(Some(BuiltNode { node, snapshot_key, snapshot }))
+    Ok(Some(BuiltNode {
+        node,
+        snapshot_key,
+        snapshot,
+    }))
 }
 /// Record a package's metadata under its peer-stripped key, once: the first
 /// node of a key in graph order wins.
@@ -133,7 +141,10 @@ pub(super) fn metadata_registry<'a>(
         return (sources.registry, sources.lockfile_include_tarball_url);
     };
     match sources.registries_by_prefix.get(registry_name) {
-        Some(named_registry) => (named_registry.as_str(), sources.lockfile_include_tarball_url),
+        Some(named_registry) => (
+            named_registry.as_str(),
+            sources.lockfile_include_tarball_url,
+        ),
         None => (sources.registry, true),
     }
 }
@@ -201,7 +212,8 @@ pub(super) fn read_engines(manifest: Option<&Value>) -> Option<HashMap<String, S
         .and_then(|manifest| manifest.get("engines"))
         .and_then(|value| match value {
             Value::Object(map) => Some(
-                map.iter()
+                map
+                    .iter()
                     .filter_map(|(name, value)| Some((name.clone(), value.as_str()?)))
                     .collect::<Vec<(String, &str)>>(),
             ),
@@ -255,8 +267,11 @@ pub(super) fn explicit_version(
 pub(super) fn read_string_list(manifest: Option<&Value>, key: &str) -> Option<Vec<String>> {
     match manifest?.get(key)? {
         Value::Array(items) => {
-            let out: Vec<String> =
-                items.iter().filter_map(Value::as_str).map(ToString::to_string).collect();
+            let out: Vec<String> = items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(ToString::to_string)
+                .collect();
             (!out.is_empty()).then_some(out)
         }
         _ => None,
@@ -278,23 +293,31 @@ pub(super) fn read_string_or_list(
 /// the `hasBin: true` signal; the field is dropped entirely when absent.
 pub(crate) fn manifest_has_bin(manifest: Option<&Value>) -> Option<bool> {
     let manifest = manifest?;
-    let has_bin = manifest.get("bin").is_some_and(|value| match value {
-        Value::String(s) => !s.is_empty(),
-        Value::Object(map) => !map.is_empty(),
-        _ => false,
-    });
+    let has_bin = manifest
+        .get("bin")
+        .is_some_and(|value| match value {
+            Value::String(s) => !s.is_empty(),
+            Value::Object(map) => !map.is_empty(),
+            _ => false,
+        });
     let has_bin_directory = manifest
         .get("directories")
         .and_then(Value::as_object)
         .and_then(|directories| directories.get("bin"))
-        .is_some_and(|value| value.as_str().is_some_and(|path| !path.is_empty()));
+        .is_some_and(|value| {
+            value
+                .as_str()
+                .is_some_and(|path| !path.is_empty())
+        });
     (has_bin || has_bin_directory).then_some(true)
 }
 /// Returned `Option`-pair from [`build_peer_dep_blocks`]: the
 /// `peerDependencies` map (name → range) and the
 /// `peerDependenciesMeta` map (name → `{ optional: true }`).
-pub(super) type PeerDepBlocks =
-    (Option<HashMap<String, String>>, Option<HashMap<String, PeerDependencyMeta>>);
+pub(super) type PeerDepBlocks = (
+    Option<HashMap<String, String>>,
+    Option<HashMap<String, PeerDependencyMeta>>,
+);
 /// Split the resolver's `peer_dependencies` into the
 /// `peerDependencies` (name → range) and `peerDependenciesMeta`
 /// (name → `{ optional: true }`) blocks written onto `packages:`.
@@ -307,7 +330,12 @@ pub(super) fn build_peer_dep_blocks(node: &DependenciesGraphNode) -> PeerDepBloc
     for (name, peer) in &node.edges.peer_dependencies {
         peers.insert(name.clone(), peer.version.clone());
         if peer.optional {
-            peers_meta.insert(name.clone(), PeerDependencyMeta { optional: true });
+            peers_meta.insert(
+                name.clone(),
+                PeerDependencyMeta {
+                    optional: true,
+                },
+            );
         }
     }
     let peers_meta = (!peers_meta.is_empty()).then_some(peers_meta);
@@ -334,8 +362,12 @@ pub(super) fn build_snapshot_entry(
     let mut dependencies: HashMap<PkgName, SnapshotDepRef> = HashMap::new();
     let mut optional_dependencies: HashMap<PkgName, SnapshotDepRef> = HashMap::new();
     for (alias, child_dep_path) in &node.edges.children {
-        let Ok(alias_name) = PkgName::parse(alias.as_str()) else { continue };
-        let Some(child_ref) = snapshot_dep_ref(alias, child_dep_path, graph) else { continue };
+        let Ok(alias_name) = PkgName::parse(alias.as_str()) else {
+            continue;
+        };
+        let Some(child_ref) = snapshot_dep_ref(alias, child_dep_path, graph) else {
+            continue;
+        };
         if optional_children.contains(alias.as_str()) {
             optional_dependencies.insert(alias_name, child_ref);
         } else {
@@ -344,13 +376,18 @@ pub(super) fn build_snapshot_entry(
     }
 
     let transitive: Vec<String> = {
-        let mut list: Vec<String> =
-            node.edges.transitive_peer_dependencies.iter().cloned().collect();
+        let mut list: Vec<String> = node.edges.transitive_peer_dependencies
+            .iter()
+            .cloned()
+            .collect();
         list.sort();
         list
     };
 
-    let optional = optional_overrides.get(&node.dep_path).copied().unwrap_or(node.optional);
+    let optional = optional_overrides
+        .get(&node.dep_path)
+        .copied()
+        .unwrap_or(node.optional);
 
     SnapshotEntry {
         id: None,
@@ -374,7 +411,9 @@ pub(super) fn snapshot_dep_ref(
     if let Some(target) = dep_path_str.strip_prefix("link:") {
         return Some(SnapshotDepRef::Link(target.to_string()));
     }
-    let real_name = graph.get(child_dep_path).and_then(|n| real_name(&n.resolve_result));
+    let real_name = graph
+        .get(child_dep_path)
+        .and_then(|n| real_name(&n.resolve_result));
     if let Some(real) = real_name.as_deref() {
         let prefix = format!("{real}@");
         if alias == real

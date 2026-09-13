@@ -22,36 +22,29 @@ where
     Reporter: self::Reporter,
 {
     let login_url = registry_join(registry, "-/v1/login")
-        .map_err(|error| WebLoginFlowError::Transport { reason: error.to_string() })?;
+        .map_err(|error| WebLoginFlowError::Transport {
+            reason: error.to_string(),
+        })?;
     let response = web_login_post(http_client, &login_url).await?;
     if !response.ok {
         let text = redact_and_sanitize(&response.body);
-        return Err(WebLoginFlowError::Http { status: response.status, text });
+        return Err(WebLoginFlowError::Http {
+            status: response.status,
+            text,
+        });
     }
 
-    let json = serde_json::from_str::<Value>(&response.body).unwrap_or(Value::Null);
-    let read = |field: &str| {
-        json.get(field).and_then(Value::as_str).filter(|value| !value.is_empty()).map(str::to_owned)
-    };
-    let (Some(auth_url), Some(done_url)) = (read("loginUrl"), read("doneUrl")) else {
-        return Err(WebLoginFlowError::InvalidResponse);
-    };
-
-    // A legitimate login / done URL is a plain URL; a control character (a
-    // terminal escape, CR, or LF) is never valid in one and signals a malicious
-    // or compromised registry trying to spoof the terminal. Reject the login so
-    // the user learns the registry misbehaved, rather than sanitizing the URL and
-    // authenticating against it anyway.
-    if auth_url.contains(char::is_control) || done_url.contains(char::is_control) {
-        return Err(WebLoginFlowError::UnsafeUrl);
-    }
+    let (auth_url, done_url) = read_login_urls(&response.body)?;
 
     // A non-TTY stdout (a CI log, a pipe) cannot render the QR code block, so
     // print the URL on its own.
     let auth_url_message = if Sys::stdout_is_tty() {
         format_auth_url_message::<Reporter>(&auth_url).to_string()
     } else {
-        AuthUrlMessage::UrlOnly { auth_url: &auth_url }.to_string()
+        AuthUrlMessage::UrlOnly {
+            auth_url: &auth_url,
+        }
+        .to_string()
     };
     global_info::<Reporter>(auth_url_message);
 
@@ -60,8 +53,7 @@ where
         fetch_options: fetch_options.clone(),
         timeout_ms: None,
     });
-    prompt_browser_open::<Sys, Reporter, WebAuthTimeoutError, _>(&auth_url, poll)
-        .await
+    prompt_browser_open::<Sys, Reporter, WebAuthTimeoutError, _>(&auth_url, poll).await
         .map_err(WebLoginFlowError::Timeout)
 }
 
@@ -79,11 +71,17 @@ async fn web_login_post(
         .body("{}")
         .send()
         .await
-        .map_err(|error| WebLoginFlowError::Transport { reason: error.to_string() })?;
+        .map_err(|error| WebLoginFlowError::Transport {
+            reason: error.to_string(),
+        })?;
     let ok = response.status().is_success();
     let status = response.status().as_u16();
     let body = response.text().await.unwrap_or_default();
-    Ok(HttpResponse { ok, status, body })
+    Ok(HttpResponse {
+        ok,
+        status,
+        body,
+    })
 }
 
 /// A materialized registry response — the fields [`web_login`] and
@@ -114,11 +112,41 @@ pub(super) enum WebLoginFlowError {
 impl From<WebLoginFlowError> for LoginError {
     fn from(error: WebLoginFlowError) -> Self {
         match error {
-            WebLoginFlowError::Http { status, text } => LoginError::WebLoginFailed { status, text },
+            WebLoginFlowError::Http { status, text } => LoginError::WebLoginFailed {
+                status,
+                text,
+            },
             WebLoginFlowError::InvalidResponse => LoginError::InvalidResponse,
             WebLoginFlowError::UnsafeUrl => LoginError::UnsafeLoginUrl,
             WebLoginFlowError::Timeout(timeout) => LoginError::WebAuthTimeout(timeout),
-            WebLoginFlowError::Transport { reason } => LoginError::Request { reason },
+            WebLoginFlowError::Transport { reason } => LoginError::Request {
+                reason,
+            },
         }
     }
+}
+
+fn read_login_urls(body: &str) -> Result<(String, String), WebLoginFlowError> {
+    let json = serde_json::from_str::<Value>(body).unwrap_or(Value::Null);
+    let read = |field: &str| {
+        json
+            .get(field)
+            .and_then(Value::as_str)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+    };
+    let (Some(auth_url), Some(done_url)) = (read("loginUrl"), read("doneUrl")) else {
+        return Err(WebLoginFlowError::InvalidResponse);
+    };
+
+    // A legitimate login / done URL is a plain URL; a control character (a
+    // terminal escape, CR, or LF) is never valid in one and signals a malicious
+    // or compromised registry trying to spoof the terminal. Reject the login so
+    // the user learns the registry misbehaved, rather than sanitizing the URL and
+    // authenticating against it anyway.
+    if auth_url.contains(char::is_control) || done_url.contains(char::is_control) {
+        return Err(WebLoginFlowError::UnsafeUrl);
+    }
+
+    Ok((auth_url, done_url))
 }

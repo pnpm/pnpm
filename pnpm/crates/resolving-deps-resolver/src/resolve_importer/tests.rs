@@ -86,7 +86,10 @@ fn peer_declaring_metadata<const PEERS: usize>(
         prepare: None,
         bundled_dependencies: None,
         peer_dependencies: Some(
-            peer_names.into_iter().map(|name| (name.to_string(), "*".to_string())).collect(),
+            peer_names
+                .into_iter()
+                .map(|name| (name.to_string(), "*".to_string()))
+                .collect(),
         ),
         peer_dependencies_meta: None,
     }
@@ -149,7 +152,10 @@ impl Resolver for StubResolver {
             wanted.alias.clone().unwrap_or_default(),
             wanted.bare_specifier.clone().unwrap_or_default(),
         );
-        self.calls.lock().unwrap().push(key.clone());
+        self.calls
+            .lock()
+            .unwrap()
+            .push(key.clone());
         let result = self.table.get(&key).cloned();
         Box::pin(async move { Ok::<_, ResolveError>(result) })
     }
@@ -297,13 +303,20 @@ mod resolution_mode {
     impl RecordingResolver {
         fn new(table: HashMap<(String, String), ResolveResult>) -> Self {
             RecordingResolver {
-                inner: StubResolver { table, calls: Mutex::new(Vec::new()) },
+                inner: StubResolver {
+                    table,
+                    calls: Mutex::new(Vec::new()),
+                },
                 seen: Mutex::new(HashMap::default()),
             }
         }
 
         fn opts_for(&self, alias: &str) -> RecordedOpts {
-            *self.seen.lock().unwrap().get(alias).expect("alias was resolved")
+            *self.seen
+                .lock()
+                .unwrap()
+                .get(alias)
+                .expect("alias was resolved")
         }
     }
 
@@ -317,7 +330,10 @@ mod resolution_mode {
                 self.seen
                     .lock()
                     .unwrap()
-                    .insert(alias, (opts.version.pick_lowest_version, opts.policy.published_by));
+                    .insert(
+                        alias,
+                        (opts.version.pick_lowest_version, opts.policy.published_by),
+                    );
             }
             self.inner.resolve(wanted, opts)
         }
@@ -347,7 +363,11 @@ mod resolution_mode {
         );
         table.insert(
             ("sub".to_string(), "^2.0.0".to_string()),
-            fake_result("sub", "2.0.0", serde_json::json!({ "name": "sub", "version": "2.0.0" })),
+            fake_result(
+                "sub",
+                "2.0.0",
+                serde_json::json!({ "name": "sub", "version": "2.0.0" }),
+            ),
         );
         table
     }

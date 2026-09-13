@@ -67,7 +67,9 @@ pub async fn pack(options: PackOptions, on_log: Option<LogSink>) -> napi::Result
         // `api` is async; drive it to completion on this blocking-pool thread so
         // the blocking tarball write does not tie up an async worker thread.
         tokio::runtime::Handle::current()
-            .block_on(pnpm_pack::api::<NodeBridgeReporter, pnpm_pack::Host>(&pack_opts))
+            .block_on(pnpm_pack::api::<NodeBridgeReporter, pnpm_pack::Host>(
+                &pack_opts,
+            ))
     })
     .await;
 
@@ -93,8 +95,7 @@ fn pack_options(options: PackOptions) -> pnpm_pack::PackOptions {
             ignore: options.ignore_scripts.unwrap_or(false),
             unsafe_perm: false,
             user_agent: format!("pnpm/{PNPM_VERSION} napi"),
-            extra_bin_paths: options
-                .extra_bin_paths
+            extra_bin_paths: options.extra_bin_paths
                 .unwrap_or_default()
                 .into_iter()
                 .map(PathBuf::from)

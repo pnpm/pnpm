@@ -40,10 +40,16 @@ snapshots:
 fn jsr_project() -> TempDir {
     let root = tempdir().expect("create temp directory");
     let workspace = root.path();
-    fs::write(workspace.join(".npmrc"), "registry=https://registry.example.test/\n")
-        .expect("write .npmrc");
-    fs::write(workspace.join("pnpm-workspace.yaml"), "storeDir: store\ncacheDir: cache\n")
-        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join(".npmrc"),
+        "registry=https://registry.example.test/\n",
+    )
+    .expect("write .npmrc");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "storeDir: store\ncacheDir: cache\n",
+    )
+    .expect("write pnpm-workspace.yaml");
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({ "dependencies": { "@std/csv": "jsr:^1.0.6" } }).to_string(),

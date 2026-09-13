@@ -131,9 +131,14 @@ where
         },
     )
     .await?;
-    let direct =
-        walk_from_seeds(ctx, resolver, vec![seed], base_overlay, Arc::clone(parent_pkg_aliases))
-            .await?;
+    let direct = walk_from_seeds(
+        ctx,
+        resolver,
+        vec![seed],
+        base_overlay,
+        Arc::clone(parent_pkg_aliases),
+    )
+    .await?;
     Ok(direct.into_iter().next())
 }
 
@@ -261,7 +266,10 @@ where
     Chain: Resolver + ?Sized,
 {
     assign_level_owners(ctx, seeds.iter_mut())?;
-    let direct: Vec<DirectDep> = seeds.iter().filter_map(seeded_dep).collect();
+    let direct: Vec<DirectDep> = seeds
+        .iter()
+        .filter_map(seeded_dep)
+        .collect();
     let mut frontier = settle_seeds(ctx, seeds, children_overlay.as_ref(), &children_pkg_aliases);
     let mut level = 0usize;
     while !frontier.is_empty() {

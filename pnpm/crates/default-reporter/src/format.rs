@@ -69,8 +69,12 @@ pub fn pretty_ms(ms: u128) -> String {
 /// rather than rounded (`90_000` renders as `"1m"`, not `"1m 30s"`).
 #[must_use]
 pub fn pretty_ms_compact(ms: u128) -> String {
-    const UNIT_MS: [(u128, &str); 4] =
-        [(86_400_000, "d"), (3_600_000, "h"), (60_000, "m"), (1_000, "s")];
+    const UNIT_MS: [(u128, &str); 4] = [
+        (86_400_000, "d"),
+        (3_600_000, "h"),
+        (60_000, "m"),
+        (1_000, "s"),
+    ];
     for (unit_ms, suffix) in UNIT_MS {
         if ms >= unit_ms {
             return format!("{}{suffix}", ms / unit_ms);
@@ -120,7 +124,10 @@ pub fn cut_line(line: &str, max: isize) -> String {
         return line.to_string();
     }
     let keep = max.saturating_sub(1);
-    let mut out: String = line.chars().take(keep).collect();
+    let mut out: String = line
+        .chars()
+        .take(keep)
+        .collect();
     out.push('…');
     out
 }
@@ -149,14 +156,21 @@ pub fn relative(base: &str, target: &str) -> String {
 }
 
 fn split_components(path: &str) -> Vec<&str> {
-    path.split(['/', '\\']).filter(|component| !component.is_empty()).collect()
+    path
+        .split(['/', '\\'])
+        .filter(|component| !component.is_empty())
+        .collect()
 }
 
 /// `formatPrefixNoTrim`: relative path, normalized, `"."` for the cwd itself.
 #[must_use]
 pub fn format_prefix_no_trim(cwd: &str, prefix: &str) -> String {
     let rel = relative(cwd, prefix);
-    if rel.is_empty() { ".".to_string() } else { normalize(&rel) }
+    if rel.is_empty() {
+        ".".to_string()
+    } else {
+        normalize(&rel)
+    }
 }
 
 /// `formatPrefix`: like [`format_prefix_no_trim`] but trims an

@@ -26,7 +26,13 @@ fn lockfile_records_overrides_in_declaration_order() {
         }),
         dependency_manifest: None,
     }];
-    options.store_dir = Some(temp_dir.path().join("store").to_string_lossy().into_owned());
+    options.store_dir = Some(
+        temp_dir
+            .path()
+            .join("store")
+            .to_string_lossy()
+            .into_owned(),
+    );
     options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
     options.overrides = Some(indexmap::IndexMap::from_iter([
         ("zzz-unmatched".to_string(), "1.0.0".to_string()),
@@ -39,5 +45,8 @@ fn lockfile_records_overrides_in_declaration_order() {
         std::fs::read_to_string(project_dir.join("pnpm-lock.yaml")).expect("read lockfile");
     let zzz = lockfile.find("zzz-unmatched").expect("zzz override recorded");
     let aaa = lockfile.find("aaa-unmatched").expect("aaa override recorded");
-    assert!(zzz < aaa, "overrides must keep declaration order (zzz before aaa), got:\n{lockfile}");
+    assert!(
+        zzz < aaa,
+        "overrides must keep declaration order (zzz before aaa), got:\n{lockfile}",
+    );
 }

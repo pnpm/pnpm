@@ -25,13 +25,21 @@ async fn fetch_artifact_response_sends_headers_only_to_the_upstream_origin() {
         .await;
 
     let upstream = upstream(index.url(), auth_and_custom_headers());
-    let response =
-        upstream.fetch_artifact_response(&format!("{}/dl/serde/1.0.0", index.url())).await.unwrap();
-    let FetchOutcome::Ok(response) = response else { panic!("expected a response") };
+    let response = upstream
+        .fetch_artifact_response(&format!("{}/dl/serde/1.0.0", index.url()))
+        .await
+        .unwrap();
+    let FetchOutcome::Ok(response) = response else {
+        panic!("expected a response")
+    };
     assert_eq!(response.bytes().await.unwrap(), "crate bytes");
-    let response =
-        upstream.fetch_artifact_response(&format!("{}/packages/x.whl", files.url())).await.unwrap();
-    let FetchOutcome::Ok(response) = response else { panic!("expected a response") };
+    let response = upstream
+        .fetch_artifact_response(&format!("{}/packages/x.whl", files.url()))
+        .await
+        .unwrap();
+    let FetchOutcome::Ok(response) = response else {
+        panic!("expected a response")
+    };
     assert_eq!(response.bytes().await.unwrap(), "wheel bytes");
     same_origin.assert_async().await;
     other_origin.assert_async().await;
@@ -41,7 +49,11 @@ async fn fetch_artifact_response_sends_headers_only_to_the_upstream_origin() {
 async fn artifact_fetch_guard_rejects_initial_urls_and_redirects() {
     let mut source = mockito::Server::new_async().await;
     let mut target = mockito::Server::new_async().await;
-    let target_mock = target.mock("GET", "/artifact").expect(0).create_async().await;
+    let target_mock = target
+        .mock("GET", "/artifact")
+        .expect(0)
+        .create_async()
+        .await;
     let redirect = source
         .mock("GET", "/artifact")
         .with_status(302)
@@ -52,8 +64,18 @@ async fn artifact_fetch_guard_rejects_initial_urls_and_redirects() {
     let allowed = reqwest::Url::parse(&source.url()).unwrap().origin();
     let upstream = upstream(source.url(), HeaderMap::new())
         .with_fetch_guard(std::sync::Arc::new(move |url| url.origin() == allowed));
-    assert!(upstream.fetch_artifact_response(&format!("{}/artifact", target.url())).await.is_err());
-    assert!(upstream.fetch_artifact_response(&format!("{}/artifact", source.url())).await.is_err());
+    assert!(
+        upstream
+            .fetch_artifact_response(&format!("{}/artifact", target.url()))
+            .await
+            .is_err(),
+    );
+    assert!(
+        upstream
+            .fetch_artifact_response(&format!("{}/artifact", source.url()))
+            .await
+            .is_err(),
+    );
     target_mock.assert_async().await;
     redirect.assert_async().await;
 }
@@ -90,10 +112,17 @@ async fn approved_artifact_redirects_rebuild_headers_for_each_origin() {
         .await;
     let origins = [&source.url(), &cdn.url()].map(|url| reqwest::Url::parse(url).unwrap().origin());
     let upstream = upstream(source.url(), auth_and_custom_headers())
-        .with_fetch_guard(std::sync::Arc::new(move |url| origins.contains(&url.origin())));
-    for url in [format!("{}/artifact", source.url()), format!("{}/redirect", cdn.url())] {
+        .with_fetch_guard(std::sync::Arc::new(move |url| {
+            origins.contains(&url.origin())
+        }));
+    for url in [
+        format!("{}/artifact", source.url()),
+        format!("{}/redirect", cdn.url()),
+    ] {
         let response = upstream.fetch_artifact_response(&url).await.unwrap();
-        let FetchOutcome::Ok(response) = response else { panic!("expected the artifact") };
+        let FetchOutcome::Ok(response) = response else {
+            panic!("expected the artifact")
+        };
         assert_eq!(response.bytes().await.unwrap(), "artifact bytes");
     }
     source_mock.assert_async().await;
@@ -181,9 +210,18 @@ async fn revision_download_budget_starts_after_waiting_for_a_permit() {
         drop(held);
     };
     let (result, ()) = tokio::join!(fetch, release_permit);
-    let FetchOutcome::Ok(response) = result.unwrap() else { panic!("expected artifact response") };
+    let FetchOutcome::Ok(response) = result.unwrap() else {
+        panic!("expected artifact response")
+    };
     let mut stream = Box::pin(response.bytes_stream());
-    assert_eq!(stream.next().await.unwrap().unwrap(), "body");
+    assert_eq!(
+        stream
+            .next()
+            .await
+            .unwrap()
+            .unwrap(),
+        "body",
+    );
     assert!(stream.next().await.is_none());
     server.await.unwrap();
 }

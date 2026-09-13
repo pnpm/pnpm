@@ -67,7 +67,9 @@ pub(crate) async fn apply_shared_side_effects(mut options: ApplySharedSideEffect
     if !options.config.side_effects_cache_read() {
         options.side_effects_maps_by_snapshot.clear();
     }
-    let Some(setup) = remote_cache_setup(options.config, options.snapshots) else { return };
+    let Some(setup) = remote_cache_setup(options.config, options.snapshots) else {
+        return;
+    };
 
     let roots = plan_eligible_roots(&options, &setup);
     if roots.is_empty() {
@@ -109,19 +111,24 @@ pub(crate) fn shared_side_effects_publisher(
     }
     let snapshots = snapshots?;
     let platform = artifact_platform(snapshots)?;
-    let private_key = BASE64.decode(settings.private_key.as_ref()?).ok()?;
+    let private_key = BASE64
+        .decode(settings.private_key.as_ref()?)
+        .ok()?;
     let key_id = settings.key_id.clone()?;
     let builder_id = settings.builder_id.clone()?;
     let organization = non_empty(&settings.org)?.to_string();
     let environment = settings.build_env.clone().unwrap_or_default();
     Some(SharedSideEffectsPublisher {
-        signer: BuilderSigningKey { builder_id, key_id, private_key },
+        signer: BuilderSigningKey {
+            builder_id,
+            key_id,
+            private_key,
+        },
         authorization: config.auth_headers.for_url(server),
 
         builder_profile: BuilderProfile {
             image_digest: settings.image_digest.clone(),
-            architecture_baseline: settings
-                .architecture_baseline
+            architecture_baseline: settings.architecture_baseline
                 .clone()
                 .unwrap_or_else(|| pnpm_graph_hasher::host_arch().to_string()),
             environment,
@@ -129,7 +136,10 @@ pub(crate) fn shared_side_effects_publisher(
         client: PnprClient::new(server),
 
         organization,
-        packages: settings.packages.iter().cloned().collect(),
+        packages: settings.packages
+            .iter()
+            .cloned()
+            .collect(),
         platform,
 
         runtime: tokio::runtime::Handle::current(),
@@ -172,7 +182,11 @@ impl SharedSideEffectsPublisher {
             builder_id: self.signer.builder_id.clone(),
             builder_profile: self.builder_profile.clone(),
             compatibility: CompatibilityConstraints::Tagged {
-                tags: vec![self.platform.tag().map_err(|error| error.to_string())?],
+                tags: vec![
+                    self.platform
+                        .tag()
+                        .map_err(|error| error.to_string())?,
+                ],
             },
             manifest: ArtifactManifest {
                 added: upload.files,
@@ -258,10 +272,16 @@ fn artifact_upload(
         });
         blobs
             .entry(integrity.clone())
-            .or_insert_with(|| ArtifactBlobUpload { integrity, data: BASE64.encode(bytes) });
+            .or_insert_with(|| ArtifactBlobUpload {
+                integrity,
+                data: BASE64.encode(bytes),
+            });
     }
     files.sort_unstable_by(|left, right| left.path.cmp(&right.path));
-    Ok(ArtifactUpload { files, blobs })
+    Ok(ArtifactUpload {
+        files,
+        blobs,
+    })
 }
 
 fn dependency_package(candidate: &ArtifactCandidate) -> &PackageIdentity {

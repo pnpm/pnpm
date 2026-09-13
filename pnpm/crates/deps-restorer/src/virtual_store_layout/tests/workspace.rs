@@ -21,7 +21,9 @@ fn directory_deps_get_a_slot_per_project() {
     packages.insert(
         key.without_peer(),
         package_metadata(
-            LockfileResolution::Directory(DirectoryResolution { directory: "dep".to_string() }),
+            LockfileResolution::Directory(DirectoryResolution {
+                directory: "dep".to_string(),
+            }),
             None,
         ),
     );

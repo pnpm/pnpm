@@ -17,7 +17,10 @@ use super::{default_store_dir_windows, get_drive_letter};
 use std::path::Path;
 
 fn display_store_dir(store_dir: &StoreDir) -> String {
-    store_dir.display().to_string().replace('\\', "/")
+    store_dir
+        .display()
+        .to_string()
+        .replace('\\', "/")
 }
 
 #[test]
@@ -79,7 +82,10 @@ fn test_default_store_dir_with_pnpm_home_env() {
         }
     }
     let store_dir = default_store_dir::<EnvWithPnpmHome>();
-    assert_eq!(display_store_dir(&store_dir), format!("/tmp/pnpm-home/store/{STORE_VERSION}"));
+    assert_eq!(
+        display_store_dir(&store_dir),
+        format!("/tmp/pnpm-home/store/{STORE_VERSION}"),
+    );
 }
 
 /// The fake `Sys` here returns a value for `XDG_DATA_HOME` and `None`
@@ -159,7 +165,10 @@ fn test_default_cache_dir_with_xdg_cache_home_env() {
         }
     }
     let cache_dir = default_cache_dir::<EnvWithXdgCacheHome>();
-    let display = cache_dir.display().to_string().replace('\\', "/");
+    let display = cache_dir
+        .display()
+        .to_string()
+        .replace('\\', "/");
     assert_eq!(display, "/tmp/xdg-cache-home/pnpm");
 }
 
@@ -205,7 +214,10 @@ fn test_default_config_dir_with_xdg_config_home_env() {
     }
     let config_dir =
         default_config_dir::<EnvWithXdgConfigHome>().expect("XDG_CONFIG_HOME bypasses home_dir");
-    let display = config_dir.display().to_string().replace('\\', "/");
+    let display = config_dir
+        .display()
+        .to_string()
+        .replace('\\', "/");
     assert_eq!(display, "/tmp/xdg-config-home/pnpm");
 }
 
@@ -300,8 +312,14 @@ fn resolve_child_concurrency_zero_returns_full_parallelism() {
 fn resolve_child_concurrency_negative_offset_matches_upstream_formula() {
     assert_eq!(resolve_child_concurrency_with_parallelism(Some(-1), 8), 7);
     assert_eq!(resolve_child_concurrency_with_parallelism(Some(-1), 1), 1);
-    assert_eq!(resolve_child_concurrency_with_parallelism(Some(-9999), 8), 1);
-    assert_eq!(resolve_child_concurrency_with_parallelism(Some(-9999), 1), 1);
+    assert_eq!(
+        resolve_child_concurrency_with_parallelism(Some(-9999), 8),
+        1,
+    );
+    assert_eq!(
+        resolve_child_concurrency_with_parallelism(Some(-9999), 1),
+        1,
+    );
 }
 
 #[test]
@@ -355,7 +373,10 @@ fn default_unsafe_perm_on_posix_matches_runtime_uid() {
 #[cfg(target_os = "cygwin")]
 #[test]
 fn default_unsafe_perm_on_cygwin_is_always_true() {
-    assert!(default_unsafe_perm(), "Cygwin default must always be true (matches upstream)");
+    assert!(
+        default_unsafe_perm(),
+        "Cygwin default must always be true (matches upstream)",
+    );
 }
 
 #[cfg(windows)]
@@ -388,7 +409,10 @@ fn test_dynamic_default_store_dir_with_windows_same_drive() {
     let home_dir = Path::new("C:\\Users\\user");
 
     let store_dir = default_store_dir_windows(home_dir, current_dir);
-    assert_eq!(store_dir.to_str().unwrap(), r"C:\Users\user\AppData\Local\pnpm\store");
+    assert_eq!(
+        store_dir.to_str().unwrap(),
+        r"C:\Users\user\AppData\Local\pnpm\store",
+    );
 }
 
 /// `default_virtual_store_dir` joins onto the current directory, so the
@@ -420,10 +444,22 @@ fn fetch_timeout_default_matches_pnpm() {
 fn user_agent_default_matches_pnpm_format() {
     let ua = default_user_agent();
     let prefix = format!("pnpm/{PNPM_VERSION} npm/? node/? ");
-    assert!(ua.starts_with(&prefix), "user-agent {ua:?} must start with {prefix:?}");
+    assert!(
+        ua.starts_with(&prefix),
+        "user-agent {ua:?} must start with {prefix:?}",
+    );
     let tail: Vec<&str> = ua[prefix.len()..].split(' ').collect();
-    assert_eq!(tail.len(), 2, "expected `<platform> <arch>` tail, got {ua:?}");
-    assert!(tail.iter().all(|token| !token.is_empty()), "platform/arch must be non-empty: {ua:?}");
+    assert_eq!(
+        tail.len(),
+        2,
+        "expected `<platform> <arch>` tail, got {ua:?}",
+    );
+    assert!(
+        tail
+            .iter()
+            .all(|token| !token.is_empty()),
+        "platform/arch must be non-empty: {ua:?}",
+    );
 }
 
 /// Both forms are asserted here rather than through
@@ -435,5 +471,8 @@ fn the_install_command_matches_the_host_shell() {
         install_command_for(true),
         "Invoke-WebRequest https://get.pnpm.io/install.ps1 -UseBasicParsing | Invoke-Expression",
     );
-    assert_eq!(install_command_for(false), "curl -fsSL https://get.pnpm.io/install.sh | sh -");
+    assert_eq!(
+        install_command_for(false),
+        "curl -fsSL https://get.pnpm.io/install.sh | sh -",
+    );
 }

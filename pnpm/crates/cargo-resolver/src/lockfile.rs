@@ -30,7 +30,10 @@ pub(crate) fn lockfile_from_solution(
             continue;
         };
         let registry_version = indexed_version(registry.package(name)?, name, version)?;
-        let selection = feature_selections.get(*key).cloned().unwrap_or_default();
+        let selection = feature_selections
+            .get(*key)
+            .cloned()
+            .unwrap_or_default();
         let dependencies = locked_registry_dependencies(
             registry_version,
             &selection,
@@ -50,6 +53,10 @@ pub(crate) fn lockfile_from_solution(
 
     packages.extend(workspace_packages(metadata, registry, &selected, &source)?);
 
+    Ok(serialize_lockfile(packages))
+}
+
+fn serialize_lockfile(mut packages: Vec<Package>) -> String {
     packages.sort();
     let lockfile = Lockfile {
         version: ResolveVersion::V4,
@@ -58,7 +65,7 @@ pub(crate) fn lockfile_from_solution(
         metadata: Metadata::default(),
         patch: Patch::default(),
     };
-    Ok(lockfile.to_string())
+    lockfile.to_string()
 }
 
 /// The lock entries for the workspace's own members.
@@ -69,8 +76,9 @@ fn workspace_packages(
     source: &cargo_lock::SourceId,
 ) -> Result<Vec<Package>> {
     let mut packages = Vec::new();
-    for package in
-        metadata.packages.iter().filter(|package| metadata.workspace_members.contains(&package.id))
+    for package in metadata.packages
+        .iter()
+        .filter(|package| metadata.workspace_members.contains(&package.id))
     {
         let dependencies = active_metadata_dependencies(package)?
             .iter()
@@ -133,7 +141,10 @@ fn locked_dependency(
         .next_back()
         .map(|version| compatibility_line(&version.version))
         .ok_or_else(|| miette::miette!("no version of {name} satisfies {requirement}"))?;
-    let key = PackageKey::Registry { name: name.to_string(), compatibility };
+    let key = PackageKey::Registry {
+        name: name.to_string(),
+        compatibility,
+    };
     let version = selected
         .get(&key)
         .ok_or_else(|| miette::miette!("resolver did not select dependency {name}"))?;
@@ -149,8 +160,7 @@ fn locked_workspace_dependency(
     requirement: &VersionReq,
     metadata: &CargoMetadata,
 ) -> Result<Dependency> {
-    let package = metadata
-        .packages
+    let package = metadata.packages
         .iter()
         .filter(|package| metadata.workspace_members.contains(&package.id))
         .find(|package| package.name == name && requirement.matches(&package.version))

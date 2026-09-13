@@ -31,7 +31,12 @@ pub struct CliArgs {
 #[derive(Debug, Args)]
 pub struct BenchmarkSelection {
     /// Task to benchmark.
-    #[clap(long, short, required_unless_present = "build_only", conflicts_with = "build_only")]
+    #[clap(
+        long,
+        short,
+        required_unless_present = "build_only",
+        conflicts_with = "build_only"
+    )]
     pub scenario: Option<BenchmarkScenario>,
     /// Override default `package.json` and `pnpm-lock.yaml` by specifying the directory containing them.
     #[clap(long, short = 'D')]
@@ -146,9 +151,11 @@ impl FromStr for TargetSpec {
     type Err = String;
 
     fn from_str(input: &str) -> Result<Self, Self::Err> {
-        let (prefix, rev) = input.split_once('@').ok_or_else(|| {
-            format!("target {input:?}: must be `pacquet@<rev>`, `pnpm@<rev>`, or `pnpr@<rev>`")
-        })?;
+        let (prefix, rev) = input
+            .split_once('@')
+            .ok_or_else(|| {
+                format!("target {input:?}: must be `pacquet@<rev>`, `pnpm@<rev>`, or `pnpr@<rev>`")
+            })?;
         let kind = match prefix {
             "pacquet" => TargetKind::Pacquet,
             "pnpm" => TargetKind::Pnpm,
@@ -163,7 +170,10 @@ impl FromStr for TargetSpec {
         if rev.is_empty() {
             return Err(format!("target {input:?}: <rev> must not be empty"));
         }
-        Ok(TargetSpec { kind, rev: rev.to_string() })
+        Ok(TargetSpec {
+            kind,
+            rev: rev.to_string(),
+        })
     }
 }
 
@@ -308,7 +318,11 @@ impl BenchmarkScenario {
 
     /// Return `lockfile=true` or `lockfile=false` for use in generating `.npmrc`.
     pub fn npmrc_lockfile_setting(self) -> &'static str {
-        if self.lockfile_enabled() { "lockfile=true" } else { "lockfile=false" }
+        if self.lockfile_enabled() {
+            "lockfile=true"
+        } else {
+            "lockfile=false"
+        }
     }
 
     /// Whether the lockfile is enabled for this scenario. Mirrored into
@@ -348,66 +362,66 @@ impl BenchmarkScenario {
         Text: Into<String>,
         LoadLockfile: FnOnce() -> Text,
     {
-        self.seeds_lockfile().then(|| load_lockfile().into())
+        self
+            .seeds_lockfile()
+            .then(|| load_lockfile().into())
     }
 
     /// Per-iteration cleanup (paths to remove and saved copies to
     /// restore) applied via hyperfine's `--prepare`.
     pub fn cleanup(self) -> Cleanup {
         match self {
-            BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore => Cleanup {
-                // `cache-dir` (the packument-metadata mirror) is wiped
-                // alongside `store-dir` so a direct fresh install pays the
-                // full cold resolution — fetching every packument over the
-                // emulated registry link — which is precisely the cost pnpr
-                // offloads to its warm server. Without this the mirror
-                // stays warm and direct ≈ pnpr.
-                remove: &["node_modules", "pnpm-lock.yaml", "store-dir", "cache-dir"],
-                restore: &[SAVED_PACKAGE_JSON],
-            },
+            // `cache-dir` (the packument-metadata mirror) is wiped
+            // alongside `store-dir` so a direct fresh install pays the
+            // full cold resolution — fetching every packument over the
+            // emulated registry link — which is precisely the cost pnpr
+            // offloads to its warm server. Without this the mirror
+            // stays warm and direct ≈ pnpr.
+            Self::IsolatedFreshInstallColdCacheColdStore => Cleanup::new(
+                &["node_modules", "pnpm-lock.yaml", "store-dir", "cache-dir"],
+                &[SAVED_PACKAGE_JSON],
+            ),
             // Same as the frozen cold-cache + cold-store restore, but also wipe
             // the per-revision mock's `cold-mock-storage` so the serving pnpr
             // refetches (and streams) every tarball from the warm origin each
             // iteration. (`cold-mock-storage` only exists under a `pnpr@<rev>`
             // bench dir; it's a harmless no-op for the other ids.)
-            BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStoreColdPnpr => Cleanup {
-                remove: &["node_modules", "store-dir", "cache-dir", "cold-mock-storage"],
-                restore: &[SAVED_LOCKFILE],
-            },
-            BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore => Cleanup {
-                remove: &["node_modules", "store-dir", "cache-dir"],
-                restore: &[SAVED_LOCKFILE],
-            },
-            BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore
-            | BenchmarkScenario::GvsFreshRestoreHotCacheHotStore => {
-                Cleanup { remove: &["node_modules"], restore: &[SAVED_LOCKFILE] }
+            Self::IsolatedFreshRestoreColdCacheColdStoreColdPnpr => Cleanup::new(
+                &[
+                    "node_modules",
+                    "store-dir",
+                    "cache-dir",
+                    "cold-mock-storage",
+                ],
+                &[SAVED_LOCKFILE],
+            ),
+            Self::IsolatedFreshRestoreColdCacheColdStore => Cleanup::new(
+                &["node_modules", "store-dir", "cache-dir"],
+                &[SAVED_LOCKFILE],
+            ),
+            Self::IsolatedFreshRestoreHotCacheHotStore | Self::GvsFreshRestoreHotCacheHotStore => {
+                Cleanup::new(&["node_modules"], &[SAVED_LOCKFILE])
             }
             // A repeat install mutates nothing, so nothing is removed or
             // restored — restoring the lockfile would bump its mtime and
             // push every iteration off the pure-mtime fast path into the
             // heavier content re-check. The populated `node_modules` (and
             // workspace state) come from the pre-warm pass.
-            BenchmarkScenario::IsolatedRepeatInstallHotCacheHotStore => {
-                Cleanup { remove: &[], restore: &[] }
+            Self::IsolatedRepeatInstallHotCacheHotStore => Cleanup::new(&[], &[]),
+            Self::IsolatedRepeatInstallColdCacheHotStore => Cleanup::new(&["cache-dir"], &[]),
+            Self::IsolatedFreshAddDepHotCacheHotStore => {
+                Cleanup::new(&["node_modules"], &[SAVED_LOCKFILE, SAVED_PACKAGE_JSON])
             }
-            BenchmarkScenario::IsolatedRepeatInstallColdCacheHotStore => {
-                Cleanup { remove: &["cache-dir"], restore: &[] }
+            Self::IsolatedFreshInstallHotCacheHotStore => {
+                Cleanup::new(&["node_modules", "pnpm-lock.yaml"], &[SAVED_PACKAGE_JSON])
             }
-            BenchmarkScenario::IsolatedFreshAddDepHotCacheHotStore => Cleanup {
-                remove: &["node_modules"],
-                restore: &[SAVED_LOCKFILE, SAVED_PACKAGE_JSON],
-            },
-            BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore => Cleanup {
-                remove: &["node_modules", "pnpm-lock.yaml"],
-                restore: &[SAVED_PACKAGE_JSON],
-            },
             // Cold cache (wipe `cache-dir` → re-resolve from scratch) but
             // hot store (keep `store-dir` → no tarball download). Resolution
             // is the only variable cost, so it can't hide behind downloads.
-            BenchmarkScenario::IsolatedFreshInstallColdCacheHotStore => Cleanup {
-                remove: &["node_modules", "pnpm-lock.yaml", "cache-dir"],
-                restore: &[SAVED_PACKAGE_JSON],
-            },
+            Self::IsolatedFreshInstallColdCacheHotStore => Cleanup::new(
+                &["node_modules", "pnpm-lock.yaml", "cache-dir"],
+                &[SAVED_PACKAGE_JSON],
+            ),
             // `node_modules` is wiped alongside the lockfile even though
             // `--lockfile-only` never writes it: a populated `node_modules`
             // left by the pre-warm pass lets the install's up-to-date
@@ -415,9 +429,9 @@ impl BenchmarkScenario {
             // date"), and the timed runs would measure a no-op. The warm
             // `cache-dir` / `store-dir` the pre-warm populated are the
             // scenario's contract and survive.
-            BenchmarkScenario::IsolatedFreshResolveHotCacheOffline
-            | BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline => {
-                Cleanup { remove: &["node_modules", "pnpm-lock.yaml"], restore: &[] }
+            Self::IsolatedFreshResolveHotCacheOffline
+            | Self::IsolatedPeerHeavyResolveHotCacheOffline => {
+                Cleanup::new(&["node_modules", "pnpm-lock.yaml"], &[])
             }
         }
     }
@@ -462,13 +476,19 @@ impl BenchmarkScenario {
     /// Whether this scenario gives the serving mock a cold cache (see the
     /// `…cold-store.cold-pnpr` variant); selects the cold-mock spawn.
     pub fn cold_pnpr_cache(self) -> bool {
-        matches!(self, BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStoreColdPnpr)
+        matches!(
+            self,
+            BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStoreColdPnpr,
+        )
     }
 
     /// Whether to use the generated shared-subgraph fixture that guards
     /// peer-heavy resolution.
     pub fn uses_peer_heavy_fixture(self) -> bool {
-        matches!(self, BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline)
+        matches!(
+            self,
+            BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline,
+        )
     }
 
     /// Whether the measured command needs an online pre-warm followed by an
@@ -511,17 +531,31 @@ pub struct HyperfineOptions {
 
 impl HyperfineOptions {
     pub fn append_to(&self, hyperfine_command: &mut Command) {
-        let &HyperfineOptions { show_output, warmup, min_runs, max_runs, runs, ignore_failure } =
-            self;
-        hyperfine_command.arg("--warmup").arg(warmup.to_string());
+        let &HyperfineOptions {
+            show_output,
+            warmup,
+            min_runs,
+            max_runs,
+            runs,
+            ignore_failure,
+        } = self;
+        hyperfine_command
+            .arg("--warmup")
+            .arg(warmup.to_string());
         if let Some(min_runs) = min_runs {
-            hyperfine_command.arg("--min-runs").arg(min_runs.to_string());
+            hyperfine_command
+                .arg("--min-runs")
+                .arg(min_runs.to_string());
         }
         if let Some(max_runs) = max_runs {
-            hyperfine_command.arg("--max-runs").arg(max_runs.to_string());
+            hyperfine_command
+                .arg("--max-runs")
+                .arg(max_runs.to_string());
         }
         if let Some(runs) = runs {
-            hyperfine_command.arg("--runs").arg(runs.to_string());
+            hyperfine_command
+                .arg("--runs")
+                .arg(runs.to_string());
         }
         if show_output {
             hyperfine_command.arg("--show-output");
@@ -534,3 +568,15 @@ impl HyperfineOptions {
 
 #[cfg(test)]
 mod tests;
+
+impl Cleanup {
+    fn new(
+        remove: &'static [&'static str],
+        restore: &'static [(&'static str, &'static str)],
+    ) -> Self {
+        Self {
+            remove,
+            restore,
+        }
+    }
+}

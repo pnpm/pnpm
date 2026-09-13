@@ -21,7 +21,11 @@ fn a_yarn_pin_is_recorded_in_the_package_manager_field() {
 #[test]
 fn another_package_manager_is_recorded_under_dev_engines() {
     let mut manifest = json!({ "name": "project", "version": "1.0.0" });
-    record_package_manager_pin(manifest.as_object_mut().unwrap(), PackageManager::Npm, Some("11"));
+    record_package_manager_pin(
+        manifest.as_object_mut().unwrap(),
+        PackageManager::Npm,
+        Some("11"),
+    );
     assert_eq!(
         manifest,
         json!({
@@ -38,9 +42,15 @@ fn another_package_manager_is_recorded_under_dev_engines() {
 fn a_request_without_a_version_records_only_the_name() {
     let mut manifest = json!({ "name": "project" });
     record_package_manager_pin(manifest.as_object_mut().unwrap(), PackageManager::Bun, None);
-    assert_eq!(manifest["devEngines"]["packageManager"], json!({ "name": "bun" }));
+    assert_eq!(
+        manifest["devEngines"]["packageManager"],
+        json!({ "name": "bun" }),
+    );
     assert_eq!(describe_pin(PackageManager::Bun, None), "bun");
-    assert_eq!(describe_pin(PackageManager::Yarn, Some("4.9.2")), "yarn@4.9.2");
+    assert_eq!(
+        describe_pin(PackageManager::Yarn, Some("4.9.2")),
+        "yarn@4.9.2",
+    );
 }
 
 /// Other `devEngines` entries are the project's own and stay put; the
@@ -83,7 +93,11 @@ fn recording_a_pin_clears_the_declaration_it_replaces() {
     );
     assert_eq!(manifest, json!({ "packageManager": "yarn@4.9.2" }));
 
-    record_package_manager_pin(manifest.as_object_mut().unwrap(), PackageManager::Npm, Some("11"));
+    record_package_manager_pin(
+        manifest.as_object_mut().unwrap(),
+        PackageManager::Npm,
+        Some("11"),
+    );
     assert_eq!(
         manifest,
         json!({ "devEngines": { "packageManager": { "name": "npm", "version": "11" } } }),
@@ -137,9 +151,18 @@ fn a_located_package_is_not_a_package_manager_declaration() {
 fn a_version_request_declares_the_package_manager() {
     let declared = declared_package_manager;
     assert_eq!(declared("yarn"), Some((PackageManager::Yarn, None)));
-    assert_eq!(declared("yarn@4"), Some((PackageManager::Yarn, Some("4".to_string()))));
-    assert_eq!(declared("npm@^11.1.0"), Some((PackageManager::Npm, Some("^11.1.0".to_string()))));
-    assert_eq!(declared("bun@latest"), Some((PackageManager::Bun, Some("latest".to_string()))));
+    assert_eq!(
+        declared("yarn@4"),
+        Some((PackageManager::Yarn, Some("4".to_string()))),
+    );
+    assert_eq!(
+        declared("npm@^11.1.0"),
+        Some((PackageManager::Npm, Some("^11.1.0".to_string()))),
+    );
+    assert_eq!(
+        declared("bun@latest"),
+        Some((PackageManager::Bun, Some("latest".to_string()))),
+    );
     // pnpm's own pin is `pnpm self-update`'s to change.
     assert_eq!(declared("pnpm@12"), None);
     assert_eq!(declared("typescript@5"), None);

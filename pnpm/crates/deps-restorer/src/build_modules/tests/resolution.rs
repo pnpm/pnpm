@@ -17,7 +17,10 @@ fn dangerously_allow_all_overrides_deny() {
 fn pkg_root_for_key_hoisted_uses_override() {
     let dir = tempdir().unwrap();
     let mut config = Config::new();
-    config.store_dir = dir.path().join("store").into();
+    config.store_dir = dir
+        .path()
+        .join("store")
+        .into();
     config.modules_dir = dir.path().join("node_modules");
     config.virtual_store_dir = dir.path().join("node_modules/.pacquet");
     let config = config.leak();
@@ -27,8 +30,11 @@ fn pkg_root_for_key_hoisted_uses_override() {
     let hoisted_dir = PathBuf::from("/repo/node_modules/is-positive");
     let map: HashMap<PackageKey, Vec<PathBuf>> = [(key.clone(), vec![hoisted_dir.clone()])].into();
 
-    let result = super::super::PkgRoots { layout: &layout, by_key: Some(&map) }
-        .canonical(&key)
-        .expect("override hits");
+    let result = super::super::PkgRoots {
+        layout: &layout,
+        by_key: Some(&map),
+    }
+    .canonical(&key)
+    .expect("override hits");
     assert_eq!(result, hoisted_dir);
 }

@@ -29,7 +29,10 @@ fn previews_repeated_manifest_records_in_order() {
     let patched = tempdir().unwrap();
     fs::write(patched.path().join("package.json"), MANIFEST).unwrap();
     let patch_dir = tempdir().unwrap();
-    let patch = write_patch(patch_dir.path(), &format!("{MANIFEST_PATCH}{MANIFEST_SECOND_PATCH}"));
+    let patch = write_patch(
+        patch_dir.path(),
+        &format!("{MANIFEST_PATCH}{MANIFEST_SECOND_PATCH}"),
+    );
 
     let preview = preview_patch(patched.path(), &patch).expect("preview must succeed");
 
@@ -63,8 +66,10 @@ fn previews_a_manifest_the_patch_deletes_and_writes_again() {
     let patched = tempdir().unwrap();
     fs::write(patched.path().join("package.json"), MANIFEST).unwrap();
     let patch_dir = tempdir().unwrap();
-    let patch =
-        write_patch(patch_dir.path(), &format!("{MANIFEST_DELETE_PATCH}{MANIFEST_CREATE_PATCH}"));
+    let patch = write_patch(
+        patch_dir.path(),
+        &format!("{MANIFEST_DELETE_PATCH}{MANIFEST_CREATE_PATCH}"),
+    );
 
     let preview = preview_patch(patched.path(), &patch).expect("preview must succeed");
 
@@ -140,7 +145,11 @@ fn previews_an_already_patched_manifest() {
 #[test]
 fn previews_a_manifest_that_starts_with_a_byte_order_mark() {
     let patched = tempdir().unwrap();
-    fs::write(patched.path().join("package.json"), format!("\u{feff}{MANIFEST}")).unwrap();
+    fs::write(
+        patched.path().join("package.json"),
+        format!("\u{feff}{MANIFEST}"),
+    )
+    .unwrap();
     let patch_dir = tempdir().unwrap();
     let patch = write_patch(patch_dir.path(), MANIFEST_PATCH);
 

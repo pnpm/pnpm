@@ -33,7 +33,10 @@ fn link_node_bin_symlinks_directly_instead_of_writing_shim() {
 
     let bin_location = bin_target.join("node");
     let meta = std::fs::symlink_metadata(&bin_location).unwrap();
-    assert!(meta.file_type().is_symlink(), "node bin must be a symlink, not a shim file");
+    assert!(
+        meta.file_type().is_symlink(),
+        "node bin must be a symlink, not a shim file",
+    );
     assert_eq!(
         std::fs::canonicalize(&bin_location).unwrap(),
         std::fs::canonicalize(node_bin_dir.join("node")).unwrap(),
@@ -97,16 +100,24 @@ fn prefer_symlinked_executables_links_bins_as_relative_symlinks() {
         json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"}).to_string(),
     )
     .unwrap();
-    write_file(pkg_dir.join("cli.js"), "#!/usr/bin/env node\nconsole.log('hello_world')\n")
-        .unwrap();
+    write_file(
+        pkg_dir.join("cli.js"),
+        "#!/usr/bin/env node\nconsole.log('hello_world')\n",
+    )
+    .unwrap();
 
     let bins_dir = tmp.path().join("node_modules/.bin");
     let manifest_value: Value =
         serde_json::from_slice(&read_file(pkg_dir.join("package.json")).unwrap()).unwrap();
-    let options =
-        LinkBinsOptions { prefer_symlinked_executables: true, ..LinkBinsOptions::default() };
+    let options = LinkBinsOptions {
+        prefer_symlinked_executables: true,
+        ..LinkBinsOptions::default()
+    };
     link_bins_of_packages::<Host>(
-        &[PackageBinSource::new(pkg_dir.clone(), Arc::new(manifest_value))],
+        &[PackageBinSource::new(
+            pkg_dir.clone(),
+            Arc::new(manifest_value),
+        )],
         &bins_dir,
         &options,
     )
@@ -116,7 +127,10 @@ fn prefer_symlinked_executables_links_bins_as_relative_symlinks() {
     if cfg!(windows) {
         // The setting is inert on Windows: bins keep their shims.
         assert!(
-            std::fs::symlink_metadata(&bin).unwrap().file_type().is_file(),
+            std::fs::symlink_metadata(&bin)
+                .unwrap()
+                .file_type()
+                .is_file(),
             "Windows must keep writing shims under preferSymlinkedExecutables",
         );
         return;
@@ -133,7 +147,11 @@ fn prefer_symlinked_executables_links_bins_as_relative_symlinks() {
     {
         use std::os::unix::fs::PermissionsExt;
         assert_eq!(
-            metadata(pkg_dir.join("cli.js")).unwrap().permissions().mode() & 0o777,
+            metadata(pkg_dir.join("cli.js"))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
             0o755,
             "the target file gets the executable bits, like pnpm's ensureExecutable",
         );
@@ -141,7 +159,10 @@ fn prefer_symlinked_executables_links_bins_as_relative_symlinks() {
 }
 
 #[test]
-#[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
+#[cfg_attr(
+    target_os = "windows",
+    ignore = "preferSymlinkedExecutables is inert on Windows"
+)]
 fn prefer_symlinked_executables_links_a_bin_whose_target_is_missing() {
     let tmp = tempdir().unwrap();
     let pkg_dir = tmp.path().join("node_modules/foo");
@@ -155,8 +176,10 @@ fn prefer_symlinked_executables_links_a_bin_whose_target_is_missing() {
     let bins_dir = tmp.path().join("node_modules/.bin");
     let manifest_value: Value =
         serde_json::from_slice(&read_file(pkg_dir.join("package.json")).unwrap()).unwrap();
-    let options =
-        LinkBinsOptions { prefer_symlinked_executables: true, ..LinkBinsOptions::default() };
+    let options = LinkBinsOptions {
+        prefer_symlinked_executables: true,
+        ..LinkBinsOptions::default()
+    };
     link_bins_of_packages::<Host>(
         &[PackageBinSource::new(pkg_dir, Arc::new(manifest_value))],
         &bins_dir,
@@ -216,9 +239,16 @@ fn stale_shim_rewrite_replaces_a_symlink_instead_of_writing_through_it() {
     )
     .unwrap();
 
-    assert_eq!(read_to_string(&victim).unwrap(), "precious", "the symlink target is untouched");
+    assert_eq!(
+        read_to_string(&victim).unwrap(),
+        "precious",
+        "the symlink target is untouched",
+    );
     assert!(
-        !std::fs::symlink_metadata(bins_dir.join("foo")).unwrap().file_type().is_symlink(),
+        !std::fs::symlink_metadata(bins_dir.join("foo"))
+            .unwrap()
+            .file_type()
+            .is_symlink(),
         "the shim is a regular file",
     );
     let body = read_to_string(bins_dir.join("foo")).unwrap();

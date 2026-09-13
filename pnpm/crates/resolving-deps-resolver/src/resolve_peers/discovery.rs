@@ -156,8 +156,14 @@ fn discover_peers(
     opts: ResolvePeersOptions,
 ) -> (PeerDiscoveryResult, PeerDiscoveryCaches) {
     let current_provider_sources = discovery_provider_sources(parents_direct, &opts);
-    let mut walker =
-        Walker::new(tree, opts, HashMap::default(), current_provider_sources, caches, true);
+    let mut walker = Walker::new(
+        tree,
+        opts,
+        HashMap::default(),
+        current_provider_sources,
+        caches,
+        true,
+    );
     let root = RootWalk::of(&walker, parents_direct);
     let (own_direct, provider_direct): (Vec<&DirectDep>, Vec<&DirectDep>) = walk_direct
         .iter()
@@ -177,17 +183,7 @@ fn discover_peers(
     // provider is normally resolved at its tree position during the
     // walk above; only one whose position was pruned still needs the
     // root-context fallback.
-    for dep in &provider_direct {
-        if walker.traversal.visited_this_call.contains(&dep.node_id) {
-            continue;
-        }
-        walker.remember_parent_context_if_peer_provider(
-            &dep.alias,
-            &dep.node_id,
-            &root.parent_dep_paths,
-        );
-        result.fold(walker.resolve_node(&dep.node_id, &root.context()));
-    }
+    discover_unvisited_providers(&mut walker, &mut result, &provider_direct, &root);
     walker.drain_pending_canonical_nodes(&root.importer_parents, &root.parent_dep_paths);
     result.peer_dependency_issues = std::mem::take(&mut walker.output.issues);
     result.missing_ancestor_pkg_ids = std::mem::take(&mut walker.output.missing_ancestor_pkg_ids);
@@ -200,7 +196,9 @@ impl PeerDiscoveryResult {
             self.resolved_peer_providers_by_alias.insert(peer_alias, peer_node_id);
         }
         if let Some(summary) = output.subtree_missing_by_pkg
-            && !self.missing_summaries.iter().any(|seen| Arc::ptr_eq(seen, &summary))
+            && !self.missing_summaries
+                .iter()
+                .any(|seen| Arc::ptr_eq(seen, &summary))
         {
             self.missing_summaries.push(summary);
         }
@@ -240,9 +238,27 @@ fn discovery_provider_sources(
             .map(|dep| (dep.alias.clone(), dep.node_id.clone()))
             .collect(),
         declared_direct_dependencies: opts.scope.declared_direct_dependencies.clone(),
-        explicitly_requested_direct_dependencies: opts
-            .scope
+        explicitly_requested_direct_dependencies: opts.scope
             .explicitly_requested_direct_dependencies
             .clone(),
     }]
+}
+
+fn discover_unvisited_providers(
+    walker: &mut Walker<'_>,
+    result: &mut PeerDiscoveryResult,
+    provider_direct: &[&DirectDep],
+    root: &RootWalk,
+) {
+    for dep in provider_direct {
+        if walker.traversal.visited_this_call.contains(&dep.node_id) {
+            continue;
+        }
+        walker.remember_parent_context_if_peer_provider(
+            &dep.alias,
+            &dep.node_id,
+            &root.parent_dep_paths,
+        );
+        result.fold(walker.resolve_node(&dep.node_id, &root.context()));
+    }
 }

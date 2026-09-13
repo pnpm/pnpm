@@ -15,9 +15,10 @@ pub(crate) fn enforce_token_helper_trust(
 ) -> Result<(), LoadWorkspaceYamlError> {
     for (uri, by_scope) in &full.creds_by_scope_by_uri {
         for (scope, raw) in by_scope {
-            let Some(value) = &raw.token_helper else { continue };
-            let trusted_value = trusted
-                .creds_by_scope_by_uri
+            let Some(value) = &raw.token_helper else {
+                continue;
+            };
+            let trusted_value = trusted.creds_by_scope_by_uri
                 .get(uri)
                 .and_then(|by_scope| by_scope.get(scope))
                 .and_then(|raw| raw.token_helper.as_deref());
@@ -63,12 +64,18 @@ pub(super) fn parse_token_helper_field(
 ) -> Result<Option<Vec<String>>, LoadWorkspaceYamlError> {
     let Some(raw) = raw else { return Ok(None) };
     let source = raw.trim();
-    if let Some(character) =
-        source.chars().find(|character| TOKEN_HELPER_RESERVED_CHARACTERS.contains(character))
+    if let Some(character) = source
+        .chars()
+        .find(|character| TOKEN_HELPER_RESERVED_CHARACTERS.contains(character))
     {
-        return Err(LoadWorkspaceYamlError::TokenHelperUnsupportedCharacter { character });
+        return Err(LoadWorkspaceYamlError::TokenHelperUnsupportedCharacter {
+            character,
+        });
     }
-    let command: Vec<String> = source.split_whitespace().map(str::to_owned).collect();
+    let command: Vec<String> = source
+        .split_whitespace()
+        .map(str::to_owned)
+        .collect();
     Ok((!command.is_empty()).then_some(command))
 }
 
@@ -84,8 +91,13 @@ const CREDS_SUFFIXES: &[&str] = &["_authToken", "_auth", "_password", "username"
 /// Auth-suffix keys recognised when parsing an `.npmrc` / `auth.ini`
 /// file. Adds `tokenHelper` to [`CREDS_SUFFIXES`]; the file-vs-env
 /// split is the boundary the trust guard relies on.
-const INI_CREDS_SUFFIXES: &[&str] =
-    &["_authToken", "_auth", "_password", "username", "tokenHelper"];
+const INI_CREDS_SUFFIXES: &[&str] = &[
+    "_authToken",
+    "_auth",
+    "_password",
+    "username",
+    "tokenHelper",
+];
 
 pub(super) fn is_auth_value_key(key: &str) -> bool {
     matches!(
@@ -169,7 +181,10 @@ fn split_scope_from_uri_by_path(uri: &str) -> (String, Option<String>) {
     if !is_package_scope(scope) {
         return (uri.to_owned(), None);
     }
-    (trimmed[..=last_slash_index].to_owned(), Some(scope.to_owned()))
+    (
+        trimmed[..=last_slash_index].to_owned(),
+        Some(scope.to_owned()),
+    )
 }
 
 pub(super) fn is_package_scope(scope: &str) -> bool {
@@ -177,5 +192,9 @@ pub(super) fn is_package_scope(scope: &str) -> bool {
 }
 
 fn normalize_registry_key(registry: &str) -> String {
-    if registry.ends_with('/') { registry.to_owned() } else { format!("{registry}/") }
+    if registry.ends_with('/') {
+        registry.to_owned()
+    } else {
+        format!("{registry}/")
+    }
 }

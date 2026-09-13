@@ -18,7 +18,10 @@ pub struct TestRegistry {
 
 impl TestRegistry {
     pub fn start() -> Self {
-        Self { url: TestRegistryInstance::get().url.clone(), storage: None }
+        Self {
+            url: TestRegistryInstance::get().url.clone(),
+            storage: None,
+        }
     }
 
     pub fn start_with_storage(storage: &Path) -> Self {
@@ -129,7 +132,9 @@ impl TestRegistryInstance {
             .spawn(move || run_registry(config, listener))
             .expect("spawn test registry thread");
 
-        Self { url }
+        Self {
+            url,
+        }
     }
 }
 

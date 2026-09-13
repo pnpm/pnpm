@@ -57,8 +57,11 @@ fn check_flat_specs(
     is_ignored_optional: &dyn Fn(&str) -> bool,
 ) -> Result<(), StalenessReason> {
     let mut manifest_specs = flat_manifest_specs(manifest, is_ignored_optional);
-    manifest_specs
-        .extend(folded_peers.iter().map(|(name, spec)| ((*name).to_string(), (*spec).to_string())));
+    manifest_specs.extend(
+        folded_peers
+            .iter()
+            .map(|(name, spec)| ((*name).to_string(), (*spec).to_string())),
+    );
     let diff = diff_flat_records(&flat_importer_specs(importer), &manifest_specs);
     if diff.is_empty() {
         return Ok(());
@@ -133,13 +136,21 @@ fn check_dependency_fields(
         .dependencies([DependencyGroup::Prod])
         .filter(|(name, _)| !is_ignored_optional(name))
         .collect();
-    manifest_prod.extend(folded_peers.iter().map(|(name, spec)| (*name, *spec)));
+    manifest_prod.extend(
+        folded_peers
+            .iter()
+            .map(|(name, spec)| (*name, *spec)),
+    );
     let manifest_optional: BTreeMap<&str, &str> = manifest
         .dependencies([DependencyGroup::Optional])
         .filter(|(name, _)| !is_ignored_optional(name))
         .collect();
 
-    for field in [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional] {
+    for field in [
+        DependencyGroup::Prod,
+        DependencyGroup::Dev,
+        DependencyGroup::Optional,
+    ] {
         let manifest_field = manifest_field_specs(
             manifest,
             field,
@@ -181,7 +192,11 @@ fn manifest_field_specs<'a>(
         })
         .collect();
     if matches!(field, DependencyGroup::Prod) {
-        specs.extend(folded_peers.iter().map(|(name, spec)| (*name, *spec)));
+        specs.extend(
+            folded_peers
+                .iter()
+                .map(|(name, spec)| (*name, *spec)),
+        );
     }
     specs
 }
@@ -196,16 +211,20 @@ fn check_field_specs(
     let field_name = <&'static str>::from(field);
     for (name, manifest_spec) in manifest_field {
         let parsed = crate::PkgName::parse(*name).ok();
-        let importer_dep =
-            parsed.as_ref().and_then(|name| importer_field.and_then(|map| map.get(name)));
-        let matched = importer_dep
-            .is_some_and(|dep| dependency_specifiers_equal(&dep.specifier, manifest_spec));
+        let importer_dep = parsed
+            .as_ref()
+            .and_then(|name| importer_field.and_then(|map| map.get(name)));
+        let matched = importer_dep.is_some_and(|dep| {
+            dependency_specifiers_equal(&dep.specifier, manifest_spec)
+        });
         if !matched {
             return Err(StalenessReason::DepSpecifierMismatch {
                 field: field_name,
                 name: (*name).to_string(),
-                lockfile: importer_dep
-                    .map_or_else(|| "(absent)".to_string(), |dep| dep.specifier.clone()),
+                lockfile: importer_dep.map_or_else(
+                    || "(absent)".to_string(),
+                    |dep| dep.specifier.clone(),
+                ),
                 manifest: (*manifest_spec).to_string(),
             });
         }
@@ -224,7 +243,10 @@ fn check_resolution_satisfies(
     let (Some(dep), Ok(range)) = (importer_dep, manifest_spec.parse::<node_semver::Range>()) else {
         return Ok(());
     };
-    let Some(version) = dep.version.ver_peer().and_then(|version| version.version_semver()) else {
+    let Some(version) = dep.version
+        .ver_peer()
+        .and_then(|version| version.version_semver())
+    else {
         return Ok(());
     };
     if range.satisfies(version) {
@@ -302,7 +324,11 @@ pub(crate) fn auto_installed_peer_deps(
         return BTreeMap::new();
     }
     let declared: BTreeSet<&str> = manifest
-        .dependencies([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional])
+        .dependencies([
+            DependencyGroup::Prod,
+            DependencyGroup::Dev,
+            DependencyGroup::Optional,
+        ])
         .map(|(name, _)| name)
         .collect();
     manifest
@@ -323,7 +349,11 @@ fn flat_manifest_specs(
     is_ignored_optional: &dyn Fn(&str) -> bool,
 ) -> BTreeMap<String, String> {
     let mut out = BTreeMap::new();
-    for group in [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional] {
+    for group in [
+        DependencyGroup::Dev,
+        DependencyGroup::Prod,
+        DependencyGroup::Optional,
+    ] {
         for (name, spec) in manifest.dependencies([group]) {
             if matches!(group, DependencyGroup::Prod | DependencyGroup::Optional)
                 && is_ignored_optional(name)
@@ -344,7 +374,11 @@ fn flat_manifest_specs(
 /// but doesn't use here).
 fn flat_importer_specs(importer: &ProjectSnapshot) -> BTreeMap<String, String> {
     let mut out = BTreeMap::new();
-    for group in [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional] {
+    for group in [
+        DependencyGroup::Dev,
+        DependencyGroup::Prod,
+        DependencyGroup::Optional,
+    ] {
         if let Some(map) = importer.get_map_by_group(group) {
             for (name, spec) in map {
                 out.insert(name.to_string(), spec.specifier.clone());

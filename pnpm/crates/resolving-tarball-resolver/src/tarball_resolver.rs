@@ -103,8 +103,9 @@ impl TarballResolver {
         // Round-trip through `Url::parse` to drop a redundant default
         // port (`registry.npmjs.org:443` → `registry.npmjs.org`) before
         // it reaches the lockfile.
-        let normalized_bare_specifier =
-            reqwest::Url::parse(bare).map_err(|err| Box::new(err) as ResolveError)?.to_string();
+        let normalized_bare_specifier = reqwest::Url::parse(bare)
+            .map_err(|err| Box::new(err) as ResolveError)?
+            .to_string();
 
         // Warm-store reuse: when the prior
         // lockfile recorded this exact tarball URL with an integrity and
@@ -185,14 +186,16 @@ impl TarballResolver {
     async fn preflight_url(&self, normalized_bare_specifier: &str) -> Result<String, ResolveError> {
         let client = self.http_client.acquire_for_url(normalized_bare_specifier).await;
         let mut request = client.head(normalized_bare_specifier);
-        if let Some(value) = self
-            .fetch_context
+        if let Some(value) = self.fetch_context
             .as_ref()
             .and_then(|ctx| ctx.auth_headers.for_url(normalized_bare_specifier))
         {
             request = request.header("authorization", value);
         }
-        let response = request.send().await.map_err(|err| Box::new(err) as ResolveError)?;
+        let response = request
+            .send()
+            .await
+            .map_err(|err| Box::new(err) as ResolveError)?;
 
         let resolved_url = if response
             .headers()
@@ -284,7 +287,9 @@ fn resolve_latest(query: &LatestQuery) -> Option<LatestInfo> {
     if !is_http_url(bare) {
         return None;
     }
-    Some(LatestInfo { latest_manifest: None })
+    Some(LatestInfo {
+        latest_manifest: None,
+    })
 }
 
 fn is_http_url(bare: &str) -> bool {

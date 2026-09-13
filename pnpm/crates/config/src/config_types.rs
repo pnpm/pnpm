@@ -253,12 +253,23 @@ fn numeric_type_keys() -> &'static HashSet<&'static str> {
 
 fn all_type_keys() -> &'static HashSet<&'static str> {
     static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
-    SET.get_or_init(|| PNPM_TYPES.iter().chain(NPM_CONFIG_TYPES).map(|(key, _)| *key).collect())
+    SET.get_or_init(|| {
+        PNPM_TYPES
+            .iter()
+            .chain(NPM_CONFIG_TYPES)
+            .map(|(key, _)| *key)
+            .collect()
+    })
 }
 
 fn npm_config_type_keys() -> &'static HashSet<&'static str> {
     static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
-    SET.get_or_init(|| NPM_CONFIG_TYPES.iter().map(|(key, _)| *key).collect())
+    SET.get_or_init(|| {
+        NPM_CONFIG_TYPES
+            .iter()
+            .map(|(key, _)| *key)
+            .collect()
+    })
 }
 
 /// Whether `kebab_key` is a known config key (an own key of pnpm's merged

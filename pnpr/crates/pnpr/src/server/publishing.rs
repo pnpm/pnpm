@@ -65,7 +65,10 @@ pub(super) fn resolve_publish_target_for(
     match resolve_ecosystem_source(state, &target, ecosystem, package) {
         RegistrySource::Hosted(registry) => {
             match hosted_gate(state, identity, &registry, package) {
-                HostedGate::Allowed(org) => PublishTarget::Hosted { source: registry, org },
+                HostedGate::Allowed(org) => PublishTarget::Hosted {
+                    source: registry,
+                    org,
+                },
                 HostedGate::MaskNotFound => PublishTarget::NotFound,
                 HostedGate::Denied(err) => PublishTarget::Denied(err),
             }
@@ -142,18 +145,16 @@ pub(super) fn registry_visible_to_caller(
         // The name being probed is unclaimed, so there is no per-package
         // entry to consult: the registry-level default `access:` decides
         // whether the caller may learn the registry exists at all.
-        Some(Registry::Hosted { .. }) => state
-            .inner
-            .config
-            .routing
-            .hosted
+        Some(Registry::Hosted { .. }) => state.inner.config.routing.hosted
             .get(name)
             .is_some_and(|hosted| hosted.rules.default_access().allows(identity)),
         Some(Registry::Upstream { .. }) => true,
         Some(Registry::Router { .. }) | None => false,
     };
     match state.inner.config.routing.registries.get(name) {
-        Some(Registry::Router { sources }) => sources.iter().any(|source| concrete_visible(source)),
+        Some(Registry::Router { sources }) => sources
+            .iter()
+            .any(|source| concrete_visible(source)),
         Some(_) => concrete_visible(name),
         None => false,
     }
@@ -230,8 +231,10 @@ pub(super) async fn serve_batch_publish(
         Err(err) => return RegistryError::Json(err).into_response(),
     };
     let Value::Object(mut incoming) = incoming else {
-        return RegistryError::BadRequest { reason: "body must be a JSON object".to_string() }
-            .into_response();
+        return RegistryError::BadRequest {
+            reason: "body must be a JSON object".to_string(),
+        }
+        .into_response();
     };
     let Some(Value::Array(docs)) = incoming.remove("packages") else {
         return RegistryError::BadRequest {
@@ -240,8 +243,10 @@ pub(super) async fn serve_batch_publish(
         .into_response();
     };
     if docs.is_empty() {
-        return RegistryError::BadRequest { reason: "`packages` must not be empty".to_string() }
-            .into_response();
+        return RegistryError::BadRequest {
+            reason: "`packages` must not be empty".to_string(),
+        }
+        .into_response();
     }
 
     let validated = match validate_batch_docs(&state, &identity, docs).await {
@@ -252,7 +257,10 @@ pub(super) async fn serve_batch_publish(
     // Hold every affected package's lock across the whole
     // stage-and-commit, so concurrent writers of any package in the
     // batch serialize with us just like with a single publish.
-    let names: Vec<&str> = validated.iter().map(|(doc, _)| doc.name.as_str()).collect();
+    let names: Vec<&str> = validated
+        .iter()
+        .map(|(doc, _)| doc.name.as_str())
+        .collect();
     let _guards = state.inner.locks.packages.lock_many(&names).await;
 
     let staged = match stage_batch(&state, validated).await {
@@ -363,14 +371,14 @@ pub(super) async fn commit_publishes(
             revision_refs: &stage.revision_refs,
         })
         .collect();
-    let outcome = state
-        .inner
-        .storage
+    let outcome = state.inner.storage
         .publish_journal()
         .commit(&state.inner.storage, &entries, &RegistryDocuments)
         .await?;
     match outcome.reference_limit {
-        Some(limit) => Err(RegistryError::RevisionReferenceLimit { limit }),
+        Some(limit) => Err(RegistryError::RevisionReferenceLimit {
+            limit,
+        }),
         None => Ok(outcome),
     }
 }
@@ -381,17 +389,25 @@ pub(super) async fn commit_publishes(
 /// is named with its ecosystem, since the same name in two of them is two
 /// packages.
 pub(super) fn report_unrecorded(outcome: CommitOutcome) -> Result<(), RegistryError> {
-    let mut missing: BTreeSet<String> = outcome
-        .unrecorded
+    let mut missing: BTreeSet<String> = outcome.unrecorded
         .into_iter()
-        .chain(outcome.lost_blobs.into_iter().map(|lost| lost.package))
+        .chain(
+            outcome.lost_blobs
+                .into_iter()
+                .map(|lost| lost.package),
+        )
         .map(|package| format!("{} {}", package.ecosystem, package.name))
         .collect();
     let Some(first) = missing.pop_first() else {
         return Ok(());
     };
-    let packages = std::iter::once(first).chain(missing).collect::<Vec<_>>().join(", ");
-    Err(RegistryError::PublishNotRecorded { packages })
+    let packages = std::iter::once(first)
+        .chain(missing)
+        .collect::<Vec<_>>()
+        .join(", ");
+    Err(RegistryError::PublishNotRecorded {
+        packages,
+    })
 }
 
 pub(super) fn publish_created_response() -> Response {

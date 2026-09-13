@@ -198,7 +198,9 @@ fn matches_npm_semver_under_include_prerelease() {
         let satisfies = IncludePrereleaseRange::parse(range)
             .satisfies(&version.parse().expect("valid version"));
         if satisfies != *expected {
-            divergences.push(format!("{range} vs {version}: expected {expected}, got {satisfies}"));
+            divergences.push(format!(
+                "{range} vs {version}: expected {expected}, got {satisfies}",
+            ));
         }
     }
     assert!(divergences.is_empty(), "{}", divergences.join("\n"));
@@ -212,6 +214,9 @@ fn matches_npm_semver_under_include_prerelease() {
 fn matches_nothing_when_a_bound_names_an_out_of_range_component() {
     for range in ["<=18446744073709551615", "<=18.18446744073709551615"] {
         let version = "1.0.0".parse().expect("valid version");
-        assert!(!IncludePrereleaseRange::parse(range).satisfies(&version), "{range}");
+        assert!(
+            !IncludePrereleaseRange::parse(range).satisfies(&version),
+            "{range}",
+        );
     }
 }

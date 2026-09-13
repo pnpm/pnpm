@@ -44,17 +44,27 @@ pub(super) fn lockfile_to_dep_graph(
         let children = crate::deps_graph::build_children_with(snapshot, |alias, dep_ref| {
             child_graph_key(alias, dep_ref, lockfile_dir)
         });
-        link_target_nodes
-            .extend(children.values().filter(|child_key| child_key.starts_with("link:")).cloned());
+        link_target_nodes.extend(
+            children
+                .values()
+                .filter(|child_key| child_key.starts_with("link:"))
+                .cloned(),
+        );
         graph.insert(
             snapshot_key.to_string(),
-            DepsGraphNode { full_pkg_id: full_pkg_id_of(snapshot_key, packages), children },
+            DepsGraphNode {
+                full_pkg_id: full_pkg_id_of(snapshot_key, packages),
+                children,
+            },
         );
     }
     for link_target_node in link_target_nodes {
         graph.insert(
             link_target_node.clone(),
-            DepsGraphNode { full_pkg_id: link_target_node, children: IndexMap::default() },
+            DepsGraphNode {
+                full_pkg_id: link_target_node,
+                children: IndexMap::default(),
+            },
         );
     }
     graph
@@ -196,7 +206,10 @@ impl<'h> GvsHasher<'h> {
             return hasher.update([0_u8]);
         };
         hasher.update([1_u8]);
-        let mut sorted: Vec<&str> = paths.iter().map(String::as_str).collect();
+        let mut sorted: Vec<&str> = paths
+            .iter()
+            .map(String::as_str)
+            .collect();
         sorted.sort_unstable();
         write_field(hasher, &sorted.join("\u{0}"));
     }
@@ -252,7 +265,11 @@ impl<'h> GvsHasher<'h> {
             &snapshot_key.to_string(),
             own_engine.as_deref().or(self.engine),
             self.build_required_dep_paths.as_ref(),
-            local_directory_scope(metadata, &metadata_key.suffix, self.project_scope.as_deref()),
+            local_directory_scope(
+                metadata,
+                &metadata_key.suffix,
+                self.project_scope.as_deref(),
+            ),
         );
         format_global_virtual_store_path(
             &metadata_key.name.to_string(),

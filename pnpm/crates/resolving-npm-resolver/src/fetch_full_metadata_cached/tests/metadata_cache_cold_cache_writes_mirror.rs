@@ -51,7 +51,12 @@ async fn cold_cache_writes_mirror_on_200() {
 #[tokio::test]
 async fn offline_with_mirror_reads_cache_without_registry() {
     let mut server = mockito::Server::new_async().await;
-    let no_network = server.mock("GET", "/acme").with_status(500).expect(0).create_async().await;
+    let no_network = server
+        .mock("GET", "/acme")
+        .with_status(500)
+        .expect(0)
+        .create_async()
+        .await;
 
     let cache = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
@@ -81,7 +86,12 @@ async fn offline_with_mirror_reads_cache_without_registry() {
 #[tokio::test]
 async fn offline_without_mirror_errors_without_registry() {
     let mut server = mockito::Server::new_async().await;
-    let no_network = server.mock("GET", "/acme").with_status(500).expect(0).create_async().await;
+    let no_network = server
+        .mock("GET", "/acme")
+        .with_status(500)
+        .expect(0)
+        .create_async()
+        .await;
 
     let cache = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
@@ -441,7 +451,10 @@ async fn filtered_full_cache_writes_filtered_mirror_on_200() {
     assert!(mirror_path.exists(), "filtered mirror file written");
     let unfiltered_path =
         get_pkg_mirror_path(cache.path(), FULL_META_DIR, &registry, "acme").expect("full path");
-    assert!(!unfiltered_path.exists(), "unfiltered mirror must not be written");
+    assert!(
+        !unfiltered_path.exists(),
+        "unfiltered mirror must not be written",
+    );
     let persisted = load_meta(&mirror_path).expect("mirror readable");
     let manifest = persisted.versions.get("1.0.0").expect("manifest");
     assert!(!manifest.other.contains_key("readme"));
@@ -453,15 +466,20 @@ async fn a_doc_served_with_the_abbreviated_content_type_is_cached_verbatim() {
     let mut server = mockito::Server::new_async().await;
     // A custom per-version field proves the fragment is mirrored verbatim
     // (no stripping) on the honored-header happy path.
-    let abbreviated_body =
-        PACKAGE_BODY.replace(r#""dist": {"#, r#""_cacheUntouchedMarker": "kept", "dist": {"#);
+    let abbreviated_body = PACKAGE_BODY.replace(
+        r#""dist": {"#,
+        r#""_cacheUntouchedMarker": "kept", "dist": {"#,
+    );
     let mock = server
         .mock("GET", "/acme")
         .match_header("accept", ACCEPT_ABBREVIATED)
         .with_status(200)
         // Uppercase + a parameter: media-type detection must be
         // case-insensitive and drop parameters.
-        .with_header("content-type", "APPLICATION/VND.NPM.INSTALL-V1+JSON; charset=utf-8")
+        .with_header(
+            "content-type",
+            "APPLICATION/VND.NPM.INSTALL-V1+JSON; charset=utf-8",
+        )
         .with_body(abbreviated_body)
         .expect(1)
         .create_async()
@@ -541,7 +559,10 @@ async fn warm_cache_serves_from_mirror_on_304() {
         fetch_full_metadata_cached("acme", &opts).await.expect("304 reads from mirror");
     second.assert_async().await;
     assert_eq!(second_pkg.name, "acme");
-    assert_eq!(second_pkg.published_at("1.0.0"), Some("2025-01-10T08:30:00.000Z"));
+    assert_eq!(
+        second_pkg.published_at("1.0.0"),
+        Some("2025-01-10T08:30:00.000Z"),
+    );
 }
 
 #[tokio::test]
@@ -596,7 +617,10 @@ async fn a_304_renews_the_mirror_mtime() {
 
     fetch_full_metadata_cached("acme", &opts).await.expect("304 reads from mirror");
 
-    let renewed = std::fs::metadata(&mirror_path).expect("stat mirror").modified().expect("mtime");
+    let renewed = std::fs::metadata(&mirror_path)
+        .expect("stat mirror")
+        .modified()
+        .expect("mtime");
     let age = std::time::SystemTime::now().duration_since(renewed).expect("mtime in the past");
     assert!(
         age < std::time::Duration::from_mins(1),
@@ -704,7 +728,12 @@ async fn read_only_cache_dir_does_not_fail_the_call() {
         .await;
 
     let cache = TempDir::new().expect("tempdir");
-    let mode = cache.path().metadata().expect("stat").permissions().mode();
+    let mode = cache
+        .path()
+        .metadata()
+        .expect("stat")
+        .permissions()
+        .mode();
     fs::set_permissions(cache.path(), fs::Permissions::from_mode(0o555)).expect("set read-only");
 
     let registry = format!("{}/", server.url());

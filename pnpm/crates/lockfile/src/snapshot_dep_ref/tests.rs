@@ -41,20 +41,27 @@ fn parse_alias_scoped_target() {
 #[test]
 fn parse_alias_with_peer_suffix() {
     let dep: SnapshotDepRef = "react-dom@17.0.2(react@17.0.2)".parse().unwrap();
-    assert_eq!(dep, SnapshotDepRef::Alias(key("react-dom@17.0.2(react@17.0.2)")));
+    assert_eq!(
+        dep,
+        SnapshotDepRef::Alias(key("react-dom@17.0.2(react@17.0.2)")),
+    );
 }
 
 #[test]
 fn resolve_plain_uses_alias_key_as_target_name() {
     let dep: SnapshotDepRef = "5.1.2".parse().unwrap();
-    let resolved = dep.resolve(&pkg_name("string-width")).expect("plain resolves");
+    let resolved = dep
+        .resolve(&pkg_name("string-width"))
+        .expect("plain resolves");
     assert_eq!(resolved.to_string(), "string-width@5.1.2");
 }
 
 #[test]
 fn resolve_alias_uses_alias_target_name_not_key() {
     let dep: SnapshotDepRef = "string-width@4.2.3".parse().unwrap();
-    let resolved = dep.resolve(&pkg_name("string-width-cjs")).expect("alias resolves");
+    let resolved = dep
+        .resolve(&pkg_name("string-width-cjs"))
+        .expect("alias resolves");
     assert_eq!(resolved.to_string(), "string-width@4.2.3");
 }
 
@@ -120,10 +127,16 @@ fn looks_like_alias_rules() {
 #[test]
 fn ver_peer_returns_inner_version_for_each_variant() {
     let plain: SnapshotDepRef = "17.0.2(react@17.0.2)".parse().unwrap();
-    assert_eq!(plain.ver_peer().map(ToString::to_string), Some("17.0.2(react@17.0.2)".to_string()));
+    assert_eq!(
+        plain.ver_peer().map(ToString::to_string),
+        Some("17.0.2(react@17.0.2)".to_string()),
+    );
 
     let alias: SnapshotDepRef = "react-dom@17.0.2(react@17.0.2)".parse().unwrap();
-    assert_eq!(alias.ver_peer().map(ToString::to_string), Some("17.0.2(react@17.0.2)".to_string()));
+    assert_eq!(
+        alias.ver_peer().map(ToString::to_string),
+        Some("17.0.2(react@17.0.2)".to_string()),
+    );
 
     let link: SnapshotDepRef = "link:packages/c".parse().unwrap();
     assert_eq!(link.ver_peer(), None);

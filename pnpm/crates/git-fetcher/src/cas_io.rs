@@ -142,7 +142,10 @@ pub(crate) fn import_into_cas(
             },
         );
     }
-    Ok(ImportedFiles { cas_paths, files_index })
+    Ok(ImportedFiles {
+        cas_paths,
+        files_index,
+    })
 }
 
 /// POSIX file mode (`meta.mode() & 0o777`) on Unix; a fixed `0o644`
@@ -180,14 +183,15 @@ pub(crate) fn synthesize_files_index(
 ) -> Result<HashMap<String, CafsFileInfo>, GitFetcherError> {
     let mut out = HashMap::with_capacity(cas_paths.len());
     for (rel, cas_path) in cas_paths {
-        let digest = cas_path_digest(cas_path).ok_or_else(|| {
-            GitFetcherError::Io(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!(
-                    "CAS path {cas_path:?} for {rel:?} does not match `files/XX/<rest>[-exec]`",
-                ),
-            ))
-        })?;
+        let digest = cas_path_digest(cas_path)
+            .ok_or_else(|| {
+                GitFetcherError::Io(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!(
+                        "CAS path {cas_path:?} for {rel:?} does not match `files/XX/<rest>[-exec]`",
+                    ),
+                ))
+            })?;
         let executable = cas_path_is_executable(cas_path);
         // Match the read-side `cas_file_path_by_mode` round-trip rule:
         // any-exec-bit-set ↔ `-exec` suffix. The exact mode value is
@@ -197,7 +201,15 @@ pub(crate) fn synthesize_files_index(
         let mode = if executable { 0o755 } else { 0o644 };
         let metadata = fs::metadata(cas_path).map_err(GitFetcherError::Io)?;
         let size = metadata.len();
-        out.insert(rel.clone(), CafsFileInfo { digest, mode, size, checked_at: None });
+        out.insert(
+            rel.clone(),
+            CafsFileInfo {
+                digest,
+                mode,
+                size,
+                checked_at: None,
+            },
+        );
     }
     Ok(out)
 }
@@ -217,11 +229,22 @@ fn cas_path_digest(path: &Path) -> Option<String> {
     const STEM_LEN: usize = 128 - 2;
     let file_name = path.file_name()?.to_str()?;
     let stem = file_name.strip_suffix("-exec").unwrap_or(file_name);
-    let shard = path.parent()?.file_name()?.to_str()?;
-    if shard.len() != 2 || !shard.bytes().all(|b| b.is_ascii_hexdigit()) {
+    let shard = path
+        .parent()?
+        .file_name()?
+        .to_str()?;
+    if shard.len() != 2
+        || !shard
+            .bytes()
+            .all(|b| b.is_ascii_hexdigit())
+    {
         return None;
     }
-    if stem.len() != STEM_LEN || !stem.bytes().all(|b| b.is_ascii_hexdigit()) {
+    if stem.len() != STEM_LEN
+        || !stem
+            .bytes()
+            .all(|b| b.is_ascii_hexdigit())
+    {
         return None;
     }
     Some(format!("{shard}{stem}"))

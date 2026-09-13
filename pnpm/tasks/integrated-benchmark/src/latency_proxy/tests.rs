@@ -22,7 +22,11 @@ fn binds_to_requested_listen_addr() {
     let listen = reserved.local_addr().expect("listen addr");
     drop(reserved);
 
-    let profile = LinkProfile { one_way: Duration::ZERO, rate_limit: None, slow_start: false };
+    let profile = LinkProfile {
+        one_way: Duration::ZERO,
+        rate_limit: None,
+        slow_start: false,
+    };
     let proxy = LatencyProxy::spawn_on(listen, upstream_addr, profile).expect("spawn proxy");
     assert_eq!(proxy.addr, listen);
 
@@ -55,8 +59,11 @@ fn injects_round_trip_latency() {
         socket.write_all(b"pong").expect("write reply");
     });
 
-    let profile =
-        LinkProfile { one_way: Duration::from_millis(60), rate_limit: None, slow_start: false };
+    let profile = LinkProfile {
+        one_way: Duration::from_millis(60),
+        rate_limit: None,
+        slow_start: false,
+    };
     let proxy = LatencyProxy::spawn(upstream_addr, profile).expect("spawn proxy");
 
     let mut client = TcpStream::connect(proxy.addr).expect("connect to proxy");
@@ -89,13 +96,18 @@ fn caps_throughput_to_the_rate_limit() {
         let (mut socket, _) = upstream.accept().expect("accept");
         let mut scratch = [0u8; 64];
         let _ = socket.read(&mut scratch);
-        socket.write_all(&vec![0u8; PAYLOAD]).expect("write payload");
+        socket
+            .write_all(&vec![0u8; PAYLOAD])
+            .expect("write payload");
     });
 
     // No latency, only a bandwidth cap, so the wall time is the
     // serialization delay alone.
-    let profile =
-        LinkProfile { one_way: Duration::ZERO, rate_limit: Some(RATE), slow_start: false };
+    let profile = LinkProfile {
+        one_way: Duration::ZERO,
+        rate_limit: Some(RATE),
+        slow_start: false,
+    };
     let proxy = LatencyProxy::spawn(upstream_addr, profile).expect("spawn proxy");
 
     let mut client = TcpStream::connect(proxy.addr).expect("connect to proxy");
@@ -138,11 +150,16 @@ fn slow_start_ramps_per_connection_throughput() {
             let (mut socket, _) = upstream.accept().expect("accept");
             let mut buf = [0u8; 64];
             let _ = socket.read(&mut buf).expect("read request");
-            socket.write_all(&vec![0u8; PAYLOAD]).expect("write payload");
+            socket
+                .write_all(&vec![0u8; PAYLOAD])
+                .expect("write payload");
         });
 
-        let profile =
-            LinkProfile { one_way: Duration::from_millis(20), rate_limit: Some(RATE), slow_start };
+        let profile = LinkProfile {
+            one_way: Duration::from_millis(20),
+            rate_limit: Some(RATE),
+            slow_start,
+        };
         let proxy = LatencyProxy::spawn(upstream_addr, profile).expect("spawn proxy");
 
         let mut client = TcpStream::connect(proxy.addr).expect("connect to proxy");
@@ -162,7 +179,10 @@ fn slow_start_ramps_per_connection_throughput() {
     };
 
     let best_of = |samples: u32, slow_start: bool| {
-        (0..samples).map(|_| timed_transfer(slow_start)).min().expect("at least one sample")
+        (0..samples)
+            .map(|_| timed_transfer(slow_start))
+            .min()
+            .expect("at least one sample")
     };
     // Flat: ~2×20ms latency + 256KiB/10MB/s ≈ 66 ms. Ramped: the first
     // windows (14.6 KB and doubling) each serialize at cwnd/RTT, adding ~3-4

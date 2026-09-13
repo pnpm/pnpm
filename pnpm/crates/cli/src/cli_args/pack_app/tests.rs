@@ -41,20 +41,32 @@ fn pacquet_tokio_block_on<Fut: std::future::Future>(future: Fut) -> Fut::Output 
 }
 
 fn diagnostic_code(report: impl Into<miette::Report>) -> String {
-    report.into().code().map(|code| code.to_string()).unwrap_or_default()
+    report
+        .into()
+        .code()
+        .map(|code| code.to_string())
+        .unwrap_or_default()
 }
 
 #[test]
 fn fails_fast_when_no_entry_is_provided() {
     let dir = TempDir::new().unwrap();
-    assert_eq!(run_and_get_code(&dir, args()), "ERR_PNPM_PACK_APP_MISSING_ENTRY");
+    assert_eq!(
+        run_and_get_code(&dir, args()),
+        "ERR_PNPM_PACK_APP_MISSING_ENTRY",
+    );
 }
 
 #[test]
 fn fails_fast_when_the_entry_file_does_not_exist() {
     let dir = TempDir::new().unwrap();
-    let code =
-        run_and_get_code(&dir, PackAppArgs { entry: Some("missing.cjs".to_string()), ..args() });
+    let code = run_and_get_code(
+        &dir,
+        PackAppArgs {
+            entry: Some("missing.cjs".to_string()),
+            ..args()
+        },
+    );
     assert_eq!(code, "ERR_PNPM_PACK_APP_ENTRY_NOT_FOUND");
 }
 
@@ -62,8 +74,13 @@ fn fails_fast_when_the_entry_file_does_not_exist() {
 fn fails_fast_when_the_entry_path_is_a_directory() {
     let dir = TempDir::new().unwrap();
     fs::create_dir(dir.path().join("entry-dir")).unwrap();
-    let code =
-        run_and_get_code(&dir, PackAppArgs { entry: Some("entry-dir".to_string()), ..args() });
+    let code = run_and_get_code(
+        &dir,
+        PackAppArgs {
+            entry: Some("entry-dir".to_string()),
+            ..args()
+        },
+    );
     assert_eq!(code, "ERR_PNPM_PACK_APP_ENTRY_NOT_FILE");
 }
 
@@ -78,7 +95,10 @@ fn reads_entry_from_pnpm_app_entry_when_entry_is_omitted() {
     fs::write(dir.path().join("from-config.cjs"), "module.exports = {}").unwrap();
     // With entry from config but no target, we hit MISSING_TARGET — enough
     // to prove the entry was picked up from pnpm.app.entry.
-    assert_eq!(run_and_get_code(&dir, args()), "ERR_PNPM_PACK_APP_MISSING_TARGET");
+    assert_eq!(
+        run_and_get_code(&dir, args()),
+        "ERR_PNPM_PACK_APP_MISSING_TARGET",
+    );
 }
 
 #[test]
@@ -90,17 +110,36 @@ fn reads_targets_from_pnpm_app_targets_when_target_is_omitted() {
     )
     .unwrap();
     fs::write(dir.path().join("entry.cjs"), "module.exports = {}").unwrap();
-    let code =
-        run_and_get_code(&dir, PackAppArgs { entry: Some("entry.cjs".to_string()), ..args() });
+    let code = run_and_get_code(
+        &dir,
+        PackAppArgs {
+            entry: Some("entry.cjs".to_string()),
+            ..args()
+        },
+    );
     assert_eq!(code, "ERR_PNPM_PACK_APP_INVALID_TARGET");
 }
 
 #[test]
 fn rejects_entry_that_escapes_the_project() {
-    for entry in ["../outside.cjs", "../../etc/passwd", "/etc/passwd", "sub/../../escape.cjs"] {
+    for entry in [
+        "../outside.cjs",
+        "../../etc/passwd",
+        "/etc/passwd",
+        "sub/../../escape.cjs",
+    ] {
         let dir = TempDir::new().unwrap();
-        let code = run_and_get_code(&dir, PackAppArgs { entry: Some(entry.to_string()), ..args() });
-        assert_eq!(code, "ERR_PNPM_PACK_APP_ENTRY_OUTSIDE_PROJECT", "entry: {entry}");
+        let code = run_and_get_code(
+            &dir,
+            PackAppArgs {
+                entry: Some(entry.to_string()),
+                ..args()
+            },
+        );
+        assert_eq!(
+            code, "ERR_PNPM_PACK_APP_ENTRY_OUTSIDE_PROJECT",
+            "entry: {entry}",
+        );
     }
 }
 
@@ -134,8 +173,13 @@ fn rejects_entry_symlinked_outside_the_project() {
     let secret = outside.path().join("secret.cjs");
     fs::write(&secret, "module.exports = {}").unwrap();
     std::os::unix::fs::symlink(&secret, dir.path().join("entry.cjs")).unwrap();
-    let code =
-        run_and_get_code(&dir, PackAppArgs { entry: Some("entry.cjs".to_string()), ..args() });
+    let code = run_and_get_code(
+        &dir,
+        PackAppArgs {
+            entry: Some("entry.cjs".to_string()),
+            ..args()
+        },
+    );
     assert_eq!(code, "ERR_PNPM_PACK_APP_ENTRY_OUTSIDE_PROJECT");
 }
 
@@ -166,7 +210,10 @@ fn signer_resolution_skips_project_local_binaries() {
     let project = TempDir::new().unwrap();
     let outside = TempDir::new().unwrap();
     // A repo-controlled `node_modules/.bin/ldid` and a trusted system one.
-    let bin_dir = project.path().join("node_modules").join(".bin");
+    let bin_dir = project
+        .path()
+        .join("node_modules")
+        .join(".bin");
     fs::create_dir_all(&bin_dir).unwrap();
     let project_ldid = bin_dir.join("ldid");
     fs::write(&project_ldid, "#!/bin/sh\n").unwrap();
@@ -195,7 +242,10 @@ fn rejects_output_file_that_is_a_preexisting_symlink() {
     fs::write(dir.path().join("entry.cjs"), "module.exports = {}").unwrap();
     // The committed output path `dist-app/linux-x64/app` is a symlink to a
     // file outside the project; `node --build-sea` must not write through it.
-    let target_dir = dir.path().join("dist-app").join("linux-x64");
+    let target_dir = dir
+        .path()
+        .join("dist-app")
+        .join("linux-x64");
     fs::create_dir_all(&target_dir).unwrap();
     std::os::unix::fs::symlink(&victim, target_dir.join("app")).unwrap();
     let code = run_and_get_code(
@@ -219,7 +269,10 @@ fn rejects_unknown_keys_in_pnpm_app() {
     )
     .unwrap();
     fs::write(dir.path().join("entry.cjs"), "module.exports = {}").unwrap();
-    assert_eq!(run_and_get_code(&dir, args()), "ERR_PNPM_PACK_APP_INVALID_CONFIG");
+    assert_eq!(
+        run_and_get_code(&dir, args()),
+        "ERR_PNPM_PACK_APP_INVALID_CONFIG",
+    );
 }
 
 #[test]
@@ -234,7 +287,10 @@ fn rejects_malformed_pnpm_app() {
         let dir = TempDir::new().unwrap();
         fs::write(dir.path().join("package.json"), manifest).unwrap();
         let code = diagnostic_code(read_project_app_config(dir.path()).unwrap_err());
-        assert_eq!(code, "ERR_PNPM_PACK_APP_INVALID_CONFIG", "manifest: {manifest}");
+        assert_eq!(
+            code, "ERR_PNPM_PACK_APP_INVALID_CONFIG",
+            "manifest: {manifest}",
+        );
     }
 }
 
@@ -254,7 +310,11 @@ fn rejects_invalid_targets() {
     ];
     for target in cases {
         let err = parse_target(target).unwrap_err();
-        assert_eq!(diagnostic_code(err), "ERR_PNPM_PACK_APP_INVALID_TARGET", "target: {target}");
+        assert_eq!(
+            diagnostic_code(err),
+            "ERR_PNPM_PACK_APP_INVALID_TARGET",
+            "target: {target}",
+        );
     }
 }
 
@@ -266,8 +326,17 @@ fn rejects_musl_on_non_linux() {
 
 #[test]
 fn accepts_valid_targets() {
-    for target in ["linux-x64", "linux-x64-musl", "linux-arm64", "darwin-arm64", "win32-x64"] {
-        assert!(parse_target(target).is_ok(), "target should be valid: {target}");
+    for target in [
+        "linux-x64",
+        "linux-x64-musl",
+        "linux-arm64",
+        "darwin-arm64",
+        "win32-x64",
+    ] {
+        assert!(
+            parse_target(target).is_ok(),
+            "target should be valid: {target}",
+        );
     }
 }
 
@@ -275,7 +344,11 @@ fn accepts_valid_targets() {
 fn rejects_invalid_runtimes() {
     for runtime in ["22", "22.0.0", "bun@1.0.0", "node@", "@", "NODE@22"] {
         let err = parse_runtime(runtime).unwrap_err();
-        assert_eq!(diagnostic_code(err), "ERR_PNPM_PACK_APP_INVALID_RUNTIME", "runtime: {runtime}");
+        assert_eq!(
+            diagnostic_code(err),
+            "ERR_PNPM_PACK_APP_INVALID_RUNTIME",
+            "runtime: {runtime}",
+        );
     }
 }
 
@@ -310,31 +383,46 @@ fn rejects_invalid_output_names() {
         "tool ",
     ];
     for name in cases {
-        assert!(validate_output_name(name).is_err(), "output name should be rejected: {name:?}");
+        assert!(
+            validate_output_name(name).is_err(),
+            "output name should be rejected: {name:?}",
+        );
     }
 }
 
 #[test]
 fn accepts_valid_output_names() {
     for name in ["mytool", "my-tool", "my_tool", "tool.exe", "com0", "lpt0"] {
-        assert!(validate_output_name(name).is_ok(), "output name should be accepted: {name:?}");
+        assert!(
+            validate_output_name(name).is_ok(),
+            "output name should be accepted: {name:?}",
+        );
     }
 }
 
 #[test]
 fn reserved_windows_names_are_detected() {
-    for name in ["CON", "con", "PRN", "AUX", "NUL", "COM1", "LPT9", "nul.exe", "com1.txt"] {
+    for name in [
+        "CON", "con", "PRN", "AUX", "NUL", "COM1", "LPT9", "nul.exe", "com1.txt",
+    ] {
         assert!(is_reserved_windows_name(name), "should be reserved: {name}");
     }
     for name in ["com0", "lpt0", "common", "console", "com10"] {
-        assert!(!is_reserved_windows_name(name), "should not be reserved: {name}");
+        assert!(
+            !is_reserved_windows_name(name),
+            "should not be reserved: {name}",
+        );
     }
 }
 
 #[test]
 fn output_name_falls_back_to_unscoped_package_name() {
     let dir = TempDir::new().unwrap();
-    fs::write(dir.path().join("package.json"), r#"{"name":"@scope/my-app"}"#).unwrap();
+    fs::write(
+        dir.path().join("package.json"),
+        r#"{"name":"@scope/my-app"}"#,
+    )
+    .unwrap();
     let project = read_project_app_config(dir.path()).unwrap();
     let name = super::derive_output_name_from_package(&project, dir.path()).unwrap();
     assert_eq!(name, "my-app");

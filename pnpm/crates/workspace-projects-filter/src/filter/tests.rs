@@ -51,7 +51,10 @@ fn node(root: &str, name: &str, deps: &[&str]) -> (PathBuf, ProjectGraphNode<Tes
                 deps: Vec::new(),
                 dev_deps: Vec::new(),
             },
-            dependencies: deps.iter().map(PathBuf::from).collect(),
+            dependencies: deps
+                .iter()
+                .map(PathBuf::from)
+                .collect(),
         },
     )
 }
@@ -67,7 +70,10 @@ fn node_at(root: &Path, name: &str, deps: &[&Path]) -> (PathBuf, ProjectGraphNod
                 deps: Vec::new(),
                 dev_deps: Vec::new(),
             },
-            dependencies: deps.iter().map(|dep| dep.to_path_buf()).collect(),
+            dependencies: deps
+                .iter()
+                .map(|dep| dep.to_path_buf())
+                .collect(),
         },
     )
 }
@@ -87,8 +93,16 @@ fn filter_projects_options() -> FilterProjectsOptions {
 fn projects_graph() -> ProjectGraph<TestPkg> {
     let mut graph: ProjectGraph<TestPkg> = IndexMap::new();
     for (key, value) in [
-        node("/packages/project-0", "project-0", &["/packages/project-1", "/project-5"]),
-        node("/packages/project-1", "project-1", &["/project-2", "/project-4"]),
+        node(
+            "/packages/project-0",
+            "project-0",
+            &["/packages/project-1", "/project-5"],
+        ),
+        node(
+            "/packages/project-1",
+            "project-1",
+            &["/project-2", "/project-4"],
+        ),
         node("/project-2", "project-2", &[]),
         node("/project-3", "project-3", &[]),
         node("/project-4", "project-4", &[]),
@@ -101,7 +115,10 @@ fn projects_graph() -> ProjectGraph<TestPkg> {
 }
 
 fn selector(name_pattern: Option<&str>) -> ProjectSelector {
-    ProjectSelector { name_pattern: name_pattern.map(str::to_string), ..Default::default() }
+    ProjectSelector {
+        name_pattern: name_pattern.map(str::to_string),
+        ..Default::default()
+    }
 }
 
 fn selected(graph: &ProjectGraph<TestPkg>, selectors: &[ProjectSelector]) -> Vec<String> {
@@ -117,7 +134,10 @@ fn selected_with_glob(graph: &ProjectGraph<TestPkg>, selectors: &[ProjectSelecto
     filter_workspace_projects(
         graph,
         selectors,
-        &FilterWorkspaceProjectsOptions { use_glob_dir_filtering: true, ..Default::default() },
+        &FilterWorkspaceProjectsOptions {
+            use_glob_dir_filtering: true,
+            ..Default::default()
+        },
     )
     .expect("filter should succeed")
     .selected_projects
@@ -199,7 +219,13 @@ fn select_package_with_dependencies_and_dependents() {
     );
     assert_eq!(
         result,
-        ["/project-2", "/project-4", "/packages/project-0", "/packages/project-1", "/project-5"],
+        [
+            "/project-2",
+            "/project-4",
+            "/packages/project-0",
+            "/packages/project-1",
+            "/project-5"
+        ],
     );
 }
 
@@ -216,7 +242,10 @@ fn select_package_with_dependents() {
             ..selector(Some("project-2"))
         }],
     );
-    assert_eq!(result, ["/project-2", "/packages/project-1", "/packages/project-0"]);
+    assert_eq!(
+        result,
+        ["/project-2", "/packages/project-1", "/packages/project-0"],
+    );
 }
 
 #[test]
@@ -260,7 +289,15 @@ fn two_selectors_dependencies_and_dependents() {
             },
         ],
     );
-    assert_eq!(result, ["/project-2", "/project-4", "/packages/project-1", "/packages/project-0"]);
+    assert_eq!(
+        result,
+        [
+            "/project-2",
+            "/project-4",
+            "/packages/project-1",
+            "/packages/project-0"
+        ],
+    );
 }
 
 #[test]
@@ -273,7 +310,10 @@ fn select_just_a_package_by_name() {
 #[test]
 fn select_package_without_specifying_scope() {
     let mut graph: ProjectGraph<TestPkg> = IndexMap::new();
-    graph.insert(PathBuf::from("/packages/bar"), node("/packages/bar", "@foo/bar", &[]).1);
+    graph.insert(
+        PathBuf::from("/packages/bar"),
+        node("/packages/bar", "@foo/bar", &[]).1,
+    );
     let result = selected(&graph, &[selector(Some("bar"))]);
     assert_eq!(result, ["/packages/bar"]);
 }
@@ -281,9 +321,14 @@ fn select_package_without_specifying_scope() {
 #[test]
 fn scoped_package_with_same_name_picks_exact_match() {
     let mut graph: ProjectGraph<TestPkg> = IndexMap::new();
-    graph
-        .insert(PathBuf::from("/packages/@foo/bar"), node("/packages/@foo/bar", "@foo/bar", &[]).1);
-    graph.insert(PathBuf::from("/packages/bar"), node("/packages/bar", "bar", &[]).1);
+    graph.insert(
+        PathBuf::from("/packages/@foo/bar"),
+        node("/packages/@foo/bar", "@foo/bar", &[]).1,
+    );
+    graph.insert(
+        PathBuf::from("/packages/bar"),
+        node("/packages/bar", "bar", &[]).1,
+    );
     let result = selected(&graph, &[selector(Some("bar"))]);
     assert_eq!(result, ["/packages/bar"]);
 }
@@ -291,14 +336,19 @@ fn scoped_package_with_same_name_picks_exact_match() {
 #[test]
 fn two_scoped_packages_matching_name_select_none() {
     let mut graph: ProjectGraph<TestPkg> = IndexMap::new();
-    graph
-        .insert(PathBuf::from("/packages/@foo/bar"), node("/packages/@foo/bar", "@foo/bar", &[]).1);
+    graph.insert(
+        PathBuf::from("/packages/@foo/bar"),
+        node("/packages/@foo/bar", "@foo/bar", &[]).1,
+    );
     graph.insert(
         PathBuf::from("/packages/@types/bar"),
         node("/packages/@types/bar", "@types/bar", &[]).1,
     );
     let result = selected(&graph, &[selector(Some("bar"))]);
-    assert!(result.is_empty(), "ambiguous scoped match should select nothing, got {result:?}");
+    assert!(
+        result.is_empty(),
+        "ambiguous scoped match should select nothing, got {result:?}",
+    );
 }
 
 #[test]
@@ -306,7 +356,10 @@ fn select_by_parent_dir() {
     let graph = projects_graph();
     let result = selected(
         &graph,
-        &[ProjectSelector { parent_dir: Some(PathBuf::from("/packages")), ..Default::default() }],
+        &[ProjectSelector {
+            parent_dir: Some(PathBuf::from("/packages")),
+            ..Default::default()
+        }],
     );
     assert_eq!(result, ["/packages/project-0", "/packages/project-1"]);
 }
@@ -316,7 +369,10 @@ fn select_by_parent_dir_using_glob() {
     let graph = projects_graph();
     let result = selected_with_glob(
         &graph,
-        &[ProjectSelector { parent_dir: Some(PathBuf::from("/packages/*")), ..Default::default() }],
+        &[ProjectSelector {
+            parent_dir: Some(PathBuf::from("/packages/*")),
+            ..Default::default()
+        }],
     );
     assert_eq!(result, ["/packages/project-0", "/packages/project-1"]);
 }
@@ -361,7 +417,10 @@ fn select_by_parent_dir_using_micromatch_wildcards() {
             ..Default::default()
         }],
     );
-    assert_eq!(question_mark, ["/packages/pkg-a", "/packages/pkg-b", "/packages/pkg-c"]);
+    assert_eq!(
+        question_mark,
+        ["/packages/pkg-a", "/packages/pkg-b", "/packages/pkg-c"],
+    );
 }
 
 #[test]
@@ -369,7 +428,10 @@ fn select_by_parent_dir_with_no_glob() {
     let graph = projects_graph();
     let result = selected_with_glob(
         &graph,
-        &[ProjectSelector { parent_dir: Some(PathBuf::from("/project-5")), ..Default::default() }],
+        &[ProjectSelector {
+            parent_dir: Some(PathBuf::from("/project-5")),
+            ..Default::default()
+        }],
     );
     assert_eq!(result, ["/project-5"]);
 }
@@ -397,8 +459,13 @@ fn returns_unmatched_filters() {
 #[test]
 fn select_all_packages_except_one() {
     let graph = projects_graph();
-    let result =
-        selected(&graph, &[ProjectSelector { exclude: true, ..selector(Some("project-1")) }]);
+    let result = selected(
+        &graph,
+        &[ProjectSelector {
+            exclude: true,
+            ..selector(Some("project-1"))
+        }],
+    );
     let expected: Vec<String> = projects_graph()
         .keys()
         .map(|path| path.to_string_lossy().into_owned())
@@ -413,8 +480,14 @@ fn select_by_parent_dir_and_exclude_by_pattern() {
     let result = selected(
         &graph,
         &[
-            ProjectSelector { parent_dir: Some(PathBuf::from("/packages")), ..Default::default() },
-            ProjectSelector { exclude: true, ..selector(Some("*-1")) },
+            ProjectSelector {
+                parent_dir: Some(PathBuf::from("/packages")),
+                ..Default::default()
+            },
+            ProjectSelector {
+                exclude: true,
+                ..selector(Some("*-1"))
+            },
         ],
     );
     assert_eq!(result, ["/packages/project-0"]);
@@ -430,7 +503,10 @@ fn select_by_parent_dir_glob_and_exclude_by_pattern() {
                 parent_dir: Some(PathBuf::from("/packages/*")),
                 ..Default::default()
             },
-            ProjectSelector { exclude: true, ..selector(Some("*-1")) },
+            ProjectSelector {
+                exclude: true,
+                ..selector(Some("*-1"))
+            },
         ],
     );
     assert_eq!(result, ["/packages/project-0"]);
@@ -471,7 +547,10 @@ fn selector_without_name_dir_or_diff_is_unsupported() {
 #[test]
 fn is_subdir_contract() {
     use super::is_subdir;
-    assert!(!is_subdir(Path::new("/abs/parent"), Path::new("relative/child")));
+    assert!(!is_subdir(
+        Path::new("/abs/parent"),
+        Path::new("relative/child")
+    ));
     assert!(is_subdir(Path::new("/abs"), Path::new("/abs/child")));
     assert!(!is_subdir(Path::new("/abs"), Path::new("/abs")));
 }
@@ -491,7 +570,11 @@ mod changed_packages {
     use tempfile::TempDir;
 
     fn git(cwd: &Path, args: &[&str]) {
-        let output = Command::new("git").args(args).current_dir(cwd).output().expect("spawn git");
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(cwd)
+            .output()
+            .expect("spawn git");
         assert!(
             output.status.success(),
             "git {args:?} failed: {}",
@@ -503,12 +586,25 @@ mod changed_packages {
         git(dir, &["init", "--initial-branch=main"]);
         git(dir, &["config", "user.email", "x@y.z"]);
         git(dir, &["config", "user.name", "xyz"]);
-        git(dir, &["commit", "--allow-empty", "--allow-empty-message", "-m", "", "--no-gpg-sign"]);
+        git(
+            dir,
+            &[
+                "commit",
+                "--allow-empty",
+                "--allow-empty-message",
+                "-m",
+                "",
+                "--no-gpg-sign",
+            ],
+        );
     }
 
     fn commit_all(dir: &Path) {
         git(dir, &["add", "."]);
-        git(dir, &["commit", "--allow-empty-message", "-m", "", "--no-gpg-sign"]);
+        git(
+            dir,
+            &["commit", "--allow-empty-message", "-m", "", "--no-gpg-sign"],
+        );
     }
 
     fn touch(path: &Path) {
@@ -540,7 +636,10 @@ mod changed_packages {
     }
 
     fn diff_selector(since: &str) -> ProjectSelector {
-        ProjectSelector { diff: Some(since.to_string()), ..Default::default() }
+        ProjectSelector {
+            diff: Some(since.to_string()),
+            ..Default::default()
+        }
     }
 
     #[test]
@@ -581,7 +680,11 @@ mod changed_packages {
 
         assert_eq!(
             selected(&graph, &[diff_selector("HEAD~1")], &opts),
-            [path_of(&pkg_1_dir), path_of(&pkg_2_dir), path_of(&pkg_kor_dir)],
+            [
+                path_of(&pkg_1_dir),
+                path_of(&pkg_2_dir),
+                path_of(&pkg_kor_dir)
+            ],
         );
 
         assert_eq!(
@@ -625,7 +728,11 @@ mod changed_packages {
                     ..opts.clone()
                 },
             ),
-            [path_of(&pkg_1_dir), path_of(&pkg_kor_dir), path_of(&pkg_2_dir)],
+            [
+                path_of(&pkg_1_dir),
+                path_of(&pkg_kor_dir),
+                path_of(&pkg_2_dir)
+            ],
         );
 
         // Changed files matching `changedFilesIgnorePattern` don't count
@@ -657,7 +764,14 @@ mod changed_packages {
         let worktree_dir = worktree_parent.path().join("worktree");
         git(
             main_repo_dir,
-            &["worktree", "add", "-b", "worktree-branch", &worktree_dir.to_string_lossy(), "main"],
+            &[
+                "worktree",
+                "add",
+                "-b",
+                "worktree-branch",
+                &worktree_dir.to_string_lossy(),
+                "main",
+            ],
         );
 
         let pkg_a_dir = worktree_dir.join("package-a");
@@ -715,14 +829,22 @@ mod changed_packages {
     fn option_like_diff_ref_is_rejected_as_bad_revision() {
         let workspace = TempDir::new().expect("create tempdir");
         init_repo(workspace.path());
-        touch(&workspace.path().join("package-a").join("file.js"));
+        touch(
+            &workspace
+                .path()
+                .join("package-a")
+                .join("file.js"),
+        );
         commit_all(workspace.path());
         let graph = graph_of(&[&workspace.path().join("package-a")]);
 
         let evil_output = workspace.path().join("evil.txt");
         let error = filter_workspace_projects(
             &graph,
-            &[diff_selector(&format!("--output={}", evil_output.to_string_lossy()))],
+            &[diff_selector(&format!(
+                "--output={}",
+                evil_output.to_string_lossy(),
+            ))],
             &FilterWorkspaceProjectsOptions {
                 workspace_dir: workspace.path().to_path_buf(),
                 ..Default::default()
@@ -736,7 +858,10 @@ mod changed_packages {
             error.to_string().contains("bad revision"),
             "git must treat the option-like ref as a revision, got: {error}",
         );
-        assert!(!evil_output.exists(), "the ref must not be honored as a git option");
+        assert!(
+            !evil_output.exists(),
+            "the ref must not be honored as a git option",
+        );
     }
 
     /// A worktree checked out *inside* another repository's tree still
@@ -755,7 +880,14 @@ mod changed_packages {
         let worktree_dir = main_repo_dir.join("worktrees").join("feature");
         git(
             main_repo_dir,
-            &["worktree", "add", "-b", "feature", &worktree_dir.to_string_lossy(), "main"],
+            &[
+                "worktree",
+                "add",
+                "-b",
+                "feature",
+                &worktree_dir.to_string_lossy(),
+                "main",
+            ],
         );
 
         let pkg_a_dir = worktree_dir.join("package-a");
@@ -783,13 +915,19 @@ fn graph_project(root: &str, name: &str, deps: &[(&str, &str)]) -> TestPkg {
         root_dir: PathBuf::from(root),
         name: Some(name.to_string()),
         version: Some("1.0.0".to_string()),
-        deps: deps.iter().map(|(name, spec)| (name.to_string(), spec.to_string())).collect(),
+        deps: deps
+            .iter()
+            .map(|(name, spec)| (name.to_string(), spec.to_string()))
+            .collect(),
         dev_deps: Vec::new(),
     }
 }
 
 fn project_dirs(result: &crate::filter::FilteredProjects) -> Vec<String> {
-    result.selected_projects.iter().map(|path| path.to_string_lossy().into_owned()).collect()
+    result.selected_projects
+        .iter()
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect()
 }
 
 #[test]
@@ -801,21 +939,31 @@ fn filter_projects_builds_graph_and_follows_dependencies() {
     ];
     let result = filter_projects(
         projects,
-        &[WorkspaceFilter { filter: "a...".to_string(), follow_prod_deps_only: false }],
+        &[WorkspaceFilter {
+            filter: "a...".to_string(),
+            follow_prod_deps_only: false,
+        }],
         &filter_projects_options(),
     )
     .unwrap();
-    let dirs: Vec<String> =
-        result.selected_projects.iter().map(|path| path.to_string_lossy().into_owned()).collect();
+    let dirs: Vec<String> = result.selected_projects
+        .iter()
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect();
     assert_eq!(dirs, ["/ws/a", "/ws/b"]);
 }
 
 #[test]
 fn filter_projects_empty_filter_selects_everything() {
-    let projects = vec![graph_project("/ws/a", "a", &[]), graph_project("/ws/b", "b", &[])];
+    let projects = vec![
+        graph_project("/ws/a", "a", &[]),
+        graph_project("/ws/b", "b", &[]),
+    ];
     let result = filter_projects(projects, &[], &filter_projects_options()).unwrap();
-    let dirs: Vec<String> =
-        result.selected_projects.iter().map(|path| path.to_string_lossy().into_owned()).collect();
+    let dirs: Vec<String> = result.selected_projects
+        .iter()
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect();
     assert_eq!(dirs, ["/ws/a", "/ws/b"]);
 }
 
@@ -837,7 +985,10 @@ fn filter_prod_follows_production_deps_only() {
 
     let prod = filter_projects(
         make_projects(),
-        &[WorkspaceFilter { filter: "a...".to_string(), follow_prod_deps_only: true }],
+        &[WorkspaceFilter {
+            filter: "a...".to_string(),
+            follow_prod_deps_only: true,
+        }],
         &opts,
     )
     .unwrap();
@@ -845,7 +996,10 @@ fn filter_prod_follows_production_deps_only() {
 
     let all = filter_projects(
         make_projects(),
-        &[WorkspaceFilter { filter: "a...".to_string(), follow_prod_deps_only: false }],
+        &[WorkspaceFilter {
+            filter: "a...".to_string(),
+            follow_prod_deps_only: false,
+        }],
         &opts,
     )
     .unwrap();
@@ -854,12 +1008,21 @@ fn filter_prod_follows_production_deps_only() {
 
 #[test]
 fn filter_projects_unions_prod_selection_before_all_selection() {
-    let projects = vec![graph_project("/ws/a", "a", &[]), graph_project("/ws/b", "b", &[])];
+    let projects = vec![
+        graph_project("/ws/a", "a", &[]),
+        graph_project("/ws/b", "b", &[]),
+    ];
     let result = filter_projects(
         projects,
         &[
-            WorkspaceFilter { filter: "b".to_string(), follow_prod_deps_only: true },
-            WorkspaceFilter { filter: "a".to_string(), follow_prod_deps_only: false },
+            WorkspaceFilter {
+                filter: "b".to_string(),
+                follow_prod_deps_only: true,
+            },
+            WorkspaceFilter {
+                filter: "a".to_string(),
+                follow_prod_deps_only: false,
+            },
         ],
         &filter_projects_options(),
     )

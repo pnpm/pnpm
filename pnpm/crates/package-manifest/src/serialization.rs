@@ -7,8 +7,15 @@ use super::{
 /// sort the entries by name, and drop the field entirely when it holds no
 /// entries.
 pub(super) fn normalize_dependency_fields(manifest: &mut Value) {
-    let Some(manifest) = manifest.as_object_mut() else { return };
-    for field in ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"] {
+    let Some(manifest) = manifest.as_object_mut() else {
+        return;
+    };
+    for field in [
+        "dependencies",
+        "devDependencies",
+        "optionalDependencies",
+        "peerDependencies",
+    ] {
         let is_empty_object = match manifest.get_mut(field) {
             Some(Value::Object(deps)) => {
                 deps.sort_keys();
@@ -30,8 +37,9 @@ fn detect_indent(contents: &str) -> &str {
         .lines()
         .find_map(|line| {
             let trimmed = line.trim_start_matches([' ', '\t']);
-            (!trimmed.is_empty() && trimmed.len() < line.len())
-                .then(|| &line[..line.len() - trimmed.len()])
+            (!trimmed.is_empty() && trimmed.len() < line.len()).then(|| {
+                &line[..line.len() - trimmed.len()]
+            })
         })
         .unwrap_or("")
 }
@@ -71,7 +79,12 @@ pub fn safe_read_package_json_from_dir(dir: &Path) -> Result<Option<Value>, Pack
         Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(err) => return Err(PackageManifestError::Io(err)),
     };
-    parse_manifest(&text).map(Some).map_err(|source| PackageManifestError::Parse { path, source })
+    parse_manifest(&text)
+        .map(Some)
+        .map_err(|source| PackageManifestError::Parse {
+            path,
+            source,
+        })
 }
 
 /// Parse the contents of a `package.json`.
@@ -121,9 +134,13 @@ impl PackageManifest {
         // when overwriting an existing package.json (write-file-atomic does the
         // same) so the rename doesn't silently tighten its permissions.
         if let Ok(metadata) = fs::metadata(path) {
-            tmp.as_file().set_permissions(metadata.permissions())?;
+            tmp
+                .as_file()
+                .set_permissions(metadata.permissions())?;
         }
-        tmp.persist(path).map_err(|err| err.error)?;
+        tmp
+            .persist(path)
+            .map_err(|err| err.error)?;
         Ok(())
     }
 
@@ -131,7 +148,10 @@ impl PackageManifest {
         let file_contents = fs::read_to_string(&path)?;
         let contents = strip_utf8_bom(&file_contents);
         let mut value: Value = parse_manifest(contents)
-            .map_err(|source| PackageManifestError::Parse { path: path.clone(), source })?;
+            .map_err(|source| PackageManifestError::Parse {
+                path: path.clone(),
+                source,
+            })?;
         let mut on_disk = value.clone();
         normalize_dependency_fields(&mut on_disk);
         convert_engines_runtime_to_dependencies(&mut value, "devEngines", "devDependencies");
@@ -150,12 +170,15 @@ impl PackageManifest {
         // same missing-manifest error a pre-check would raise, without
         // paying a stat before every successful read.
         let rendered_path = path.display().to_string();
-        PackageManifest::read_from_file(path).map_err(|error| match error {
-            PackageManifestError::Io(io_error) if io_error.kind() == io::ErrorKind::NotFound => {
-                PackageManifestError::NoImporterManifestFound(rendered_path)
-            }
-            other => other,
-        })
+        PackageManifest::read_from_file(path)
+            .map_err(|error| match error {
+                PackageManifestError::Io(io_error)
+                    if io_error.kind() == io::ErrorKind::NotFound =>
+                {
+                    PackageManifestError::NoImporterManifestFound(rendered_path)
+                }
+                other => other,
+            })
     }
 
     pub fn create_if_needed(path: PathBuf) -> Result<PackageManifest, PackageManifestError> {

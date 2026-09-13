@@ -103,7 +103,12 @@ pub fn run_script(opts: &RunScript<'_>) -> Result<ScriptExit, RunScriptError> {
 
     if let ScriptOutput::Streamed { dep_path, emit } = opts.output {
         let wd = opts.pkg_root.to_string_lossy().into_owned();
-        let streamed = StreamedScript { dep_path, stage: opts.invocation.stage, wd: &wd, emit };
+        let streamed = StreamedScript {
+            dep_path,
+            stage: opts.invocation.stage,
+            wd: &wd,
+            emit,
+        };
         return run_streamed(opts, &shell, &command, &child_env, streamed);
     }
 
@@ -190,7 +195,14 @@ fn run_streamed(
         .map(ScriptExit::Emulated)
         .map_err(RunScriptError::ShellEmulator)?
     } else {
-        run_piped(shell, command, opts.pkg_root, child_env, streamed, opts.process_tracker)?
+        run_piped(
+            shell,
+            command,
+            opts.pkg_root,
+            child_env,
+            streamed,
+            opts.process_tracker,
+        )?
     };
     streamed.finished(status.code().unwrap_or(-1));
     Ok(status)
@@ -209,12 +221,21 @@ fn run_in_shell(
     let mut cmd = Command::new(&shell.program);
     cmd.args(&shell.args);
     push_script_arg(&mut cmd, command, shell.windows_verbatim_args);
-    cmd.current_dir(opts.pkg_root).env_clear().envs(child_env);
+    cmd
+        .current_dir(opts.pkg_root)
+        .env_clear()
+        .envs(child_env);
     let mut child = spawn_child(&mut cmd, opts.process_tracker)
-        .map_err(|source| RunScriptError::Spawn { script: command.to_string(), source })?;
+        .map_err(|source| RunScriptError::Spawn {
+            script: command.to_string(),
+            source,
+        })?;
     let status = child
         .wait()
-        .map_err(|source| RunScriptError::Wait { script: command.to_string(), source })?;
+        .map_err(|source| RunScriptError::Wait {
+            script: command.to_string(),
+            source,
+        })?;
     Ok(ScriptExit::Process(status))
 }
 
@@ -231,18 +252,25 @@ fn run_piped(
     let mut cmd = Command::new(&shell.program);
     cmd.args(&shell.args);
     push_script_arg(&mut cmd, command, shell.windows_verbatim_args);
-    cmd.current_dir(pkg_root)
+    cmd
+        .current_dir(pkg_root)
         .env_clear()
         .envs(child_env)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     let mut child = spawn_child(&mut cmd, process_tracker)
-        .map_err(|source| RunScriptError::Spawn { script: command.to_string(), source })?;
+        .map_err(|source| RunScriptError::Spawn {
+            script: command.to_string(),
+            source,
+        })?;
 
     streamed
         .pump(child.child_mut())
         .map(ScriptExit::Process)
-        .map_err(|source| RunScriptError::Wait { script: command.to_string(), source })
+        .map_err(|source| RunScriptError::Wait {
+            script: command.to_string(),
+            source,
+        })
 }
 
 /// Whether `cmd` will parse the script. The shell emulator is a POSIX
@@ -258,9 +286,17 @@ fn build_command(script: &str, args: &[String], windows_shell: bool) -> String {
         return script.to_string();
     }
     let quoted = if windows_shell {
-        args.iter().map(|arg| Value::String(arg.clone()).to_string()).collect::<Vec<_>>().join(" ")
+        args
+            .iter()
+            .map(|arg| Value::String(arg.clone()).to_string())
+            .collect::<Vec<_>>()
+            .join(" ")
     } else {
-        args.iter().map(|arg| posix_quote(arg)).collect::<Vec<_>>().join(" ")
+        args
+            .iter()
+            .map(|arg| posix_quote(arg))
+            .collect::<Vec<_>>()
+            .join(" ")
     };
     format!("{script} {quoted}")
 }
@@ -273,8 +309,14 @@ fn posix_quote(arg: &str) -> String {
     if arg.is_empty() {
         return "''".to_string();
     }
-    let safe = arg.chars().all(|ch| ch.is_ascii_alphanumeric() || "_@%+=:,./-".contains(ch));
-    if safe { arg.to_string() } else { format!("'{}'", arg.replace('\'', r#"'"'"'"#)) }
+    let safe = arg
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || "_@%+=:,./-".contains(ch));
+    if safe {
+        arg.to_string()
+    } else {
+        format!("'{}'", arg.replace('\'', r#"'"'"'"#))
+    }
 }
 
 #[cfg(test)]

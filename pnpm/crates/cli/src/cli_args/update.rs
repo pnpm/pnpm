@@ -53,7 +53,9 @@ impl UpdateDependencyOptions {
         // CLI flags are read rather than the merged config.
         let production = self.prod.then_some(true);
         let dev = self.dev.then_some(true);
-        let optional = self.optional.then_some(true).or_else(|| self.no_optional.then_some(false));
+        let optional = self.optional
+            .then_some(true)
+            .or_else(|| self.no_optional.then_some(false));
 
         let ne_true = |flag: Option<bool>| flag != Some(true);
         let dependencies = production == Some(true) || (ne_true(dev) && ne_true(optional));
@@ -324,12 +326,17 @@ impl UpdateArgs {
         update_actions: bool,
         include_direct: &[DependencyGroup],
     ) -> bool {
-        let all_dependency_groups =
-            [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+        let all_dependency_groups = [
+            DependencyGroup::Prod,
+            DependencyGroup::Dev,
+            DependencyGroup::Optional,
+        ];
         self.selection.patches
             && self.selection.depth.is_none()
             && !update_actions
-            && all_dependency_groups.iter().all(|group| include_direct.contains(group))
+            && all_dependency_groups
+                .iter()
+                .all(|group| include_direct.contains(group))
     }
 
     fn pnpr_patch_link<'path>(
@@ -339,9 +346,9 @@ impl UpdateArgs {
     ) -> super::install::PnprLink<'path> {
         super::install::PnprLink {
             dependency_groups: included_direct_groups(state.config.optional).collect(),
-            supported_architectures: self
-                .supported_architectures
-                .apply_to(state.config.supported_architectures.clone()),
+            supported_architectures: self.supported_architectures.apply_to(
+                state.config.supported_architectures.clone(),
+            ),
             node_linker: state.config.node_linker,
             skip_runtimes: state.config.skip_runtimes,
             lockfile_path: Some(lockfile_path),

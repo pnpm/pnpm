@@ -15,7 +15,10 @@ where
         Ok(entries) => entries,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(packages),
         Err(error) => {
-            return Err(LinkBinsError::ReadModulesDir { dir: modules_dir.to_path_buf(), error });
+            return Err(LinkBinsError::ReadModulesDir {
+                dir: modules_dir.to_path_buf(),
+                error,
+            });
         }
     };
 
@@ -58,12 +61,18 @@ where
     let scope_entries = match Sys::read_dir(path) {
         Ok(entries) => entries,
         Err(error)
-            if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory) =>
+            if matches!(
+                error.kind(),
+                io::ErrorKind::NotFound | io::ErrorKind::NotADirectory,
+            ) =>
         {
             return Ok(());
         }
         Err(error) => {
-            return Err(LinkBinsError::ReadModulesDir { dir: path.to_path_buf(), error });
+            return Err(LinkBinsError::ReadModulesDir {
+                dir: path.to_path_buf(),
+                error,
+            });
         }
     };
     for sub_path in scope_entries {
@@ -85,13 +94,27 @@ fn read_package<Sys: FsReadFile>(
         // into `node_modules`, and one of them must not fail the
         // install.
         Err(error)
-            if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory) =>
+            if matches!(
+                error.kind(),
+                io::ErrorKind::NotFound | io::ErrorKind::NotADirectory,
+            ) =>
         {
             return Ok(None);
         }
-        Err(error) => return Err(LinkBinsError::ReadManifest { path: manifest_path, error }),
+        Err(error) => {
+            return Err(LinkBinsError::ReadManifest {
+                path: manifest_path,
+                error,
+            });
+        }
     };
     let manifest: Value = parse_manifest_bytes(&bytes)
-        .map_err(|error| LinkBinsError::ParseManifest { path: manifest_path, error })?;
-    Ok(Some(PackageBinSource::new(location.to_path_buf(), Arc::new(manifest))))
+        .map_err(|error| LinkBinsError::ParseManifest {
+            path: manifest_path,
+            error,
+        })?;
+    Ok(Some(PackageBinSource::new(
+        location.to_path_buf(),
+        Arc::new(manifest),
+    )))
 }

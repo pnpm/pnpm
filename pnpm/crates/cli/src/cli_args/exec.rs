@@ -66,7 +66,10 @@ pub enum ExecError {
 
 impl From<BadPathDir> for ExecError {
     fn from(BadPathDir { dir, delimiter }: BadPathDir) -> Self {
-        ExecError::BadPathDir { dir, delimiter }
+        ExecError::BadPathDir {
+            dir,
+            delimiter,
+        }
     }
 }
 
@@ -86,7 +89,10 @@ impl<'a> ExecDirs<'a> {
     /// The command runs in the project directory itself, as a recursive
     /// `exec` does for every project it selects.
     pub fn same(dir: &'a Path) -> Self {
-        ExecDirs { run: dir, project: dir }
+        ExecDirs {
+            run: dir,
+            project: dir,
+        }
     }
 }
 
@@ -105,8 +111,14 @@ impl ExecArgs {
     ) -> miette::Result<()> {
         let command = prepare_command(self.command)?;
         super::verify_deps::verify_deps_before_run(dirs.project, config, reporter)?;
-        let status =
-            spawn_in_dir(&command, dirs, config, self.shell_mode, ScriptOutput::Inherit, None)?;
+        let status = spawn_in_dir(
+            &command,
+            dirs,
+            config,
+            self.shell_mode,
+            ScriptOutput::Inherit,
+            None,
+        )?;
         if !status.success() {
             exit_like(ScriptExit::Process(status));
         }
@@ -164,20 +176,29 @@ pub(super) fn spawn_in_dir(
 ) -> Result<ExitStatus, ExecError> {
     let mut cmd = command_in_dir(command, dirs, config, shell_mode)?;
     let ScriptOutput::Streamed { dep_path, emit } = output else {
-        let mut child = spawn_child(&mut cmd, process_tracker)
-            .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
-        return child
-            .wait()
-            .map_err(|source| ExecError::Spawn { command: command[0].clone(), source });
+        return spawn_inherited(&mut cmd, &command[0], process_tracker);
     };
     let wd = dirs.run.to_string_lossy();
-    let streamed = StreamedScript { dep_path, stage: EXEC_STAGE, wd: &wd, emit };
-    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+    let streamed = StreamedScript {
+        dep_path,
+        stage: EXEC_STAGE,
+        wd: &wd,
+        emit,
+    };
+    cmd
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
     let mut child = spawn_child(&mut cmd, process_tracker)
-        .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
+        .map_err(|source| ExecError::Spawn {
+            command: command[0].clone(),
+            source,
+        })?;
     let status = streamed
         .pump(child.child_mut())
-        .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
+        .map_err(|source| ExecError::Spawn {
+            command: command[0].clone(),
+            source,
+        })?;
     streamed.finished(status.code().unwrap_or(-1));
     Ok(status)
 }
@@ -203,18 +224,16 @@ fn command_in_dir(
         // Windows `cmd /d /s /c` verbatim path uses `raw_arg` — matching
         // execa's `windowsVerbatimArguments` and keeping embedded quoting
         // (e.g. `node -e "..."`) intact.
-        let shell = select_shell(None, cfg!(windows)).expect("default shell selection never fails");
-        let mut cmd = Command::new(&shell.program);
-        cmd.args(&shell.args);
-        push_script_arg(&mut cmd, &command.join(" "), shell.windows_verbatim_args);
-        cmd
+        shell_command(&command.join(" "))
     } else {
         // execa resolves the program against the (extended) PATH up
         // front (via cross-spawn / which). Do the same explicitly:
         // Rust's `Command` does not reliably search the child's PATH
         // for the program on every platform.
         let program = which::which_in(&command[0], Some(&path), dir)
-            .map_err(|_| ExecError::CommandNotFound { command: command[0].clone() })?;
+            .map_err(|_| ExecError::CommandNotFound {
+                command: command[0].clone(),
+            })?;
         let mut cmd = Command::new(program);
         cmd.args(&command[1..]);
         cmd
@@ -238,8 +257,10 @@ fn command_in_dir(
         node_options = Some(make_node_require_option(&pnp_path, node_options.as_deref()));
     }
     if let Some(package_map_path) = package_map_path_for_execution(config, project) {
-        node_options =
-            Some(make_node_package_map_option(&package_map_path, node_options.as_deref()));
+        node_options = Some(make_node_package_map_option(
+            &package_map_path,
+            node_options.as_deref(),
+        ));
     }
     // pnpm forwards `nodeOptions` as `NODE_OPTIONS` to the child.
     // See exec.ts:246.
@@ -255,12 +276,12 @@ pub(super) const EXEC_STAGE: &str = "(exec)";
 
 fn configured_node_options(config: &Config) -> Option<String> {
     match config.node_options.as_deref() {
-        Some(node_options) => {
-            Some(pnpm_config::esm_node_path_loader::keep_esm_node_path_loader_option(
+        Some(node_options) => Some(
+            pnpm_config::esm_node_path_loader::keep_esm_node_path_loader_option(
                 node_options,
                 config.extra_env.get("NODE_OPTIONS").map(String::as_str),
-            ))
-        }
+            ),
+        ),
         None => config.extra_env.get("NODE_OPTIONS").cloned(),
     }
 }
@@ -280,4 +301,30 @@ fn command_search_path(
     }
     prepend.extend(pnpm_python_installer::execution_paths(config, project).iter().cloned());
     prepend_dirs_to_path(&prepend).map_err(ExecError::from)
+}
+
+pub(super) fn shell_command(script: &str) -> Command {
+    let shell = select_shell(None, cfg!(windows)).expect("default shell selection never fails");
+    let mut cmd = Command::new(&shell.program);
+    cmd.args(&shell.args);
+    push_script_arg(&mut cmd, script, shell.windows_verbatim_args);
+    cmd
+}
+
+fn spawn_inherited(
+    cmd: &mut Command,
+    command: &str,
+    process_tracker: Option<&ProcessTracker>,
+) -> Result<ExitStatus, ExecError> {
+    let mut child = spawn_child(cmd, process_tracker)
+        .map_err(|source| ExecError::Spawn {
+            command: command.to_owned(),
+            source,
+        })?;
+    child
+        .wait()
+        .map_err(|source| ExecError::Spawn {
+            command: command.to_owned(),
+            source,
+        })
 }

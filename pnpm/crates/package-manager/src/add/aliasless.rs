@@ -59,8 +59,13 @@ pub(super) async fn resolve_aliasless_local(
     if !is_local_filesystem_specifier(specifier) {
         return Ok(None);
     }
-    let wanted = WantedLocalDependency { bare_specifier: specifier.to_string(), injected: false };
-    let ctx = LocalResolverContext { preserve_absolute_paths: false };
+    let wanted = WantedLocalDependency {
+        bare_specifier: specifier.to_string(),
+        injected: false,
+    };
+    let ctx = LocalResolverContext {
+        preserve_absolute_paths: false,
+    };
     let opts = LocalResolverOptions {
         project_dir: manifest
             .path()
@@ -85,7 +90,10 @@ pub(super) async fn resolve_aliasless_local(
     let manifest_specifier =
         resolved.normalized_bare_specifier.unwrap_or_else(|| normalized_save_specifier(specifier));
     let package_name = aliasless_package_name(resolved.manifest.as_deref(), specifier)?;
-    Ok(Some(AliaslessDependency { package_name, manifest_specifier }))
+    Ok(Some(AliaslessDependency {
+        package_name,
+        manifest_specifier,
+    }))
 }
 /// Resolve a remote (non-registry) tarball URL by downloading and
 /// extracting it: a tarball's name lives in the `package.json` it bundles,
@@ -99,24 +107,7 @@ pub(super) async fn resolve_aliasless_tarball(
     config: &'static Config,
     http_client: &Arc<ThrottledClient>,
 ) -> Result<AliaslessDependency, AddError> {
-    let resolver = TarballResolver {
-        http_client: Arc::clone(http_client),
-        fetch_context: Some(TarballFetchContext {
-            mem_cache: None,
-            auth_headers: Arc::clone(&config.auth_headers),
-            retry_opts: crate::retry_config::retry_opts_from_config(config),
-            prior_tarball_entries: Arc::new(HashMap::new()),
-            store: pnpm_tarball::ArchiveStoreContext {
-                strict_pkg_content_check: false,
-                prefetched_cas_paths: None,
-                dir: &config.store_dir,
-                index_writer: None,
-                index: None,
-                verify_integrity: config.verify_store_integrity,
-                verified_files_cache: SharedVerifiedFilesCache::default(),
-            },
-        }),
-    };
+    let resolver = aliasless_tarball_resolver(config, http_client);
     let wanted = pnpm_resolving_resolver_base::WantedDependency {
         bare_specifier: Some(specifier.to_string()),
         ..pnpm_resolving_resolver_base::WantedDependency::default()
@@ -127,18 +118,25 @@ pub(super) async fn resolve_aliasless_tarball(
         &pnpm_resolving_resolver_base::ResolveOptions::default(),
     )
     .await
-    .map_err(|source| match source.downcast::<pnpm_tarball::TarballError>() {
-        Ok(tarball) => AddError::TarballResolve(tarball),
-        Err(source) => AddError::ResolveTarball {
-            specifier: redact_url_for_display(specifier),
-            reason: redacted_error_chain(source.as_ref()),
+    .map_err(
+        |source| match source.downcast::<pnpm_tarball::TarballError>() {
+            Ok(tarball) => AddError::TarballResolve(tarball),
+            Err(source) => AddError::ResolveTarball {
+                specifier: redact_url_for_display(specifier),
+                reason: redacted_error_chain(source.as_ref()),
+            },
         },
-    })?
-    .ok_or_else(|| AddError::MissingPackageName { specifier: redact_url_for_display(specifier) })?;
+    )?
+    .ok_or_else(|| AddError::MissingPackageName {
+        specifier: redact_url_for_display(specifier),
+    })?;
     let manifest_specifier =
         result.normalized_bare_specifier.unwrap_or_else(|| normalized_save_specifier(specifier));
     let package_name = aliasless_package_name(result.package.manifest.as_deref(), specifier)?;
-    Ok(AliaslessDependency { package_name, manifest_specifier })
+    Ok(AliaslessDependency {
+        package_name,
+        manifest_specifier,
+    })
 }
 /// Flatten an error chain into one line, with every URL in it cut back to
 /// its display-safe form.
@@ -201,7 +199,9 @@ pub(super) fn url_token_len(text: &str) -> usize {
             character.is_whitespace() || matches!(character, ')' | ']' | '"' | '\'')
         })
         .unwrap_or(text.len());
-    text.find(": ").map_or(wrapped, |punctuated| wrapped.min(punctuated))
+    text
+        .find(": ")
+        .map_or(wrapped, |punctuated| wrapped.min(punctuated))
 }
 /// One URL token cut at its query or fragment, or `[hidden]` when the cut
 /// would leave credential material behind.
@@ -213,12 +213,19 @@ pub(super) fn url_token_len(text: &str) -> usize {
 /// *uncut* token: any `@` still in front of the path means the userinfo
 /// survived, and the token fails closed instead.
 pub(super) fn redact_url_token(token: &str) -> String {
-    let after_scheme = token.find("://").map_or(token, |pos| &token[pos + "://".len()..]);
-    let authority = &after_scheme[..after_scheme.find('/').unwrap_or(after_scheme.len())];
+    let after_scheme = token
+        .find("://")
+        .map_or(token, |pos| &token[pos + "://".len()..]);
+    let authority = &after_scheme[..after_scheme
+        .find('/')
+        .unwrap_or(after_scheme.len())];
     if authority.contains('@') {
         return "[hidden]".to_string();
     }
-    token[..token.find(['?', '#']).unwrap_or(token.len())].to_string()
+    token[..token
+        .find(['?', '#'])
+        .unwrap_or(token.len())]
+        .to_string()
 }
 /// The display-safe form of an alias-less selector, which may be a local
 /// path or a URL. A URL loses its credentials, query, and fragment; a path
@@ -273,27 +280,21 @@ pub(super) async fn resolve_aliasless_git(
         Ok(git_resolve) => AddError::GitResolve(*git_resolve),
         // A specifier can carry `user:pass@` credentials, and every error here
         // echoes it back.
-        Err(source) => AddError::ResolveGit { specifier: redact_and_sanitize(specifier), source },
-    })?
-    .ok_or_else(|| AddError::GitPackageName { specifier: redact_and_sanitize(specifier) })?;
-    let package_name = result
-        .package
-        .manifest
-        .as_ref()
-        .and_then(|manifest| manifest.get("name"))
-        .and_then(serde_json::Value::as_str)
-        .map(str::to_string)
-        .or_else(|| HostedGit::from_url(specifier).map(|hosted| hosted.project))
-        .ok_or_else(|| AddError::GitPackageName { specifier: redact_and_sanitize(specifier) })?;
-    if !is_valid_dependency_alias(&package_name) {
-        return Err(AddError::InvalidGitPackageName {
+        Err(source) => AddError::ResolveGit {
             specifier: redact_and_sanitize(specifier),
-            name: package_name,
-        });
-    }
+            source,
+        },
+    })?
+    .ok_or_else(|| AddError::GitPackageName {
+        specifier: redact_and_sanitize(specifier),
+    })?;
+    let package_name = aliasless_git_package_name(result.package.manifest.as_deref(), specifier)?;
     let manifest_specifier =
         result.normalized_bare_specifier.unwrap_or_else(|| normalized_save_specifier(specifier));
-    Ok(AliaslessDependency { package_name, manifest_specifier })
+    Ok(AliaslessDependency {
+        package_name,
+        manifest_specifier,
+    })
 }
 pub(super) fn aliasless_git_resolver(
     inputs: &AddResolveInputs<'_, '_>,
@@ -313,4 +314,49 @@ pub(super) fn aliasless_git_resolver(
         retry_opts: crate::retry_config::retry_opts_from_config(config),
         git_shallow_hosts: config.git_shallow_hosts.clone(),
     })
+}
+
+fn aliasless_tarball_resolver(
+    config: &'static Config,
+    http_client: &Arc<ThrottledClient>,
+) -> TarballResolver {
+    TarballResolver {
+        http_client: Arc::clone(http_client),
+        fetch_context: Some(TarballFetchContext {
+            mem_cache: None,
+            auth_headers: Arc::clone(&config.auth_headers),
+            retry_opts: crate::retry_config::retry_opts_from_config(config),
+            prior_tarball_entries: Arc::new(HashMap::new()),
+            store: pnpm_tarball::ArchiveStoreContext {
+                strict_pkg_content_check: false,
+                prefetched_cas_paths: None,
+                dir: &config.store_dir,
+                index_writer: None,
+                index: None,
+                verify_integrity: config.verify_store_integrity,
+                verified_files_cache: SharedVerifiedFilesCache::default(),
+            },
+        }),
+    }
+}
+
+fn aliasless_git_package_name(
+    manifest: Option<&serde_json::Value>,
+    specifier: &str,
+) -> Result<String, AddError> {
+    let package_name = manifest
+        .and_then(|manifest| manifest.get("name"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string)
+        .or_else(|| HostedGit::from_url(specifier).map(|hosted| hosted.project))
+        .ok_or_else(|| AddError::GitPackageName {
+            specifier: redact_and_sanitize(specifier),
+        })?;
+    if !is_valid_dependency_alias(&package_name) {
+        return Err(AddError::InvalidGitPackageName {
+            specifier: redact_and_sanitize(specifier),
+            name: package_name,
+        });
+    }
+    Ok(package_name)
 }

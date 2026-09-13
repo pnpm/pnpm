@@ -16,7 +16,10 @@ pub enum RegistryConfigError {
     #[display("unsupported {ecosystem} registry pattern {pattern:?}: use an exact name, {}, or \
                  `**`",
                 wildcard_shapes(*ecosystem))]
-    InvalidPattern { pattern: String, ecosystem: Ecosystem },
+    InvalidPattern {
+        pattern: String,
+        ecosystem: Ecosystem,
+    },
     /// A wildcard-free registry pattern that is not a well-formed package name,
     /// so it could never match any request.
     #[display(
@@ -45,7 +48,10 @@ pub enum RegistryConfigError {
     #[display(
         "defaultRegistry for {ecosystem} targets {target:?}, which has no source serving {ecosystem}"
     )]
-    DefaultRegistryWithoutEcosystem { target: String, ecosystem: Ecosystem },
+    DefaultRegistryWithoutEcosystem {
+        target: String,
+        ecosystem: Ecosystem,
+    },
     /// A router has no sources at all, so it can never serve any package.
     #[display(
         "router {router:?} has no sources, so it can never serve any package; add \
@@ -76,7 +82,11 @@ pub enum RegistryConfigError {
                  already claim every package it would serve; list it before the sources that \
                  shadow it, or remove it",
                 index = index + 1)]
-    UnreachableSource { router: String, index: usize, source: String },
+    UnreachableSource {
+        router: String,
+        index: usize,
+        source: String,
+    },
     /// A single pattern of a later source is covered by an earlier source's
     /// pattern, so it can never be selected in this router even though the
     /// rest of its source stays reachable.
@@ -85,13 +95,21 @@ pub enum RegistryConfigError {
                  {pattern:?}: an earlier source's pattern {by:?} already claims every package it \
                  would; reorder the sources or adjust the declared namespaces"
     )]
-    ShadowedPattern { router: String, source: String, pattern: String, by: String },
+    ShadowedPattern {
+        router: String,
+        source: String,
+        pattern: String,
+        by: String,
+    },
     /// An ecosystem is declared for a name that is not a concrete registry.
     #[display(
         "registry {registry:?} declares ecosystem {ecosystem} but is not a hosted or \
                  upstream registry"
     )]
-    EcosystemOnNonConcreteRegistry { registry: String, ecosystem: Ecosystem },
+    EcosystemOnNonConcreteRegistry {
+        registry: String,
+        ecosystem: Ecosystem,
+    },
 }
 
 impl std::error::Error for RegistryConfigError {}

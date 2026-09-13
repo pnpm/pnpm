@@ -21,13 +21,24 @@ fn configured_mirror_per_channel_wins_over_default() {
 #[test]
 fn uses_defaults_when_unconfigured() {
     let empty = HashMap::new();
-    assert_eq!(get_node_mirror(Some(&empty), "release"), "https://nodejs.org/download/release/");
-    assert_eq!(get_node_mirror(None, "release"), "https://nodejs.org/download/release/");
+    assert_eq!(
+        get_node_mirror(Some(&empty), "release"),
+        "https://nodejs.org/download/release/",
+    );
+    assert_eq!(
+        get_node_mirror(None, "release"),
+        "https://nodejs.org/download/release/",
+    );
 }
 
 #[test]
 fn appends_trailing_slash_when_missing() {
-    let mirrors =
-        HashMap::from([("release".to_string(), "http://test.mirror.localhost".to_string())]);
-    assert_eq!(get_node_mirror(Some(&mirrors), "release"), "http://test.mirror.localhost/");
+    let mirrors = HashMap::from([(
+        "release".to_string(),
+        "http://test.mirror.localhost".to_string(),
+    )]);
+    assert_eq!(
+        get_node_mirror(Some(&mirrors), "release"),
+        "http://test.mirror.localhost/",
+    );
 }

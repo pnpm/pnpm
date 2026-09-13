@@ -41,7 +41,11 @@ fn workload_credentials_only_permit_named_package_publication() {
     let config = config(CONFIG);
     validate_workloads(&config).unwrap();
     let workload = &config.identity.auth.oidc[0].workloads[0];
-    for path in ["/~private/@org/pkg", "/~private/@org%2fpkg", "/~private/%40org%2Fpkg"] {
+    for path in [
+        "/~private/@org/pkg",
+        "/~private/@org%2fpkg",
+        "/~private/%40org%2Fpkg",
+    ] {
         check_workload_request(&config, workload, &Method::PUT, path).unwrap();
     }
     for path in [
@@ -110,10 +114,19 @@ async fn invalid_oidc_credentials_fail_closed_on_public_endpoints() {
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
     let response = app
-        .oneshot(Request::get("/-/oidc/github/login").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/oidc/github/login")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     assert_eq!(response.headers()["referrer-policy"], "no-referrer");
-    assert!(response.headers()["cache-control"].to_str().unwrap().contains("no-store"));
+    assert!(
+        response.headers()["cache-control"]
+            .to_str()
+            .unwrap()
+            .contains("no-store"),
+    );
 }

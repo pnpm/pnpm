@@ -117,7 +117,13 @@ pub(super) fn frozen_package_frames(
     let mut frames = Vec::new();
     for (package_key, snapshot) in packages {
         if let Some(line) = frozen_package_frame(
-            FrozenFrameInputs { config, router, dist_stats, package_key, snapshot },
+            FrozenFrameInputs {
+                config,
+                router,
+                dist_stats,
+                package_key,
+                snapshot,
+            },
             &mut seen_urls,
         ) {
             frames.push(line);
@@ -142,19 +148,7 @@ fn frozen_package_frame(
     inputs: FrozenFrameInputs<'_>,
     seen_urls: &mut std::collections::HashSet<String>,
 ) -> Option<Vec<u8>> {
-    if !matches!(
-        inputs.snapshot.resolution,
-        LockfileResolution::Registry(_) | LockfileResolution::Tarball(_),
-    ) {
-        return None;
-    }
-    // The frame carries the integrity the client prefetches against;
-    // an entry that pins none has no frame to announce.
-    let Ok((tarball_url, Some(integrity))) =
-        tarball_url_and_integrity(&inputs.snapshot.resolution, inputs.package_key, inputs.config)
-    else {
-        return None;
-    };
+    let (tarball_url, integrity) = frozen_tarball(&inputs)?;
     let name = inputs.package_key.name.to_string();
     let version = inputs.package_key.suffix.version().to_string();
     let upstream_tarball_url = tarball_url;
@@ -164,9 +158,14 @@ fn frozen_package_frame(
     }
     let id = format!("{name}@{version}");
     let integrity = integrity.to_string();
-    let revision =
-        pnpr_served_revision(&inputs.snapshot.resolution, &tarball_url, &upstream_tarball_url);
-    let stats = inputs.dist_stats.get(&(name.clone(), version.clone())).map(|entry| *entry.value());
+    let revision = pnpr_served_revision(
+        &inputs.snapshot.resolution,
+        &tarball_url,
+        &upstream_tarball_url,
+    );
+    let stats = inputs.dist_stats
+        .get(&(name.clone(), version.clone()))
+        .map(|entry| *entry.value());
     let frame = package_frame(
         inputs.router,
         &ResolvedPackageHint {
@@ -216,9 +215,10 @@ pub(super) fn done_frame(lockfile: &Lockfile) -> Vec<u8> {
         "lockfile": serde_json::to_value(lockfile).unwrap_or(serde_json::Value::Null),
         "stats": { "totalPackages": total_packages },
     });
-    ndjson_line(&frame).unwrap_or_else(|_| {
-        br#"{"type":"error","message":"failed to serialize lockfile"}"#.to_vec()
-    })
+    ndjson_line(&frame)
+        .unwrap_or_else(|_| {
+            br#"{"type":"error","message":"failed to serialize lockfile"}"#.to_vec()
+        })
 }
 
 /// Terminal `done` frame of a Cargo resolve: the rendered `Cargo.lock`
@@ -226,9 +226,10 @@ pub(super) fn done_frame(lockfile: &Lockfile) -> Vec<u8> {
 /// than a structure the server rewrites, so it rides the frame as text.
 pub(super) fn cargo_done_frame(lockfile: &str) -> Vec<u8> {
     let frame = serde_json::json!({ "type": "done", "lockfile": lockfile });
-    ndjson_line(&frame).unwrap_or_else(|_| {
-        br#"{"type":"error","message":"failed to serialize lockfile"}"#.to_vec()
-    })
+    ndjson_line(&frame)
+        .unwrap_or_else(|_| {
+            br#"{"type":"error","message":"failed to serialize lockfile"}"#.to_vec()
+        })
 }
 
 /// Terminal `done` frame of a Python resolve: the `pylock.toml` document
@@ -239,9 +240,10 @@ pub(super) fn pypi_done_frame(lockfile: &pnpm_python_resolver::Lockfile) -> Vec<
         return br#"{"type":"error","message":"failed to serialize lockfile"}"#.to_vec();
     };
     let frame = serde_json::json!({ "type": "done", "lockfile": lockfile });
-    ndjson_line(&frame).unwrap_or_else(|_| {
-        br#"{"type":"error","message":"failed to serialize lockfile"}"#.to_vec()
-    })
+    ndjson_line(&frame)
+        .unwrap_or_else(|_| {
+            br#"{"type":"error","message":"failed to serialize lockfile"}"#.to_vec()
+        })
 }
 
 /// Terminal `error` frame for a resolution that aborted mid-stream,
@@ -356,9 +358,15 @@ fn vulnerability_ids_for_entry(
 /// misjudged. Never parses the URL strictly — the lockfile is untrusted.
 pub(super) fn tarball_url_version<'a>(url: &'a str, name: &str) -> Option<&'a str> {
     let last = url.rsplit('/').next()?;
-    let last = last.split(['?', '#']).next().unwrap_or(last);
+    let last = last
+        .split(['?', '#'])
+        .next()
+        .unwrap_or(last);
     let stem = strip_tarball_suffix(last)?;
-    let unscoped = name.rsplit('/').next().unwrap_or(name);
+    let unscoped = name
+        .rsplit('/')
+        .next()
+        .unwrap_or(name);
     let version = stem.strip_prefix(unscoped)?.strip_prefix('-')?;
     (!version.is_empty()).then_some(version)
 }
@@ -367,11 +375,15 @@ pub(super) fn tarball_url_version<'a>(url: &'a str, name: &str) -> Option<&'a st
 /// tampered lockfile can't dodge the URL-version cross-check with a
 /// `.TGZ` or `.tar.gz` variant. Returns `None` for any other suffix.
 fn strip_tarball_suffix(name: &str) -> Option<&str> {
-    [".tar.gz", ".tgz"].into_iter().find_map(|suffix| {
-        let head_len = name.len().checked_sub(suffix.len())?;
-        let (head, tail) = (name.get(..head_len)?, name.get(head_len..)?);
-        tail.eq_ignore_ascii_case(suffix).then_some(head)
-    })
+    [".tar.gz", ".tgz"]
+        .into_iter()
+        .find_map(|suffix| {
+            let head_len = name
+                .len()
+                .checked_sub(suffix.len())?;
+            let (head, tail) = (name.get(..head_len)?, name.get(head_len..)?);
+            tail.eq_ignore_ascii_case(suffix).then_some(head)
+        })
 }
 
 pub(super) fn is_osv_checkable_resolution(resolution: &LockfileResolution) -> bool {
@@ -400,8 +412,12 @@ pub(super) fn is_osv_checkable_resolution(resolution: &LockfileResolution) -> bo
 /// uppercase scheme can't slip past) without allocating a lowercased copy.
 fn is_http_tarball_url(url: &str) -> bool {
     let bytes = url.as_bytes();
-    bytes.get(..8).is_some_and(|prefix| prefix.eq_ignore_ascii_case(b"https://"))
-        || bytes.get(..7).is_some_and(|prefix| prefix.eq_ignore_ascii_case(b"http://"))
+    bytes
+        .get(..8)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case(b"https://"))
+        || bytes
+            .get(..7)
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case(b"http://"))
 }
 
 /// Serialize one frame to a newline-terminated NDJSON line.
@@ -442,7 +458,10 @@ pub(super) fn ndjson_stream_response(
     rx: tokio::sync::mpsc::UnboundedReceiver<Vec<u8>>,
 ) -> Response {
     let stream = futures_util::stream::unfold(rx, |mut rx| async move {
-        rx.recv().await.map(|line| (Ok::<_, std::io::Error>(axum::body::Bytes::from(line)), rx))
+        rx
+            .recv()
+            .await
+            .map(|line| (Ok::<_, std::io::Error>(axum::body::Bytes::from(line)), rx))
     });
     Response::builder()
         .status(StatusCode::OK)
@@ -450,4 +469,25 @@ pub(super) fn ndjson_stream_response(
         .header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
         .body(Body::from_stream(stream))
         .expect("streaming response is always valid")
+}
+
+fn frozen_tarball<'a>(
+    inputs: &FrozenFrameInputs<'a>,
+) -> Option<(std::borrow::Cow<'a, str>, &'a ssri::Integrity)> {
+    if !matches!(
+        inputs.snapshot.resolution,
+        LockfileResolution::Registry(_) | LockfileResolution::Tarball(_),
+    ) {
+        return None;
+    }
+    // The frame carries the integrity the client prefetches against;
+    // an entry that pins none has no frame to announce.
+    let Ok((tarball_url, Some(integrity))) = tarball_url_and_integrity(
+        &inputs.snapshot.resolution,
+        inputs.package_key,
+        inputs.config,
+    ) else {
+        return None;
+    };
+    Some((tarball_url, integrity))
 }

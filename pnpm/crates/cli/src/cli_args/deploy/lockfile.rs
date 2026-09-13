@@ -1,14 +1,15 @@
 use super::{
     Config, Context, DependencyGroup, DeployError, DeployWorkspaceConfig, DirectoryResolution,
-    HashMap, HashSet, IntoDiagnostic, Lockfile, LockfileResolution, Map, PackageKey,
-    PackageManifest, PackageMetadata, Path, PathBuf, PkgName, PkgNameVerPeer, Project, ProjectInfo,
-    ProjectPathKey, ProjectSnapshot, ResolveBases, ResolvedDependencyMap, ResolvedDependencySpec,
-    SelectedProject, SnapshotEntry, State, Value, bind_singleton_peers, convert_package_key,
+    HashMap, HashSet, Lockfile, LockfileResolution, Map, PackageKey, PackageManifest,
+    PackageMetadata, Path, PathBuf, PkgName, PkgNameVerPeer, Project, ProjectInfo, ProjectPathKey,
+    ProjectSnapshot, ResolveBases, ResolvedDependencyMap, ResolvedDependencySpec, SelectedProject,
+    SnapshotEntry, State, Value, bind_singleton_peers, convert_package_key,
     convert_package_metadata, convert_resolved_dependency_spec, convert_snapshot,
     create_file_url_key, is_ancestor_path, lexical_normalize, omit_peers_of_excluded_dependencies,
     project_snapshot_to_snapshot_entry, prune_deploy_lockfile_graph, relative_path, same_path,
     validate_lockfile_local_path,
 };
+use workspace::finish_deploy_files;
 
 pub(super) struct DeployFiles {
     pub(super) manifest: Value,
@@ -46,10 +47,11 @@ pub(super) fn create_deploy_files(
     config: &Config,
     dependency_groups: &[DependencyGroup],
 ) -> miette::Result<DeployFiles> {
-    let input_snapshot = lockfile
-        .importers
+    let input_snapshot = lockfile.importers
         .get(project_id)
-        .ok_or_else(|| DeployError::MissingImporter { project_id: project_id.to_string() })?;
+        .ok_or_else(|| DeployError::MissingImporter {
+            project_id: project_id.to_string(),
+        })?;
     let deployed_project_root =
         validate_lockfile_local_path(&lockfile_dir.join(project_id), lockfile_dir)?;
     let ctx = ConvertCtx {
@@ -68,19 +70,20 @@ pub(super) fn create_deploy_files(
         ctx: &ctx,
     })?;
 
-    let packages =
-        convert_deploy_packages(lockfile, project_id, lockfile_dir, deploy_dir, selected, &ctx)?;
-    let converted = convert_deploy_snapshots(lockfile, project_id, lockfile_dir, selected, &ctx)?;
-    let deploy_lockfile = converted_deploy_lockfile(
+    let deploy_lockfile = deploy_dependency_graph(
         lockfile,
+        project_id,
+        selected,
+        &ctx,
         &target_snapshot,
-        packages,
-        converted,
         dependency_groups,
     )?;
 
-    let manifest =
-        deploy_manifest(&selected.project.manifest, &target_snapshot, &declared_dependencies);
+    let manifest = deploy_manifest(
+        &selected.project.manifest,
+        &target_snapshot,
+        &declared_dependencies,
+    );
 
     finish_deploy_files(lockfile, config, &ctx, manifest, deploy_lockfile)
 }
@@ -88,8 +91,10 @@ pub(super) fn create_deploy_files(
 /// The names the project declares as dependencies, and the peers it does
 /// not also depend on itself.
 fn dependency_name_sets(manifest: &PackageManifest) -> (HashSet<String>, HashSet<String>) {
-    let declared_dependencies =
-        manifest.available_dependency_names(None).into_iter().collect::<HashSet<_>>();
+    let declared_dependencies = manifest
+        .available_dependency_names(None)
+        .into_iter()
+        .collect::<HashSet<_>>();
     let peer_only_dependencies = manifest
         .dependencies([DependencyGroup::Peer])
         .map(|(name, _)| name.to_string())
@@ -115,8 +120,10 @@ fn fill_target_dependencies(
     deployed: &DeployedDependencies<'_>,
 ) -> miette::Result<()> {
     let selected_root = lexical_normalize(&deployed.selected.project.root_dir);
-    let selected_bases =
-        ResolveBases { file_base: deployed.ctx.lockfile_dir, link_base: &selected_root };
+    let selected_bases = ResolveBases {
+        file_base: deployed.ctx.lockfile_dir,
+        link_base: &selected_root,
+    };
     for (group, target, source) in [
         (
             DependencyGroup::Prod,
@@ -137,9 +144,10 @@ fn fill_target_dependencies(
         let included = deployed.dependency_groups.contains(&group);
         fill_target_dependency_map(
             target,
-            source.iter().flatten().filter(|(name, _)| {
-                included || deployed.peer_only_dependencies.contains(&name.to_string())
-            }),
+            source
+                .iter()
+                .flatten()
+                .filter(|(name, _)| deployed.includes_dependency(name, included)),
             deployed.ctx,
             &selected_bases,
         )?;
@@ -171,8 +179,10 @@ fn converted_deploy_lockfile(
     if let Some(settings) = deploy_lockfile.settings.as_mut() {
         settings.inject_workspace_packages = false;
     }
-    deploy_lockfile.importers =
-        HashMap::from([(Lockfile::ROOT_IMPORTER_KEY.to_string(), target_snapshot.clone())]);
+    deploy_lockfile.importers = HashMap::from([(
+        Lockfile::ROOT_IMPORTER_KEY.to_string(),
+        target_snapshot.clone(),
+    )]);
     deploy_lockfile.packages = (!packages.is_empty()).then_some(packages);
     deploy_lockfile.snapshots = (!converted.snapshots.is_empty()).then_some(converted.snapshots);
     prune_deploy_lockfile_graph(&mut deploy_lockfile, dependency_groups);
@@ -252,7 +262,10 @@ fn convert_deploy_snapshots(
         }
         let project_root =
             validate_lockfile_local_path(&lockfile_dir.join(importer_path), lockfile_dir)?;
-        let bases = ResolveBases { file_base: lockfile_dir, link_base: &project_root };
+        let bases = ResolveBases {
+            file_base: lockfile_dir,
+            link_base: &project_root,
+        };
         let package_key = create_file_url_key(&project_root, "", &selected.projects_by_path, None)?;
         if let Some(project) = selected.projects_by_path.get(&ProjectPathKey::new(&project_root))
             && !project.peer_dependencies.is_empty()
@@ -264,52 +277,10 @@ fn convert_deploy_snapshots(
             project_snapshot_to_snapshot_entry(project_snapshot, ctx, &bases)?,
         );
     }
-    Ok(DeploySnapshots { snapshots, linked_workspace_projects })
-}
-
-/// The `pnpm-workspace.yaml` the deploy writes, and the same settings in
-/// the shape the deploy install consumes. Only the settings that survive
-/// a deploy are carried: patch files, rewritten to paths relative to the
-/// deploy dir, and the build allow-list.
-fn deploy_workspace_settings(
-    lockfile: &Lockfile,
-    config: &Config,
-    lockfile_dir: &Path,
-    deploy_dir: &Path,
-    deploy_lockfile: &mut Lockfile,
-) -> miette::Result<(Map<String, Value>, DeployWorkspaceConfig)> {
-    let mut workspace_manifest = Map::new();
-    let mut workspace_config =
-        DeployWorkspaceConfig { patched_dependencies: None, allow_builds: HashMap::new() };
-    if lockfile.patched_dependencies.is_some()
-        && let Some(patched_dependencies) = config.patched_dependencies.as_ref()
-    {
-        deploy_lockfile.patched_dependencies.clone_from(&lockfile.patched_dependencies);
-        let rewritten = patched_dependencies
-            .iter()
-            .map(|(name, value)| {
-                let absolute = if Path::new(value).is_absolute() {
-                    PathBuf::from(value)
-                } else {
-                    lockfile_dir.join(value)
-                };
-                (name.clone(), relative_path(deploy_dir, &absolute))
-            })
-            .collect::<indexmap::IndexMap<_, _>>();
-        workspace_manifest.insert(
-            "patchedDependencies".to_string(),
-            serde_json::to_value(&rewritten).into_diagnostic()?,
-        );
-        workspace_config.patched_dependencies = Some(rewritten);
-    }
-    if !config.allow_builds.is_empty() {
-        workspace_manifest.insert(
-            "allowBuilds".to_string(),
-            serde_json::to_value(&config.allow_builds).into_diagnostic()?,
-        );
-        workspace_config.allow_builds.clone_from(&config.allow_builds);
-    }
-    Ok((workspace_manifest, workspace_config))
+    Ok(DeploySnapshots {
+        snapshots,
+        linked_workspace_projects,
+    })
 }
 
 /// A lockfile importer records a dependency group only when it has entries.
@@ -327,7 +298,10 @@ fn fill_target_dependency_map<'a>(
 ) -> miette::Result<()> {
     let output = output.get_or_insert_with(HashMap::new);
     for (name, spec) in input {
-        output.insert(name.clone(), convert_resolved_dependency_spec(name, spec, ctx, bases)?);
+        output.insert(
+            name.clone(),
+            convert_resolved_dependency_spec(name, spec, ctx, bases)?,
+        );
     }
     Ok(())
 }
@@ -376,7 +350,11 @@ fn deploy_manifest(
     declared_dependencies: &HashSet<String>,
 ) -> Value {
     let mut manifest = source.value().clone();
-    set_manifest_dependencies(&mut manifest, "dependencies", target_snapshot.dependencies.as_ref());
+    set_manifest_dependencies(
+        &mut manifest,
+        "dependencies",
+        target_snapshot.dependencies.as_ref(),
+    );
     set_manifest_dependencies(
         &mut manifest,
         "devDependencies",
@@ -419,26 +397,37 @@ pub(super) fn deployed_workspace_projects(
     })
 }
 
-fn finish_deploy_files(
+fn deploy_dependency_graph(
     lockfile: &Lockfile,
-    config: &Config,
+    project_id: &str,
+    selected: &SelectedProject,
     ctx: &ConvertCtx<'_>,
-    manifest: Value,
-    mut deploy_lockfile: Lockfile,
-) -> miette::Result<DeployFiles> {
-    let (workspace_manifest, workspace_config) = deploy_workspace_settings(
+    target_snapshot: &ProjectSnapshot,
+    dependency_groups: &[DependencyGroup],
+) -> miette::Result<Lockfile> {
+    let packages = convert_deploy_packages(
         lockfile,
-        config,
+        project_id,
         ctx.lockfile_dir,
         ctx.deploy_dir,
-        &mut deploy_lockfile,
+        selected,
+        ctx,
     )?;
-
-    Ok(DeployFiles {
-        manifest,
-        lockfile: deploy_lockfile,
-        workspace_manifest: (!workspace_manifest.is_empty())
-            .then_some(Value::Object(workspace_manifest)),
-        workspace_config,
-    })
+    let converted =
+        convert_deploy_snapshots(lockfile, project_id, ctx.lockfile_dir, selected, ctx)?;
+    converted_deploy_lockfile(
+        lockfile,
+        target_snapshot,
+        packages,
+        converted,
+        dependency_groups,
+    )
 }
+
+impl DeployedDependencies<'_> {
+    fn includes_dependency(&self, name: &PkgName, included: bool) -> bool {
+        included || self.peer_only_dependencies.contains(&name.to_string())
+    }
+}
+
+mod workspace;

@@ -2,7 +2,10 @@ use super::inject_alias_subcommand;
 use std::ffi::OsString;
 
 fn argv(parts: &[&str]) -> Vec<OsString> {
-    parts.iter().map(OsString::from).collect()
+    parts
+        .iter()
+        .map(OsString::from)
+        .collect()
 }
 
 #[test]
@@ -17,7 +20,10 @@ fn pnpx_and_pnx_inject_dlx_after_the_program_name() {
 fn pnpm_pn_and_pacquet_names_are_left_untouched() {
     for name in ["pnpm", "pn", "pacquet", "PNPX-not-exact"] {
         let original = argv(&[name, "install"]);
-        assert_eq!(inject_alias_subcommand(Some(name), original.clone()), original);
+        assert_eq!(
+            inject_alias_subcommand(Some(name), original.clone()),
+            original,
+        );
     }
 }
 

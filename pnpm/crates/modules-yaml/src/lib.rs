@@ -9,6 +9,8 @@
 //! match pnpm exactly, and reads parse JSON first, falling back to a YAML
 //! parser for manifests written by old pnpm versions.
 
+pub use capabilities::{Clock, FsCreateDirAll, FsReadToString, FsWrite, Host};
+
 use derive_more::{Display, Error, From, Into};
 use indexmap::{IndexMap, IndexSet};
 use pipe_trait::Pipe;
@@ -17,9 +19,8 @@ use pnpm_fs::lexical_normalize;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{
     collections::BTreeMap,
-    fs, io, iter,
+    io,
     path::{Path, PathBuf},
-    time::SystemTime,
 };
 
 /// Filename of the modules manifest inside `node_modules/`.
@@ -30,66 +31,6 @@ pub const MODULES_FILENAME: &str = ".modules.yaml";
 
 /// Default value for the `virtualStoreDirMaxLength` field.
 pub const DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH: u64 = 120;
-
-/// Capability trait: read a file's contents into a [`String`].
-///
-/// One trait per filesystem capability so each function declares only what
-/// it actually uses, and so test fakes only implement the methods that
-/// will be exercised. Pattern follows the per-capability typeclass style
-/// rather than `parallel-disk-usage`'s lumped `FsApi` at
-/// <https://github.com/KSXGitHub/parallel-disk-usage/blob/2aa39917f9/src/app/hdd.rs#L29-L35>.
-pub trait FsReadToString {
-    fn read_to_string(path: &Path) -> io::Result<String>;
-}
-
-/// Capability trait: create a directory and any missing parents.
-pub trait FsCreateDirAll {
-    fn create_dir_all(path: &Path) -> io::Result<()>;
-}
-
-/// Capability trait: write bytes to a file, replacing existing contents.
-pub trait FsWrite {
-    fn write(path: &Path, contents: &[u8]) -> io::Result<()>;
-}
-
-/// Capability trait: read the current wall-clock time as a [`SystemTime`].
-///
-/// Decoupled from [`SystemTime::now`] so tests can fake the clock and
-/// assert deterministic `prunedAt` values.
-pub trait Clock {
-    fn now() -> SystemTime;
-}
-
-/// Production implementation, backed by [`std::fs`] and [`SystemTime::now`].
-pub struct Host;
-
-impl FsReadToString for Host {
-    #[inline]
-    fn read_to_string(path: &Path) -> io::Result<String> {
-        fs::read_to_string(path)
-    }
-}
-
-impl FsCreateDirAll for Host {
-    #[inline]
-    fn create_dir_all(path: &Path) -> io::Result<()> {
-        fs::create_dir_all(path)
-    }
-}
-
-impl FsWrite for Host {
-    #[inline]
-    fn write(path: &Path, contents: &[u8]) -> io::Result<()> {
-        fs::write(path, contents)
-    }
-}
-
-impl Clock for Host {
-    #[inline]
-    fn now() -> SystemTime {
-        SystemTime::now()
-    }
-}
 
 /// Newtype wrapper around a dependency-path string.
 ///
@@ -340,7 +281,9 @@ impl TryFrom<u32> for LayoutVersion {
         if value == LayoutVersion::VALUE {
             Ok(Self)
         } else {
-            Err(UnsupportedLayoutVersionError { found: value })
+            Err(UnsupportedLayoutVersionError {
+                found: value,
+            })
         }
     }
 }
@@ -407,7 +350,10 @@ pub enum ReadModulesError {
 
     #[display("Failed to parse {path:?}: {source}")]
     #[diagnostic(code(ERR_PNPM_MODULES_YAML_PARSE_YAML))]
-    ParseYaml { path: PathBuf, source: Box<serde_saphyr::Error> },
+    ParseYaml {
+        path: PathBuf,
+        source: Box<serde_saphyr::Error>,
+    },
 }
 
 /// Error returned by [`write_modules_manifest`].
@@ -459,13 +405,21 @@ where
         Ok(content) => content,
         Err(source) if source.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(source) => {
-            return Err(ReadModulesError::ReadFile { path: manifest_path, source });
+            return Err(ReadModulesError::ReadFile {
+                path: manifest_path,
+                source,
+            });
         }
     };
-    let parsed: Option<Modules> = content.pipe_as_ref(deserialize_modules).map_err(|source| {
-        ReadModulesError::ParseYaml { path: manifest_path.clone(), source: Box::new(source) }
-    })?;
-    let Some(mut manifest) = parsed else { return Ok(None) };
+    let parsed: Option<Modules> = content
+        .pipe_as_ref(deserialize_modules)
+        .map_err(|source| ReadModulesError::ParseYaml {
+            path: manifest_path.clone(),
+            source: Box::new(source),
+        })?;
+    let Some(mut manifest) = parsed else {
+        return Ok(None);
+    };
     apply_legacy_shamefully_hoist(&mut manifest);
     resolve_virtual_store_dir(&mut manifest, modules_dir);
     if manifest.pruned_at.is_empty() {
@@ -490,15 +444,21 @@ where
         Ok(content) => content,
         Err(source) if source.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(source) => {
-            return Err(ReadModulesError::ReadFile { path: manifest_path, source });
+            return Err(ReadModulesError::ReadFile {
+                path: manifest_path,
+                source,
+            });
         }
     };
-    let parsed: Option<ModulesLayout> =
-        content.pipe_as_ref(deserialize_modules).map_err(|source| ReadModulesError::ParseYaml {
+    let parsed: Option<ModulesLayout> = content
+        .pipe_as_ref(deserialize_modules)
+        .map_err(|source| ReadModulesError::ParseYaml {
             path: manifest_path.clone(),
             source: Box::new(source),
         })?;
-    let Some(mut manifest) = parsed else { return Ok(None) };
+    let Some(mut manifest) = parsed else {
+        return Ok(None);
+    };
 
     normalize_modules_layout::<Sys>(&mut manifest, modules_dir);
     Ok(Some(manifest))
@@ -512,12 +472,18 @@ fn normalize_modules_layout<Sys: Clock>(manifest: &mut ModulesLayout, modules_di
     if let Some(shamefully_hoist) = manifest.shamefully_hoist
         && manifest.public_hoist_pattern.is_none()
     {
-        manifest.public_hoist_pattern =
-            Some(if shamefully_hoist { vec!["*".to_string()] } else { Vec::new() });
+        manifest.public_hoist_pattern = Some(if shamefully_hoist {
+            vec!["*".to_string()]
+        } else {
+            Vec::new()
+        });
     }
 
     let stored_path = Path::new(&manifest.virtual_store_dir);
-    let resolved = match (manifest.virtual_store_dir.is_empty(), stored_path.is_absolute()) {
+    let resolved = match (
+        manifest.virtual_store_dir.is_empty(),
+        stored_path.is_absolute(),
+    ) {
         (true, _) => modules_dir.join(".pnpm"),
         (false, true) => stored_path.to_path_buf(),
         (false, false) => lexical_normalize(&modules_dir.join(stored_path)),
@@ -560,20 +526,27 @@ where
     }
     let serialized =
         serde_json::to_string_pretty(&manifest).map_err(WriteModulesError::SerializeJson)?;
-    Sys::create_dir_all(modules_dir).map_err(|source| WriteModulesError::CreateDir {
-        path: modules_dir.to_path_buf(),
-        source,
-    })?;
+    Sys::create_dir_all(modules_dir)
+        .map_err(|source| WriteModulesError::CreateDir {
+            path: modules_dir.to_path_buf(),
+            source,
+        })?;
     let manifest_path = modules_dir.join(MODULES_FILENAME);
     Sys::write(&manifest_path, serialized.as_bytes())
-        .map_err(|source| WriteModulesError::WriteFile { path: manifest_path, source })
+        .map_err(|source| WriteModulesError::WriteFile {
+            path: manifest_path,
+            source,
+        })
 }
 
 /// When `virtualStoreDir` is missing, default to `modules_dir/.pnpm`. When
 /// it is relative, resolve it against `modules_dir`.
 fn resolve_virtual_store_dir(manifest: &mut Modules, modules_dir: &Path) {
     let stored_path = Path::new(&manifest.virtual_store_dir);
-    let resolved = match (manifest.virtual_store_dir.is_empty(), stored_path.is_absolute()) {
+    let resolved = match (
+        manifest.virtual_store_dir.is_empty(),
+        stored_path.is_absolute(),
+    ) {
         (true, _) => modules_dir.join(".pnpm"),
         (false, true) => stored_path.to_path_buf(),
         // Lexically normalize so the joined path collapses `..`
@@ -607,35 +580,7 @@ fn rewrite_virtual_store_dir_relative(manifest: &mut Modules, modules_dir: &Path
     manifest.virtual_store_dir = relative.to_string_lossy().into_owned();
 }
 
-/// Translate the legacy `shamefullyHoist` and `hoistedAliases` fields into
-/// the modern `publicHoistPattern` and `hoistedDependencies` shapes.
-fn apply_legacy_shamefully_hoist(manifest: &mut Modules) {
-    let Some(shamefully_hoist) = manifest.shamefully_hoist else {
-        return;
-    };
-    let kind = if shamefully_hoist { HoistKind::Public } else { HoistKind::Private };
-    match (&manifest.public_hoist_pattern, shamefully_hoist) {
-        (None, false) => manifest.public_hoist_pattern = Some(Vec::new()),
-        (None, true) => manifest.public_hoist_pattern = Some(vec!["*".to_string()]),
-        (Some(_), _) => {}
-    }
-    if manifest.hoisted_dependencies.is_empty()
-        && let Some(aliases_by_path) = &manifest.hoisted_aliases
-    {
-        manifest.hoisted_dependencies = aliases_by_path
-            .iter()
-            .map(|(dep_path, alias_names)| {
-                let entry = alias_names.iter().cloned().zip(iter::repeat(kind)).collect();
-                (dep_path.clone().into(), entry)
-            })
-            .collect();
-    }
-}
+mod capabilities;
 
-/// Drop the legacy `hoistedAliases` field on write when neither hoist
-/// pattern is present.
-fn drop_legacy_hoisted_aliases_when_unreferenced(manifest: &mut Modules) {
-    if manifest.hoist_pattern.is_none() && manifest.public_hoist_pattern.is_none() {
-        manifest.hoisted_aliases = None;
-    }
-}
+mod legacy;
+use legacy::{apply_legacy_shamefully_hoist, drop_legacy_hoisted_aliases_when_unreferenced};

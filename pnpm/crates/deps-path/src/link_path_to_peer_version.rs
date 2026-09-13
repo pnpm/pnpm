@@ -16,12 +16,18 @@ pub fn link_path_to_peer_version(rel_path: &str) -> String {
         }
     }
 
-    let trimmed_end = out.trim_end_matches(['+', '.']).len();
+    let trimmed_end = out
+        .trim_end_matches(['+', '.'])
+        .len();
     if trimmed_end > 0 {
         out.truncate(trimmed_end);
         return out;
     }
-    if rel_path.is_empty() { String::new() } else { "+".to_string() }
+    if rel_path.is_empty() {
+        String::new()
+    } else {
+        "+".to_string()
+    }
 }
 
 /// Convert a `link:` target's path into the filename-safe token pnpm
@@ -37,7 +43,11 @@ pub fn link_path_to_peer_version(rel_path: &str) -> String {
 /// A character a directory name cannot carry on every platform, which the
 /// suffix replaces with a single `+`.
 fn needs_replacing(ch: char) -> bool {
-    ch.is_control() || matches!(ch, '"' | '*' | '+' | '/' | ':' | '<' | '>' | '?' | '\\' | '|')
+    ch.is_control()
+        || matches!(
+            ch,
+            '"' | '*' | '+' | '/' | ':' | '<' | '>' | '?' | '\\' | '|',
+        )
 }
 
 #[cfg(test)]

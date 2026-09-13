@@ -24,8 +24,11 @@ impl DedupePipeline {
 
         // Snapshot before any config-dep writes so --check detects lockfile
         // changes made by config-dependency syncing as well.
-        let existing =
-            if self.args.check { dedupe::read_lockfile_snapshot(&lockfile_path)? } else { None };
+        let existing = if self.args.check {
+            dedupe::read_lockfile_snapshot(&lockfile_path)?
+        } else {
+            None
+        };
         let guard =
             self.args.check.then(|| dedupe::LockfileGuard::new(existing.clone(), &lockfile_path));
 
@@ -92,7 +95,9 @@ async fn dedupe_dedicated_project<Reporter: self::Reporter + 'static>(
     root_lockfile_path: &Path,
     root_existing: Option<&str>,
 ) -> miette::Result<()> {
-    let lockfile_path = state.lockfile_dir().join(state.config.wanted_lockfile_name());
+    let lockfile_path = state
+        .lockfile_dir()
+        .join(state.config.wanted_lockfile_name());
     let existing = if args.check {
         if lockfile_path == root_lockfile_path {
             root_existing.map(str::to_string)
@@ -123,7 +128,12 @@ pub(crate) struct PrunePipeline {
 
 impl PrunePipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        let PrunePipeline { args, cfg, config_root, manifest_path } = self;
+        let PrunePipeline {
+            args,
+            cfg,
+            config_root,
+            manifest_path,
+        } = self;
 
         config_deps::prepare::<Reporter>(cfg, &config_root, false).await?;
         // Validate path containment AFTER hooks: updateConfig can mutate
@@ -150,8 +160,11 @@ impl PrunePipeline {
         // - `--ignore-scripts` from the CLI wins over any value the
         //   hooks set via `WorkspaceSettings::apply_to`.
         cfg.modules_cache_max_age = 0;
-        cfg.ignore_scripts =
-            resolve_bool_override(args.ignore_scripts, args.no_ignore_scripts, cfg.ignore_scripts);
+        cfg.ignore_scripts = resolve_bool_override(
+            args.ignore_scripts,
+            args.no_ignore_scripts,
+            cfg.ignore_scripts,
+        );
         let cfg: &'static Config = cfg;
         let state = State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
         Box::pin(args.run::<Reporter>(state)).await

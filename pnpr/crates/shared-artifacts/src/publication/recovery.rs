@@ -151,8 +151,10 @@ impl SharedArtifactStore {
         match compatibility_scopes(&payload.compatibility) {
             CompatibilityScopes::Every => self.tagged_scopes_are_free(owner, entry).await,
             CompatibilityScopes::These(_) => {
-                Ok(self.scope_marker(owner, entry, UNIVERSAL_SCOPE, holder).await?
-                    != ScopeMarker::Another)
+                Ok(
+                    self.scope_marker(owner, entry, UNIVERSAL_SCOPE, holder).await?
+                        != ScopeMarker::Another,
+                )
             }
         }
     }

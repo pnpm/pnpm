@@ -97,7 +97,13 @@ pub(super) async fn serve_hosted_revision_tarball(
         let served = serve_revision_refs(
             state,
             identity,
-            RevisionSource { registry, source: &source, storage: &storage, digest, integrity },
+            RevisionSource {
+                registry,
+                source: &source,
+                storage: &storage,
+                digest,
+                integrity,
+            },
             refs,
             &mut scan,
         )
@@ -120,8 +126,7 @@ pub(super) async fn hosted_original_is_current(
         return Ok(false);
     };
     let packument = serde_json::from_slice::<HostedRevisionPackument>(&bytes)?;
-    Ok(packument
-        .versions
+    Ok(packument.versions
         .get(version)
         .and_then(|manifest| manifest.dist.as_ref())
         .and_then(original_integrity)
@@ -192,24 +197,33 @@ impl<'de> serde::Deserialize<'de> for RevisionField {
 
 pub(super) fn original_integrity(dist: &HostedRevisionDist) -> Option<Integrity> {
     let RevisionField::Present(revision) = &dist.revision else {
-        return dist.integrity.as_deref()?.parse().ok();
+        return dist.integrity
+            .as_deref()?
+            .parse()
+            .ok();
     };
-    let selected_revision =
-        revision.as_u64().and_then(|revision| TarballRevision::try_from(revision).ok())?.get();
-    let selected: Vec<_> = dist
-        .revisions
+    let selected_revision = revision
+        .as_u64()
+        .and_then(|revision| TarballRevision::try_from(revision).ok())?
+        .get();
+    let selected: Vec<_> = dist.revisions
         .iter()
         .filter(|record| record.revision.as_u64() == Some(selected_revision))
         .collect();
     if selected.len() != 1 || selected[0].integrity.as_deref() != dist.integrity.as_deref() {
         return None;
     }
-    let originals: Vec<_> =
-        dist.revisions.iter().filter(|record| record.revision.as_u64() == Some(0)).collect();
+    let originals: Vec<_> = dist.revisions
+        .iter()
+        .filter(|record| record.revision.as_u64() == Some(0))
+        .collect();
     if originals.len() != 1 {
         return None;
     }
-    originals[0].integrity.as_deref()?.parse().ok()
+    originals[0].integrity
+        .as_deref()?
+        .parse()
+        .ok()
 }
 
 /// Prefer SRI and fall back to legacy SHA-1, while refusing unverified bytes.
@@ -220,28 +234,32 @@ pub(super) fn declared_tarball_integrity(
     version: &str,
 ) -> Result<Integrity, RegistryError> {
     let integrity = if let Some(declared) = dist.integrity.as_deref() {
-        streaming::parse_integrity(declared).map_err(|err| {
-            tarball_integrity_error(
-                name.as_str(),
-                filename,
-                format!("malformed dist.integrity: {err}"),
-            )
-        })?
+        streaming::parse_integrity(declared)
+            .map_err(|err| {
+                tarball_integrity_error(
+                    name.as_str(),
+                    filename,
+                    format!("malformed dist.integrity: {err}"),
+                )
+            })?
     } else {
-        let shasum = dist.shasum.as_deref().ok_or_else(|| {
-            tarball_integrity_error(
-                name.as_str(),
-                filename,
-                format!("packument has no dist.integrity or dist.shasum for {version:?}"),
-            )
-        })?;
-        Integrity::from_hex(shasum, ssri::Algorithm::Sha1).map_err(|err| {
-            tarball_integrity_error(
-                name.as_str(),
-                filename,
-                format!("malformed dist.shasum: {err}"),
-            )
-        })?
+        let shasum = dist.shasum
+            .as_deref()
+            .ok_or_else(|| {
+                tarball_integrity_error(
+                    name.as_str(),
+                    filename,
+                    format!("packument has no dist.integrity or dist.shasum for {version:?}"),
+                )
+            })?;
+        Integrity::from_hex(shasum, ssri::Algorithm::Sha1)
+            .map_err(|err| {
+                tarball_integrity_error(
+                    name.as_str(),
+                    filename,
+                    format!("malformed dist.shasum: {err}"),
+                )
+            })?
     };
     Ok(integrity)
 }

@@ -21,7 +21,10 @@ fn a_nested_tree_is_copied_whole() {
 
     assert_eq!(fs::read(dst.join("top.txt")).unwrap(), b"top");
     assert_eq!(fs::read(dst.join("deep/deeper/leaf.txt")).unwrap(), b"leaf");
-    assert!(src.join("top.txt").exists(), "the copy must leave the source in place");
+    assert!(
+        src.join("top.txt").exists(),
+        "the copy must leave the source in place",
+    );
 }
 
 #[test]
@@ -64,10 +67,20 @@ fn symlinks_are_recreated_rather_than_followed() {
     let dst = tmp.path().join("dst");
     copy_dirent(&src, &dst).unwrap();
 
-    assert_eq!(fs::read_link(dst.join("link-to-dir")).unwrap().as_os_str(), "real");
-    assert_eq!(fs::read_link(dst.join("dangling")).unwrap().as_os_str(), "nowhere");
+    assert_eq!(
+        fs::read_link(dst.join("link-to-dir")).unwrap().as_os_str(),
+        "real",
+    );
+    assert_eq!(
+        fs::read_link(dst.join("dangling")).unwrap().as_os_str(),
+        "nowhere",
+    );
     assert!(
-        !dst.join("link-to-dir").symlink_metadata().unwrap().is_dir(),
+        !dst
+            .join("link-to-dir")
+            .symlink_metadata()
+            .unwrap()
+            .is_dir(),
         "the link must not have been resolved into a directory of its own",
     );
 }
@@ -112,7 +125,10 @@ fn directory_permissions_survive_the_copy() {
     let dst = tmp.path().join("dst");
     copy_dirent(&src, &dst).unwrap();
 
-    let mode = fs::metadata(dst.join("private")).unwrap().permissions().mode();
+    let mode = fs::metadata(dst.join("private"))
+        .unwrap()
+        .permissions()
+        .mode();
     assert_eq!(mode & 0o777, 0o700);
     assert_eq!(fs::read(dst.join("private/secret.txt")).unwrap(), b"secret");
 }
@@ -125,11 +141,17 @@ fn a_fifo_is_refused_rather_than_opened() {
     let tmp = tempdir().unwrap();
     let src = tmp.path().join("src");
     fs::create_dir(&src).unwrap();
-    let made = std::process::Command::new("mkfifo").arg(src.join("pipe")).status().unwrap();
+    let made = std::process::Command::new("mkfifo")
+        .arg(src.join("pipe"))
+        .status()
+        .unwrap();
     assert!(made.success(), "mkfifo failed");
 
     let error = copy_dirent(&src, &tmp.path().join("dst")).unwrap_err();
 
     assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
-    assert!(error.to_string().contains("pipe"), "the error must name the offending path: {error}");
+    assert!(
+        error.to_string().contains("pipe"),
+        "the error must name the offending path: {error}",
+    );
 }

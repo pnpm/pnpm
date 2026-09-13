@@ -24,8 +24,9 @@ pub(super) fn stream_resolve_response(
     runtime: &Resolver,
     inputs: StreamedResolveInputs,
 ) -> Response {
-    let package_version_guard =
-        runtime.osv_index.as_ref().map(|index| Arc::clone(index) as Arc<dyn PackageVersionGuard>);
+    let package_version_guard = runtime.osv_index
+        .as_ref()
+        .map(|index| Arc::clone(index) as Arc<dyn PackageVersionGuard>);
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
     let observer: Arc<dyn pnpm_package_manager::ResolutionObserver> = Arc::new(StreamObserver {
         tx: tx.clone(),
@@ -60,8 +61,9 @@ pub(super) struct StreamedResolve {
 /// Resolve, then send the terminal `done` / `error` frame. The `package`
 /// frames reach the channel from the observer as each tarball resolves.
 pub(super) async fn stream_resolution(task: StreamedResolve) {
-    let StreamedResolve { inputs, tx, .. } = &task;
-    let StreamedResolveInputs { config, tarball_router, .. } = inputs;
+    let tx = &task.tx;
+    let config = task.inputs.config;
+    let tarball_router = &task.inputs.tarball_router;
     let resolved = Box::pin(resolve::resolve(
         task.inputs.config,
         &task.client,

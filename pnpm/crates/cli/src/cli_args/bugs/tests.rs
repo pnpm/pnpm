@@ -12,7 +12,10 @@ fn pick_bugs_url_returns_bugs_url_from_object() {
     let manifest = json!({
         "bugs": { "url": "https://github.com/test/pkg/issues" }
     });
-    assert_eq!(pick_bugs_url(&manifest).as_deref(), Some("https://github.com/test/pkg/issues"));
+    assert_eq!(
+        pick_bugs_url(&manifest).as_deref(),
+        Some("https://github.com/test/pkg/issues"),
+    );
 }
 
 #[test]
@@ -20,7 +23,10 @@ fn pick_bugs_url_returns_bugs_url_from_string() {
     let manifest = json!({
         "bugs": "https://github.com/test/pkg/issues"
     });
-    assert_eq!(pick_bugs_url(&manifest).as_deref(), Some("https://github.com/test/pkg/issues"));
+    assert_eq!(
+        pick_bugs_url(&manifest).as_deref(),
+        Some("https://github.com/test/pkg/issues"),
+    );
 }
 
 #[test]
@@ -28,7 +34,10 @@ fn pick_bugs_url_falls_back_to_repository_issues_url() {
     let manifest = json!({
         "repository": "https://github.com/test/pkg"
     });
-    assert_eq!(pick_bugs_url(&manifest).as_deref(), Some("https://github.com/test/pkg/issues"));
+    assert_eq!(
+        pick_bugs_url(&manifest).as_deref(),
+        Some("https://github.com/test/pkg/issues"),
+    );
 }
 
 #[test]
@@ -37,7 +46,10 @@ fn pick_bugs_url_prefers_bugs_over_repository() {
         "bugs": { "url": "https://github.com/other/issues" },
         "repository": "https://github.com/test/pkg"
     });
-    assert_eq!(pick_bugs_url(&manifest).as_deref(), Some("https://github.com/other/issues"));
+    assert_eq!(
+        pick_bugs_url(&manifest).as_deref(),
+        Some("https://github.com/other/issues"),
+    );
 }
 
 #[test]
@@ -217,12 +229,18 @@ fn hosted_shorthand_recognises_bare_owner_repo() {
 
 #[test]
 fn hosted_shorthand_returns_none_for_urls() {
-    assert_eq!(try_hosted_git_shorthand("https://github.com/owner/repo"), None);
+    assert_eq!(
+        try_hosted_git_shorthand("https://github.com/owner/repo"),
+        None,
+    );
 }
 
 #[test]
 fn hosted_shorthand_returns_none_for_git_urls() {
-    assert_eq!(try_hosted_git_shorthand("git@github.com:owner/repo.git"), None);
+    assert_eq!(
+        try_hosted_git_shorthand("git@github.com:owner/repo.git"),
+        None,
+    );
 }
 
 #[test]
@@ -242,12 +260,18 @@ fn parse_spec_scoped_package() {
 
 #[test]
 fn parse_spec_scoped_with_version() {
-    assert_eq!(parse_package_spec("@scope/foo@1.0.0"), ("@scope/foo", Some("1.0.0")));
+    assert_eq!(
+        parse_package_spec("@scope/foo@1.0.0"),
+        ("@scope/foo", Some("1.0.0")),
+    );
 }
 
 #[test]
 fn parse_spec_scoped_with_tag() {
-    assert_eq!(parse_package_spec("@scope/foo@latest"), ("@scope/foo", Some("latest")));
+    assert_eq!(
+        parse_package_spec("@scope/foo@latest"),
+        ("@scope/foo", Some("latest")),
+    );
 }
 
 #[test]
@@ -365,8 +389,7 @@ async fn run_opens_bugs_url_from_local_manifest_bugs_object() {
 #[tokio::test]
 async fn run_opens_bugs_url_from_local_manifest_bugs_string() {
     recording_browser!(run_bugs_in_project);
-    run_bugs_in_project(r#"{"name":"test-pkg","bugs":"https://github.com/test/pkg/issues"}"#)
-        .await
+    run_bugs_in_project(r#"{"name":"test-pkg","bugs":"https://github.com/test/pkg/issues"}"#).await
         .expect("bugs must succeed");
     assert_eq!(opened_urls(), ["https://github.com/test/pkg/issues"]);
 }
@@ -374,8 +397,7 @@ async fn run_opens_bugs_url_from_local_manifest_bugs_string() {
 #[tokio::test]
 async fn run_opens_repository_issues_url_when_bugs_is_missing() {
     recording_browser!(run_bugs_in_project);
-    run_bugs_in_project(r#"{"name":"test-pkg","repository":"https://github.com/test/pkg"}"#)
-        .await
+    run_bugs_in_project(r#"{"name":"test-pkg","repository":"https://github.com/test/pkg"}"#).await
         .expect("bugs must succeed");
     assert_eq!(opened_urls(), ["https://github.com/test/pkg/issues"]);
 }
@@ -425,7 +447,10 @@ async fn run_opens_bugs_url_of_registry_package() {
     run_bugs_against_registry(server.url(), "is-negative").await.expect("bugs must succeed");
 
     mock.assert_async().await;
-    assert_eq!(opened_urls(), ["https://github.com/kevva/is-negative/issues"]);
+    assert_eq!(
+        opened_urls(),
+        ["https://github.com/kevva/is-negative/issues"],
+    );
 }
 
 #[tokio::test]

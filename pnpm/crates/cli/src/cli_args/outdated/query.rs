@@ -132,9 +132,7 @@ pub struct OutdatedQuery<'a> {
 /// The matcher for `updateConfig.ignoreDependencies`, or [`None`] when
 /// nothing is ignored.
 pub(crate) fn ignored_dependencies_matcher(config: &Config) -> Option<Matcher> {
-    config
-        .update_config
-        .ignore_dependencies
+    config.update_config.ignore_dependencies
         .as_deref()
         .filter(|patterns| !patterns.is_empty())
         .map(create_matcher)
@@ -197,15 +195,7 @@ pub(crate) async fn collect_outdated_for_importer_in_run(
     // project is not required to declare a name, and an empty label
     // leaves several unnamed projects indistinguishable, so fall back to
     // the path that identifies the project in the lockfile.
-    let workspace = manifest
-        .value()
-        .get("name")
-        .and_then(serde_json::Value::as_str)
-        // A name that is missing, empty, or only whitespace all give an
-        // equally blank label.
-        .map(str::trim)
-        .filter(|name| !name.is_empty())
-        .map_or_else(|| importer_id.to_string(), str::to_string);
+    let workspace = workspace_label(manifest, importer_id);
     let workspace = &workspace;
 
     // Gather the lockfile-pinned direct dependencies to inspect, then
@@ -213,27 +203,35 @@ pub(crate) async fn collect_outdated_for_importer_in_run(
     // `Promise.all` fan-out. Concurrency is bounded by the HTTP client's
     // per-registry limit (`network_concurrency`), so this does not flood
     // the registry. Dependencies without a lockfile pin are dropped here.
-    let fetches = query
-        .include_direct
+    let fetches = query.include_direct
         .iter()
         .flat_map(move |&group| {
-            manifest.dependencies([group]).filter_map(move |(alias, bare_specifier)| {
-                if query.match_names.is_some_and(|matcher| !matcher.matches(alias))
-                    || query.ignore_names.is_some_and(|matcher| matcher.matches(alias))
-                {
-                    return None;
-                }
-                let current = current_versions.get(alias).cloned()?;
-                Some(OutdatedCandidate { alias, group, bare_specifier, current })
-            })
+            manifest
+                .dependencies([group])
+                .filter_map(move |(alias, bare_specifier)| {
+                    if query.match_names.is_some_and(|matcher| !matcher.matches(alias))
+                        || query.ignore_names.is_some_and(|matcher| matcher.matches(alias))
+                    {
+                        return None;
+                    }
+                    let current = current_versions.get(alias).cloned()?;
+                    Some(OutdatedCandidate {
+                        alias,
+                        group,
+                        bare_specifier,
+                        current,
+                    })
+                })
         })
         .map(|candidate| outdated_dependency(run, query, workspace, candidate));
 
-    let fetched = futures_util::future::join_all(fetches)
-        .await
+    let fetched = futures_util::future::join_all(fetches).await
         .into_iter()
         .collect::<miette::Result<Vec<_>>>()?;
-    Ok(fetched.into_iter().flatten().collect())
+    Ok(fetched
+        .into_iter()
+        .flatten()
+        .collect())
 }
 
 /// One lockfile-pinned direct dependency to compare against the registry.
@@ -255,8 +253,7 @@ async fn outdated_dependency(
     let bare_specifier =
         dereference_catalog(&run.catalogs, candidate.alias, candidate.bare_specifier)?;
     let resolved_package_name =
-        PackageManifest::resolve_registry_dependency(candidate.alias, &bare_specifier)
-            .0
+        PackageManifest::resolve_registry_dependency(candidate.alias, &bare_specifier).0
             .to_string();
     let latest = resolve_outdated_target(
         run,
@@ -269,7 +266,13 @@ async fn outdated_dependency(
     let Some(target_manifest) = latest.and_then(|latest| latest.latest_manifest) else {
         return Ok(None);
     };
-    Ok(outdated_target(query, workspace, candidate, &target_manifest, &resolved_package_name))
+    Ok(outdated_target(
+        query,
+        workspace,
+        candidate,
+        &target_manifest,
+        &resolved_package_name,
+    ))
 }
 
 /// Replace a `catalog:` specifier with the specifier the catalog holds,
@@ -310,7 +313,10 @@ pub(super) fn current_versions_from_importer(
         return map;
     };
     for (name, spec) in importer.dependencies_by_groups(include_direct.iter().copied()) {
-        if let Some(version) = spec.version.ver_peer().and_then(|ver| ver.version_semver()) {
+        if let Some(version) = spec.version
+            .ver_peer()
+            .and_then(|ver| ver.version_semver())
+        {
             map.insert(name.to_string(), version.clone());
         }
     }
@@ -358,8 +364,10 @@ fn outdated_target(
         .get("version")
         .and_then(serde_json::Value::as_str)
         .and_then(|version| version.parse::<Version>().ok())?;
-    let deprecated =
-        target_manifest.get("deprecated").and_then(serde_json::Value::as_str).map(str::to_string);
+    let deprecated = target_manifest
+        .get("deprecated")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string);
     let is_newer = target > candidate.current;
     if !(is_newer || (query.include_deprecated && deprecated.is_some())) {
         return None;
@@ -386,4 +394,26 @@ fn outdated_target(
             workspace: Some(workspace.to_string()),
         },
     })
+}
+
+fn workspace_label(manifest: &PackageManifest, importer_id: &str) -> String {
+    manifest
+        .value()
+        .get("name")
+        .and_then(serde_json::Value::as_str)
+        // A name that is missing, empty, or only whitespace all give an
+        // equally blank label.
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map_or_else(|| importer_id.to_string(), str::to_string)
+}
+
+pub(super) fn shared_outdated_lockfile(
+    state: &crate::State,
+) -> miette::Result<Option<&pnpm_lockfile::Lockfile>> {
+    if state.config.shares_one_lockfile() {
+        super::loaded_lockfile(state)
+    } else {
+        Ok(None)
+    }
 }

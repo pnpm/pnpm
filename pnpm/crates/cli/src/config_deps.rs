@@ -176,8 +176,7 @@ pub async fn resolve_engine_version(
         ..WantedDependency::default()
     };
     let opts = engine_resolve_options(config)?;
-    let result = context
-        .resolver
+    let result = context.resolver
         .resolve(&wanted, &opts)
         .await
         .map_err(|error| miette::miette!("{error}"))
@@ -224,8 +223,7 @@ fn engine_resolve_options(config: &Config) -> Result<ResolveOptions> {
         pnpm_config::TrustPolicy::Off => None,
         pnpm_config::TrustPolicy::NoDowngrade => Some(pnpm_config::TrustPolicy::NoDowngrade),
     };
-    let trust_policy_exclude = config
-        .trust_policy_exclude
+    let trust_policy_exclude = config.trust_policy_exclude
         .as_deref()
         .filter(|patterns| !patterns.is_empty())
         .map(pnpm_config::version_policy::create_package_version_policy)
@@ -261,15 +259,19 @@ pub async fn add_config_dependencies<Reporter: self::Reporter>(
 ) -> Result<()> {
     let mut config_dependencies = config.config_dependencies.clone().unwrap_or_default();
     for (name, specifier) in added {
-        config_dependencies
-            .insert(name.clone(), ConfigDependency::VersionWithIntegrity(specifier.clone()));
+        config_dependencies.insert(
+            name.clone(),
+            ConfigDependency::VersionWithIntegrity(specifier.clone()),
+        );
     }
 
     resolve_and_install::<Reporter>(config, &config_dependencies, root_dir, false).await?;
 
     pnpm_workspace_manifest_writer::set_config_dependencies(
         root_dir,
-        added.iter().map(|(name, specifier)| (name.as_str(), specifier.as_str())),
+        added
+            .iter()
+            .map(|(name, specifier)| (name.as_str(), specifier.as_str())),
     )
     .into_diagnostic()
     .wrap_err("recording the config dependencies in pnpm-workspace.yaml")

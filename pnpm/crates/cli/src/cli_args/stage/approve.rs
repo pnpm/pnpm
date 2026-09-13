@@ -80,7 +80,8 @@ impl StageApprovalItem {
     /// selection.
     fn from_value(item: &Value) -> Option<Self> {
         let string_field = |field: &str| {
-            item.get(field)
+            item
+                .get(field)
                 .and_then(Value::as_str)
                 .map(|value| sanitize_inline(value).into_owned())
                 .filter(|value| !value.is_empty())
@@ -89,7 +90,11 @@ impl StageApprovalItem {
         // hidden character must never be what makes a value valid. A name
         // that fails is not displayed. A valid name is URL-safe, so it is
         // also safe to display.
-        let id = item.get("id").and_then(Value::as_str).filter(|id| is_uuid(id))?.to_owned();
+        let id = item
+            .get("id")
+            .and_then(Value::as_str)
+            .filter(|id| is_uuid(id))?
+            .to_owned();
         let package_name = item
             .get("packageName")
             .and_then(Value::as_str)
@@ -127,8 +132,12 @@ impl StageApprovalItem {
     fn choice(&self) -> String {
         let details: Vec<String> = [
             self.tag.clone(),
-            self.created_at.as_ref().map(|created_at| format!("staged {created_at}")),
-            self.actor.as_ref().map(|actor| format!("by {actor}")),
+            self.created_at
+                .as_ref()
+                .map(|created_at| format!("staged {created_at}")),
+            self.actor
+                .as_ref()
+                .map(|actor| format!("by {actor}")),
         ]
         .into_iter()
         .flatten()
@@ -155,7 +164,9 @@ pub(super) async fn stage_approve<Reporter: self::Reporter>(
             &StageApprovalItem::from_id(stage_id),
         )
         .await?;
-        return Ok(Some(format!("Staged package {stage_id} approved and published successfully.")));
+        return Ok(Some(format!(
+            "Staged package {stage_id} approved and published successfully.",
+        )));
     }
     let items = if stage_ids.is_empty() {
         if !WebAuthHost::stdin_is_tty() || !WebAuthHost::stdout_is_tty() {
@@ -163,7 +174,9 @@ pub(super) async fn stage_approve<Reporter: self::Reporter>(
         }
         let staged = approval_items(&context).await?;
         if staged.is_empty() {
-            return Ok(Some("There are no staged packages awaiting approval.".to_owned()));
+            return Ok(Some(
+                "There are no staged packages awaiting approval.".to_owned(),
+            ));
         }
         let selected = prompt_for_staged_packages(&staged)?;
         if selected.is_empty() {
@@ -190,21 +203,18 @@ fn parse_stage_ids(params: &[String]) -> Result<Vec<String>, StageError> {
         .iter()
         .skip(1)
         .filter(|stage_id| seen.insert(stage_id.to_lowercase()))
-        .map(
-            |stage_id| {
-                if is_uuid(stage_id) {
-                    Ok(stage_id.clone())
-                } else {
-                    Err(StageError::InvalidStageId)
-                }
-            },
-        )
+        .map(|stage_id| {
+            if is_uuid(stage_id) {
+                Ok(stage_id.clone())
+            } else {
+                Err(StageError::InvalidStageId)
+            }
+        })
         .collect()
 }
 
 async fn approval_items(context: &StageContext) -> miette::Result<Vec<StageApprovalItem>> {
-    Ok(fetch_stage_items(context, None)
-        .await?
+    Ok(fetch_stage_items(context, None).await?
         .iter()
         .filter_map(StageApprovalItem::from_value)
         .collect())
@@ -261,7 +271,10 @@ fn with_id(item: &Value, stage_id: &str) -> Value {
 fn prompt_for_staged_packages(
     staged: &[StageApprovalItem],
 ) -> miette::Result<Vec<StageApprovalItem>> {
-    let choices: Vec<String> = staged.iter().map(StageApprovalItem::choice).collect();
+    let choices: Vec<String> = staged
+        .iter()
+        .map(StageApprovalItem::choice)
+        .collect();
     let selected = MultiSelect::new()
         .with_prompt(
             "Choose which staged packages to approve (<space> to select, <enter> to confirm)",
@@ -269,7 +282,11 @@ fn prompt_for_staged_packages(
         .items(&choices)
         .interact_opt()
         .into_diagnostic()?;
-    Ok(selected.unwrap_or_default().into_iter().map(|index| staged[index].clone()).collect())
+    Ok(selected
+        .unwrap_or_default()
+        .into_iter()
+        .map(|index| staged[index].clone())
+        .collect())
 }
 
 async fn approve_staged_packages<Reporter: self::Reporter>(
@@ -307,17 +324,7 @@ async fn approve_staged_packages<Reporter: self::Reporter>(
             Err(error) => return Err(error),
         }
     }
-    if approved < items.len() {
-        // pnpm prints this summary and exits 1. A command here either returns
-        // output or an error, never both, so print it the way the dispatcher
-        // prints a command's output and exit with the failing status.
-        #[expect(clippy::exit, reason = "an incomplete approval batch exits 1, mirroring pnpm")]
-        {
-            println!("Approved {approved} of {}.", render_package_count(items.len()));
-            std::process::exit(1);
-        }
-    }
-    Ok(Some(format!("Approved {} successfully.", render_package_count(approved))))
+    approval_summary(approved, items.len())
 }
 
 async fn approve_staged_package<Reporter: self::Reporter>(
@@ -338,18 +345,45 @@ async fn approve_staged_package<Reporter: self::Reporter>(
 }
 
 fn is_stage_registry_error(error: &miette::Report) -> bool {
-    error.code().is_some_and(|code| code.to_string() == "ERR_PNPM_STAGE_REGISTRY_ERROR")
+    error
+        .code()
+        .is_some_and(|code| code.to_string() == "ERR_PNPM_STAGE_REGISTRY_ERROR")
 }
 
 fn is_missing_stage_error(error: &miette::Report) -> bool {
-    error.downcast_ref::<StageRegistryError>().is_some_and(|error| error.status == 404)
+    error
+        .downcast_ref::<StageRegistryError>()
+        .is_some_and(|error| error.status == 404)
 }
 
 fn render_package_count(count: usize) -> String {
-    format!("{count} staged package{}", if count == 1 { "" } else { "s" })
+    format!(
+        "{count} staged package{}",
+        if count == 1 { "" } else { "s" },
+    )
 }
 
 #[cfg(test)]
 mod tests;
 
 mod ordering;
+
+fn approval_summary(approved: usize, total: usize) -> miette::Result<Option<String>> {
+    if approved < total {
+        // pnpm prints this summary and exits 1. A command here either returns
+        // output or an error, never both, so print it the way the dispatcher
+        // prints a command's output and exit with the failing status.
+        #[expect(
+            clippy::exit,
+            reason = "an incomplete approval batch exits 1, mirroring pnpm"
+        )]
+        {
+            println!("Approved {approved} of {}.", render_package_count(total));
+            std::process::exit(1);
+        }
+    }
+    Ok(Some(format!(
+        "Approved {} successfully.",
+        render_package_count(approved),
+    )))
+}

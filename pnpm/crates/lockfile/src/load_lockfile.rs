@@ -42,7 +42,10 @@ pub enum LoadLockfileError {
 
 impl LoadLockfileError {
     pub(super) fn parse_yaml(path: &Path, source: &serde_saphyr::Error) -> Self {
-        Self::ParseYaml { path: path.to_path_buf(), reason: format_yaml_error(source) }
+        Self::ParseYaml {
+            path: path.to_path_buf(),
+            reason: format_yaml_error(source),
+        }
     }
 }
 
@@ -133,8 +136,7 @@ impl Lockfile {
         dir: &Path,
         selection: &WantedLockfileSelection,
     ) -> Result<Option<Self>, LoadLockfileError> {
-        Ok(Self::load_wanted_detailed(dir, selection)?
-            .lockfile
+        Ok(Self::load_wanted_detailed(dir, selection)?.lockfile
             .map(|lockfile| Arc::try_unwrap(lockfile).unwrap_or_else(|shared| (*shared).clone())))
     }
 
@@ -145,7 +147,9 @@ impl Lockfile {
     ) -> Result<LoadedWantedLockfile, LoadLockfileError> {
         for file_name in selection.read_order() {
             let path = dir.join(file_name);
-            let Some(lockfile) = Self::load_from_path(&path)? else { continue };
+            let Some(lockfile) = Self::load_from_path(&path)? else {
+                continue;
+            };
             return if selection.merge_git_branch_lockfiles {
                 let pre_merge_importers = lockfile.importers.clone();
                 let merged = merge_git_branch_lockfiles(lockfile, dir)?;
@@ -172,7 +176,9 @@ impl Lockfile {
     ) -> Result<LoadedRepairLockfile, LoadLockfileError> {
         for file_name in selection.read_order() {
             let path = dir.join(file_name);
-            let Some(views) = Self::load_repair_views_from_path(&path)? else { continue };
+            let Some(views) = Self::load_repair_views_from_path(&path)? else {
+                continue;
+            };
             return if selection.merge_git_branch_lockfiles {
                 let pre_merge_importers = views.seed.importers.clone();
                 let views = merge_git_branch_lockfile_repairs(views, dir)?;
@@ -181,7 +187,10 @@ impl Lockfile {
                     pre_merge_importers: Some(pre_merge_importers),
                 })
             } else {
-                Ok(LoadedRepairLockfile { views: Some(views), pre_merge_importers: None })
+                Ok(LoadedRepairLockfile {
+                    views: Some(views),
+                    pre_merge_importers: None,
+                })
             };
         }
         Ok(LoadedRepairLockfile::default())
@@ -256,7 +265,10 @@ impl Lockfile {
                 merge.reconstruct_missing_directory_resolutions();
                 let mut seed = merge.clone();
                 seed.prepare_for_fix();
-                Some(RepairLockfileViews { seed, merge })
+                Some(RepairLockfileViews {
+                    seed,
+                    merge,
+                })
             })
             .map_err(|source| LoadLockfileError::ParseYaml {
                 path: file_path.to_path_buf(),
@@ -268,7 +280,9 @@ impl Lockfile {
     /// file is absent or its main document is empty, the same absence
     /// rules the directory-addressed loaders use.
     pub fn load_from_path(file_path: &Path) -> Result<Option<Self>, LoadLockfileError> {
-        let Some(content) = read_lockfile_text(file_path)? else { return Ok(None) };
+        let Some(content) = read_lockfile_text(file_path)? else {
+            return Ok(None);
+        };
         Self::parse(&content, file_path)
     }
 
@@ -277,7 +291,9 @@ impl Lockfile {
     fn load_repair_views_from_path(
         file_path: &Path,
     ) -> Result<Option<RepairLockfileViews>, LoadLockfileError> {
-        let Some(content) = read_lockfile_text(file_path)? else { return Ok(None) };
+        let Some(content) = read_lockfile_text(file_path)? else {
+            return Ok(None);
+        };
         Self::parse_repair_views(&content, file_path)
     }
 }
@@ -324,17 +340,27 @@ impl LoadedRepairLockfile {
             let merge = Arc::try_unwrap(merge).unwrap_or_else(|shared| (*shared).clone());
             let mut seed = merge.clone();
             seed.prepare_for_fix();
-            RepairLockfileViews { seed, merge }
+            RepairLockfileViews {
+                seed,
+                merge,
+            }
         });
-        LoadedRepairLockfile { views, pre_merge_importers: loaded.pre_merge_importers }
+        LoadedRepairLockfile {
+            views,
+            pre_merge_importers: loaded.pre_merge_importers,
+        }
     }
 
     pub(crate) fn seed(&self) -> Option<&Lockfile> {
-        self.views.as_ref().map(|views| &views.seed)
+        self.views
+            .as_ref()
+            .map(|views| &views.seed)
     }
 
     pub(crate) fn merge(&self) -> Option<&Lockfile> {
-        self.views.as_ref().map(|views| &views.merge)
+        self.views
+            .as_ref()
+            .map(|views| &views.merge)
     }
 
     pub(crate) fn pre_merge_importers(&self) -> Option<&HashMap<String, ProjectSnapshot>> {
@@ -378,7 +404,9 @@ impl WantedLockfileSelection {
     /// The file names to try, most specific first.
     fn read_order(&self) -> impl Iterator<Item = &str> {
         let branch_file = (self.file_name != Lockfile::FILE_NAME).then_some(&*self.file_name);
-        branch_file.into_iter().chain([Lockfile::FILE_NAME])
+        branch_file
+            .into_iter()
+            .chain([Lockfile::FILE_NAME])
     }
 }
 
@@ -412,7 +440,9 @@ fn merge_git_branch_lockfile_repairs(
 }
 
 fn prepare_value_for_fix(value: &mut serde_json::Value) {
-    let Some(root) = value.as_object_mut() else { return };
+    let Some(root) = value.as_object_mut() else {
+        return;
+    };
     for key in [
         "settings",
         "catalogs",
@@ -442,7 +472,9 @@ fn reduce_package_metadata(metadata: &mut serde_json::Value) -> bool {
     if serde_json::from_value::<crate::PackageMetadata>(metadata.clone()).is_ok() {
         return true;
     }
-    let Some(resolution) = metadata.get("resolution").cloned() else { return false };
+    let Some(resolution) = metadata.get("resolution").cloned() else {
+        return false;
+    };
     if serde_json::from_value::<LockfileResolution>(resolution.clone()).is_err() {
         return false;
     }
@@ -475,7 +507,9 @@ fn discard_invalid_generated_field(
     root: &mut serde_json::Map<String, serde_json::Value>,
     key: &str,
 ) {
-    let Some(value) = root.get(key).cloned() else { return };
+    let Some(value) = root.get(key).cloned() else {
+        return;
+    };
     let mut candidate = serde_json::Map::from_iter([
         ("lockfileVersion".to_owned(), serde_json::json!("9.0")),
         ("importers".to_owned(), serde_json::json!({})),

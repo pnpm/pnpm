@@ -110,7 +110,9 @@ pub struct WindowsPlatform<'a> {
 impl OwnerScope {
     #[must_use]
     pub fn organization(name: impl Into<String>) -> Self {
-        Self::Organization { name: name.into() }
+        Self::Organization {
+            name: name.into(),
+        }
     }
 
     #[must_use]
@@ -250,22 +252,30 @@ impl ArtifactSubject {
         package: PackageIdentity,
         source_integrity: impl Into<String>,
     ) -> Self {
-        Self::DependencySideEffects { package, source_integrity: source_integrity.into() }
+        Self::DependencySideEffects {
+            package,
+            source_integrity: source_integrity.into(),
+        }
     }
 
     #[must_use]
     pub fn workspace_task(project: impl Into<String>, task: impl Into<String>) -> Self {
-        Self::WorkspaceTask { project: project.into(), task: task.into() }
+        Self::WorkspaceTask {
+            project: project.into(),
+            task: task.into(),
+        }
     }
 
     fn artifact_kind_and_input_key_prefix(&self) -> (&'static str, &'static str) {
         match self {
-            Self::DependencySideEffects { .. } => {
-                (DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND, DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX)
-            }
-            Self::WorkspaceTask { .. } => {
-                (WORKSPACE_TASK_ARTIFACT_KIND, WORKSPACE_TASK_INPUT_KEY_PREFIX)
-            }
+            Self::DependencySideEffects { .. } => (
+                DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND,
+                DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX,
+            ),
+            Self::WorkspaceTask { .. } => (
+                WORKSPACE_TASK_ARTIFACT_KIND,
+                WORKSPACE_TASK_INPUT_KEY_PREFIX,
+            ),
         }
     }
 }
@@ -282,3 +292,7 @@ use compatibility::validate_compatibility;
 mod validation;
 
 use validation::{hex, validate_scalar};
+
+mod manifest_path;
+
+mod platform_tags;

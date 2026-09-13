@@ -251,7 +251,10 @@ impl<'install> DirCloneCache<'install> {
             import_method,
             canonical,
             cas_paths,
-            ImportIndexedDirOpts { safe_to_skip: true, ..ImportIndexedDirOpts::default() },
+            ImportIndexedDirOpts {
+                safe_to_skip: true,
+                ..ImportIndexedDirOpts::default()
+            },
         ) else {
             return true;
         };

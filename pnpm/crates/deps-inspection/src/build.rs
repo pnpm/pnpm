@@ -180,8 +180,16 @@ fn field_map(
     include: IncludedDependencies,
 ) -> HashMap<String, DependenciesField> {
     let mut map = HashMap::new();
-    let groups: [(bool, Option<&pnpm_lockfile::ResolvedDependencyMap>, DependenciesField); 3] = [
-        (include.dependencies, importer.dependencies.as_ref(), DependenciesField::Dependencies),
+    let groups: [(
+        bool,
+        Option<&pnpm_lockfile::ResolvedDependencyMap>,
+        DependenciesField,
+    ); 3] = [
+        (
+            include.dependencies,
+            importer.dependencies.as_ref(),
+            DependenciesField::Dependencies,
+        ),
         (
             include.dev_dependencies,
             importer.dev_dependencies.as_ref(),
@@ -197,7 +205,11 @@ fn field_map(
         if !included {
             continue;
         }
-        for alias in group.into_iter().flatten().map(|(alias, _)| alias) {
+        for alias in group
+            .into_iter()
+            .flatten()
+            .map(|(alias, _)| alias)
+        {
             map.insert(alias.to_string(), field);
         }
     }
@@ -216,7 +228,10 @@ pub fn importer_id_for(lockfile_dir: &Path, project_dir: &Path) -> String {
 #[must_use]
 pub fn safe_importer_dir(lockfile_dir: &Path, importer_id: &str) -> Option<PathBuf> {
     pnpm_deps_restorer::validate_importer_id(importer_id).ok()?;
-    Some(pnpm_deps_restorer::importer_root_dir(lockfile_dir, importer_id))
+    Some(pnpm_deps_restorer::importer_root_dir(
+        lockfile_dir,
+        importer_id,
+    ))
 }
 
 /// Scan the project's modules dir for packages absent from its
@@ -244,8 +259,11 @@ fn read_unsaved_dependencies(
 /// `getAllDirectDependencies`.
 fn saved_direct_dep_names(importer: &ProjectSnapshot) -> HashSet<String> {
     let mut names = HashSet::new();
-    let groups =
-        [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies];
+    let groups = [
+        &importer.dependencies,
+        &importer.dev_dependencies,
+        &importer.optional_dependencies,
+    ];
     for group in groups.into_iter().flatten() {
         for name in group.keys() {
             names.insert(name.to_string());
@@ -298,8 +316,15 @@ fn collect_module_names(
 /// The entry's name when it can hold a package: dot-directories (`.bin`,
 /// `.pnpm`, ...) and plain files never do.
 fn package_dir_name(entry: &std::fs::DirEntry) -> Option<String> {
-    let name = entry.file_name().to_str()?.to_string();
-    if name.starts_with('.') || entry.file_type().is_ok_and(|file_type| file_type.is_file()) {
+    let name = entry
+        .file_name()
+        .to_str()?
+        .to_string();
+    if name.starts_with('.')
+        || entry
+            .file_type()
+            .is_ok_and(|file_type| file_type.is_file())
+    {
         return None;
     }
     Some(name)
@@ -350,7 +375,10 @@ fn resolve_link_target(link: &Path) -> Option<PathBuf> {
 fn read_package_version(pkg_dir: &Path) -> Option<String> {
     let bytes = std::fs::read(pkg_dir.join("package.json")).ok()?;
     let manifest = parse_manifest_bytes(&bytes).ok()?;
-    manifest.get("version").and_then(serde_json::Value::as_str).map(str::to_string)
+    manifest
+        .get("version")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string)
 }
 
 #[derive(Debug, Default)]
@@ -371,8 +399,17 @@ pub fn read_project_manifest(project_dir: &Path) -> ProjectManifestSummary {
         return ProjectManifestSummary::default();
     };
     ProjectManifestSummary {
-        name: manifest.get("name").and_then(serde_json::Value::as_str).map(str::to_string),
-        version: manifest.get("version").and_then(serde_json::Value::as_str).map(str::to_string),
-        private: manifest.get("private").and_then(serde_json::Value::as_bool).unwrap_or(false),
+        name: manifest
+            .get("name")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string),
+        version: manifest
+            .get("version")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string),
+        private: manifest
+            .get("private")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false),
     }
 }

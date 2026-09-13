@@ -20,13 +20,17 @@ impl PinnedDirectory {
             match fs::symlink_metadata(existing) {
                 Ok(_) => break,
                 Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                    let name = existing.file_name().ok_or_else(|| {
-                        miette::miette!("no existing ancestor for {path_display}")
-                    })?;
+                    let name = existing
+                        .file_name()
+                        .ok_or_else(|| {
+                            miette::miette!("no existing ancestor for {path_display}")
+                        })?;
                     remaining.push(name.to_os_string());
-                    existing = existing.parent().ok_or_else(|| {
-                        miette::miette!("no existing ancestor for {path_display}")
-                    })?;
+                    existing = existing
+                        .parent()
+                        .ok_or_else(|| {
+                            miette::miette!("no existing ancestor for {path_display}")
+                        })?;
                 }
                 Err(error) => {
                     return Err(error)
@@ -48,12 +52,17 @@ impl PinnedDirectory {
         use std::os::unix::fs::OpenOptionsExt as _;
 
         let mut options = fs::OpenOptions::new();
-        options.read(true).custom_flags(libc::O_CLOEXEC | libc::O_DIRECTORY);
+        options
+            .read(true)
+            .custom_flags(libc::O_CLOEXEC | libc::O_DIRECTORY);
         let handle = options
             .open(&path)
             .into_diagnostic()
             .wrap_err_with(|| format!("open directory {}", path.display()))?;
-        Ok(Self { path, handle })
+        Ok(Self {
+            path,
+            handle,
+        })
     }
 
     #[cfg(windows)]
@@ -62,16 +71,25 @@ impl PinnedDirectory {
             .into_diagnostic()
             .wrap_err_with(|| format!("open directory {}", path.display()))?;
         ensure_real_windows_directory(&handle, &path)?;
-        Ok(Self { path, handles: vec![handle] })
+        Ok(Self {
+            path,
+            handles: vec![handle],
+        })
     }
 
     pub(super) fn open_descendant(&self, components: &[OsString]) -> io::Result<Self> {
         #[cfg(unix)]
-        let mut directory = Self { path: self.path.clone(), handle: self.handle.try_clone()? };
+        let mut directory = Self {
+            path: self.path.clone(),
+            handle: self.handle.try_clone()?,
+        };
         #[cfg(windows)]
         let mut directory = Self {
             path: self.path.clone(),
-            handles: self.handles.iter().map(fs::File::try_clone).collect::<io::Result<_>>()?,
+            handles: self.handles
+                .iter()
+                .map(fs::File::try_clone)
+                .collect::<io::Result<_>>()?,
         };
         for component in components {
             directory = directory.open_child(component)?;
@@ -94,7 +112,10 @@ impl PinnedDirectory {
             )
         };
         let handle = file_from_descriptor(descriptor)?;
-        Ok(Self { path: self.path.join(OsStr::from_bytes(name.as_bytes())), handle })
+        Ok(Self {
+            path: self.path.join(OsStr::from_bytes(name.as_bytes())),
+            handle,
+        })
     }
 
     #[cfg(windows)]
@@ -102,10 +123,15 @@ impl PinnedDirectory {
         let path = self.path.join(name);
         let handle = open_windows_directory(&path)?;
         ensure_real_windows_directory_io(&handle, &path)?;
-        let mut handles =
-            self.handles.iter().map(fs::File::try_clone).collect::<io::Result<Vec<_>>>()?;
+        let mut handles = self.handles
+            .iter()
+            .map(fs::File::try_clone)
+            .collect::<io::Result<Vec<_>>>()?;
         handles.push(handle);
-        Ok(Self { path, handles })
+        Ok(Self {
+            path,
+            handles,
+        })
     }
 }
 

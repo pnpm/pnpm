@@ -82,7 +82,9 @@ where
         if graph.contains_key(&key) {
             continue;
         }
-        let Some(snapshot) = snapshots.get(&key) else { continue };
+        let Some(snapshot) = snapshots.get(&key) else {
+            continue;
+        };
         let Some(node) = build_node(&key, snapshot, packages, &platform_selector) else {
             continue;
         };
@@ -109,7 +111,10 @@ fn build_node(
     let metadata = packages.get(&metadata_key)?;
     let full_pkg_id = full_pkg_id_for(&metadata_key, &metadata.resolution, platform_selector);
     let children = build_children(snapshot);
-    Some(DepsGraphNode { full_pkg_id, children })
+    Some(DepsGraphNode {
+        full_pkg_id,
+        children,
+    })
 }
 
 /// Returns the `pkg_id:<...>` string used as the `id` field in
@@ -138,8 +143,11 @@ fn full_pkg_id_for(
     // is base64-encoded, the encoding the resulting
     // `<pkg_id>:<digest>` string requires.
     let resolution_value = serde_json::to_value(resolution).unwrap_or(serde_json::Value::Null);
-    let hash =
-        hash_object_with_encoding(&resolution_value, HashEncoding::Base64, /* sort */ true);
+    let hash = hash_object_with_encoding(
+        &resolution_value,
+        HashEncoding::Base64,
+        /* sort */ true,
+    );
     format!("{pkg_id}:{hash}")
 }
 
@@ -165,7 +173,11 @@ pub(crate) fn build_children_with<Child>(
 ) -> IndexMap<String, Child> {
     let mut children = IndexMap::new();
     extend_children(&mut children, snapshot.dependencies.as_ref(), &mut resolve);
-    extend_children(&mut children, snapshot.optional_dependencies.as_ref(), &mut resolve);
+    extend_children(
+        &mut children,
+        snapshot.optional_dependencies.as_ref(),
+        &mut resolve,
+    );
     children
 }
 
@@ -196,10 +208,15 @@ fn extend_children<Child>(
 pub fn in_lockfile_order<Value>(
     snapshots: &HashMap<PackageKey, Value>,
 ) -> Vec<(&PackageKey, &Value)> {
-    let mut entries: Vec<(String, &PackageKey, &Value)> =
-        snapshots.iter().map(|(key, value)| (key.to_string(), key, value)).collect();
+    let mut entries: Vec<(String, &PackageKey, &Value)> = snapshots
+        .iter()
+        .map(|(key, value)| (key.to_string(), key, value))
+        .collect();
     entries.sort_unstable_by(|(left, ..), (right, ..)| left.cmp(right));
-    entries.into_iter().map(|(_, key, value)| (key, value)).collect()
+    entries
+        .into_iter()
+        .map(|(_, key, value)| (key, value))
+        .collect()
 }
 
 #[cfg(test)]

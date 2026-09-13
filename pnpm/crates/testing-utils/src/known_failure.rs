@@ -7,7 +7,9 @@ pub struct KnownFailure {
 impl KnownFailure {
     #[must_use]
     pub const fn new(reason: &'static str) -> Self {
-        Self { reason }
+        Self {
+            reason,
+        }
     }
 }
 

@@ -51,7 +51,11 @@ pub enum ResolveLatestError {
         "the registry served a manifest for {name}@{version} that pnpm could not read, so the version was skipped: {error}"
     )]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_UNDECODABLE_LATEST_MANIFEST))]
-    UndecodableLatestManifest { name: String, version: String, error: String },
+    UndecodableLatestManifest {
+        name: String,
+        version: String,
+        error: String,
+    },
 }
 
 /// Maturity-aware picker for `latest` dist-tags (see the module docs for
@@ -82,7 +86,10 @@ impl<'a> LatestPicker<'a> {
             policy,
             meta_cache,
             fetch_locker,
-            registries: config.resolved_registries().into_iter().collect(),
+            registries: config
+                .resolved_registries()
+                .into_iter()
+                .collect(),
         }
     }
 
@@ -150,8 +157,7 @@ impl<'a> LatestPicker<'a> {
             &self.fetch_locker,
         );
 
-        let pick = pick_package(&ctx, &spec, &opts)
-            .await
+        let pick = pick_package(&ctx, &spec, &opts).await
             .map_err(|error| ResolveLatestError::Pick(Box::new(error)))?;
         if let Some(picked) = pick.picked_package {
             return Ok(picked);

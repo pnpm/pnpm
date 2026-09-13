@@ -113,19 +113,24 @@ impl StoreIndex {
     /// Open (or create) the `index.db` under `store_dir` and configure the
     /// same PRAGMAs pnpm v11 uses.
     pub fn open(store_dir: &Path) -> Result<Self, StoreIndexError> {
-        std::fs::create_dir_all(store_dir).map_err(|source| StoreIndexError::CreateDir {
-            path: store_dir.to_path_buf(),
-            source,
-        })?;
+        std::fs::create_dir_all(store_dir)
+            .map_err(|source| StoreIndexError::CreateDir {
+                path: store_dir.to_path_buf(),
+                source,
+            })?;
         let db_path = store_dir.join("index.db");
         let conn = Connection::open(&db_path)
-            .map_err(|source| StoreIndexError::Open { path: db_path, source })?;
+            .map_err(|source| StoreIndexError::Open {
+                path: db_path,
+                source,
+            })?;
 
         // Busy-timeout FIRST so the internal busy handler is active during the
         // rest of the setup — on Windows file locking is mandatory and
         // concurrent pacquet / pnpm invocations can contend.
-        conn.execute_batch(
-            "
+        conn
+            .execute_batch(
+                "
             PRAGMA busy_timeout=5000;
             PRAGMA journal_mode=WAL;
             PRAGMA synchronous=NORMAL;
@@ -138,10 +143,14 @@ impl StoreIndex {
               data BLOB NOT NULL
             ) WITHOUT ROWID;
             ",
-        )
-        .map_err(|source| StoreIndexError::InitSchema { source })?;
+            )
+            .map_err(|source| StoreIndexError::InitSchema {
+                source,
+            })?;
 
-        Ok(StoreIndex { conn })
+        Ok(StoreIndex {
+            conn,
+        })
     }
 
     /// Open the `index.db` that lives directly under a [`StoreDir`]'s root.
@@ -166,10 +175,19 @@ impl StoreIndex {
     pub fn open_readonly(store_dir: &Path) -> Result<Self, StoreIndexError> {
         let db_path = store_dir.join("index.db");
         let conn = Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
-            .map_err(|source| StoreIndexError::Open { path: db_path.clone(), source })?;
-        conn.busy_timeout(std::time::Duration::from_secs(5))
-            .map_err(|source| StoreIndexError::Open { path: db_path, source })?;
-        Ok(StoreIndex { conn })
+            .map_err(|source| StoreIndexError::Open {
+                path: db_path.clone(),
+                source,
+            })?;
+        conn
+            .busy_timeout(std::time::Duration::from_secs(5))
+            .map_err(|source| StoreIndexError::Open {
+                path: db_path,
+                source,
+            })?;
+        Ok(StoreIndex {
+            conn,
+        })
     }
 
     /// Open an existing `index.db` from a store that is complete and
@@ -196,8 +214,13 @@ impl StoreIndex {
             &uri,
             OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI,
         )
-        .map_err(|source| StoreIndexError::Open { path: db_path, source })?;
-        Ok(StoreIndex { conn })
+        .map_err(|source| StoreIndexError::Open {
+            path: db_path,
+            source,
+        })?;
+        Ok(StoreIndex {
+            conn,
+        })
     }
 
     /// Read-only counterpart to [`StoreIndex::open_in`].
@@ -282,7 +305,9 @@ impl StoreIndex {
         if !store_root.join("index.db").exists() {
             return None;
         }
-        open(store_root).ok().map(|index| Arc::new(Mutex::new(index)))
+        open(store_root)
+            .ok()
+            .map(|index| Arc::new(Mutex::new(index)))
     }
 }
 
@@ -305,8 +330,13 @@ fn decode_index_value(bytes: &[u8]) -> Result<PackageFilesIndex, StoreIndexError
     // narrowing we need on the read side — pacquet writes the
     // `checkedAt` timestamp as `float 64` for JS/BigInt interop.
     let plain = crate::msgpackr_records::transcode_to_plain_msgpack(bytes)
-        .map_err(|source| StoreIndexError::Transcode { source })?;
-    rmp_serde::from_slice(&plain).map_err(|source| StoreIndexError::Decode { source })
+        .map_err(|source| StoreIndexError::Transcode {
+            source,
+        })?;
+    rmp_serde::from_slice(&plain)
+        .map_err(|source| StoreIndexError::Decode {
+            source,
+        })
 }
 
 /// Build the `SQLite` key pnpm uses: `"{integrity}\t{pkg_id}"`. Integrity strings
@@ -415,7 +445,10 @@ pub struct CafsFileInfo {
     /// [`transcode_to_plain_msgpack`][crate::msgpackr_records::transcode_to_plain_msgpack]
     /// step narrows integer-valued floats back to `uint 64` so
     /// `rmp_serde` can deserialize into `Option<u64>` without complaint.
-    #[serde(skip_serializing_if = "Option::is_none", serialize_with = "serialize_checked_at")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_checked_at"
+    )]
     pub checked_at: Option<u64>,
 }
 
@@ -424,7 +457,10 @@ pub struct CafsFileInfo {
 /// interop reasoning — short version, msgpackr reads `uint 64` as a
 /// `BigInt` and pnpm's integrity check then crashes on Number/BigInt
 /// mixing.
-#[expect(clippy::ref_option, reason = "serde serialize_with is invoked as f(&field, serializer)")]
+#[expect(
+    clippy::ref_option,
+    reason = "serde serialize_with is invoked as f(&field, serializer)"
+)]
 fn serialize_checked_at<Serializer: serde::Serializer>(
     value: &Option<u64>,
     serializer: Serializer,
@@ -491,12 +527,16 @@ pub struct RemoteSideEffectsOrigin {
 /// path is first absolutized against the current directory — the same
 /// resolution Node's `pathToFileURL` applies on the pnpm side.
 fn immutable_sqlite_uri(db_path: &Path) -> Result<String, StoreIndexError> {
-    let absolute = std::path::absolute(db_path).map_err(|source| StoreIndexError::FileUri {
-        path: db_path.to_path_buf(),
-        source: Some(source),
-    })?;
+    let absolute = std::path::absolute(db_path)
+        .map_err(|source| StoreIndexError::FileUri {
+            path: db_path.to_path_buf(),
+            source: Some(source),
+        })?;
     let mut url = Url::from_file_path(&absolute)
-        .map_err(|()| StoreIndexError::FileUri { path: absolute, source: None })?;
+        .map_err(|()| StoreIndexError::FileUri {
+            path: absolute,
+            source: None,
+        })?;
     url.query_pairs_mut().append_pair("immutable", "1");
     Ok(url.into())
 }

@@ -38,8 +38,15 @@ fn run_executes_declared_script() {
     .to_string();
     fs::write(&manifest_path, manifest).expect("write package.json");
 
-    pacquet.with_arg("run").with_arg("touch-marker").assert().success();
-    assert!(marker_path.exists(), "script should have created the marker file");
+    pacquet
+        .with_arg("run")
+        .with_arg("touch-marker")
+        .assert()
+        .success();
+    assert!(
+        marker_path.exists(),
+        "script should have created the marker file",
+    );
 
     drop(root);
 }
@@ -74,7 +81,12 @@ fn run_passes_extra_arguments_to_the_script() {
     .to_string();
     fs::write(&manifest_path, manifest).expect("write package.json");
 
-    pacquet.with_arg("run").with_arg("echo-args").with_arg("hello-world").assert().success();
+    pacquet
+        .with_arg("run")
+        .with_arg("echo-args")
+        .with_arg("hello-world")
+        .assert()
+        .success();
     let written = fs::read_to_string(&marker_path).expect("read marker");
     assert_eq!(written, "hello-world");
 
@@ -171,8 +183,15 @@ fn run_start_without_script_or_server_errors() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    let output = pacquet.with_arg("run").with_arg("start").output().expect("spawn pacquet run");
-    assert!(!output.status.success(), "run start without script or server.js must fail");
+    let output = pacquet
+        .with_arg("run")
+        .with_arg("start")
+        .output()
+        .expect("spawn pacquet run");
+    assert!(
+        !output.status.success(),
+        "run start without script or server.js must fail",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("ERR_PNPM_NO_SCRIPT_OR_SERVER")
@@ -198,8 +217,15 @@ fn run_empty_start_script_hits_server_js_guard() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    let output = pacquet.with_arg("run").with_arg("start").output().expect("spawn pacquet run");
-    assert!(!output.status.success(), "empty start without server.js must fail");
+    let output = pacquet
+        .with_arg("run")
+        .with_arg("start")
+        .output()
+        .expect("spawn pacquet run");
+    assert!(
+        !output.status.success(),
+        "empty start without server.js must fail",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("ERR_PNPM_NO_SCRIPT_OR_SERVER")
@@ -258,8 +284,16 @@ fn run_propagates_failing_script_exit_code() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    let output = pacquet.with_arg("run").with_arg("fail").output().expect("spawn pacquet run");
-    assert_eq!(output.status.code(), Some(5), "the script's exit code must propagate");
+    let output = pacquet
+        .with_arg("run")
+        .with_arg("fail")
+        .output()
+        .expect("spawn pacquet run");
+    assert_eq!(
+        output.status.code(),
+        Some(5),
+        "the script's exit code must propagate",
+    );
 
     drop(root);
 }
@@ -280,10 +314,20 @@ fn run_preserves_embedded_quotes_in_script() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    let output = pacquet.with_arg("run").with_arg("say").output().expect("spawn pacquet run");
+    let output = pacquet
+        .with_arg("run")
+        .with_arg("say")
+        .output()
+        .expect("spawn pacquet run");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(output.status.success(), "the script must exit 0, got: {output:?}");
-    assert!(stdout.contains("verbatim-ok"), "embedded quotes must survive; stdout: {stdout:?}");
+    assert!(
+        output.status.success(),
+        "the script must exit 0, got: {output:?}",
+    );
+    assert!(
+        stdout.contains("verbatim-ok"),
+        "embedded quotes must survive; stdout: {stdout:?}",
+    );
 
     drop(root);
 }
@@ -303,8 +347,16 @@ fn run_failing_test_script_prints_test_failed_message() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    let output = pacquet.with_arg("run").with_arg("test").output().expect("spawn pacquet run");
-    assert_eq!(output.status.code(), Some(1), "the script's exit code must propagate");
+    let output = pacquet
+        .with_arg("run")
+        .with_arg("test")
+        .output()
+        .expect("spawn pacquet run");
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "the script's exit code must propagate",
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("Test failed. See above for more details."),
@@ -337,7 +389,10 @@ scripts:
         .with_arg("prepareFixtures")
         .assert()
         .success();
-    assert_eq!(fs::read_to_string(&marker).expect("read marker"), "prepared");
+    assert_eq!(
+        fs::read_to_string(&marker).expect("read marker"),
+        "prepared",
+    );
 
     drop(root);
 }
@@ -377,7 +432,10 @@ fn prefix_selects_the_dir_before_the_subcommand_and_is_the_script_s_after_it() {
         .with_arg("forwarded")
         .assert()
         .success();
-    assert_eq!(fs::read_to_string(&marker).expect("read marker"), "--prefix forwarded");
+    assert_eq!(
+        fs::read_to_string(&marker).expect("read marker"),
+        "--prefix forwarded",
+    );
 
     drop(root);
 }
@@ -484,7 +542,12 @@ fn run_start_falls_back_to_node_server_js_when_present() {
 
     let existing_path = std::env::var("PATH").unwrap_or_default();
     let new_path = format!("{}:{}", shim_dir.display(), existing_path);
-    pacquet.with_env("PATH", new_path).with_arg("run").with_arg("start").assert().success();
+    pacquet
+        .with_env("PATH", new_path)
+        .with_arg("run")
+        .with_arg("start")
+        .assert()
+        .success();
 
     let written = fs::read_to_string(&marker).expect("read marker");
     assert_eq!(written, "server.js");
@@ -511,7 +574,10 @@ fn run_start_fallback_uses_dir_for_server_js_probe() {
     let marker = workspace.join("node-cwd-and-args.txt");
     write_executable(
         &shim_dir.join("node"),
-        &format!("#!/bin/sh\nprintf '%s\\n%s' \"$(pwd)\" \"$*\" > \"{}\"\n", marker.display()),
+        &format!(
+            "#!/bin/sh\nprintf '%s\\n%s' \"$(pwd)\" \"$*\" > \"{}\"\n",
+            marker.display(),
+        ),
     );
 
     let existing_path = std::env::var("PATH").unwrap_or_default();
@@ -563,7 +629,11 @@ fn script_shortcuts_forward_every_argument_to_the_script() {
         .to_string();
         fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-        pacquet.with_arg(command).with_args(arguments).assert().success();
+        pacquet
+            .with_arg(command)
+            .with_args(arguments)
+            .assert()
+            .success();
 
         let written = fs::read_to_string(&marker).expect("read marker");
         assert_eq!(written, expected, "command: {command} {arguments:?}");
@@ -652,9 +722,16 @@ mod shell_emulator {
     #[test]
     fn runs_the_script_without_the_configured_shell() {
         let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-        write_project(&workspace, &json!({ "build": "echo emulated > marker.txt" }), true);
+        write_project(
+            &workspace,
+            &json!({ "build": "echo emulated > marker.txt" }),
+            true,
+        );
 
-        pacquet.with_args(["run", "build"]).assert().success();
+        pacquet
+            .with_args(["run", "build"])
+            .assert()
+            .success();
 
         let marker =
             fs::read_to_string(workspace.join("marker.txt")).expect("read the script's output");
@@ -680,7 +757,11 @@ mod shell_emulator {
 
         for streamed in [false, true] {
             let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
-            write_project(&workspace, &json!({ "record": "node record-args.cjs" }), true);
+            write_project(
+                &workspace,
+                &json!({ "record": "node record-args.cjs" }),
+                true,
+            );
             fs::write(
                 workspace.join("record-args.cjs"),
                 "require('node:fs').writeFileSync('args.json', JSON.stringify(process.argv.slice(2)))",
@@ -690,7 +771,10 @@ mod shell_emulator {
             if streamed {
                 pacquet.args(["--recursive", "--include-workspace-root", "--stream"]);
             }
-            pacquet.args(["run", "record"]).args(args).env("PNPM_QUOTING_TEST", "expanded");
+            pacquet
+                .args(["run", "record"])
+                .args(args)
+                .env("PNPM_QUOTING_TEST", "expanded");
             pacquet.assert().success();
 
             let recorded: Vec<String> = serde_json::from_slice(
@@ -706,10 +790,20 @@ mod shell_emulator {
     #[test]
     fn without_the_setting_the_same_project_cannot_spawn_its_shell() {
         let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-        write_project(&workspace, &json!({ "build": "echo emulated > marker.txt" }), false);
+        write_project(
+            &workspace,
+            &json!({ "build": "echo emulated > marker.txt" }),
+            false,
+        );
 
-        pacquet.with_args(["run", "build"]).assert().failure();
-        assert!(!workspace.join("marker.txt").exists(), "the script must not have run");
+        pacquet
+            .with_args(["run", "build"])
+            .assert()
+            .failure();
+        assert!(
+            !workspace.join("marker.txt").exists(),
+            "the script must not have run",
+        );
 
         drop(root);
     }
@@ -719,8 +813,15 @@ mod shell_emulator {
         let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
         write_project(&workspace, &json!({ "fail": "exit 5" }), true);
 
-        let output = pacquet.with_args(["run", "fail"]).output().expect("spawn pacquet run");
-        assert_eq!(output.status.code(), Some(5), "the script's exit code must propagate");
+        let output = pacquet
+            .with_args(["run", "fail"])
+            .output()
+            .expect("spawn pacquet run");
+        assert_eq!(
+            output.status.code(),
+            Some(5),
+            "the script's exit code must propagate",
+        );
 
         drop(root);
     }

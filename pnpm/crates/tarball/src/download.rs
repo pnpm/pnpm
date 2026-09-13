@@ -55,7 +55,10 @@ impl<'a> ArchiveStoreProjection<'a> {
         match self {
             Self::Package { append_manifest: None } => base_key,
             Self::Package { append_manifest: Some(manifest) } => {
-                format!("package-manifest\t{}\t{base_key}", manifest_integrity(manifest))
+                format!(
+                    "package-manifest\t{}\t{base_key}",
+                    manifest_integrity(manifest),
+                )
             }
             Self::RawArchive => format!("raw-archive\t{base_key}"),
         }
@@ -74,7 +77,11 @@ impl<'a> ArchiveStoreProjection<'a> {
             (Self::RawArchive, false) => format!("raw-archive:{package_url}"),
             (Self::RawArchive, true) => format!("revision-addressed:raw-archive:{package_url}"),
             (Self::Package { append_manifest: Some(manifest) }, revision_addressed) => {
-                let revision_prefix = if revision_addressed { "revision-addressed:" } else { "" };
+                let revision_prefix = if revision_addressed {
+                    "revision-addressed:"
+                } else {
+                    ""
+                };
                 format!(
                     "{revision_prefix}package-manifest:{}:{package_url}",
                     manifest_integrity(manifest),
@@ -178,52 +185,16 @@ pub struct IngestTarballToStore<'a> {
 /// are skipped because pacquet's error layer doesn't carry them;
 /// pnpm's emit fills them when the underlying network error did.
 pub(crate) fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetryError {
-    let mut out = RequestRetryError {
+    RequestRetryError {
         message: err.to_string(),
-        http_status_code: None,
+        http_status_code: match err {
+            TarballError::HttpStatus(http) => Some(http.status.to_string()),
+            _ => None,
+        },
         status: None,
         errno: None,
-        code: None,
-    };
-    let code = match err {
-        TarballError::HttpStatus(http) => {
-            out.http_status_code = Some(http.status.to_string());
-            return out;
-        }
-        TarballError::FetchTarball(_) => "ERR_PNPM_FETCH",
-        TarballError::OffAllowlist { .. } => "ERR_PNPM_REGISTRY_OFF_ALLOWLIST",
-        TarballError::Checksum(_) => "ERR_PNPM_TARBALL_INTEGRITY",
-        TarballError::DecodeGzip(_) => "ERR_PNPM_TARBALL_GZIP",
-        TarballError::ReadTarballEntries(_) => "ERR_PNPM_TARBALL_TAR",
-        TarballError::ParseBundledManifest { .. } => "ERR_PNPM_TARBALL_EXTRACT",
-        TarballError::ReadLocalTarball { .. } => "ERR_PNPM_TARBALL_FILE",
-        TarballError::WriteCasFile(_) | TarballError::WriteStoreIndex(_) => {
-            "ERR_PNPM_TARBALL_STORE"
-        }
-        TarballError::TaskJoin(_) => "ERR_PNPM_TASK_JOIN",
-        TarballError::TarballTooLarge { .. } => "ERR_PNPM_TARBALL_TOO_LARGE",
-        TarballError::SiblingFetchFailed { .. } => "ERR_PNPM_SIBLING_FETCH",
-        TarballError::PathTraversal { .. } => "ERR_PNPM_PATH_TRAVERSAL",
-        TarballError::ReadZipArchive { .. } | TarballError::ReadZipEntries { .. } => "ERR_PNPM_ZIP",
-        TarballError::NoOfflineTarball { .. } => {
-            // The retry classifier sees this only if the offline gate
-            // were ever placed inside the retry loop (it isn't —
-            // `NoOfflineTarball` short-circuits before
-            // `fetch_and_extract_with_retry`). The arm exists for
-            // exhaustiveness; the `code` field is set so a future
-            // surface that does run this error through the retry
-            // logger renders the right code.
-            "ERR_PNPM_NO_OFFLINE_TARBALL"
-        }
-        TarballError::UnexpectedPkgContentInStore { .. } => {
-            // Same "for exhaustiveness" stance as the arm above: the
-            // store read this comes from happens before the retry loop,
-            // and re-reading the same row would only reproduce it.
-            "ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE"
-        }
-    };
-    out.code = Some(code.to_string());
-    out
+        code: err.request_retry_code().map(str::to_string),
+    }
 }
 
 /// Whether a [`TarballError`] from one tarball-fetch attempt should be
@@ -292,9 +263,14 @@ pub(crate) fn verify_tarball_integrity(
     package_url: String,
 ) -> Result<Integrity, TarballError> {
     if let Some(expected) = expected_integrity {
-        expected.check(buffer).map_err(|error| {
-            TarballError::Checksum(VerifyChecksumError { url: package_url, error })
-        })?;
+        expected
+            .check(buffer)
+            .map_err(|error| {
+                TarballError::Checksum(VerifyChecksumError {
+                    url: package_url,
+                    error,
+                })
+            })?;
         return Ok(expected);
     }
 
@@ -412,7 +388,11 @@ pub(crate) async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
         requester,
         progress_key,
         RetryOpts {
-            retries: if revision_addressed { 0 } else { retry_opts.retries },
+            retries: if revision_addressed {
+                0
+            } else {
+                retry_opts.retries
+            },
             ..retry_opts
         },
         |attempt| {
@@ -443,8 +423,9 @@ pub(crate) fn store_index_cache_key(
     package_id: &str,
     store_projection: ArchiveStoreProjection<'_>,
 ) -> Option<String> {
-    package_integrity
-        .map(|integrity| store_projection.store_index_key(&integrity.to_string(), package_id))
+    package_integrity.map(|integrity| {
+        store_projection.store_index_key(&integrity.to_string(), package_id)
+    })
 }
 
 mod body;

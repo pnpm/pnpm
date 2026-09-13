@@ -43,7 +43,10 @@ pub(in super::super) fn ensure_workspace_directory_windows(
     // Windows lacks the descriptor-relative operations used on Unix. Keeping
     // every component open without FILE_SHARE_DELETE prevents a checked parent
     // from being renamed or replaced while the path-based helpers run.
-    Ok(ManagedDirectory { path, _pinned_components: handles })
+    Ok(ManagedDirectory {
+        path,
+        _pinned_components: handles,
+    })
 }
 
 #[cfg(windows)]

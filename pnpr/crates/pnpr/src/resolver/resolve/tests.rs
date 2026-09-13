@@ -14,7 +14,10 @@ fn exact_dot_is_the_only_root_importer() {
 #[test]
 fn nested_member_dirs_pass_through() {
     assert_eq!(sanitized_importer_dir("project-a").unwrap(), "project-a");
-    assert_eq!(sanitized_importer_dir("packages/foo").unwrap(), "packages/foo");
+    assert_eq!(
+        sanitized_importer_dir("packages/foo").unwrap(),
+        "packages/foo",
+    );
 }
 
 #[test]
@@ -36,8 +39,15 @@ fn traversal_absolute_and_backslash_dirs_are_rejected() {
 
 #[test]
 fn empty_and_dot_components_are_rejected() {
-    for unsafe_dir in ["", "/", "////", "a//b", "packages/foo/", "./packages/foo", "packages/./foo"]
-    {
+    for unsafe_dir in [
+        "",
+        "/",
+        "////",
+        "a//b",
+        "packages/foo/",
+        "./packages/foo",
+        "packages/./foo",
+    ] {
         assert!(
             sanitized_importer_dir(unsafe_dir).is_err(),
             "expected {unsafe_dir:?} to be rejected",
@@ -58,10 +68,16 @@ fn windows_drive_and_colon_forms_are_rejected() {
 #[test]
 fn manifest_names_are_distinct_per_dir() {
     assert_eq!(importer_manifest_name("."), "pnpr-resolve");
-    assert_ne!(importer_manifest_name("packages/foo"), importer_manifest_name("packages/bar"));
+    assert_ne!(
+        importer_manifest_name("packages/foo"),
+        importer_manifest_name("packages/bar"),
+    );
     // `/` → `-` alone would collide these two; escaping `-` first keeps
     // the mapping injective.
-    assert_ne!(importer_manifest_name("packages/foo"), importer_manifest_name("packages-foo"));
+    assert_ne!(
+        importer_manifest_name("packages/foo"),
+        importer_manifest_name("packages-foo"),
+    );
 }
 
 #[tokio::test]
@@ -138,7 +154,10 @@ async fn workspace_without_root_project_has_no_synthetic_root_importer() {
     .await;
 
     assert_eq!(
-        lockfile.importers.keys().map(String::as_str).collect::<std::collections::BTreeSet<_>>(),
+        lockfile.importers
+            .keys()
+            .map(String::as_str)
+            .collect::<std::collections::BTreeSet<_>>(),
         std::collections::BTreeSet::from(["packages/app", "packages/lib"]),
     );
 }
@@ -313,8 +332,7 @@ async fn try_resolve_json_with(
 }
 
 fn assert_workspace_link(lockfile: &Lockfile, importer: &str, alias: &str, expected_target: &str) {
-    let dependencies = lockfile
-        .importers
+    let dependencies = lockfile.importers
         .get(importer)
         .expect("importer exists")
         .dependencies

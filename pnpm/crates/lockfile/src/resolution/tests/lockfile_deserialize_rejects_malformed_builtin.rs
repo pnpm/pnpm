@@ -16,7 +16,10 @@ fn deserialize_rejects_malformed_builtin_resolution() {
     };
     let received = serde_saphyr::from_str::<LockfileResolution>(yaml);
     dbg!(&received);
-    assert!(received.is_err(), "a git resolution without a commit must not parse");
+    assert!(
+        received.is_err(),
+        "a git resolution without a commit must not parse",
+    );
 }
 
 #[test]
@@ -29,8 +32,9 @@ fn to_lockfile_form_drops_the_artifactory_url_of_a_scoped_package() {
         git_hosted: None,
         path: None,
     });
-    let actual =
-        resolution.to_lockfile_form("@acme/widget", "1.2.3", artifactory_form(false)).unwrap();
+    let actual = resolution
+        .to_lockfile_form("@acme/widget", "1.2.3", artifactory_form(false))
+        .unwrap();
     assert_eq!(
         actual,
         LockfileResolution::Registry(RegistryResolution {
@@ -52,8 +56,9 @@ fn to_lockfile_form_keeps_the_npm_layout_url_on_an_artifactory_registry() {
         git_hosted: None,
         path: None,
     });
-    let actual =
-        resolution.to_lockfile_form("@acme/widget", "1.2.3", artifactory_form(false)).unwrap();
+    let actual = resolution
+        .to_lockfile_form("@acme/widget", "1.2.3", artifactory_form(false))
+        .unwrap();
     assert_eq!(actual, resolution);
 }
 
@@ -68,7 +73,11 @@ fn to_lockfile_form_keeps_the_artifactory_url_on_a_registry_left_on_the_npm_layo
         path: None,
     });
     let actual = resolution
-        .to_lockfile_form("@acme/widget", "1.2.3", undeclared_form(ARTIFACTORY_REGISTRY, false))
+        .to_lockfile_form(
+            "@acme/widget",
+            "1.2.3",
+            undeclared_form(ARTIFACTORY_REGISTRY, false),
+        )
         .unwrap();
     assert_eq!(actual, resolution);
 }
@@ -83,8 +92,9 @@ fn to_lockfile_form_keeps_the_artifactory_url_when_include_tarball_url_is_set() 
         git_hosted: None,
         path: None,
     });
-    let actual =
-        resolution.to_lockfile_form("@acme/widget", "1.2.3", artifactory_form(true)).unwrap();
+    let actual = resolution
+        .to_lockfile_form("@acme/widget", "1.2.3", artifactory_form(true))
+        .unwrap();
     assert_eq!(actual, resolution);
 }
 

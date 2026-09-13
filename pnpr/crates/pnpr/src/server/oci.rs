@@ -21,6 +21,8 @@ pub(super) use response::{Refusal, error};
 
 pub(super) use publication::{OciPublication, authorize_publication};
 
+mod blob_request;
+
 mod response;
 use response::{
     accepted, api_version, created, hosted_manifest_response, insert_header, json,
@@ -168,8 +170,14 @@ async fn dispatch(
     Path(params): Path<HashMap<String, String>>,
     incoming: axum::extract::Request,
 ) -> Response {
-    let Some(endpoint) = params.get("path").and_then(|tail| parse_endpoint(tail)) else {
-        return error(ErrorCode::NameUnknown, "no distribution endpoint at this path");
+    let Some(endpoint) = params
+        .get("path")
+        .and_then(|tail| parse_endpoint(tail))
+    else {
+        return error(
+            ErrorCode::NameUnknown,
+            "no distribution endpoint at this path",
+        );
     };
     let tail = &params["path"];
     let (parts, body) = incoming.into_parts();
@@ -180,27 +188,14 @@ async fn dispatch(
         base: api_base(uri.path(), tail),
         method: parts.method,
         digest: query_param(uri.query(), "digest"),
-        query: uri.query().unwrap_or_default().to_string(),
+        query: uri
+            .query()
+            .unwrap_or_default()
+            .to_string(),
         headers: parts.headers,
     };
-    let scope_name = match &endpoint {
-        Endpoint::Catalog => None,
-        Endpoint::Referrers { name, .. }
-        | Endpoint::Tags { name }
-        | Endpoint::Manifest { name, .. }
-        | Endpoint::Blob { name, .. }
-        | Endpoint::StartUpload { name }
-        | Endpoint::Upload { name, .. } => Some(name.clone()),
-    };
-    let response = match endpoint {
-        Endpoint::Referrers { name, digest } => request.referrers(&name, &digest).await,
-        Endpoint::Catalog => request.catalog().await,
-        Endpoint::Tags { name } => request.tags(&name).await,
-        Endpoint::Manifest { name, reference } => request.manifest(&name, &reference, body).await,
-        Endpoint::Blob { name, digest } => request.blob(&name, &digest).await,
-        Endpoint::StartUpload { name } => request.start_upload(&name, body).await,
-        Endpoint::Upload { name, id } => request.upload(&name, &id, body).await,
-    };
+    let scope_name = endpoint.name().map(str::to_owned);
+    let response = request.dispatch(endpoint, body).await;
     request.challenge(scope_name.as_deref(), response)
 }
 
@@ -215,6 +210,20 @@ enum Endpoint {
     Upload { name: String, id: String },
 }
 
+impl Endpoint {
+    fn name(&self) -> Option<&str> {
+        match self {
+            Self::Catalog => None,
+            Self::Referrers { name, .. }
+            | Self::Tags { name }
+            | Self::Manifest { name, .. }
+            | Self::Blob { name, .. }
+            | Self::StartUpload { name }
+            | Self::Upload { name, .. } => Some(name),
+        }
+    }
+}
+
 /// Split a tail into its repository name and the endpoint it addresses. The
 /// name runs up to the trailing verb, which is why a repository may not be
 /// named so that its last components spell one.
@@ -227,20 +236,28 @@ fn parse_endpoint(tail: &str) -> Option<Endpoint> {
     let name = |upto: usize| (upto > 0).then(|| segments[..upto].join("/"));
     let last = segments.len();
     match segments.as_slice() {
-        [.., "blobs", "uploads"] => Some(Endpoint::StartUpload { name: name(last - 2)? }),
-        [.., "blobs", "uploads", id] => {
-            Some(Endpoint::Upload { name: name(last - 3)?, id: (*id).to_string() })
-        }
-        [.., "tags", "list"] => Some(Endpoint::Tags { name: name(last - 2)? }),
-        [.., "manifests", reference] => {
-            Some(Endpoint::Manifest { name: name(last - 2)?, reference: (*reference).to_string() })
-        }
-        [.., "referrers", digest] => {
-            Some(Endpoint::Referrers { name: name(last - 2)?, digest: (*digest).to_string() })
-        }
-        [.., "blobs", digest] => {
-            Some(Endpoint::Blob { name: name(last - 2)?, digest: (*digest).to_string() })
-        }
+        [.., "blobs", "uploads"] => Some(Endpoint::StartUpload {
+            name: name(last - 2)?,
+        }),
+        [.., "blobs", "uploads", id] => Some(Endpoint::Upload {
+            name: name(last - 3)?,
+            id: (*id).to_string(),
+        }),
+        [.., "tags", "list"] => Some(Endpoint::Tags {
+            name: name(last - 2)?,
+        }),
+        [.., "manifests", reference] => Some(Endpoint::Manifest {
+            name: name(last - 2)?,
+            reference: (*reference).to_string(),
+        }),
+        [.., "referrers", digest] => Some(Endpoint::Referrers {
+            name: name(last - 2)?,
+            digest: (*digest).to_string(),
+        }),
+        [.., "blobs", digest] => Some(Endpoint::Blob {
+            name: name(last - 2)?,
+            digest: (*digest).to_string(),
+        }),
         _ => None,
     }
 }
@@ -260,78 +277,29 @@ struct Request {
 }
 
 impl Request {
+    async fn dispatch(&self, endpoint: Endpoint, body: Body) -> Response {
+        match endpoint {
+            Endpoint::Referrers { name, digest } => self.referrers(&name, &digest).await,
+            Endpoint::Catalog => self.catalog().await,
+            Endpoint::Tags { name } => self.tags(&name).await,
+            Endpoint::Manifest { name, reference } => self.manifest(&name, &reference, body).await,
+            Endpoint::Blob { name, digest } => self.blob(&name, &digest).await,
+            Endpoint::StartUpload { name } => self.start_upload(&name, body).await,
+            Endpoint::Upload { name, id } => self.upload(&name, &id, body).await,
+        }
+    }
+
     /// Keep a response that can vary by caller out of shared caches, the way
     /// every other surface does. Without it an intermediary could replay an
     /// authenticated pull of a private repository to the next caller.
     fn caller_scoped(&self, package: Option<&str>, response: Response) -> Response {
-        caller_scoped(&self.state, ECOSYSTEM, self.registry.as_deref(), package, response)
-    }
-
-    async fn blob(&self, name: &str, digest: &str) -> Response {
-        let Ok(digest) = Digest::parse(digest) else {
-            return error(ErrorCode::DigestInvalid, "not a supported digest");
-        };
-        match self.method {
-            Method::GET | Method::HEAD => self.read_blob(name, &digest).await,
-            Method::DELETE => self.delete_blob(name, &digest).await,
-            _ => method_not_allowed(),
-        }
-    }
-
-    async fn read_blob(&self, name: &str, digest: &Digest) -> Response {
-        if let Some((key, source)) = self.upstream_source(name) {
-            return self.proxy_blob(&key, &source, digest).await;
-        }
-        let repo = match self.hosted_repo(name) {
-            Ok(repo) => repo,
-            Err(refusal) => return refusal.respond(),
-        };
-        let etag = format!(r#""{digest}""#);
-        if let Some(range) = self.requested_download_range(&etag) {
-            let ranged = repo
-                .storage
-                .open_hosted_blob_range(&repo.key, &digest.blob_filename(), &range)
-                .await;
-            let response = match ranged {
-                Ok(Some(blob)) => ranged_blob_response(blob, digest, &etag),
-                Ok(None) => return error(ErrorCode::BlobUnknown, "no such blob"),
-                Err(err) => return registry_error(err),
-            };
-            return self.caller_scoped(Some(repo.key.as_str()), response);
-        }
-        let (body, size) =
-            match repo.storage.open_hosted_blob(&repo.key, &digest.blob_filename()).await {
-                Ok(Some(blob)) => blob,
-                Ok(None) => return error(ErrorCode::BlobUnknown, "no such blob"),
-                Err(err) => return registry_error(err),
-            };
-        let mut response = Response::builder()
-            .status(StatusCode::OK)
-            .header(header::ACCEPT_RANGES, "bytes")
-            .header(header::ETAG, etag)
-            .header(header::CONTENT_TYPE, "application/octet-stream")
-            .header(DOCKER_CONTENT_DIGEST, digest.to_string());
-        if let Some(size) = size {
-            response = response.header(header::CONTENT_LENGTH, size);
-        }
-        let body = if self.method == Method::HEAD { Body::empty() } else { body };
-        let response = response.body(body).unwrap_or_else(|_| server_error());
-        self.caller_scoped(Some(repo.key.as_str()), response)
-    }
-
-    /// The byte range a `GET` asks for, when it asks for exactly one and its
-    /// `If-Range` still matches.
-    fn requested_download_range(&self, etag: &str) -> Option<pnpr_storage::GetRange> {
-        if self.method != Method::GET
-            || self.headers.get(header::IF_RANGE).is_some_and(|value| value != etag)
-            || self.headers.get_all(header::RANGE).iter().count() != 1
-        {
-            return None;
-        }
-        self.headers
-            .get(header::RANGE)
-            .and_then(|value| value.to_str().ok())
-            .and_then(parse_download_range)
+        caller_scoped(
+            &self.state,
+            ECOSYSTEM,
+            self.registry.as_deref(),
+            package,
+            response,
+        )
     }
 
     /// The hosted registry a read of `name` resolves to, with the canonical
@@ -362,13 +330,16 @@ impl Request {
         let org = hosted_read_namespace(&self.state, &self.identity, &source, key.as_str())
             .map_err(Refusal::from)?;
         let storage = self.state.inner.storage.for_hosted(&org);
-        Ok(HostedRepo { key, source, storage })
+        Ok(HostedRepo {
+            key,
+            source,
+            storage,
+        })
     }
 
     /// Whether a bearer token on the request denies pulling `source_key`.
     fn token_forbids_pull(&self, source_key: &str) -> Result<bool, RegistryError> {
-        let Some(raw) = self
-            .headers
+        let Some(raw) = self.headers
             .get(header::AUTHORIZATION)
             .and_then(|value| value.to_str().ok())
             .and_then(super::authentication::token_credentials)
@@ -378,34 +349,6 @@ impl Request {
         Ok(tokens::decode(&self.state, &raw)?
             .is_some_and(|claims| !claims.allows(source_key, "pull")))
     }
-}
-
-fn parse_download_range(value: &str) -> Option<pnpr_storage::GetRange> {
-    let (unit, bounds) = value.trim().split_once('=')?;
-    if !unit.eq_ignore_ascii_case("bytes") {
-        return None;
-    }
-    let (start, end) = bounds.split_once('-')?;
-    let number = |value: &str| {
-        (!value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()))
-            .then(|| value.parse::<u64>().ok())
-            .flatten()
-    };
-    if start.is_empty() {
-        return number(end).map(pnpr_storage::GetRange::Suffix);
-    }
-    let start = number(start)?;
-    if end.is_empty() {
-        return Some(pnpr_storage::GetRange::Offset(start));
-    }
-    let end = number(end)?;
-    if start > end {
-        return None;
-    }
-    Some(match end.checked_add(1) {
-        Some(end) => pnpr_storage::GetRange::Bounded(start..end),
-        None => pnpr_storage::GetRange::Offset(start),
-    })
 }
 
 #[derive(Serialize)]
@@ -438,14 +381,18 @@ impl From<Refusal> for RegistryError {
             return *original;
         }
         match refusal.status {
-            StatusCode::UNAUTHORIZED => Self::Unauthenticated { resource: refusal.message },
+            StatusCode::UNAUTHORIZED => Self::Unauthenticated {
+                resource: refusal.message,
+            },
             StatusCode::FORBIDDEN => Self::Forbidden {
                 user: String::new(),
                 action: "publish",
                 resource: refusal.message,
             },
             StatusCode::NOT_FOUND => Self::NotFound,
-            _ => Self::BadRequest { reason: refusal.message },
+            _ => Self::BadRequest {
+                reason: refusal.message,
+            },
         }
     }
 }
@@ -456,15 +403,20 @@ fn api_base(uri_path: &str, tail: &str) -> String {
     uri_path
         .trim_end_matches('/')
         .strip_suffix(tail.trim_end_matches('/'))
-        .map_or_else(|| format!("/{API_SEGMENT}"), |base| base.trim_end_matches('/').to_string())
+        .map_or_else(
+            || format!("/{API_SEGMENT}"),
+            |base| base.trim_end_matches('/').to_string(),
+        )
 }
 
 /// One named parameter of a raw query string.
 fn query_param(query: Option<&str>, key: &str) -> Option<String> {
-    query?.split('&').find_map(|pair| {
-        let (name, value) = pair.split_once('=')?;
-        (name == key).then(|| percent_decode(value))
-    })
+    query?
+        .split('&')
+        .find_map(|pair| {
+            let (name, value) = pair.split_once('=')?;
+            (name == key).then(|| percent_decode(value))
+        })
 }
 
 #[cfg(test)]

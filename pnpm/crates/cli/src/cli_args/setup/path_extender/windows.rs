@@ -27,9 +27,13 @@ pub(super) fn add_dir_to_windows_env_path(
     // `chcp` makes `reg` use UTF-8 for output. Otherwise non-ASCII
     // characters in environment variables become garbled.
     let chcp_output = run_capture_chcp(&[])
-        .map_err(|err| PathExtenderError::Chcp { message: err.to_string() })?;
+        .map_err(|err| PathExtenderError::Chcp {
+            message: err.to_string(),
+        })?;
     let cp_bak = first_number(&chcp_output)
-        .ok_or_else(|| PathExtenderError::Chcp { message: chcp_output.clone() })?;
+        .ok_or_else(|| PathExtenderError::Chcp {
+            message: chcp_output.clone(),
+        })?;
     run_capture_chcp(&["65001"])?;
 
     let result = (|| {
@@ -116,7 +120,10 @@ fn add_to_path(
         Some(data) if !data.trim().is_empty() => data,
         _ => return Err(PathExtenderError::NoPath),
     };
-    if path_data.split(';').any(|entry| entry == added_dir) {
+    if path_data
+        .split(';')
+        .any(|entry| entry == added_dir)
+    {
         return Ok(EnvVariableChange {
             variable: variable.to_string(),
             old_value: Some(path_data.clone()),
@@ -178,7 +185,9 @@ where
 }
 
 fn get_env_value_from_registry(registry_output: &str, env_var_name: &str) -> Option<String> {
-    registry_output.lines().find_map(|line| env_value_from_registry_line(line, env_var_name))
+    registry_output
+        .lines()
+        .find_map(|line| env_value_from_registry_line(line, env_var_name))
 }
 
 /// Parse a `reg query` line of the form `    <name>    <type>    <data>`
@@ -193,7 +202,11 @@ fn env_value_from_registry_line(line: &str, env_var_name: &str) -> Option<String
     let after_name = rest[env_var_name.len()..].strip_prefix("    ")?;
     let type_end = after_name.find("    ")?;
     let value_type = &after_name[..type_end];
-    if value_type.is_empty() || !value_type.chars().all(|ch| ch.is_alphanumeric() || ch == '_') {
+    if value_type.is_empty()
+        || !value_type
+            .chars()
+            .all(|ch| ch.is_alphanumeric() || ch == '_')
+    {
         return None;
     }
     Some(after_name[type_end + 4..].to_string())
@@ -204,9 +217,23 @@ fn set_env_var_in_registry(
     env_var_value: &str,
     expandable_string: bool,
 ) -> Result<(), PathExtenderError> {
-    let reg_type = if expandable_string { "REG_EXPAND_SZ" } else { "REG_SZ" };
+    let reg_type = if expandable_string {
+        "REG_EXPAND_SZ"
+    } else {
+        "REG_SZ"
+    };
     let output = Command::new("reg")
-        .args(["add", REG_KEY, "/v", env_var_name, "/t", reg_type, "/d", env_var_value, "/f"])
+        .args([
+            "add",
+            REG_KEY,
+            "/v",
+            env_var_name,
+            "/t",
+            reg_type,
+            "/d",
+            env_var_value,
+            "/f",
+        ])
         .output()?;
     if !output.status.success() {
         return Err(PathExtenderError::FailedSetEnv {

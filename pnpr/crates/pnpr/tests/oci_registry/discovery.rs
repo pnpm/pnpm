@@ -15,7 +15,10 @@ async fn the_catalog_lists_only_hosted_repositories() {
     let response = get(&app, "/v2/_catalog").await;
     assert_eq!(response.status(), StatusCode::OK);
     let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
-    assert_eq!(payload["repositories"], json!(["acme/app", "acme/team/tool"]));
+    assert_eq!(
+        payload["repositories"],
+        json!(["acme/app", "acme/team/tool"]),
+    );
 }
 
 #[tokio::test]
@@ -29,10 +32,17 @@ async fn a_name_no_hosted_registry_claims_is_not_served() {
         .header(header::AUTHORIZATION, &auth)
         .body(Body::empty())
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
 
-    assert_eq!(get(&app, "/v2/other/app/tags/list").await.status(), StatusCode::NOT_FOUND);
+    assert_eq!(
+        get(&app, "/v2/other/app/tags/list").await.status(),
+        StatusCode::NOT_FOUND,
+    );
 }
 
 #[tokio::test]

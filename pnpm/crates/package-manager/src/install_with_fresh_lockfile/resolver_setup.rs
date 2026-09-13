@@ -68,7 +68,12 @@ pub(super) async fn open_store_index_handles(
 ) -> StoreIndexHandles {
     let index = StoreIndex::open_shared(store_dir, config.frozen_store).await;
     let (writer, writer_task) = StoreIndexWriter::spawn_for(store_dir, config.frozen_store);
-    StoreIndexHandles { index, writer, writer_task, caches: StoreCaches::default() }
+    StoreIndexHandles {
+        index,
+        writer,
+        writer_task,
+        caches: StoreCaches::default(),
+    }
 }
 
 #[derive(Default)]
@@ -88,10 +93,15 @@ pub(super) struct Registries {
 pub(super) fn resolve_registries(
     config: &Config,
 ) -> Result<Registries, InstallWithFreshLockfileError> {
-    let user_registries_by_prefix: HashMap<String, String> =
-        config.registries_by_prefix.iter().map(|(name, url)| (name.clone(), url.clone())).collect();
+    let user_registries_by_prefix: HashMap<String, String> = config.registries_by_prefix
+        .iter()
+        .map(|(name, url)| (name.clone(), url.clone()))
+        .collect();
     Ok(Registries {
-        by_scope: config.resolved_registries().into_iter().collect(),
+        by_scope: config
+            .resolved_registries()
+            .into_iter()
+            .collect(),
         named: merge_named_registries(&user_registries_by_prefix)
             .map_err(InstallWithFreshLockfileError::InvalidNamedRegistry)?,
     })
@@ -187,8 +197,12 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
 ) -> Result<ResolverChain, InstallWithFreshLockfileError> {
     let caches = PackumentCaches::new();
     let npm_resolver = inputs.npm_resolver(&caches);
-    let pnpmfile =
-        load_pnpmfile(inputs.config, inputs.project.root, inputs.hooks.pnpmfile.take()).await?;
+    let pnpmfile = load_pnpmfile(
+        inputs.config,
+        inputs.project.root,
+        inputs.hooks.pnpmfile.take(),
+    )
+    .await?;
     let chain = inputs.chain(&npm_resolver, &pnpmfile.custom_resolvers, &caches);
     // The install pass later calls `IngestTarballToStore::run_with_mem_cache`
     // for the same URLs and either picks up `CacheValue::Available`
@@ -344,7 +358,10 @@ impl ResolverChainInputs<'_> {
     ) -> NamedRegistryResolver<InMemoryPackageMetaCache> {
         NamedRegistryResolver {
             registries_by_prefix: self.registry.by_prefix.clone(),
-            registry_names: self.registry.by_prefix.keys().cloned().collect(),
+            registry_names: self.registry.by_prefix
+                .keys()
+                .cloned()
+                .collect(),
             metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
                 http_client: Arc::clone(self.fetching.http_client),
                 auth_headers: Arc::clone(self.fetching.auth_headers),
@@ -380,14 +397,18 @@ impl ResolverChainInputs<'_> {
                 .iter()
                 .filter(|custom| custom.has_can_resolve() && custom.has_resolve())
                 .map(|custom| {
-                    Box::new(pnpm_hooks::custom_resolver_adapter::CustomResolverAdapter::new(
-                        Arc::clone(custom),
-                    )) as Box<dyn Resolver>
+                    Box::new(
+                        pnpm_hooks::custom_resolver_adapter::CustomResolverAdapter::new(
+                            Arc::clone(custom),
+                        ),
+                    ) as Box<dyn Resolver>
                 }),
         );
         // Pacquet doesn't expose `preserveAbsolutePaths` yet, so absolute
         // `file:` / `link:` specs resolve as though it were off.
-        let local_ctx = LocalResolverContext { preserve_absolute_paths: false };
+        let local_ctx = LocalResolverContext {
+            preserve_absolute_paths: false,
+        };
         chain.extend([
             Box::new(Arc::clone(npm_resolver)) as Box<dyn Resolver>,
             Box::new(self.git_resolver()),
@@ -468,24 +489,31 @@ async fn load_pnpmfile(
             custom_fetcher_session: None,
         });
     };
-    let custom_resolvers = hook.get_custom_resolvers().await.map_err(|err| {
-        tracing::error!(
-            target: "pacquet::install",
-            "Failed to get custom resolvers from pnpmfile: {err}",
-        );
-        InstallWithFreshLockfileError::CustomResolverHook(err)
-    })?;
-    let fetchers = hook.get_custom_fetchers().await.map_err(|err| {
-        tracing::error!(
-            target: "pacquet::install",
-            "Failed to get custom fetchers from pnpmfile: {err}",
-        );
-        InstallWithFreshLockfileError::CustomFetcherHook(err)
-    })?;
+    let custom_resolvers = hook
+        .get_custom_resolvers()
+        .await
+        .map_err(|err| {
+            tracing::error!(
+                target: "pacquet::install",
+                "Failed to get custom resolvers from pnpmfile: {err}",
+            );
+            InstallWithFreshLockfileError::CustomResolverHook(err)
+        })?;
+    let fetchers = hook
+        .get_custom_fetchers()
+        .await
+        .map_err(|err| {
+            tracing::error!(
+                target: "pacquet::install",
+                "Failed to get custom fetchers from pnpmfile: {err}",
+            );
+            InstallWithFreshLockfileError::CustomFetcherHook(err)
+        })?;
     Ok(PnpmfileLoad {
         hook: Some(hook),
         custom_resolvers,
-        custom_fetcher_session: (!fetchers.is_empty())
-            .then(|| Arc::new(pnpm_deps_restorer::CustomFetcherSession::new(fetchers))),
+        custom_fetcher_session: (!fetchers.is_empty()).then(|| {
+            Arc::new(pnpm_deps_restorer::CustomFetcherSession::new(fetchers))
+        }),
     })
 }

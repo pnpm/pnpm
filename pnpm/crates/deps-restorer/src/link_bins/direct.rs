@@ -25,13 +25,19 @@ use std::{
 /// disabled hoist pass — gets no `NODE_PATH` at all.
 #[must_use]
 pub fn shim_link_options(config: &Config, node_linker: NodeLinker) -> LinkBinsOptions {
-    let has_hoist_pattern =
-        config.hoist_pattern.as_ref().is_some_and(|patterns| !patterns.is_empty());
+    let has_hoist_pattern = config.hoist_pattern
+        .as_ref()
+        .is_some_and(|patterns| !patterns.is_empty());
     let extra_node_paths = if config.extend_node_path
         && matches!(node_linker, NodeLinker::Isolated)
         && has_hoist_pattern
     {
-        vec![config.virtual_store_dir.join("node_modules").to_string_lossy().into_owned()]
+        vec![
+            config.virtual_store_dir
+                .join("node_modules")
+                .to_string_lossy()
+                .into_owned(),
+        ]
     } else {
         Vec::new()
     };
@@ -55,8 +61,10 @@ pub fn link_direct_dep_bins(
     dep_names: &[String],
     link_options: &LinkBinsOptions,
 ) -> Result<(), LinkBinsError> {
-    let deps: Vec<(&str, Option<&Path>)> =
-        dep_names.iter().map(|name| (name.as_str(), None)).collect();
+    let deps: Vec<(&str, Option<&Path>)> = dep_names
+        .iter()
+        .map(|name| (name.as_str(), None))
+        .collect();
     link_named_dep_bins(modules_dir, &deps, link_options)
 }
 /// Resolve the hoist pass's `(alias, snapshot key)` bin list into the
@@ -71,7 +79,10 @@ pub fn resolve_hoisted_bin_deps(
     aliases
         .iter()
         .map(|(alias, key)| {
-            (alias.clone(), pkg_dir_under(&layout.slot_dir(key).join("node_modules"), &key.name))
+            (
+                alias.clone(),
+                pkg_dir_under(&layout.slot_dir(key).join("node_modules"), &key.name),
+            )
         })
         .collect()
 }
@@ -84,8 +95,10 @@ pub fn link_direct_dep_bins_resolved(
     deps: &[(String, PathBuf)],
     link_options: &LinkBinsOptions,
 ) -> Result<(), LinkBinsError> {
-    let deps: Vec<(&str, Option<&Path>)> =
-        deps.iter().map(|(name, target)| (name.as_str(), Some(target.as_path()))).collect();
+    let deps: Vec<(&str, Option<&Path>)> = deps
+        .iter()
+        .map(|(name, target)| (name.as_str(), Some(target.as_path())))
+        .collect();
     link_named_dep_bins(modules_dir, &deps, link_options)
 }
 /// One direct dep of [`link_direct_dep_bins_prefetched`]'s importer:
@@ -222,13 +235,19 @@ pub(super) fn read_dep_bin_source(
         Ok(bytes) => bytes,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return None,
         Err(error) => {
-            return Some(Err(LinkBinsError::ReadManifest { path: manifest_path, error }));
+            return Some(Err(LinkBinsError::ReadManifest {
+                path: manifest_path,
+                error,
+            }));
         }
     };
     let manifest: serde_json::Value = match parse_manifest_bytes(&bytes) {
         Ok(manifest) => manifest,
         Err(error) => {
-            return Some(Err(LinkBinsError::ParseManifest { path: manifest_path, error }));
+            return Some(Err(LinkBinsError::ParseManifest {
+                path: manifest_path,
+                error,
+            }));
         }
     };
     Some(Ok(PackageBinSource::new(location, Arc::new(manifest))
@@ -256,13 +275,19 @@ pub(super) fn link_named_dep_bins(
                 Ok(bytes) => bytes,
                 Err(error) if error.kind() == io::ErrorKind::NotFound => return None,
                 Err(error) => {
-                    return Some(Err(LinkBinsError::ReadManifest { path: manifest_path, error }));
+                    return Some(Err(LinkBinsError::ReadManifest {
+                        path: manifest_path,
+                        error,
+                    }));
                 }
             };
             let manifest: serde_json::Value = match parse_manifest_bytes(&bytes) {
                 Ok(manifest) => manifest,
                 Err(error) => {
-                    return Some(Err(LinkBinsError::ParseManifest { path: manifest_path, error }));
+                    return Some(Err(LinkBinsError::ParseManifest {
+                        path: manifest_path,
+                        error,
+                    }));
                 }
             };
             let mut source = PackageBinSource::new(location, Arc::new(manifest));
@@ -340,7 +365,10 @@ pub fn link_top_level_bins(
     // anyway — but the work is wasted, so de-duplicate here by
     // filtering out hoisted candidates whose name already appears
     // in the direct set.
-    let direct_set: HashSet<&str> = direct_dep_names.iter().map(String::as_str).collect();
+    let direct_set: HashSet<&str> = direct_dep_names
+        .iter()
+        .map(String::as_str)
+        .collect();
     let hoisted_only: Vec<String> = hoisted_dep_names
         .iter()
         .filter(|name| !direct_set.contains(name.as_str()))
@@ -361,8 +389,10 @@ pub fn link_project_bins(
     direct_dep_names: &[String],
     link_options: &LinkBinsOptions,
 ) -> Result<(), LinkBinsError> {
-    let direct_locations =
-        direct_dep_names.iter().map(|name| modules_dir.join(name)).collect::<HashSet<_>>();
+    let direct_locations = direct_dep_names
+        .iter()
+        .map(|name| modules_dir.join(name))
+        .collect::<HashSet<_>>();
     let sources = collect_packages_in_modules_dir::<Host>(modules_dir)?
         .into_iter()
         .map(|source| {
@@ -388,7 +418,10 @@ pub(super) fn read_bin_sources(
     modules_dir: &Path,
     dep_names: &[String],
 ) -> Result<Vec<PackageBinSource>, LinkBinsError> {
-    let locations: Vec<PathBuf> = dep_names.iter().map(|name| modules_dir.join(name)).collect();
+    let locations: Vec<PathBuf> = dep_names
+        .iter()
+        .map(|name| modules_dir.join(name))
+        .collect();
     locations
         .par_iter()
         .filter_map(|location| {
@@ -397,16 +430,25 @@ pub(super) fn read_bin_sources(
                 Ok(bytes) => bytes,
                 Err(error) if error.kind() == io::ErrorKind::NotFound => return None,
                 Err(error) => {
-                    return Some(Err(LinkBinsError::ReadManifest { path: manifest_path, error }));
+                    return Some(Err(LinkBinsError::ReadManifest {
+                        path: manifest_path,
+                        error,
+                    }));
                 }
             };
             let manifest: serde_json::Value = match parse_manifest_bytes(&bytes) {
                 Ok(manifest) => manifest,
                 Err(error) => {
-                    return Some(Err(LinkBinsError::ParseManifest { path: manifest_path, error }));
+                    return Some(Err(LinkBinsError::ParseManifest {
+                        path: manifest_path,
+                        error,
+                    }));
                 }
             };
-            Some(Ok(PackageBinSource::new(location.clone(), Arc::new(manifest))))
+            Some(Ok(PackageBinSource::new(
+                location.clone(),
+                Arc::new(manifest),
+            )))
         })
         .collect()
 }

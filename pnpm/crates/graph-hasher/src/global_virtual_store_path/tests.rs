@@ -49,7 +49,10 @@ fn identical_leaves_hash_identically() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
     graph.insert(
         "leaf@1.0.0".to_string(),
-        DepsGraphNode { full_pkg_id: "leaf@1.0.0:sha512-x".to_string(), children: IndexMap::new() },
+        DepsGraphNode {
+            full_pkg_id: "leaf@1.0.0:sha512-x".to_string(),
+            children: IndexMap::new(),
+        },
     );
     let mut cache_a = HashMap::new();
     let mut cache_b = HashMap::new();
@@ -78,7 +81,10 @@ fn engine_string_changes_hash() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
     graph.insert(
         "leaf@1.0.0".to_string(),
-        DepsGraphNode { full_pkg_id: "leaf@1.0.0:sha512-x".to_string(), children: IndexMap::new() },
+        DepsGraphNode {
+            full_pkg_id: "leaf@1.0.0:sha512-x".to_string(),
+            children: IndexMap::new(),
+        },
     );
     let mut cache = HashMap::new();
     let with_engine = calc_graph_node_hash(
@@ -99,8 +105,14 @@ fn engine_string_changes_hash() {
         None,
     );
     let mut cache_null = HashMap::new();
-    let with_null =
-        calc_graph_node_hash(&graph, &mut cache_null, &"leaf@1.0.0".to_string(), None, None, None);
+    let with_null = calc_graph_node_hash(
+        &graph,
+        &mut cache_null,
+        &"leaf@1.0.0".to_string(),
+        None,
+        None,
+        None,
+    );
     assert_ne!(with_engine, with_other_engine);
     assert_ne!(with_engine, with_null);
     assert_ne!(with_other_engine, with_null);
@@ -181,7 +193,10 @@ fn engine_included_for_ancestor_of_builder() {
     root_children.insert("dep".to_string(), "native@1.0.0".to_string());
     graph.insert(
         "root@1.0.0".to_string(),
-        DepsGraphNode { full_pkg_id: "root@1.0.0:sha512-r".to_string(), children: root_children },
+        DepsGraphNode {
+            full_pkg_id: "root@1.0.0:sha512-r".to_string(),
+            children: root_children,
+        },
     );
     graph.insert(
         "native@1.0.0".to_string(),
@@ -210,7 +225,10 @@ fn engine_included_for_ancestor_of_builder() {
         Some(&build_required),
         None,
     );
-    assert_ne!(darwin, linux, "ancestor of a builder must partition by engine string");
+    assert_ne!(
+        darwin, linux,
+        "ancestor of a builder must partition by engine string",
+    );
 }
 
 #[test]
@@ -274,9 +292,18 @@ fn engine_included_for_every_cycle_member_that_reaches_builder() {
     let darwin_reverse = hashes_for("darwin-arm64-node20", [&cycle_b, &cycle_a, &pure_js]);
     let linux_reverse = hashes_for("linux-x64-node22", [&cycle_b, &cycle_a, &pure_js]);
 
-    assert_ne!(darwin[0], linux[0], "first cycle member must partition by engine string");
-    assert_ne!(darwin[1], linux[1], "second cycle member must partition by engine string");
-    assert_eq!(darwin[2], linux[2], "disconnected pure-JS package stays engine-agnostic");
+    assert_ne!(
+        darwin[0], linux[0],
+        "first cycle member must partition by engine string",
+    );
+    assert_ne!(
+        darwin[1], linux[1],
+        "second cycle member must partition by engine string",
+    );
+    assert_eq!(
+        darwin[2], linux[2],
+        "disconnected pure-JS package stays engine-agnostic",
+    );
     assert_ne!(
         darwin_reverse[0], linux_reverse[0],
         "second cycle member must partition by engine string when visited first",
@@ -319,7 +346,10 @@ fn no_build_required_set_disables_gating() {
         None,
         None,
     );
-    assert_ne!(darwin, linux, "without build gating, engine is always part of the hash");
+    assert_ne!(
+        darwin, linux,
+        "without build gating, engine is always part of the hash",
+    );
 }
 
 #[test]
@@ -327,17 +357,26 @@ fn different_children_change_hash() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
     graph.insert(
         "leaf@1.0.0".to_string(),
-        DepsGraphNode { full_pkg_id: "leaf@1.0.0:sha512-x".to_string(), children: IndexMap::new() },
+        DepsGraphNode {
+            full_pkg_id: "leaf@1.0.0:sha512-x".to_string(),
+            children: IndexMap::new(),
+        },
     );
     let mut root_a_children = IndexMap::new();
     root_a_children.insert("a".to_string(), "leaf@1.0.0".to_string());
     graph.insert(
         "root@1.0.0(a)".to_string(),
-        DepsGraphNode { full_pkg_id: "root@1.0.0:sha512-r".to_string(), children: root_a_children },
+        DepsGraphNode {
+            full_pkg_id: "root@1.0.0:sha512-r".to_string(),
+            children: root_a_children,
+        },
     );
     graph.insert(
         "root@1.0.0(b)".to_string(),
-        DepsGraphNode { full_pkg_id: "root@1.0.0:sha512-r".to_string(), children: IndexMap::new() },
+        DepsGraphNode {
+            full_pkg_id: "root@1.0.0:sha512-r".to_string(),
+            children: IndexMap::new(),
+        },
     );
     let mut cache_a = HashMap::new();
     let with_dep = calc_graph_node_hash(
@@ -357,7 +396,10 @@ fn different_children_change_hash() {
         None,
         None,
     );
-    assert_ne!(with_dep, without_dep, "same root, different children must not collide on GVS hash");
+    assert_ne!(
+        with_dep, without_dep,
+        "same root, different children must not collide on GVS hash",
+    );
 }
 
 #[test]
@@ -366,11 +408,20 @@ fn leaf_matches_single_node_graph_hash() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
     graph.insert(
         "leaf@1.0.0".to_string(),
-        DepsGraphNode { full_pkg_id: full.to_string(), children: IndexMap::new() },
+        DepsGraphNode {
+            full_pkg_id: full.to_string(),
+            children: IndexMap::new(),
+        },
     );
     let mut cache = HashMap::new();
-    let digest =
-        calc_graph_node_hash(&graph, &mut cache, &"leaf@1.0.0".to_string(), None, None, None);
+    let digest = calc_graph_node_hash(
+        &graph,
+        &mut cache,
+        &"leaf@1.0.0".to_string(),
+        None,
+        None,
+        None,
+    );
     assert_eq!(
         calc_leaf_global_virtual_store_path(full, "leaf", "1.0.0"),
         format_global_virtual_store_path("leaf", "1.0.0", &digest),
@@ -401,9 +452,19 @@ fn subdeps_partition_the_hash() {
     let with_other_sub =
         calc_global_virtual_store_path_with_subdeps(parent, "cfg", "1.0.0", &other);
 
-    assert_ne!(none, with_sub, "adding a subdep must change the parent hash");
-    assert_ne!(with_sub, with_other_sub, "changing a subdep id must change the parent hash");
-    assert_eq!(with_sub.matches('/').count(), 3, "path stays at <prefix>name/version/hash depth");
+    assert_ne!(
+        none, with_sub,
+        "adding a subdep must change the parent hash",
+    );
+    assert_ne!(
+        with_sub, with_other_sub,
+        "changing a subdep id must change the parent hash",
+    );
+    assert_eq!(
+        with_sub.matches('/').count(),
+        3,
+        "path stays at <prefix>name/version/hash depth",
+    );
 }
 
 /// The slot hash names a directory in a shared store, so the payload
@@ -418,7 +479,10 @@ fn graph_node_hash_matches_the_object_hash_of_the_value_it_models() {
     let graph: HashMap<String, DepsGraphNode<String>> = HashMap::from([
         (
             "root".to_string(),
-            DepsGraphNode { full_pkg_id: "root@1.0.0:sha512-root".to_string(), children },
+            DepsGraphNode {
+                full_pkg_id: "root@1.0.0:sha512-root".to_string(),
+                children,
+            },
         ),
         (
             "leaf".to_string(),
@@ -435,8 +499,14 @@ fn graph_node_hash_matches_the_object_hash_of_the_value_it_models() {
         (None, Some("/workspace/app")),
     ] {
         let mut cache = HashMap::new();
-        let actual =
-            calc_graph_node_hash(&graph, &mut cache, &"root".to_string(), engine, None, project);
+        let actual = calc_graph_node_hash(
+            &graph,
+            &mut cache,
+            &"root".to_string(),
+            engine,
+            None,
+            project,
+        );
 
         let mut reference_cache = HashMap::new();
         let deps_hash = crate::dep_state::calc_dep_graph_hash(
@@ -456,6 +526,9 @@ fn graph_node_hash_matches_the_object_hash_of_the_value_it_models() {
             }
         };
         let expected = crate::hash_object_without_sorting(&payload, crate::HashEncoding::Hex);
-        assert_eq!(actual, expected, "graph-node hash diverged for {engine:?} / {project:?}");
+        assert_eq!(
+            actual, expected,
+            "graph-node hash diverged for {engine:?} / {project:?}",
+        );
     }
 }

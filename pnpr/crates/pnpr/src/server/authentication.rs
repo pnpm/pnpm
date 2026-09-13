@@ -54,10 +54,15 @@ impl<RouterState: Send + Sync> FromRequestParts<RouterState> for AuthedCaller {
     ) -> Result<Self, Self::Rejection> {
         // The middleware runs on every route, so the context is always
         // present; a miss means a wiring bug, surfaced as a 5xx.
-        parts.extensions.get::<AuthedCaller>().cloned().ok_or_else(|| {
-            RegistryError::Internal { reason: "authentication middleware did not run".to_string() }
+        parts.extensions
+            .get::<AuthedCaller>()
+            .cloned()
+            .ok_or_else(|| {
+                RegistryError::Internal {
+                    reason: "authentication middleware did not run".to_string(),
+                }
                 .into_response()
-        })
+            })
     }
 }
 
@@ -74,13 +79,21 @@ pub(super) async fn authenticate(
         Err(err) => return err.into_response(),
     };
     let method = request.method().clone();
-    let path = request.uri().path().to_owned();
-    let peer = request.extensions().get::<ConnectInfo<PeerAddr>>().map(|info| info.0.0);
+    let path = request
+        .uri()
+        .path()
+        .to_owned();
+    let peer = request
+        .extensions()
+        .get::<ConnectInfo<PeerAddr>>()
+        .map(|info| info.0.0);
 
     if let Some(raw) = header.as_deref().and_then(token_credentials) {
         match bearer_token_identity(&state, &raw, &method, &path, peer).await {
             Ok(Some(identity)) => {
-                request.extensions_mut().insert(AuthedCaller(identity));
+                request
+                    .extensions_mut()
+                    .insert(AuthedCaller(identity));
                 return next.run(request).await;
             }
             Ok(None) => {}
@@ -92,7 +105,9 @@ pub(super) async fn authenticate(
         Ok(identity) => identity,
         Err(err) => return err.into_response(),
     };
-    request.extensions_mut().insert(AuthedCaller(identity));
+    request
+        .extensions_mut()
+        .insert(AuthedCaller(identity));
     next.run(request).await
 }
 
@@ -167,9 +182,12 @@ async fn resolve_caller(
             return Ok(Identity::user(username));
         }
         if let Some(jwt) = raw_token.strip_prefix("pnpr_workload_") {
-            let workload = state.inner.identity.oidc.workload(jwt).await?.ok_or_else(|| {
-                RegistryError::Unauthenticated { resource: "OIDC workload credentials".to_string() }
-            })?;
+            let workload = state.inner.identity.oidc
+                .workload(jwt)
+                .await?
+                .ok_or_else(|| RegistryError::Unauthenticated {
+                    resource: "OIDC workload credentials".to_string(),
+                })?;
             super::oidc::check_workload_request(&state.inner.config, &workload, method, path)?;
             return Ok(Identity::user(workload.identity.username));
         }
@@ -207,7 +225,9 @@ pub(super) fn token_credentials(header_value: &str) -> Option<String> {
     if !scheme.eq_ignore_ascii_case("Basic") {
         return None;
     }
-    let decoded = BASE64_STANDARD.decode(credentials.trim()).ok()?;
+    let decoded = BASE64_STANDARD
+        .decode(credentials.trim())
+        .ok()?;
     let decoded = String::from_utf8(decoded).ok()?;
     let (_, password) = decoded.split_once(':')?;
     (!password.is_empty()).then(|| password.to_string())
@@ -254,12 +274,12 @@ fn check_token_restrictions(
 fn source_rules<'a>(state: &'a AppState, source: &RegistrySource) -> &'a PackageRules {
     static SAFE_DEFAULTS: LazyLock<PackageRules> = LazyLock::new(PackageRules::default);
     match source {
-        RegistrySource::Hosted(name) => {
-            state.inner.config.routing.hosted.get(name).map(|hosted| &hosted.rules)
-        }
-        RegistrySource::Upstream(name) => {
-            state.inner.config.routing.upstreams.get(name).map(|upstream| &upstream.rules)
-        }
+        RegistrySource::Hosted(name) => state.inner.config.routing.hosted
+            .get(name)
+            .map(|hosted| &hosted.rules),
+        RegistrySource::Upstream(name) => state.inner.config.routing.upstreams
+            .get(name)
+            .map(|upstream| &upstream.rules),
         RegistrySource::Unclaimed | RegistrySource::NotFound => None,
     }
     .unwrap_or(&SAFE_DEFAULTS)
@@ -291,9 +311,9 @@ pub(super) fn authorize(
     // Denied: an anonymous caller gets a chance to authenticate (401);
     // an authenticated caller simply isn't in the allowed set (403).
     match identity {
-        Identity::Anonymous => {
-            Err(RegistryError::Unauthenticated { resource: format!("package {package:?}") })
-        }
+        Identity::Anonymous => Err(RegistryError::Unauthenticated {
+            resource: format!("package {package:?}"),
+        }),
         Identity::User { username, .. } => Err(RegistryError::Forbidden {
             user: username.clone(),
             action: action.label(),
@@ -307,7 +327,9 @@ pub(super) fn authorize(
 /// matching [`pnpr_auth::identify`].
 pub(super) fn bearer_credentials(header_value: &str) -> Option<&str> {
     let (scheme, credentials) = header_value.trim().split_once(' ')?;
-    scheme.eq_ignore_ascii_case("Bearer").then(|| credentials.trim())
+    scheme
+        .eq_ignore_ascii_case("Bearer")
+        .then(|| credentials.trim())
 }
 
 /// Whether a request mutates registry state. Every npm and Cargo write
@@ -327,7 +349,9 @@ fn is_image_upload_path(path: &str) -> bool {
     let Some(rest) = path.trim_end_matches('/').strip_suffix("/blobs/uploads") else {
         return false;
     };
-    rest.split('/').any(|segment| segment == pnpr_oci::API_SEGMENT)
+    rest
+        .split('/')
+        .any(|segment| segment == pnpr_oci::API_SEGMENT)
 }
 
 fn is_python_upload_path(path: &str) -> bool {
@@ -350,12 +374,16 @@ fn is_python_upload_path(path: &str) -> bool {
 /// dual-stack listener still matches plain IPv4 ranges.
 pub(super) fn cidr_whitelist_allows(whitelist: &[String], peer: SocketAddr) -> bool {
     let peer = canonical_ip(peer.ip());
-    whitelist.iter().any(|entry| cidr_contains(entry.trim(), peer))
+    whitelist
+        .iter()
+        .any(|entry| cidr_contains(entry.trim(), peer))
 }
 
 pub(super) fn canonical_ip(addr: IpAddr) -> IpAddr {
     match addr {
-        IpAddr::V6(v6) => v6.to_ipv4_mapped().map_or(IpAddr::V6(v6), IpAddr::V4),
+        IpAddr::V6(v6) => v6
+            .to_ipv4_mapped()
+            .map_or(IpAddr::V6(v6), IpAddr::V4),
         v4 @ IpAddr::V4(_) => v4,
     }
 }
@@ -406,9 +434,17 @@ fn parse_prefix(prefix: Option<&str>, max_bits: u8) -> Option<u8> {
 }
 
 fn ipv4_mask(prefix: u8) -> u32 {
-    if prefix == 0 { 0 } else { u32::MAX << (32 - prefix) }
+    if prefix == 0 {
+        0
+    } else {
+        u32::MAX << (32 - prefix)
+    }
 }
 
 fn ipv6_mask(prefix: u8) -> u128 {
-    if prefix == 0 { 0 } else { u128::MAX << (128 - prefix) }
+    if prefix == 0 {
+        0
+    } else {
+        u128::MAX << (128 - prefix)
+    }
 }

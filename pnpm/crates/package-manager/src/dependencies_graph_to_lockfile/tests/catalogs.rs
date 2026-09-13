@@ -29,18 +29,27 @@ fn aliased_catalog_dependency_records_catalog_snapshot() {
     graph.insert(zkochan_js_yaml.dep_path.clone(), zkochan_js_yaml);
 
     let mut direct = BTreeMap::new();
-    direct.insert("js-yaml".to_string(), DepPath::from("@zkochan/js-yaml@0.0.11".to_string()));
+    direct.insert(
+        "js-yaml".to_string(),
+        DepPath::from("@zkochan/js-yaml@0.0.11".to_string()),
+    );
 
     let mut catalogs: pnpm_catalogs_types::Catalogs = BTreeMap::new();
     catalogs
         .entry("default".to_string())
         .or_default()
-        .insert("js-yaml".to_string(), "npm:@zkochan/js-yaml@0.0.11".to_string());
+        .insert(
+            "js-yaml".to_string(),
+            "npm:@zkochan/js-yaml@0.0.11".to_string(),
+        );
 
     let mut importers = BTreeMap::new();
     importers.insert(
         ".".to_string(),
-        ImporterLockfileInput { manifest: &manifest, direct_dependencies_by_alias: direct },
+        ImporterLockfileInput {
+            manifest: &manifest,
+            direct_dependencies_by_alias: direct,
+        },
     );
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
         importers,

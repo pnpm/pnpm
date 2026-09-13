@@ -91,11 +91,18 @@ fn fails_when_package_is_not_found() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
-    let get_mock = server.mock("GET", "/nonexistent-package-99999").with_status(404).create();
+    let get_mock = server
+        .mock("GET", "/nonexistent-package-99999")
+        .with_status(404)
+        .create();
     let auth_file = empty_auth_file(root.path());
 
-    let output =
-        run_unpublish(&workspace, &auth_file, Some(&registry), &["nonexistent-package-99999"]);
+    let output = run_unpublish(
+        &workspace,
+        &auth_file,
+        Some(&registry),
+        &["nonexistent-package-99999"],
+    );
 
     get_mock.assert();
     assert!(!output.status.success(), "a 404 must fail");
@@ -161,18 +168,27 @@ fn refuses_a_full_unpublish_without_force() {
         .with_status(200)
         .with_body(two_version_packument(&server.url()))
         .create();
-    let delete_mock = server.mock("DELETE", "/test-pkg/-rev/3-abc").expect(0).create();
+    let delete_mock = server
+        .mock("DELETE", "/test-pkg/-rev/3-abc")
+        .expect(0)
+        .create();
     let auth_file = empty_auth_file(root.path());
 
     let output = run_unpublish(&workspace, &auth_file, Some(&registry), &["test-pkg"]);
 
     get_mock.assert();
     delete_mock.assert();
-    assert!(!output.status.success(), "a full unpublish without --force must fail");
+    assert!(
+        !output.status.success(),
+        "a full unpublish without --force must fail",
+    );
     let stderr = stderr_of(&output);
     assert!(stderr.contains("ERR_PNPM_UNPUBLISH_CONFIRM"), "{stderr}");
     assert!(stderr.contains("pnpm unpublish --force"), "{stderr}");
-    assert!(stderr.contains("0.0.1, 0.0.2"), "the versions are listed: {stderr}");
+    assert!(
+        stderr.contains("0.0.1, 0.0.2"),
+        "the versions are listed: {stderr}",
+    );
     drop((root, server));
 }
 
@@ -188,10 +204,18 @@ fn a_range_matching_every_version_is_a_full_unpublish() {
         .create();
     let auth_file = empty_auth_file(root.path());
 
-    let output = run_unpublish(&workspace, &auth_file, Some(&registry), &["test-pkg@>=0.0.1"]);
+    let output = run_unpublish(
+        &workspace,
+        &auth_file,
+        Some(&registry),
+        &["test-pkg@>=0.0.1"],
+    );
 
     get_mock.assert();
-    assert!(!output.status.success(), "removing every version needs --force too");
+    assert!(
+        !output.status.success(),
+        "removing every version needs --force too",
+    );
     let stderr = stderr_of(&output);
     assert!(stderr.contains("ERR_PNPM_UNPUBLISH_CONFIRM"), "{stderr}");
     drop((root, server));
@@ -207,17 +231,28 @@ fn force_unpublishes_the_entire_package() {
         .with_status(200)
         .with_body(two_version_packument(&server.url()))
         .create();
-    let delete_mock =
-        server.mock("DELETE", "/test-pkg/-rev/3-abc").with_status(200).with_body("{}").create();
+    let delete_mock = server
+        .mock("DELETE", "/test-pkg/-rev/3-abc")
+        .with_status(200)
+        .with_body("{}")
+        .create();
     let auth_file = empty_auth_file(root.path());
 
-    let output = run_unpublish(&workspace, &auth_file, Some(&registry), &["test-pkg", "--force"]);
+    let output = run_unpublish(
+        &workspace,
+        &auth_file,
+        Some(&registry),
+        &["test-pkg", "--force"],
+    );
 
     get_mock.assert();
     delete_mock.assert();
     assert!(output.status.success(), "{}", stderr_of(&output));
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Successfully unpublished all 2 version(s) of test-pkg"), "{stdout}");
+    assert!(
+        stdout.contains("Successfully unpublished all 2 version(s) of test-pkg"),
+        "{stdout}",
+    );
     drop((root, server));
 }
 
@@ -266,7 +301,10 @@ fn unpublishes_a_specific_version_and_repoints_dist_tags() {
     tarball_delete_mock.assert();
     assert!(output.status.success(), "{}", stderr_of(&output));
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Successfully unpublished 1 version(s) of test-pkg"), "{stdout}");
+    assert!(
+        stdout.contains("Successfully unpublished 1 version(s) of test-pkg"),
+        "{stdout}",
+    );
     drop((root, server));
 }
 
@@ -281,8 +319,11 @@ fn a_tarball_delete_404_is_tolerated() {
         .with_body(two_version_packument(&server.url()))
         .expect_at_least(2)
         .create();
-    let put_mock =
-        server.mock("PUT", "/test-pkg/-rev/3-abc").with_status(200).with_body("{}").create();
+    let put_mock = server
+        .mock("PUT", "/test-pkg/-rev/3-abc")
+        .with_status(200)
+        .with_body("{}")
+        .create();
     // Some registries clean tarballs up on the packument update themselves.
     let tarball_delete_mock = server
         .mock("DELETE", "/test-pkg/-/test-pkg-0.0.1.tgz/-rev/3-abc")
@@ -309,17 +350,28 @@ fn a_405_on_a_full_unpublish_reports_unpublish_forbidden() {
         .with_status(200)
         .with_body(two_version_packument(&server.url()))
         .create();
-    let delete_mock = server.mock("DELETE", "/test-pkg/-rev/3-abc").with_status(405).create();
+    let delete_mock = server
+        .mock("DELETE", "/test-pkg/-rev/3-abc")
+        .with_status(405)
+        .create();
     let auth_file = empty_auth_file(root.path());
 
-    let output = run_unpublish(&workspace, &auth_file, Some(&registry), &["test-pkg", "--force"]);
+    let output = run_unpublish(
+        &workspace,
+        &auth_file,
+        Some(&registry),
+        &["test-pkg", "--force"],
+    );
 
     get_mock.assert();
     delete_mock.assert();
     assert!(!output.status.success(), "a 405 must fail");
     let stderr = stderr_of(&output);
     assert!(stderr.contains("ERR_PNPM_UNPUBLISH_FORBIDDEN"), "{stderr}");
-    assert!(stderr.contains("cannot be completely unpublished"), "{stderr}");
+    assert!(
+        stderr.contains("cannot be completely unpublished"),
+        "{stderr}",
+    );
     drop((root, server));
 }
 
@@ -342,14 +394,22 @@ fn an_unauthorized_delete_reports_unauthorized() {
         .create();
     let auth_file = empty_auth_file(root.path());
 
-    let output = run_unpublish(&workspace, &auth_file, Some(&registry), &["test-pkg", "--force"]);
+    let output = run_unpublish(
+        &workspace,
+        &auth_file,
+        Some(&registry),
+        &["test-pkg", "--force"],
+    );
 
     get_mock.assert();
     delete_mock.assert();
     assert!(!output.status.success(), "a 401 must fail");
     let stderr = stderr_of(&output);
     assert!(stderr.contains("ERR_PNPM_UNAUTHORIZED"), "{stderr}");
-    assert!(stderr.contains("You must be logged in to unpublish packages"), "{stderr}");
+    assert!(
+        stderr.contains("You must be logged in to unpublish packages"),
+        "{stderr}",
+    );
     drop((root, server));
 }
 
@@ -381,11 +441,19 @@ fn a_web_auth_challenge_without_a_terminal_reports_otp_non_interactive() {
         .create();
     let auth_file = empty_auth_file(root.path());
 
-    let output = run_unpublish(&workspace, &auth_file, Some(&registry), &["test-pkg", "--force"]);
+    let output = run_unpublish(
+        &workspace,
+        &auth_file,
+        Some(&registry),
+        &["test-pkg", "--force"],
+    );
 
     get_mock.assert();
     delete_mock.assert();
-    assert!(!output.status.success(), "an unanswered challenge must fail");
+    assert!(
+        !output.status.success(),
+        "an unanswered challenge must fail",
+    );
     let stderr = stderr_of(&output);
     assert!(stderr.contains("ERR_PNPM_OTP_NON_INTERACTIVE"), "{stderr}");
     assert!(!stderr.contains("ERR_PNPM_UNAUTHORIZED"), "{stderr}");
@@ -416,7 +484,10 @@ fn a_classic_otp_challenge_without_a_terminal_reports_otp_non_interactive() {
 
     get_mock.assert();
     put_mock.assert();
-    assert!(!output.status.success(), "an unanswered challenge must fail");
+    assert!(
+        !output.status.success(),
+        "an unanswered challenge must fail",
+    );
     let stderr = stderr_of(&output);
     assert!(stderr.contains("ERR_PNPM_OTP_NON_INTERACTIVE"), "{stderr}");
     assert!(!stderr.contains("ERR_PNPM_UNAUTHORIZED"), "{stderr}");
@@ -480,8 +551,14 @@ fn the_force_hint_lists_versions_in_packument_order() {
     let output = run_unpublish(&workspace, &auth_file, Some(&registry), &["test-pkg"]);
 
     get_mock.assert();
-    assert!(!output.status.success(), "a full unpublish without --force must fail");
+    assert!(
+        !output.status.success(),
+        "a full unpublish without --force must fail",
+    );
     let stderr = stderr_of(&output);
-    assert!(stderr.contains("1.9.0, 1.10.0, 1.2.0"), "packument order survives: {stderr}");
+    assert!(
+        stderr.contains("1.9.0, 1.10.0, 1.2.0"),
+        "packument order survives: {stderr}",
+    );
     drop((root, server));
 }

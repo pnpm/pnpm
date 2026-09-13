@@ -8,8 +8,12 @@ use pnpm_resolving_resolver_base::Resolver;
 #[tokio::test]
 async fn surfaces_min_release_age_violation_inline() {
     let mut server = mockito::Server::new_async().await;
-    let _mock =
-        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
@@ -30,7 +34,11 @@ async fn surfaces_min_release_age_violation_inline() {
         bare_specifier: Some("^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
     let violation = result.policy_violation.expect("violation surfaced");
     assert_eq!(violation.code, MINIMUM_RELEASE_AGE_VIOLATION_CODE);
 }
@@ -38,8 +46,12 @@ async fn surfaces_min_release_age_violation_inline() {
 #[tokio::test]
 async fn latest_is_suppressed_when_published_by_holds_back_raw_latest() {
     let mut server = mockito::Server::new_async().await;
-    let _mock =
-        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
@@ -59,17 +71,38 @@ async fn latest_is_suppressed_when_published_by_holds_back_raw_latest() {
         bare_specifier: Some("^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
-    assert_eq!(result.package.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.0.0");
-    assert!(result.package.latest.is_none(), "immature dist-tags.latest suppresses the hint");
-    assert!(result.policy_violation.is_none(), "1.0.0 is mature, no violation");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        result.package.name_ver
+            .as_ref()
+            .expect("name_ver")
+            .suffix
+            .to_string(),
+        "1.0.0",
+    );
+    assert!(
+        result.package.latest.is_none(),
+        "immature dist-tags.latest suppresses the hint",
+    );
+    assert!(
+        result.policy_violation.is_none(),
+        "1.0.0 is mature, no violation",
+    );
 }
 
 #[tokio::test]
 async fn latest_is_raw_registry_tag_when_it_satisfies_published_by() {
     let mut server = mockito::Server::new_async().await;
-    let _mock =
-        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
@@ -88,16 +121,31 @@ async fn latest_is_raw_registry_tag_when_it_satisfies_published_by() {
         bare_specifier: Some("1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
-    assert_eq!(result.package.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.0.0");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        result.package.name_ver
+            .as_ref()
+            .expect("name_ver")
+            .suffix
+            .to_string(),
+        "1.0.0",
+    );
     assert_eq!(result.package.latest.as_deref(), Some("1.1.0"));
 }
 
 #[tokio::test]
 async fn latest_is_raw_registry_tag_when_published_by_is_none() {
     let mut server = mockito::Server::new_async().await;
-    let _mock =
-        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
@@ -106,16 +154,31 @@ async fn latest_is_raw_registry_tag_when_published_by_is_none() {
         bare_specifier: Some("^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
-    assert_eq!(result.package.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.1.0");
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        result.package.name_ver
+            .as_ref()
+            .expect("name_ver")
+            .suffix
+            .to_string(),
+        "1.1.0",
+    );
     assert_eq!(result.package.latest.as_deref(), Some("1.1.0"));
 }
 
 #[tokio::test]
 async fn latest_is_raw_registry_tag_when_published_by_exclude_matches_package() {
     let mut server = mockito::Server::new_async().await;
-    let _mock =
-        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
@@ -136,17 +199,35 @@ async fn latest_is_raw_registry_tag_when_published_by_exclude_matches_package() 
         bare_specifier: Some("^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
-    assert_eq!(result.package.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.1.0");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        result.package.name_ver
+            .as_ref()
+            .expect("name_ver")
+            .suffix
+            .to_string(),
+        "1.1.0",
+    );
     assert_eq!(result.package.latest.as_deref(), Some("1.1.0"));
-    assert!(result.policy_violation.is_none(), "excluded package has no violation");
+    assert!(
+        result.policy_violation.is_none(),
+        "excluded package has no violation",
+    );
 }
 
 #[tokio::test]
 async fn latest_is_raw_registry_tag_when_published_by_exclude_trusts_that_version() {
     let mut server = mockito::Server::new_async().await;
-    let _mock =
-        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
@@ -165,7 +246,18 @@ async fn latest_is_raw_registry_tag_when_published_by_exclude_trusts_that_versio
         bare_specifier: Some("^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
-    assert_eq!(result.package.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.1.0");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        result.package.name_ver
+            .as_ref()
+            .expect("name_ver")
+            .suffix
+            .to_string(),
+        "1.1.0",
+    );
     assert_eq!(result.package.latest.as_deref(), Some("1.1.0"));
 }

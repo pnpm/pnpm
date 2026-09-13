@@ -23,7 +23,12 @@ impl TarballRouter {
         public_url: String,
         registries: HashMap<String, String>,
     ) -> Self {
-        Self { context, identity, public_url, registries }
+        Self {
+            context,
+            identity,
+            public_url,
+            registries,
+        }
     }
 
     /// Route a registry-resolved package's tarball by the **registry** it came
@@ -163,15 +168,17 @@ impl TarballRouter {
 }
 
 pub(super) fn tarball_filename(package: &str, version: &str, tarball_url: &str) -> String {
-    tarball_basename(tarball_url).map_or_else(
-        || {
-            CanonicalPackageName::parse(package, pnpr_package_name::Ecosystem::Npm).map_or_else(
-                |_| format!("{package}-{version}.tgz"),
-                |name| name.tarball_name_for_version(version),
-            )
-        },
-        str::to_string,
-    )
+    tarball_basename(tarball_url)
+        .map_or_else(
+            || {
+                CanonicalPackageName::parse(package, pnpr_package_name::Ecosystem::Npm)
+                    .map_or_else(
+                        |_| format!("{package}-{version}.tgz"),
+                        |name| name.tarball_name_for_version(version),
+                    )
+            },
+            str::to_string,
+        )
 }
 
 pub(super) fn pnpr_tarball_url(
@@ -180,7 +187,10 @@ pub(super) fn pnpr_tarball_url(
     package: &str,
     filename: &str,
 ) -> String {
-    format!("{}{base_path}/{package}/-/{filename}", public_url.trim_end_matches('/'))
+    format!(
+        "{}{base_path}/{package}/-/{filename}",
+        public_url.trim_end_matches('/'),
+    )
 }
 
 /// The registry-endpoint URL a proxied route's tarball is served through.
@@ -191,5 +201,8 @@ pub(super) fn upstream_endpoint_tarball_url(
     package: &str,
     filename: &str,
 ) -> String {
-    format!("{}{base_path}/~{upstream}/{package}/-/{filename}", public_url.trim_end_matches('/'))
+    format!(
+        "{}{base_path}/~{upstream}/{package}/-/{filename}",
+        public_url.trim_end_matches('/'),
+    )
 }

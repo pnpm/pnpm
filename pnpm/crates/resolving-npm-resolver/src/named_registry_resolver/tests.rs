@@ -68,7 +68,10 @@ fn build_resolver(
     user_registries_by_prefix: HashMap<String, String>,
 ) -> (NamedRegistryResolver<InMemoryPackageMetaCache>, TempDir) {
     let merged = merge_named_registries(&user_registries_by_prefix).expect("URLs are valid");
-    let registry_names: HashSet<String> = merged.keys().cloned().collect();
+    let registry_names: HashSet<String> = merged
+        .keys()
+        .cloned()
+        .collect();
     let cache_dir = TempDir::new().expect("tempdir");
     let resolver = NamedRegistryResolver {
         registries_by_prefix: merged,
@@ -117,7 +120,11 @@ async fn resolves_via_builtin_gh_alias() {
         bare_specifier: Some("gh:^2.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(result.resolved_via, "named-registry");
     assert_eq!(result.id.as_str(), "@acme/private@gh:2.1.0");
     assert_eq!(result.package.latest.as_deref(), Some("2.1.0"));
@@ -146,7 +153,11 @@ async fn preserves_scoped_pkg_name_when_alias_differs() {
         bare_specifier: Some("gh:@acme/private@^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(result.resolved_via, "named-registry");
     assert_eq!(result.id.as_str(), "@acme/private@gh:1.0.0");
     assert_eq!(
@@ -179,7 +190,11 @@ async fn user_config_overrides_builtin_gh_alias() {
         bare_specifier: Some("gh:^2.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(result.resolved_via, "named-registry");
     assert_eq!(result.id.as_str(), "@acme/private@gh:2.1.0");
 }
@@ -204,7 +219,11 @@ async fn resolves_user_defined_named_registry() {
         bare_specifier: Some("work:^2.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(result.resolved_via, "named-registry");
     assert_eq!(result.id.as_str(), "@acme/private@work:2.1.0");
     assert_eq!(result.alias.as_deref(), Some("@acme/private"));
@@ -223,7 +242,10 @@ async fn declines_non_named_specifiers() {
             bare_specifier: Some(bare.to_string()),
             ..WantedDependency::default()
         };
-        let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap();
+        let result = resolver
+            .resolve(&wanted, &ResolveOptions::default())
+            .await
+            .unwrap();
         assert!(result.is_none(), "expected None for {bare:?}");
     }
 }
@@ -235,13 +257,20 @@ async fn declines_github_git_shortcut() {
     // `github:` always falls through here.
     let (resolver, _tempdir) = build_resolver(HashMap::new());
 
-    for bare in ["github:owner/repo", "github:owner/repo#main", "github:@acme/foo"] {
+    for bare in [
+        "github:owner/repo",
+        "github:owner/repo#main",
+        "github:@acme/foo",
+    ] {
         let wanted = WantedDependency {
             alias: None,
             bare_specifier: Some(bare.to_string()),
             ..WantedDependency::default()
         };
-        let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap();
+        let result = resolver
+            .resolve(&wanted, &ResolveOptions::default())
+            .await
+            .unwrap();
         assert!(result.is_none(), "expected None for {bare:?}");
     }
 }
@@ -257,7 +286,10 @@ async fn declines_named_alias_for_bare_version_without_package_alias() {
         bare_specifier: Some("gh:2.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap();
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap();
     assert!(result.is_none());
 }
 
@@ -439,8 +471,15 @@ async fn calculates_prefixed_specifier_for_named_registry_update_latest() {
         ..ResolveOptions::default()
     };
 
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
-    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("gh:^2.1.0"));
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        result.normalized_bare_specifier.as_deref(),
+        Some("gh:^2.1.0"),
+    );
 }
 
 #[tokio::test]
@@ -473,8 +512,15 @@ async fn calculated_specifier_keeps_the_operator_the_previous_specifier_declared
         ..ResolveOptions::default()
     };
 
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
-    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("gh:~2.1.0"));
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        result.normalized_bare_specifier.as_deref(),
+        Some("gh:~2.1.0"),
+    );
 }
 
 #[tokio::test]
@@ -506,8 +552,15 @@ async fn calculates_prefixed_specifier_for_aliased_named_registry() {
         ..ResolveOptions::default()
     };
 
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
-    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("gh:@acme/private@^1.0.0"));
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        result.normalized_bare_specifier.as_deref(),
+        Some("gh:@acme/private@^1.0.0"),
+    );
 }
 
 #[tokio::test]
@@ -540,9 +593,16 @@ async fn latest_is_suppressed_when_published_by_holds_back_raw_latest() {
         },
         ..ResolveOptions::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(result.id.as_str(), "@acme/private@gh:2.0.0");
-    assert!(result.package.latest.is_none(), "immature dist-tags.latest suppresses the hint");
+    assert!(
+        result.package.latest.is_none(),
+        "immature dist-tags.latest suppresses the hint",
+    );
 }
 
 /// The resolution id is registry-qualified so the same name@version
@@ -568,13 +628,20 @@ async fn resolves_registry_qualified_id() {
         ..WantedDependency::default()
     };
     let opts = ResolveOptions::default();
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(result.resolved_via, "named-registry");
     assert_eq!(result.id.as_str(), "@acme/private@work:2.1.0");
     // `name_ver` keeps the bare `name@version` shape for display / peer
     // resolution.
     assert_eq!(
-        result.package.name_ver.as_ref().map(ToString::to_string).as_deref(),
+        result.package.name_ver
+            .as_ref()
+            .map(ToString::to_string)
+            .as_deref(),
         Some("@acme/private@2.1.0"),
     );
 }

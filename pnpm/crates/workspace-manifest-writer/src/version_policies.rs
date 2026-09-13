@@ -1,6 +1,7 @@
 use super::{
     IndexMap, Manifest, Path, UpdateWorkspaceManifestError, WORKSPACE_MANIFEST_FILENAME, edit, fs,
-    has_control_char, io, unsupported_inline_key, write_or_remove_manifest,
+    has_control_char, io, read_manifest, read_manifest_text, unsupported_inline_key,
+    write_or_remove_manifest,
 };
 
 /// Write `name → specifier` entries into `dir`'s `pnpm-workspace.yaml`
@@ -15,27 +16,26 @@ pub fn set_config_dependencies<'a>(
 ) -> Result<(), UpdateWorkspaceManifestError> {
     let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
 
-    let original = match fs::read_to_string(&path) {
-        Ok(text) => Some(text),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
-        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
-    };
-
-    let mut manifest = Manifest::parse(original.as_deref())
-        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+    let mut manifest = read_manifest(&path)?;
 
     let entries: Vec<(&str, &str)> = entries.into_iter().collect();
     if !entries.is_empty()
         && let Some(key) =
             unsupported_inline_key(manifest.document.text(), &[&["configDependencies"]])
     {
-        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
+            path,
+            key,
+        });
     }
 
     let mut changed = false;
     for (name, specifier) in entries {
         changed |= edit::add_config_dependency(&mut manifest, name, specifier)
-            .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
+            .map_err(|source| UpdateWorkspaceManifestError::Edit {
+                path: path.clone(),
+                source,
+            })?;
     }
     if !changed {
         return Ok(());
@@ -53,24 +53,23 @@ pub fn set_patched_dependencies(
 ) -> Result<(), UpdateWorkspaceManifestError> {
     let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
 
-    let original = match fs::read_to_string(&path) {
-        Ok(text) => Some(text),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
-        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
-    };
-
-    let mut manifest = Manifest::parse(original.as_deref())
-        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+    let mut manifest = read_manifest(&path)?;
 
     if !patched_dependencies.is_empty()
         && let Some(key) =
             unsupported_inline_key(manifest.document.text(), &[&["patchedDependencies"]])
     {
-        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
+            path,
+            key,
+        });
     }
 
     let changed = edit::add_patched_dependencies(&mut manifest, patched_dependencies)
-        .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
+        .map_err(|source| UpdateWorkspaceManifestError::Edit {
+            path: path.clone(),
+            source,
+        })?;
     if !changed {
         return Ok(());
     }
@@ -97,20 +96,16 @@ where
 {
     let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
 
-    let original = match fs::read_to_string(&path) {
-        Ok(text) => Some(text),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
-        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
-    };
-
-    let mut manifest = Manifest::parse(original.as_deref())
-        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+    let mut manifest = read_manifest(&path)?;
 
     let entries: Vec<(&str, &str)> = entries.into_iter().collect();
     if !entries.is_empty()
         && let Some(key) = unsupported_inline_key(manifest.document.text(), &[&["overrides"]])
     {
-        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
+            path,
+            key,
+        });
     }
 
     if let Some(value) = first_control_char_override(&entries) {
@@ -121,8 +116,9 @@ where
     }
     // Refuse to overwrite a hand-written non-string (parent-scoped object)
     // override value with a scalar — that would corrupt config.
-    if let Some((selector, _)) =
-        entries.iter().find(|(selector, _)| manifest.non_scalar_overrides.contains(*selector))
+    if let Some((selector, _)) = entries
+        .iter()
+        .find(|(selector, _)| manifest.non_scalar_overrides.contains(*selector))
     {
         return Err(UpdateWorkspaceManifestError::OverrideConflict {
             key: (*selector).to_string(),
@@ -133,7 +129,10 @@ where
     let mut changed = false;
     for (selector, specifier) in entries {
         changed |= edit::add_overrides(&mut manifest, selector, specifier)
-            .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
+            .map_err(|source| UpdateWorkspaceManifestError::Edit {
+                path: path.clone(),
+                source,
+            })?;
     }
     if !changed {
         return Ok(());
@@ -166,16 +165,12 @@ pub fn set_audit_ignore_ghsas(
 ) -> Result<(), UpdateWorkspaceManifestError> {
     let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
 
-    let original = match fs::read_to_string(&path) {
-        Ok(text) => Some(text),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
-        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
-    };
+    let mut manifest = read_manifest(&path)?;
 
-    let mut manifest = Manifest::parse(original.as_deref())
-        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
-
-    if let Some(bad) = ghsas.iter().find(|ghsa| has_control_char(ghsa)) {
+    if let Some(bad) = ghsas
+        .iter()
+        .find(|ghsa| has_control_char(ghsa))
+    {
         return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
             path,
             value: bad.clone(),
@@ -184,13 +179,24 @@ pub fn set_audit_ignore_ghsas(
 
     if let Some(key) = unsupported_inline_key(
         manifest.document.text(),
-        &[&["auditConfig"], &["auditConfig", "ignoreGhsas"], &["audit"], &["audit", "ignore"]],
+        &[
+            &["auditConfig"],
+            &["auditConfig", "ignoreGhsas"],
+            &["audit"],
+            &["audit", "ignore"],
+        ],
     ) {
-        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
+            path,
+            key,
+        });
     }
 
     let changed = edit::set_audit_ignore_ghsas(&mut manifest, ghsas)
-        .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
+        .map_err(|source| UpdateWorkspaceManifestError::Edit {
+            path: path.clone(),
+            source,
+        })?;
     if !changed {
         return Ok(());
     }
@@ -210,13 +216,12 @@ pub fn set_minimum_release_age_excludes(
 ) -> Result<(), UpdateWorkspaceManifestError> {
     let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
 
-    let original = match fs::read_to_string(&path) {
-        Ok(text) => Some(text),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
-        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
-    };
+    let original = read_manifest_text(&path)?;
 
-    if let Some(bad) = excludes.iter().find(|exclude| has_control_char(exclude)) {
+    if let Some(bad) = excludes
+        .iter()
+        .find(|exclude| has_control_char(exclude))
+    {
         return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
             path,
             value: bad.clone(),
@@ -224,12 +229,18 @@ pub fn set_minimum_release_age_excludes(
     }
 
     let mut manifest = Manifest::parse(original.as_deref())
-        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+        .map_err(|source| UpdateWorkspaceManifestError::Parse {
+            path: path.clone(),
+            source,
+        })?;
 
     if let Some(key) =
         unsupported_inline_key(manifest.document.text(), &[&["minimumReleaseAgeExclude"]])
     {
-        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
+            path,
+            key,
+        });
     }
 
     if !edit::set_minimum_release_age_excludes(&mut manifest, excludes) {
@@ -253,11 +264,19 @@ pub fn remove_overrides(
     let original = match fs::read_to_string(&path) {
         Ok(text) => text,
         Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(()),
-        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
+        Err(source) => {
+            return Err(UpdateWorkspaceManifestError::Read {
+                path,
+                source,
+            });
+        }
     };
 
     let mut manifest = Manifest::parse(Some(&original))
-        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+        .map_err(|source| UpdateWorkspaceManifestError::Parse {
+            path: path.clone(),
+            source,
+        })?;
 
     if !edit::remove_overrides(&mut manifest, selectors) {
         return Ok(());

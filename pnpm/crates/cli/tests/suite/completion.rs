@@ -12,7 +12,10 @@ fn stdout(output: std::process::Output) -> String {
 }
 
 fn stderr(output: std::process::Output) -> String {
-    assert!(!output.status.success(), "command succeeded unexpectedly: {output:?}");
+    assert!(
+        !output.status.success(),
+        "command succeeded unexpectedly: {output:?}",
+    );
     String::from_utf8(output.stderr).expect("stderr is utf8")
 }
 
@@ -21,20 +24,31 @@ fn completion_scripts_are_lightweight_shims_for_pnpm_supported_shells() {
     let cases = [
         ("bash", "_pnpm_completion"),
         ("fish", "complete -c pnpm"),
-        ("pwsh", "Register-ArgumentCompleter -Native -CommandName pnpm"),
+        (
+            "pwsh",
+            "Register-ArgumentCompleter -Native -CommandName pnpm",
+        ),
         ("zsh", "#compdef pnpm"),
     ];
 
     for (shell, marker) in cases {
-        let output =
-            pacquet().args(["completion", shell]).output().expect("run pacquet completion");
+        let output = pacquet()
+            .args(["completion", shell])
+            .output()
+            .expect("run pacquet completion");
         let script = stdout(output);
-        assert!(script.contains(marker), "{shell} script should contain {marker:?}: {script}");
+        assert!(
+            script.contains(marker),
+            "{shell} script should contain {marker:?}: {script}",
+        );
         assert!(
             script.contains("pnpm completion-server"),
             "{shell} script should call completion-server: {script}",
         );
-        assert!(script.lines().count() < 80, "{shell} script should be lightweight: {script}");
+        assert!(
+            script.lines().count() < 80,
+            "{shell} script should be lightweight: {script}",
+        );
         assert!(
             !script.contains("Install packages"),
             "{shell} script should not inline command help: {script}",
@@ -47,8 +61,10 @@ fn completion_scripts_do_not_expose_redundant_parameter_plumbing() {
     let cases = [("bash", "EXTRA"), ("zsh", "*::extra:_default")];
 
     for (shell, leaked_marker) in cases {
-        let output =
-            pacquet().args(["completion", shell]).output().expect("run pacquet completion");
+        let output = pacquet()
+            .args(["completion", shell])
+            .output()
+            .expect("run pacquet completion");
         let script = stdout(output);
         assert!(
             !script.contains(leaked_marker),
@@ -59,12 +75,20 @@ fn completion_scripts_do_not_expose_redundant_parameter_plumbing() {
 
 #[test]
 fn completion_scripts_preserve_current_token_for_fish_and_pwsh() {
-    let fish =
-        stdout(pacquet().args(["completion", "fish"]).output().expect("run pacquet completion"));
+    let fish = stdout(
+        pacquet()
+            .args(["completion", "fish"])
+            .output()
+            .expect("run pacquet completion"),
+    );
     assert!(fish.contains("commandline -ct"), "{fish}");
 
-    let pwsh =
-        stdout(pacquet().args(["completion", "pwsh"]).output().expect("run pacquet completion"));
+    let pwsh = stdout(
+        pacquet()
+            .args(["completion", "pwsh"])
+            .output()
+            .expect("run pacquet completion"),
+    );
     assert!(pwsh.contains("$wordToComplete"), "{pwsh}");
 }
 
@@ -76,9 +100,24 @@ fn completion_server_lists_top_level_commands() {
         .expect("run pnpm completion-server");
     let reply = stdout(output);
 
-    assert!(reply.lines().any(|line| line == "install"), "{reply}");
-    assert!(reply.lines().any(|line| line == "completion"), "{reply}");
-    assert!(reply.lines().any(|line| line == "add"), "{reply}");
+    assert!(
+        reply
+            .lines()
+            .any(|line| line == "install"),
+        "{reply}",
+    );
+    assert!(
+        reply
+            .lines()
+            .any(|line| line == "completion"),
+        "{reply}",
+    );
+    assert!(
+        reply
+            .lines()
+            .any(|line| line == "add"),
+        "{reply}",
+    );
 }
 
 #[test]
@@ -93,7 +132,12 @@ fn completion_server_answers_the_pn_alias_like_pnpm() {
 
     let pn = reply("pn");
     assert_eq!(pn, reply("pnpm"));
-    assert!(pn.lines().any(|line| line == "install"), "{pn}");
+    assert!(
+        pn
+            .lines()
+            .any(|line| line == "install"),
+        "{pn}",
+    );
 }
 
 #[test]
@@ -104,9 +148,24 @@ fn completion_server_lists_options_for_current_command() {
         .expect("run pnpm completion-server");
     let reply = stdout(output);
 
-    assert!(reply.lines().any(|line| line == "--filter"), "{reply}");
-    assert!(reply.lines().any(|line| line == "--reporter"), "{reply}");
-    assert!(reply.lines().any(|line| line == "--frozen-lockfile"), "{reply}");
+    assert!(
+        reply
+            .lines()
+            .any(|line| line == "--filter"),
+        "{reply}",
+    );
+    assert!(
+        reply
+            .lines()
+            .any(|line| line == "--reporter"),
+        "{reply}",
+    );
+    assert!(
+        reply
+            .lines()
+            .any(|line| line == "--frozen-lockfile"),
+        "{reply}",
+    );
 }
 
 #[test]
@@ -117,22 +176,59 @@ fn completion_server_lists_option_values() {
         .expect("run pnpm completion-server");
     let reply = stdout(output);
 
-    assert!(reply.lines().any(|line| line == "default"), "{reply}");
-    assert!(reply.lines().any(|line| line == "append-only"), "{reply}");
-    assert!(reply.lines().any(|line| line == "ndjson"), "{reply}");
-    assert!(reply.lines().any(|line| line == "silent"), "{reply}");
+    assert!(
+        reply
+            .lines()
+            .any(|line| line == "default"),
+        "{reply}",
+    );
+    assert!(
+        reply
+            .lines()
+            .any(|line| line == "append-only"),
+        "{reply}",
+    );
+    assert!(
+        reply
+            .lines()
+            .any(|line| line == "ndjson"),
+        "{reply}",
+    );
+    assert!(
+        reply
+            .lines()
+            .any(|line| line == "silent"),
+        "{reply}",
+    );
 }
 
 #[test]
 fn completion_server_lists_option_values_only_after_option_name() {
     let output = pacquet()
-        .args(["completion-server", "--", "pnpm", "--reporter", "default", ""])
+        .args([
+            "completion-server",
+            "--",
+            "pnpm",
+            "--reporter",
+            "default",
+            "",
+        ])
         .output()
         .expect("run pnpm completion-server");
     let reply = stdout(output);
 
-    assert!(reply.lines().any(|line| line == "install"), "{reply}");
-    assert!(!reply.lines().any(|line| line == "append-only"), "{reply}");
+    assert!(
+        reply
+            .lines()
+            .any(|line| line == "install"),
+        "{reply}",
+    );
+    assert!(
+        !reply
+            .lines()
+            .any(|line| line == "append-only"),
+        "{reply}",
+    );
 }
 
 #[test]
@@ -143,8 +239,18 @@ fn completion_server_does_not_treat_option_values_as_commands() {
         .expect("run pnpm completion-server");
     let reply = stdout(output);
 
-    assert!(reply.lines().any(|line| line == "add"), "{reply}");
-    assert!(!reply.lines().any(|line| line == "--frozen-lockfile"), "{reply}");
+    assert!(
+        reply
+            .lines()
+            .any(|line| line == "add"),
+        "{reply}",
+    );
+    assert!(
+        !reply
+            .lines()
+            .any(|line| line == "--frozen-lockfile"),
+        "{reply}",
+    );
 }
 
 #[test]
@@ -166,8 +272,18 @@ fn completion_server_lists_nested_subcommands() {
         .expect("run pnpm completion-server");
     let reply = stdout(output);
 
-    assert!(reply.lines().any(|line| line == "prune"), "{reply}");
-    assert!(reply.lines().any(|line| line == "path"), "{reply}");
+    assert!(
+        reply
+            .lines()
+            .any(|line| line == "prune"),
+        "{reply}",
+    );
+    assert!(
+        reply
+            .lines()
+            .any(|line| line == "path"),
+        "{reply}",
+    );
 }
 
 #[test]
@@ -178,9 +294,24 @@ fn completion_server_lists_ci_command() {
         .expect("run pnpm completion-server");
     let reply = stdout(output);
 
-    assert!(reply.lines().any(|line| line == "--frozen-lockfile"), "{reply}");
-    assert!(reply.lines().any(|line| line == "--dry-run"), "{reply}");
-    assert!(reply.lines().any(|line| line == "--lockfile"), "{reply}");
+    assert!(
+        reply
+            .lines()
+            .any(|line| line == "--frozen-lockfile"),
+        "{reply}",
+    );
+    assert!(
+        reply
+            .lines()
+            .any(|line| line == "--dry-run"),
+        "{reply}",
+    );
+    assert!(
+        reply
+            .lines()
+            .any(|line| line == "--lockfile"),
+        "{reply}",
+    );
 }
 
 #[test]
@@ -235,7 +366,10 @@ fn completion_server_filters_command_prefixes() {
         .expect("run pnpm completion-server");
     let reply = stdout(output);
 
-    assert_eq!(reply.lines().collect::<Vec<_>>(), ["install", "install-test", "install-clean"]);
+    assert_eq!(
+        reply.lines().collect::<Vec<_>>(),
+        ["install", "install-test", "install-clean"],
+    );
 }
 
 #[test]
@@ -279,7 +413,10 @@ fn completion_server_lists_completion_shells() {
         .expect("run pnpm completion-server");
     let reply = stdout(output);
 
-    assert_eq!(reply.lines().collect::<Vec<_>>(), ["bash", "fish", "pwsh", "zsh"]);
+    assert_eq!(
+        reply.lines().collect::<Vec<_>>(),
+        ["bash", "fish", "pwsh", "zsh"],
+    );
 }
 
 #[test]
@@ -294,22 +431,37 @@ fn completion_server_does_not_require_a_project_or_existing_dir_argument() {
         .expect("run pnpm completion-server");
     let reply = stdout(output);
 
-    assert_eq!(reply.lines().collect::<Vec<_>>(), ["bash", "fish", "pwsh", "zsh"]);
+    assert_eq!(
+        reply.lines().collect::<Vec<_>>(),
+        ["bash", "fish", "pwsh", "zsh"],
+    );
 }
 
 #[test]
 fn completion_missing_shell_errors_like_pnpm() {
-    let output = pacquet().arg("completion").output().expect("run pacquet completion");
+    let output = pacquet()
+        .arg("completion")
+        .output()
+        .expect("run pacquet completion");
     let err = stderr(output);
-    assert!(err.contains("`pnpm completion` requires a shell name"), "{err}");
+    assert!(
+        err.contains("`pnpm completion` requires a shell name"),
+        "{err}",
+    );
 }
 
 #[test]
 fn completion_unsupported_shell_errors_like_pnpm() {
-    let output = pacquet().args(["completion", "elvish"]).output().expect("run pacquet completion");
+    let output = pacquet()
+        .args(["completion", "elvish"])
+        .output()
+        .expect("run pacquet completion");
     let err = stderr(output);
     assert!(err.contains("'elvish' is not supported"), "{err}");
-    assert!(err.contains("Supported shells are: bash, fish, pwsh, zsh"), "{err}");
+    assert!(
+        err.contains("Supported shells are: bash, fish, pwsh, zsh"),
+        "{err}",
+    );
 }
 
 #[test]
@@ -319,7 +471,10 @@ fn completion_redundant_parameters_error_like_pnpm() {
         .output()
         .expect("run pacquet completion");
     let err = stderr(output);
-    assert!(err.contains("The 2 parameters after shell is not necessary"), "{err}");
+    assert!(
+        err.contains("The 2 parameters after shell is not necessary"),
+        "{err}",
+    );
 }
 
 #[test]

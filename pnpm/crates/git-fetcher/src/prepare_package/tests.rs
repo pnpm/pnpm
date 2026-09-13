@@ -23,7 +23,11 @@ fn empty_env() -> &'static HashMap<String, String> {
 }
 
 fn write_manifest(dir: &Path, manifest: &serde_json::Value) {
-    fs::write(dir.join("package.json"), serde_json::to_string(manifest).unwrap()).unwrap();
+    fs::write(
+        dir.join("package.json"),
+        serde_json::to_string(manifest).unwrap(),
+    )
+    .unwrap();
 }
 
 fn opts<'a>(allow: bool, ignore_scripts: bool) -> PreparePackageOptions<'a> {
@@ -166,7 +170,10 @@ fn prepare_ignore_scripts_short_circuits_without_spawn() {
 
     let PreparedPackage { should_be_built, .. } =
         prepare_package::<SilentReporter>(&opts(true, true), dir.path(), None).unwrap();
-    assert!(should_be_built, "ignore_scripts still reports should_be_built");
+    assert!(
+        should_be_built,
+        "ignore_scripts still reports should_be_built",
+    );
 }
 
 #[test]
@@ -207,12 +214,18 @@ fn prepare_rejection_suggests_the_allow_builds_key_the_gate_checked() {
     let recorder = Arc::clone(&checked);
     let mut opts = opts(false, false);
     opts.allow_build = Box::new(move |dep_path| {
-        recorder.lock().unwrap().push(dep_path.to_string());
+        recorder
+            .lock()
+            .unwrap()
+            .push(dep_path.to_string());
         false
     });
 
     let err = prepare_package::<SilentReporter>(&opts, dir.path(), None).unwrap_err();
-    let help = err.help().expect("NotAllowed carries a help message").to_string();
+    let help = err
+        .help()
+        .expect("NotAllowed carries a help message")
+        .to_string();
     let checked = checked.lock().unwrap();
     let [gated_key] = checked.as_slice() else {
         panic!("expected exactly one allowBuild check, got {checked:?}");
@@ -245,9 +258,15 @@ fn prepare_rejection_keeps_resolution_id_credentials_out_of_the_diagnostic() {
         "git+https://s3cr3t-token:hunter2@github.com/foo/bar.git#0123456789abcdef";
 
     let err = prepare_package::<SilentReporter>(&opts, dir.path(), None).unwrap_err();
-    let rendered = format!("{err}{}", err.help().expect("NotAllowed carries a help message"));
+    let rendered = format!(
+        "{err}{}",
+        err.help().expect("NotAllowed carries a help message"),
+    );
     for secret in ["s3cr3t-token", "hunter2"] {
-        assert!(!rendered.contains(secret), "{secret:?} leaked into the diagnostic: {rendered}");
+        assert!(
+            !rendered.contains(secret),
+            "{secret:?} leaked into the diagnostic: {rendered}",
+        );
     }
     assert!(
         rendered.contains("github.com/foo/bar.git#0123456789abcdef"),
@@ -302,7 +321,12 @@ fn prepare_allows_untrusted_manifest_identity_by_dep_path() {
     .expect("depPath-specific allow should permit prepare");
 
     assert!(result.should_be_built);
-    assert!(dir.path().join("built.txt").exists());
+    assert!(
+        dir
+            .path()
+            .join("built.txt")
+            .exists(),
+    );
 }
 
 #[test]
@@ -345,7 +369,10 @@ fn safe_join_path_rejects_an_escape_behind_a_leading_slash() {
 fn safe_join_path_accepts_empty_sub_dir() {
     let dir = tempdir().unwrap();
     let received = safe_join_path(dir.path(), None).unwrap();
-    let canonical_root = dir.path().canonicalize().unwrap();
+    let canonical_root = dir
+        .path()
+        .canonicalize()
+        .unwrap();
     let canonical_received = received.canonicalize().unwrap();
     assert_eq!(canonical_received, canonical_root);
 }

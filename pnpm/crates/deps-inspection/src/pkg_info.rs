@@ -92,12 +92,7 @@ pub fn get_pkg_info(
         Some(dep_path) => locked_pkg(env, edge, dep_path),
         None => LockedPkg::unlocked(edge),
     };
-    let full_package_path = if let Some(dep_path) = &edge.dep_path {
-        resolve_package_path(&env.layout, dep_path, &locked.name, &edge.alias, ctx)
-    } else {
-        let link_target = edge.link_target.as_deref().unwrap_or("");
-        lexical_normalize(&ctx.linked_path_base_dir.join(link_target))
-    };
+    let full_package_path = locked.package_path(env, edge, ctx);
 
     locked.rewrite_link_version(edge, ctx, &full_package_path);
 
@@ -154,6 +149,20 @@ impl LockedPkg {
             dev: None,
         }
     }
+    fn package_path(
+        &self,
+        env: &PkgInfoEnv<'_>,
+        edge: &GraphEdge,
+        ctx: &EdgeContext<'_>,
+    ) -> PathBuf {
+        if let Some(dep_path) = &edge.dep_path {
+            resolve_package_path(&env.layout, dep_path, &self.name, &edge.alias, ctx)
+        } else {
+            let link_target = edge.link_target.as_deref().unwrap_or("");
+            lexical_normalize(&ctx.linked_path_base_dir.join(link_target))
+        }
+    }
+
     fn rewrite_link_version(
         &mut self,
         edge: &GraphEdge,
@@ -204,14 +213,14 @@ fn locked_pkg(env: &PkgInfoEnv<'_>, edge: &GraphEdge, dep_path: &PkgNameVerPeer)
     }
 
     let name = dep_path.name.to_string();
-    let version = metadata
-        .and_then(|metadata| metadata.version.clone())
-        .unwrap_or_else(|| dep_path.suffix.version().to_string());
+    let version = locked_package_version(metadata, dep_path);
     LockedPkg {
-        resolved: metadata
-            .and_then(|metadata| resolved_tarball_url(env, &metadata.resolution, &name, &version)),
-        integrity: metadata
-            .and_then(|metadata| metadata.resolution.integrity().map(ToString::to_string)),
+        resolved: metadata.and_then(|metadata| {
+            resolved_tarball_url(env, &metadata.resolution, &name, &version)
+        }),
+        integrity: metadata.and_then(|metadata| {
+            metadata.resolution.integrity().map(ToString::to_string)
+        }),
         optional: snapshot.is_some_and(|snapshot| snapshot.optional),
         name,
         version,
@@ -232,9 +241,17 @@ fn lookup_dep<'l>(
     lockfile: &'l Lockfile,
     dep_path: &PkgNameVerPeer,
     metadata_key: &PkgNameVerPeer,
-) -> (bool, Option<&'l pnpm_lockfile::SnapshotEntry>, Option<&'l pnpm_lockfile::PackageMetadata>) {
-    let snapshot = lockfile.snapshots.as_ref().and_then(|snapshots| snapshots.get(dep_path));
-    let metadata = lockfile.packages.as_ref().and_then(|packages| packages.get(metadata_key));
+) -> (
+    bool,
+    Option<&'l pnpm_lockfile::SnapshotEntry>,
+    Option<&'l pnpm_lockfile::PackageMetadata>,
+) {
+    let snapshot = lockfile.snapshots
+        .as_ref()
+        .and_then(|snapshots| snapshots.get(dep_path));
+    let metadata = lockfile.packages
+        .as_ref()
+        .and_then(|packages| packages.get(metadata_key));
     (snapshot.is_some() || metadata.is_some(), snapshot, metadata)
 }
 
@@ -273,14 +290,16 @@ fn resolved_tarball_url(
 /// `C:evil`) is not "absolute" yet still replaces the join base.
 #[must_use]
 pub fn is_unsafe_path_component(component: &str) -> bool {
-    Path::new(component).components().any(|part| {
-        matches!(
-            part,
-            std::path::Component::ParentDir
-                | std::path::Component::RootDir
-                | std::path::Component::Prefix(_),
-        )
-    })
+    Path::new(component)
+        .components()
+        .any(|part| {
+            matches!(
+                part,
+                std::path::Component::ParentDir
+                    | std::path::Component::RootDir
+                    | std::path::Component::Prefix(_),
+            )
+        })
 }
 
 /// Filesystem path of a package addressed by `dep_path`. For a local
@@ -299,7 +318,10 @@ pub fn resolve_package_path(
     if is_unsafe_path_component(&store_name) || is_unsafe_path_component(name) {
         return layout.virtual_store_dir.clone();
     }
-    let constructed = layout.virtual_store_dir.join(store_name).join("node_modules").join(name);
+    let constructed = layout.virtual_store_dir
+        .join(store_name)
+        .join("node_modules")
+        .join(name);
 
     if !layout.is_global_virtual_store() || is_unsafe_path_component(alias) {
         return constructed;
@@ -307,9 +329,14 @@ pub fn resolve_package_path(
 
     let node_modules_dir = match &ctx.parent_dir {
         Some(parent_dir) => {
-            let mut dir = parent_dir.parent().map(Path::to_path_buf).unwrap_or_default();
+            let mut dir = parent_dir
+                .parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_default();
             // Scoped parents live one level deeper (`node_modules/@scope/pkg`).
-            if dir.file_name().is_some_and(|component| component.to_string_lossy().starts_with('@'))
+            if dir
+                .file_name()
+                .is_some_and(|component| component.to_string_lossy().starts_with('@'))
                 && let Some(grandparent) = dir.parent()
             {
                 dir = grandparent.to_path_buf();
@@ -323,3 +350,12 @@ pub fn resolve_package_path(
 
 #[cfg(test)]
 mod tests;
+
+fn locked_package_version(
+    metadata: Option<&pnpm_lockfile::PackageMetadata>,
+    dep_path: &PkgNameVerPeer,
+) -> String {
+    metadata
+        .and_then(|metadata| metadata.version.clone())
+        .unwrap_or_else(|| dep_path.suffix.version().to_string())
+}

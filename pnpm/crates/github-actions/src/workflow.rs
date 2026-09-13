@@ -5,16 +5,14 @@ use super::{
 
 pub(super) async fn discover(root: &Path) -> miette::Result<Vec<ActionReference>> {
     let root_display = root.display();
-    let canonical_root = fs::canonicalize(root)
-        .await
+    let canonical_root = fs::canonicalize(root).await
         .map_err(|error| miette::miette!("Failed to read {root_display}: {error}"))?;
     let mut queue = workflow_files(&root.join(".github/workflows")).await?;
     let mut visited = HashSet::new();
     let mut actions = Vec::new();
     while let Some(file) = queue.pop_front() {
         let file_display = file.display();
-        let real_file = fs::canonicalize(&file)
-            .await
+        let real_file = fs::canonicalize(&file).await
             .map_err(|error| miette::miette!("Failed to read {file_display}: {error}"))?;
         if !real_file.starts_with(&canonical_root) {
             return Err(miette::miette!(
@@ -40,7 +38,9 @@ async fn workflow_files(workflows: &Path) -> miette::Result<VecDeque<PathBuf>> {
         Ok(entries) => entries,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(VecDeque::new()),
         Err(error) => {
-            return Err(miette::miette!("Failed to read {workflows_display}: {error}"));
+            return Err(miette::miette!(
+                "Failed to read {workflows_display}: {error}"
+            ));
         }
     };
     let mut queue = VecDeque::new();
@@ -50,7 +50,12 @@ async fn workflow_files(workflows: &Path) -> miette::Result<VecDeque<PathBuf>> {
         .map_err(|error| miette::miette!("Failed to read {workflows_display}: {error}"))?
     {
         let path = entry.path();
-        if matches!(path.extension().and_then(|ext| ext.to_str()), Some("yml" | "yaml")) {
+        if matches!(
+            path
+                .extension()
+                .and_then(|ext| ext.to_str()),
+            Some("yml" | "yaml"),
+        ) {
             queue.push_back(path);
         }
     }
@@ -71,15 +76,20 @@ async fn scan_workflow_file(
     real_file: &Path,
 ) -> miette::Result<WorkflowScan> {
     let real_file_display = real_file.display();
-    let text = fs::read_to_string(real_file)
-        .await
+    let text = fs::read_to_string(real_file).await
         .map_err(|error| miette::miette!("Failed to read {real_file_display}: {error}"))?;
-    let mut scan = WorkflowScan { actions: Vec::new(), local_references: Vec::new() };
+    let mut scan = WorkflowScan {
+        actions: Vec::new(),
+        local_references: Vec::new(),
+    };
     for uses_value in uses_values(&text)
         .map_err(|error| miette::miette!("Failed to parse {real_file_display}: {error}"))?
     {
         let (value, comment) = split_uses_value(uses_value.value);
-        if let Some(local) = value.strip_prefix("./").or_else(|| value.strip_prefix("$/")) {
+        if let Some(local) = value
+            .strip_prefix("./")
+            .or_else(|| value.strip_prefix("$/"))
+        {
             if let Some(candidate) = resolve_local_reference(root, canonical_root, local).await? {
                 scan.local_references.push(candidate);
             }
@@ -134,7 +144,9 @@ async fn resolve_local_reference(
 ) -> miette::Result<Option<PathBuf>> {
     let target = root.join(reference);
     let candidate = if matches!(
-        target.extension().and_then(|extension| extension.to_str()),
+        target
+            .extension()
+            .and_then(|extension| extension.to_str()),
         Some("yml" | "yaml"),
     ) {
         existing_file(&target).await?.then_some(target)
@@ -147,10 +159,11 @@ async fn resolve_local_reference(
             existing_file(&action_yaml).await?.then_some(action_yaml)
         }
     };
-    let Some(candidate) = candidate else { return Ok(None) };
+    let Some(candidate) = candidate else {
+        return Ok(None);
+    };
     let candidate_display = candidate.display();
-    let candidate = fs::canonicalize(&candidate)
-        .await
+    let candidate = fs::canonicalize(&candidate).await
         .map_err(|error| miette::miette!("Failed to read {candidate_display}: {error}"))?;
     Ok(candidate.starts_with(canonical_root).then_some(candidate))
 }
@@ -168,14 +181,24 @@ async fn existing_file(path: &Path) -> miette::Result<bool> {
 
 pub(super) fn split_uses_value(value: &str) -> (&str, Option<&str>) {
     let value = value.trim();
-    if let Some(quote) = value.chars().next().filter(|quote| matches!(quote, '\'' | '"'))
+    if let Some(quote) = value
+        .chars()
+        .next()
+        .filter(|quote| matches!(quote, '\'' | '"'))
         && let Some(end) = value[1..].find(quote)
     {
         let end = end + 1;
-        let comment = value[end + quote.len_utf8()..].trim().strip_prefix('#').map(str::trim);
+        let comment = value[end + quote.len_utf8()..]
+            .trim()
+            .strip_prefix('#')
+            .map(str::trim);
         return (&value[1..end], comment);
     }
-    value.split_once(" #").map_or((value, None), |(value, comment)| (value, Some(comment.trim())))
+    value
+        .split_once(" #")
+        .map_or((value, None), |(value, comment)| {
+            (value, Some(comment.trim()))
+        })
 }
 
 struct UsesValue<'a> {
@@ -198,10 +221,13 @@ fn uses_values(text: &str) -> Result<Vec<UsesValue<'_>>, QueryError> {
 }
 
 fn parse_workflow(text: &str) -> Result<Value, QueryError> {
-    yaml_serde::from_str::<Value>(text).map_err(|err| {
-        let (line, column) = err.location().map_or((0, 0), |loc| (loc.line(), loc.column()));
-        QueryError::InvalidInput(line, column)
-    })
+    yaml_serde::from_str::<Value>(text)
+        .map_err(|err| {
+            let (line, column) = err
+                .location()
+                .map_or((0, 0), |loc| (loc.line(), loc.column()));
+            QueryError::InvalidInput(line, column)
+        })
 }
 
 /// The `uses:` scalar at `route` with its byte range in `text`, or `None`
@@ -216,25 +242,18 @@ fn uses_value_at<'text>(
     };
     let key = document.query_key_only(route)?;
     let (start, scalar_end) = feature.location.byte_span;
-    let separator =
-        start.checked_sub(key.location.byte_span.1).map(|_| &text[key.location.byte_span.1..start]);
+    let separator = start
+        .checked_sub(key.location.byte_span.1)
+        .map(|_| &text[key.location.byte_span.1..start]);
     if separator.is_none_or(|separator| {
         !separator.starts_with(':') || !separator[1..].chars().all(char::is_whitespace)
     }) {
         return Ok(None);
     }
-    let line_end = text[scalar_end..].find('\n').map_or(text.len(), |end| scalar_end + end);
-    let trailing = &text[scalar_end..line_end];
-    let following = trailing.trim_start();
-    let flow_style = matches!(following.chars().next(), Some('}' | ']' | ','));
-    let end = if following.starts_with('#') {
-        scalar_end + trailing.trim_end().len()
-    } else if flow_style {
-        scalar_end + trailing.len() - following.len()
-    } else {
-        scalar_end
-    };
-    let line_start = text[..start].rfind('\n').map_or(0, |line_break| line_break + 1);
+    let (end, flow_style) = uses_value_end(text, scalar_end);
+    let line_start = text[..start]
+        .rfind('\n')
+        .map_or(0, |line_break| line_break + 1);
     Ok(Some(UsesValue {
         flow_style,
         indentation: " ".repeat(start - line_start),
@@ -245,26 +264,12 @@ fn uses_value_at<'text>(
 
 fn uses_routes(value: &Value) -> Vec<Route<'static>> {
     let mut routes = Vec::new();
-    if let Some(jobs) = value.get("jobs").and_then(Value::as_mapping) {
-        for (name, job) in jobs {
-            let Some(name) = name.as_str() else { continue };
-            if job.get("uses").and_then(Value::as_str).is_some() {
-                routes.push(Route::from(vec![
-                    "jobs".into(),
-                    name.to_string().into(),
-                    "uses".into(),
-                ]));
-            }
-            add_step_routes(
-                &mut routes,
-                job.get("steps"),
-                &["jobs".into(), name.to_string().into(), "steps".into()],
-            );
-        }
-    }
+    add_job_routes(&mut routes, value);
     add_step_routes(
         &mut routes,
-        value.get("runs").and_then(|runs| runs.get("steps")),
+        value
+            .get("runs")
+            .and_then(|runs| runs.get("steps")),
         &["runs".into(), "steps".into()],
     );
     routes
@@ -275,13 +280,60 @@ fn add_step_routes(
     steps: Option<&Value>,
     prefix: &[Component<'static>],
 ) {
-    let Some(steps) = steps.and_then(Value::as_sequence) else { return };
+    let Some(steps) = steps.and_then(Value::as_sequence) else {
+        return;
+    };
     for (index, step) in steps.iter().enumerate() {
-        if step.get("uses").and_then(Value::as_str).is_none() {
+        if step
+            .get("uses")
+            .and_then(Value::as_str)
+            .is_none()
+        {
             continue;
         }
         let mut route = prefix.to_owned();
         route.extend([index.into(), "uses".into()]);
         routes.push(Route::from(route));
+    }
+}
+
+fn uses_value_end(text: &str, scalar_end: usize) -> (usize, bool) {
+    let line_end = text[scalar_end..]
+        .find('\n')
+        .map_or(text.len(), |end| scalar_end + end);
+    let trailing = &text[scalar_end..line_end];
+    let following = trailing.trim_start();
+    let flow_style = matches!(following.chars().next(), Some('}' | ']' | ','));
+    let end = if following.starts_with('#') {
+        scalar_end + trailing.trim_end().len()
+    } else if flow_style {
+        scalar_end + trailing.len() - following.len()
+    } else {
+        scalar_end
+    };
+    (end, flow_style)
+}
+
+fn add_job_routes(routes: &mut Vec<Route<'static>>, value: &Value) {
+    if let Some(jobs) = value.get("jobs").and_then(Value::as_mapping) {
+        for (name, job) in jobs {
+            let Some(name) = name.as_str() else { continue };
+            if job
+                .get("uses")
+                .and_then(Value::as_str)
+                .is_some()
+            {
+                routes.push(Route::from(vec![
+                    "jobs".into(),
+                    name.to_string().into(),
+                    "uses".into(),
+                ]));
+            }
+            add_step_routes(
+                routes,
+                job.get("steps"),
+                &["jobs".into(), name.to_string().into(), "steps".into()],
+            );
+        }
     }
 }

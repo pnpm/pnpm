@@ -34,21 +34,27 @@ impl GitSourceCache {
     pub(crate) fn get(&self, source: &GitSource<'_>) -> SourceResult {
         let cell = {
             let mut sources = self.sources.lock().expect("git source cache lock poisoned");
-            Arc::clone(sources.entry(SourceKey::new(source)).or_default())
+            Arc::clone(
+                sources
+                    .entry(SourceKey::new(source))
+                    .or_default(),
+            )
         };
-        cell.get_or_init(|| {
-            let checkout = tempfile::tempdir().map_err(GitFetcherError::Io).map_err(Arc::new)?;
-            checkout_commit(&CheckoutOptions {
-                repo: source.repo,
-                commit: source.commit,
-                git_shallow_hosts: source.shallow_hosts,
-                git_bin: source.git_bin,
-                dest: checkout.path(),
+        cell
+            .get_or_init(|| {
+                let checkout =
+                    tempfile::tempdir().map_err(GitFetcherError::Io).map_err(Arc::new)?;
+                checkout_commit(&CheckoutOptions {
+                    repo: source.repo,
+                    commit: source.commit,
+                    git_shallow_hosts: source.shallow_hosts,
+                    git_bin: source.git_bin,
+                    dest: checkout.path(),
+                })
+                .map_err(Arc::new)?;
+                Ok(Arc::new(checkout))
             })
-            .map_err(Arc::new)?;
-            Ok(Arc::new(checkout))
-        })
-        .clone()
+            .clone()
     }
 }
 
